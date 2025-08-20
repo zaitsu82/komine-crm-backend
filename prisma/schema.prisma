@@ -1,0 +1,156 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id        Int            @id @default(autoincrement())
+  name      String         @db.VarChar(100)
+  kana      String?        @db.VarChar(100)
+  phone     String?        @db.VarChar(20)
+  email     String?        @db.VarChar(100)
+  address   String?        @db.Text
+  type      CustomerType
+  status    CustomerStatus
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @default(now()) @updatedAt @map("updated_at")
+  deleteFlg String         @default("0")
+
+  contracts    Contract[]
+  inquiries    Inquiry[]
+  reservations Reservation[]
+}
+
+model Contract {
+  id            Int           @id @default(autoincrement())
+  customerId    Int           @map("customer_id")
+  serviceType   ServiceType
+  contractDate  DateTime?     @map("contract_date")
+  paymentStatus PaymentStatus
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @default(now()) @updatedAt @map("updated_at")
+  deleteFlg     String        @default("0")
+
+  customer Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+}
+
+model Inquiry {
+  id              Int            @id @default(autoincrement())
+  customerId      Int            @map("customer_id")
+  channel         InquiryChannel
+  content         String         @db.Text
+  responseStatus  ResponseStatus @map("response_status")
+  responseStaffId Int?           @map("response_staff_id")
+  memo            String?        @db.Text
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at")
+  deleteFlg       String         @default("0")
+
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  responseStaff User?    @relation("StaffInquiries", fields: [responseStaffId], references: [id], onDelete: SetNull)
+}
+
+model Reservation {
+  id              Int               @id @default(autoincrement())
+  customerId      Int               @map("customer_id")
+  reservationDate DateTime          @map("reservation_date")
+  reservationTime DateTime?         @map("reservation_time")
+  status          ReservationStatus
+  memo            String?           @db.Text
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
+  deleteFlg       String            @default("0")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id          Int           @id @default(autoincrement())
+  contractId  Int           @map("contract_id")
+  invoiceDate DateTime      @map("invoice_date")
+  amount      Int
+  status      InvoiceStatus
+  pdfUrl      String?       @map("pdf_url") @db.Text
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")
+  deleteFlg   String        @default("0")
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  email     String   @unique @db.VarChar(100)
+  password  String   @db.Text
+  role      UserRole
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  deleteFlg String   @default("0")
+
+  inquiries Inquiry[] @relation("StaffInquiries")
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  TEMPLE
+  OTHER
+}
+
+enum CustomerStatus {
+  PROSPECT
+  ACTIVE
+  INACTIVE
+}
+
+enum ServiceType {
+  FAMILY_GRAVE
+  PERPETUAL_CARE
+  COLUMBARIUM
+  TREE_BURIAL
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+}
+
+enum InquiryChannel {
+  PHONE
+  WEB_FORM
+}
+
+enum ResponseStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ReservationStatus {
+  RESERVED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  ISSUED
+  SENT
+  PAID
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+}
