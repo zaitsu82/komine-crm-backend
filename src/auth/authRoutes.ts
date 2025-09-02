@@ -1,12 +1,13 @@
-import express from 'express';
-import { loginHandler } from './authController';
+import { Router } from 'express';
+import { login, getCurrentUser } from './authController';
+import { authenticate } from '../middleware/auth';
 
-const router = express.Router();
+const router = Router();
 
-// ログインルート
-router.post('/login', loginHandler);
+// 認証不要のルート
+router.post('/login', login);
 
-// ログアウトルート
-router.post('/logout', loginHandler);
+// 認証が必要なルート
+router.get('/me', authenticate, getCurrentUser);
 
 export default router;

@@ -1,17 +1,21 @@
 import { Router } from 'express';
-import { getAllContracts, getContractInfo, createContract, updateContract, deleteContract } from './contractController';
+import { getContracts, getContractDetail, createContract, updateContract, deleteContract } from './contractController';
+import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
+// すべての契約APIに認証を適用
+router.use(authenticate);
+
 // 契約一覧取得
-router.get('/', getAllContracts)
+router.get('/', getContracts);
 // 契約詳細取得
-router.get('/:id', getContractInfo)
+router.get('/:contract_id', getContractDetail);
 // 契約情報登録
-router.post('/', createContract)
+router.post('/', createContract);
 // 契約情報更新
-router.put('/:id', updateContract)
+router.put('/:contract_id', updateContract);
 // 契約情報削除（解約）
-router.delete('/:id', deleteContract)
+router.delete('/:contract_id', deleteContract);
 
 export default router;

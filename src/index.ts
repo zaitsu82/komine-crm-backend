@@ -1,12 +1,14 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import customerRoutes from './customer/customerRoutes';
 import authRoutes from './auth/authRoutes';
-import userRoutes from './user/userRoutes';
 import contractRoutes from './contract/contractRoutes';
-import invoiceRoutes from './invoice/invoiceRoutes';
-import inquiryRoutes from './inquiry/inquiryRoutes';
+import mastersRoutes from './masters/mastersRoutes';
+import validationRoutes from './validations/validationRoutes';
+import familyContactRoutes from './family-contacts/familyContactRoutes';
+import burialRoutes from './burials/burialRoutes';
+import constructionRoutes from './constructions/constructionRoutes';
+import contractorHistoryRoutes from './contractor-histories/contractorHistoryRoutes';
 
 dotenv.config();
 
@@ -16,25 +18,31 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// 認証ルート
-app.use('/api/auth', authRoutes);
+// 認証ルート（認証不要）
+app.use('/api/v1/auth', authRoutes);
 
-// 顧客ルート
-app.use('/api/customers', customerRoutes);
+// マスターデータルート
+app.use('/api/v1/masters', mastersRoutes);
 
-// ユーザールート
-app.use('/api/users', userRoutes);
+// バリデーションルート
+app.use('/api/v1/validations', validationRoutes);
 
-// 契約ルート
-app.use('/api/contracts', contractRoutes);
+// 契約関連API（v1）
+app.use('/api/v1/contracts', contractRoutes);
 
-// 問い合わせルート
-app.use('/api/inquiries', inquiryRoutes);
+// 家族連絡先ルート
+app.use('/api/v1', familyContactRoutes);
 
-// 請求ルート
-app.use('/api/invoices', invoiceRoutes);
+// 埋葬情報ルート
+app.use('/api/v1', burialRoutes);
+
+// 工事情報ルート
+app.use('/api/v1', constructionRoutes);
+
+// 契約者履歴ルート
+app.use('/api/v1', contractorHistoryRoutes);
 
 // サーバー起動処理
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Cemetery CRM Server is running on http://localhost:${PORT}`);
 });
