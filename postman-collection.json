@@ -1,0 +1,651 @@
+{
+  "info": {
+    "name": "Cemetery CRM API",
+    "description": "Cemetery CRM Backend API の疎通確認用コレクション",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "認証",
+      "item": [
+        {
+          "name": "ログイン",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"test\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.collectionVariables.set('token', responseJson.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "現在のユーザー情報取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "契約管理",
+      "item": [
+        {
+          "name": "契約一覧取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/contracts",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "契約詳細取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "契約作成",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract_number\": \"C001\",\n  \"contractor_name\": \"山田太郎\",\n  \"contractor_kana\": \"ヤマダタロウ\",\n  \"contract_date\": \"2024-01-01\",\n  \"grave_type\": 1,\n  \"payment_method\": 1,\n  \"religious_sect\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/contracts",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "契約更新",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contractor_name\": \"山田花子\",\n  \"contractor_kana\": \"ヤマダハナコ\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "契約削除",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "マスターデータ",
+      "item": [
+        {
+          "name": "職員マスター取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/masters/staff",
+              "host": ["{{baseUrl}}"],
+              "path": ["masters", "staff"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "支払方法マスター取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/masters/payment-methods",
+              "host": ["{{baseUrl}}"],
+              "path": ["masters", "payment-methods"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "墓地種別マスター取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/masters/grave-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["masters", "grave-types"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "宗派マスター取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/masters/religious-sects",
+              "host": ["{{baseUrl}}"],
+              "path": ["masters", "religious-sects"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "バリデーション",
+      "item": [
+        {
+          "name": "契約番号チェック",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/validations/contract-number?contract_number=C001",
+              "host": ["{{baseUrl}}"],
+              "path": ["validations", "contract-number"],
+              "query": [
+                {
+                  "key": "contract_number",
+                  "value": "C001"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "契約データバリデーション",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract_number\": \"C002\",\n  \"contractor_name\": \"鈴木一郎\",\n  \"contractor_kana\": \"スズキイチロウ\",\n  \"contract_date\": \"2024-02-01\",\n  \"grave_type\": 1,\n  \"payment_method\": 1,\n  \"religious_sect\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/validations/contract",
+              "host": ["{{baseUrl}}"],
+              "path": ["validations", "contract"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "家族連絡先",
+      "item": [
+        {
+          "name": "家族連絡先一覧取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1/family-contacts",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1", "family-contacts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "家族連絡先作成",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"山田花子\",\n  \"relationship\": \"妻\",\n  \"phone\": \"090-1234-5678\",\n  \"email\": \"yamada.hanako@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1/family-contacts",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1", "family-contacts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "家族連絡先更新",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"090-9876-5432\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/family-contacts/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["family-contacts", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "家族連絡先削除",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/family-contacts/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["family-contacts", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "埋葬情報",
+      "item": [
+        {
+          "name": "埋葬情報一覧取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1/burials",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1", "burials"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "埋葬情報作成",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deceased_name\": \"山田太郎\",\n  \"deceased_kana\": \"ヤマダタロウ\",\n  \"death_date\": \"2024-01-15\",\n  \"burial_date\": \"2024-01-20\",\n  \"age\": 75\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1/burials",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1", "burials"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "埋葬情報更新",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"burial_date\": \"2024-01-22\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/burials/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["burials", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "埋葬情報削除",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/burials/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["burials", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "工事情報",
+      "item": [
+        {
+          "name": "工事情報一覧取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1/constructions",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1", "constructions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "工事情報作成",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"construction_type\": \"墓石建立\",\n  \"construction_date\": \"2024-03-01\",\n  \"completion_date\": \"2024-03-15\",\n  \"cost\": 500000,\n  \"contractor_name\": \"石材工業\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1/constructions",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1", "constructions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "工事情報更新",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completion_date\": \"2024-03-20\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/constructions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["constructions", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "工事情報削除",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/constructions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["constructions", "1"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "契約者履歴",
+      "item": [
+        {
+          "name": "契約者履歴一覧取得",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1/contractor-histories",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1", "contractor-histories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "契約者履歴作成",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contractor_name\": \"山田次郎\",\n  \"contractor_kana\": \"ヤマダジロウ\",\n  \"change_date\": \"2024-04-01\",\n  \"change_reason\": \"承継\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/contracts/1/contractor-histories",
+              "host": ["{{baseUrl}}"],
+              "path": ["contracts", "1", "contractor-histories"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

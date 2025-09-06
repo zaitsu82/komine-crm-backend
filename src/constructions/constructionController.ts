@@ -63,6 +63,21 @@ export const createConstruction = async (req: Request, res: Response) => {
     const { contract_id } = req.params;
     const data = req.body;
 
+    // バリデーション
+    if (!data.contractor_name || !data.construction_type) {
+      return res.status(422).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'バリデーションエラーが発生しました',
+          details: [
+            ...(data.contractor_name ? [] : ['contractor_name は必須です']),
+            ...(data.construction_type ? [] : ['construction_type は必須です'])
+          ],
+        },
+      });
+    }
+
     const construction = await prisma.construction.create({
       data: {
         contractId: parseInt(contract_id),
@@ -102,6 +117,21 @@ export const updateConstruction = async (req: Request, res: Response) => {
   try {
     const { construction_id } = req.params;
     const data = req.body;
+
+    // バリデーション
+    if (!data.contractor_name || !data.construction_type) {
+      return res.status(422).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'バリデーションエラーが発生しました',
+          details: [
+            ...(data.contractor_name ? [] : ['contractor_name は必須です']),
+            ...(data.construction_type ? [] : ['construction_type は必須です'])
+          ],
+        },
+      });
+    }
 
     const construction = await prisma.construction.update({
       where: {

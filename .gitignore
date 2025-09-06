@@ -60,3 +60,54 @@ build/
 # Database
 *.sqlite
 *.db
+
+# Documentation and development notes (keep only README.md if needed)
+# Uncomment the next line if you want to exclude all .md files except README.md
+# *.md
+# !README.md
+
+# Test coverage reports
+coverage/
+*.lcov
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Jest cache
+.jest/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Prisma generated files
+prisma/generated/
+
+# Development notes and design documents
+*design*.md
+*notes*.md
+*CLAUDE*.md
+*TODO*.md
+*TESTING*.md
+
+# API testing (uncomment if you want to exclude Postman collections)
+# *.postman_collection.json
+# *.postman_environment.json
