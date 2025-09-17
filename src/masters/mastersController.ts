@@ -10,7 +10,7 @@ export const getStaff = async (req: Request, res: Response) => {
         id: true,
         name: true,
         email: true,
-        isActive: true,
+        is_active: true,
       },
       orderBy: {
         name: 'asc',
@@ -23,7 +23,7 @@ export const getStaff = async (req: Request, res: Response) => {
         id: s.id,
         name: s.name,
         email: s.email,
-        is_active: s.isActive,
+        is_active: s.is_active,
       })),
     });
   } catch (error) {
@@ -41,7 +41,7 @@ export const getStaff = async (req: Request, res: Response) => {
 
 export const getPaymentMethods = async (req: Request, res: Response) => {
   try {
-    const paymentMethods = await prisma.paymentMethod.findMany({
+    const paymentMethods = await prisma.paymentMethodMaster.findMany({
       select: {
         id: true,
         name: true,
@@ -70,7 +70,7 @@ export const getPaymentMethods = async (req: Request, res: Response) => {
 
 export const getGraveTypes = async (req: Request, res: Response) => {
   try {
-    const graveTypes = await prisma.graveType.findMany({
+    const graveTypes = await prisma.cemeteryTypeMaster.findMany({
       select: {
         id: true,
         code: true,
@@ -100,7 +100,7 @@ export const getGraveTypes = async (req: Request, res: Response) => {
 
 export const getReligiousSects = async (req: Request, res: Response) => {
   try {
-    const religiousSects = await prisma.religiousSect.findMany({
+    const religiousSects = await prisma.denominationMaster.findMany({
       select: {
         id: true,
         name: true,

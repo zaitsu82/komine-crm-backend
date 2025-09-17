@@ -18,18 +18,12 @@ export const checkContractNumber = async (req: Request, res: Response) => {
       });
     }
 
-    const whereClause: any = {
-      contractNumber: number as string,
-    };
 
-    if (exclude_id) {
-      whereClause.id = {
-        not: parseInt(exclude_id as string),
-      };
-    }
-
-    const existingContract = await prisma.contract.findFirst({
-      where: whereClause,
+    const existingContract = await prisma.contractor.findFirst({
+      where: {
+        consent_form_number: number as string,
+        ...(exclude_id && { id: { not: parseInt(exclude_id as string) } }),
+      },
     });
 
     return res.json({
@@ -205,9 +199,9 @@ export const validateContractData = async (req: Request, res: Response) => {
 
     // 承諾書番号の重複チェック
     if (req.body.contract?.contract_number) {
-      const existingContract = await prisma.contract.findFirst({
+      const existingContract = await prisma.contractor.findFirst({
         where: {
-          contractNumber: req.body.contract.contract_number,
+          consent_form_number: req.body.contract.contract_number,
         },
       });
 

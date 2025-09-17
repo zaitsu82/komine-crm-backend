@@ -11,6 +11,8 @@ declare global {
         id: number;
         email: string;
         name: string;
+        role: string;
+        is_active: boolean;
       };
     }
   }
@@ -33,11 +35,12 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         id: true,
         name: true,
         email: true,
-        isActive: true,
+        role: true,
+        is_active: true,
       },
     });
 
-    if (!staff || !staff.isActive) {
+    if (!staff || !staff.is_active) {
       return res.status(401).json({
         success: false,
         error: {
@@ -53,12 +56,14 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       id: staff.id,
       email: staff.email!,
       name: staff.name,
+      role: staff.role,
+      is_active: staff.is_active,
     };
 
     next();
   } catch (error) {
     let errorMessage = '認証に失敗しました';
-    
+
     if (error instanceof Error) {
       if (error.message === 'Authorization header is required') {
         errorMessage = '認証ヘッダーが必要です';
@@ -84,7 +89,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 export const optionalAuthenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       // トークンがない場合はそのまま次へ
       return next();
@@ -101,15 +106,18 @@ export const optionalAuthenticate = async (req: Request, res: Response, next: Ne
         id: true,
         name: true,
         email: true,
-        isActive: true,
+        role: true,
+        is_active: true,
       },
     });
 
-    if (staff && staff.isActive) {
+    if (staff && staff.is_active) {
       req.user = {
         id: staff.id,
         email: staff.email!,
         name: staff.name,
+        role: staff.role,
+        is_active: staff.is_active,
       };
     }
 

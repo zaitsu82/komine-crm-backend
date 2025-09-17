@@ -5,40 +5,40 @@ const prisma = new PrismaClient();
 
 export const getConstructions = async (req: Request, res: Response) => {
   try {
-    const { contract_id } = req.params;
+    const { gravestone_id } = req.params;
 
     const constructions = await prisma.construction.findMany({
       where: {
-        contractId: parseInt(contract_id),
+        gravestone_id: parseInt(gravestone_id),
       },
       select: {
         id: true,
-        contractorName: true,
-        startDate: true,
-        scheduledEndDate: true,
-        endDate: true,
-        constructionDetails: true,
-        constructionAmount: true,
-        paymentAmount: true,
-        constructionType: true,
-        notes: true,
+        contractor_name: true,
+        start_date: true,
+        planned_end_date: true,
+        end_date: true,
+        description: true,
+        cost: true,
+        payment_amount: true,
+        construction_type: true,
+        remarks: true,
       },
       orderBy: {
-        startDate: 'desc',
+        start_date: 'desc',
       },
     });
 
     const formattedConstructions = constructions.map(construction => ({
       id: construction.id,
-      contractor_name: construction.contractorName,
-      start_date: construction.startDate,
-      scheduled_end_date: construction.scheduledEndDate,
-      end_date: construction.endDate,
-      construction_details: construction.constructionDetails,
-      construction_amount: construction.constructionAmount,
-      payment_amount: construction.paymentAmount,
-      construction_type: construction.constructionType,
-      notes: construction.notes,
+      contractor_name: construction.contractor_name,
+      start_date: construction.start_date,
+      planned_end_date: construction.planned_end_date,
+      end_date: construction.end_date,
+      description: construction.description,
+      cost: construction.cost,
+      payment_amount: construction.payment_amount,
+      construction_type: construction.construction_type,
+      remarks: construction.remarks,
     }));
 
     return res.json({
@@ -60,7 +60,7 @@ export const getConstructions = async (req: Request, res: Response) => {
 
 export const createConstruction = async (req: Request, res: Response) => {
   try {
-    const { contract_id } = req.params;
+    const { gravestone_id } = req.params;
     const data = req.body;
 
     // バリデーション
@@ -80,16 +80,16 @@ export const createConstruction = async (req: Request, res: Response) => {
 
     const construction = await prisma.construction.create({
       data: {
-        contractId: parseInt(contract_id),
-        contractorName: data.contractor_name,
-        startDate: data.start_date ? new Date(data.start_date) : null,
-        scheduledEndDate: data.scheduled_end_date ? new Date(data.scheduled_end_date) : null,
-        endDate: data.end_date ? new Date(data.end_date) : null,
-        constructionDetails: data.construction_details,
-        constructionAmount: data.construction_amount,
-        paymentAmount: data.payment_amount,
-        constructionType: data.construction_type,
-        notes: data.notes,
+        gravestone_id: parseInt(gravestone_id),
+        contractor_name: data.contractor_name,
+        start_date: data.start_date ? new Date(data.start_date) : null,
+        planned_end_date: data.planned_end_date ? new Date(data.planned_end_date) : null,
+        end_date: data.end_date ? new Date(data.end_date) : null,
+        description: data.description,
+        cost: data.cost,
+        payment_amount: data.payment_amount,
+        construction_type: data.construction_type,
+        remarks: data.remarks,
       },
     });
 
@@ -138,15 +138,15 @@ export const updateConstruction = async (req: Request, res: Response) => {
         id: parseInt(construction_id),
       },
       data: {
-        contractorName: data.contractor_name,
-        startDate: data.start_date ? new Date(data.start_date) : null,
-        scheduledEndDate: data.scheduled_end_date ? new Date(data.scheduled_end_date) : null,
-        endDate: data.end_date ? new Date(data.end_date) : null,
-        constructionDetails: data.construction_details,
-        constructionAmount: data.construction_amount,
-        paymentAmount: data.payment_amount,
-        constructionType: data.construction_type,
-        notes: data.notes,
+        contractor_name: data.contractor_name,
+        start_date: data.start_date ? new Date(data.start_date) : null,
+        planned_end_date: data.planned_end_date ? new Date(data.planned_end_date) : null,
+        end_date: data.end_date ? new Date(data.end_date) : null,
+        description: data.description,
+        cost: data.cost,
+        payment_amount: data.payment_amount,
+        construction_type: data.construction_type,
+        remarks: data.remarks,
       },
     });
 

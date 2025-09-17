@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
@@ -14,350 +8,457 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Master Tables
-model Staff {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(100)
-  email     String?  @db.VarChar(255)
-  password  String   @db.VarChar(255)
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+// メインテーブル
+model Gravestone {
+  id                    Int              @id @default(autoincrement()) @map("gravestone_id")
+  gravestone_code       String           @unique @db.VarChar(20)
+  usage_status          String           @db.VarChar(20)
+  price                 Decimal          @db.Decimal(10, 2)
+  orientation           String?          @db.VarChar(10)
+  location              String?          @db.VarChar(100)
+  cemetery_type         String?          @db.VarChar(20)
+  denomination          String?          @db.VarChar(20)
+  inscription           String?
+  construction_deadline DateTime?        @db.Date
+  construction_date     DateTime?        @db.Date
+  epitaph               String?
+  remarks               String?
+  deleted_at            DateTime?
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
+  
+  // Relations
+  Applicant             Applicant?
+  Contractors           Contractor[]
+  UsageFees             UsageFee[]
+  ManagementFees        ManagementFee[]
+  BillingInfos          BillingInfo[]
+  FamilyContacts        FamilyContact[]
+  Burials               Burial[]
+  Constructions         Construction[]
+  Histories             History[]
 
-  contracts Contract[]
-}
-
-model PaymentMethod {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique @db.VarChar(50)
-  createdAt DateTime @default(now()) @map("created_at")
-
-  usageFees     UsageFee[]
-  managementFees ManagementFee[]
-}
-
-model GraveType {
-  id        Int      @id @default(autoincrement())
-  code      String   @unique @db.VarChar(20)
-  name      String   @db.VarChar(100)
-  createdAt DateTime @default(now()) @map("created_at")
-
-  gravestones Gravestone[]
-}
-
-model ReligiousSect {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique @db.VarChar(100)
-  createdAt DateTime @default(now()) @map("created_at")
-
-  gravestones Gravestone[]
-  burials     Burial[]
-}
-
-// Transaction Tables
-model Contract {
-  id               Int                @id @default(autoincrement())
-  contractNumber   String             @unique @db.VarChar(50) @map("contract_number")
-  applicationDate  DateTime           @map("application_date") @db.Date
-  reservationDate  DateTime?          @map("reservation_date") @db.Date
-  permissionDate   DateTime           @map("permission_date") @db.Date
-  startDate        DateTime           @map("start_date") @db.Date
-  staffId          Int?               @map("staff_id")
-  status           ContractStatus     @default(ACTIVE)
-  createdAt        DateTime           @default(now()) @map("created_at")
-  updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at")
-
-  staff              Staff?               @relation(fields: [staffId], references: [id], onDelete: SetNull)
-  applicant          Applicant?
-  contractors        Contractor[]
-  usageFee           UsageFee?
-  managementFee      ManagementFee?
-  gravestone         Gravestone?
-  billingAccount     BillingAccount?
-  familyContacts     FamilyContact[]
-  burials            Burial[]
-  constructions      Construction[]
-  contractorHistories ContractorHistory[]
-
-  @@index([applicationDate])
-  @@index([staffId])
-  @@index([status])
+  @@map("gravestones")
+  @@index([gravestone_code])
+  @@index([usage_status, cemetery_type])
+  @@index([deleted_at])
 }
 
 model Applicant {
-  id          Int      @id @default(autoincrement())
-  contractId  Int      @unique @map("contract_id")
-  name        String   @db.VarChar(100)
-  nameKana    String   @db.VarChar(100) @map("name_kana")
-  postalCode  String   @db.VarChar(10) @map("postal_code")
-  address1    String   @db.VarChar(255)
-  address2    String   @db.VarChar(255)
-  phone1      String   @db.VarChar(20)
-  phone2      String?  @db.VarChar(20)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  id                     Int       @id @default(autoincrement()) @map("applicant_id")
+  gravestone_id          Int       @unique
+  application_date       DateTime  @db.Date
+  staff_name             String?   @db.VarChar(50)
+  name                   String    @db.VarChar(100)
+  kana                   String    @db.VarChar(100)
+  postal_code            String    @db.VarChar(8)
+  address                String    @db.VarChar(200)
+  phone                  String    @db.VarChar(15)
+  remarks                String?
+  effective_start_date   DateTime? @db.Date
+  effective_end_date     DateTime? @db.Date
+  deleted_at             DateTime?
+  
+  // Relations
+  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
 
-  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  @@map("applicants")
 }
 
 model Contractor {
-  id                 Int                @id @default(autoincrement())
-  contractId         Int                @map("contract_id")
-  name               String             @db.VarChar(100)
-  nameKana           String             @db.VarChar(100) @map("name_kana")
-  birthDate          DateTime           @map("birth_date") @db.Date
-  gender             Gender
-  postalCode         String             @db.VarChar(10) @map("postal_code")
-  address1           String             @db.VarChar(255)
-  address2           String             @db.VarChar(255)
-  phone1             String             @db.VarChar(20)
-  phone2             String?            @db.VarChar(20)
-  fax                String?            @db.VarChar(20)
-  email              String?            @db.VarChar(255)
-  permanentAddress1  String             @db.VarChar(255) @map("permanent_address1")
-  permanentAddress2  String             @db.VarChar(255) @map("permanent_address2")
-  isCurrent          Boolean            @default(true) @map("is_current")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at")
+  id                     Int              @id @default(autoincrement()) @map("contractor_id")
+  gravestone_id          Int
+  reservation_date       DateTime?        @db.Date
+  consent_form_number    String?          @db.VarChar(50)
+  permission_date        DateTime?        @db.Date
+  start_date             DateTime         @db.Date
+  name                   String           @db.VarChar(100)
+  kana                   String           @db.VarChar(100)
+  birth_date             DateTime?        @db.Date
+  gender                 String?          @db.VarChar(10)
+  postal_code            String           @db.VarChar(8)
+  address                String           @db.VarChar(200)
+  phone                  String           @db.VarChar(15)
+  fax                    String?          @db.VarChar(15)
+  email                  String?          @db.VarChar(100)
+  domicile_address       String?          @db.VarChar(200)
+  workplace_name         String?          @db.VarChar(100)
+  workplace_kana         String?          @db.VarChar(100)
+  workplace_address      String?          @db.VarChar(200)
+  workplace_phone        String?          @db.VarChar(15)
+  dm_setting             String?          @db.VarChar(20)
+  recipient_type         String?          @db.VarChar(20)
+  remarks                String?
+  effective_start_date   DateTime?        @db.Date
+  effective_end_date     DateTime?        @db.Date
+  deleted_at             DateTime?
+  
+  // Relations
+  Gravestone      Gravestone      @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
+  BillingInfos    BillingInfo[]
+  FamilyContacts  FamilyContact[]
+  Burials         Burial[]
+  Histories       History[]
 
-  contract           Contract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  contractorDetails  ContractorDetails?
-  contractorHistories ContractorHistory[]
-
-  @@index([name])
-  @@index([nameKana])
-  @@index([contractId, isCurrent])
-}
-
-model ContractorDetails {
-  id                   Int            @id @default(autoincrement())
-  contractorId         Int            @unique @map("contractor_id")
-  workplaceName        String?        @db.VarChar(255) @map("workplace_name")
-  workplaceKana        String?        @db.VarChar(255) @map("workplace_kana")
-  workplaceAddress     String?        @db.VarChar(500) @map("workplace_address")
-  workplacePhone1      String?        @db.VarChar(20) @map("workplace_phone1")
-  workplacePhone2      String?        @db.VarChar(20) @map("workplace_phone2")
-  dmSetting            DmSetting      @default(SEND) @map("dm_setting")
-  mailingAddressType   AddressType    @default(HOME) @map("mailing_address_type")
-  notes                String?        @db.Text
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @default(now()) @updatedAt @map("updated_at")
-
-  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  @@map("contractors")
 }
 
 model UsageFee {
-  id                Int           @id @default(autoincrement())
-  contractId        Int           @unique @map("contract_id")
-  calculationType   String        @db.VarChar(50) @map("calculation_type")
-  taxType           TaxType       @map("tax_type")
-  billingType       String        @db.VarChar(50) @map("billing_type")
-  billingYears      Int           @map("billing_years")
-  area              Decimal       @db.Decimal(10, 2)
-  unitPrice         Decimal?      @db.Decimal(10, 2) @map("unit_price")
-  totalAmount       Decimal       @db.Decimal(10, 2) @map("total_amount")
-  paymentMethodId   Int           @map("payment_method_id")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at")
+  id                   Int       @id @default(autoincrement()) @map("usage_fee_id")
+  gravestone_id        Int
+  calc_type            String?   @db.VarChar(20)
+  area                 Decimal?  @db.Decimal(10, 2)
+  fee                  Decimal   @db.Decimal(10, 2)
+  tax_type             String?   @db.VarChar(20)
+  billing_years        Int?
+  unit_price           Decimal?  @db.Decimal(10, 2)
+  payment_method       String?   @db.VarChar(20)
+  remarks              String?
+  effective_start_date DateTime? @db.Date
+  effective_end_date   DateTime? @db.Date
+  deleted_at           DateTime?
+  
+  // Relations
+  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
 
-  contract      Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  @@map("usage_fees")
 }
 
 model ManagementFee {
-  id                    Int           @id @default(autoincrement())
-  contractId            Int           @unique @map("contract_id")
-  calculationType       String        @db.VarChar(50) @map("calculation_type")
-  taxType               TaxType       @map("tax_type")
-  billingType           String        @db.VarChar(50) @map("billing_type")
-  billingYears          Int           @map("billing_years")
-  area                  Decimal       @db.Decimal(10, 2)
-  billingMonthInterval  Int           @map("billing_month_interval")
-  managementFee         Decimal       @db.Decimal(10, 2) @map("management_fee")
-  unitPrice             Decimal?      @db.Decimal(10, 2) @map("unit_price")
-  lastBillingMonth      DateTime      @map("last_billing_month") @db.Date
-  paymentMethodId       Int           @map("payment_method_id")
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @default(now()) @updatedAt @map("updated_at")
+  id                   Int       @id @default(autoincrement()) @map("management_fee_id")
+  gravestone_id        Int
+  calc_type            String?   @db.VarChar(20)
+  billing_type         String?   @db.VarChar(20)
+  area                 Decimal?  @db.Decimal(10, 2)
+  fee                  Decimal   @db.Decimal(10, 2)
+  last_billing_date    DateTime? @db.Date
+  tax_type             String?   @db.VarChar(20)
+  billing_years        Int?
+  billing_month        Int?
+  unit_price           Decimal?  @db.Decimal(10, 2)
+  payment_method       String    @db.VarChar(20)
+  remarks              String?
+  effective_start_date DateTime? @db.Date
+  effective_end_date   DateTime? @db.Date
+  deleted_at           DateTime?
+  
+  // Relations
+  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
 
-  contract      Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  @@map("management_fees")
 }
 
-model Gravestone {
-  id                   Int            @id @default(autoincrement())
-  contractId           Int            @unique @map("contract_id")
-  gravestonePrice      Decimal        @db.Decimal(10, 2) @map("gravestone_price")
-  direction            String?        @db.VarChar(50)
-  location             String?        @db.VarChar(255)
-  dealer               String         @db.VarChar(100)
-  graveTypeId          Int            @map("grave_type_id")
-  religiousSectId      Int?           @map("religious_sect_id")
-  inscription          String?        @db.Text
-  constructionDeadline DateTime?      @map("construction_deadline") @db.Date
-  constructionDate     DateTime?      @map("construction_date") @db.Date
-  memorialTablet       String?        @db.Text @map("memorial_tablet")
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @default(now()) @updatedAt @map("updated_at")
+model BillingInfo {
+  id                   Int       @id @default(autoincrement()) @map("billing_info_id")
+  gravestone_id        Int
+  contractor_id        Int
+  billing_type         String?   @db.VarChar(20)
+  bank_name            String?   @db.VarChar(50)
+  branch_name          String?   @db.VarChar(50)
+  account_type         String?   @db.VarChar(20)
+  account_number       String?   @db.VarChar(20)
+  account_holder       String?   @db.VarChar(100)
+  remarks              String?
+  effective_start_date DateTime? @db.Date
+  effective_end_date   DateTime? @db.Date
+  deleted_at           DateTime?
+  
+  // Relations
+  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
+  Contractor Contractor @relation(fields: [contractor_id], references: [id], onDelete: Cascade)
 
-  contract       Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  graveType      GraveType      @relation(fields: [graveTypeId], references: [id])
-  religiousSect  ReligiousSect? @relation(fields: [religiousSectId], references: [id])
-}
-
-model BillingAccount {
-  id              Int      @id @default(autoincrement())
-  contractId      Int      @unique @map("contract_id")
-  billingType     String?  @db.VarChar(50) @map("billing_type")
-  institutionName String?  @db.VarChar(100) @map("institution_name")
-  branchName      String?  @db.VarChar(100) @map("branch_name")
-  accountType     String?  @db.VarChar(50) @map("account_type")
-  accountNumber   String?  @db.VarChar(50) @map("account_number")
-  accountHolder   String?  @db.VarChar(100) @map("account_holder")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
-
-  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  @@map("billing_infos")
 }
 
 model FamilyContact {
-  id                       Int         @id @default(autoincrement())
-  contractId               Int         @map("contract_id")
-  name                     String      @db.VarChar(100)
-  nameKana                 String      @db.VarChar(100) @map("name_kana")
-  birthDate                DateTime?   @map("birth_date") @db.Date
-  relationship             String?     @db.VarChar(50)
-  postalCode               String?     @db.VarChar(10) @map("postal_code")
-  address1                 String?     @db.VarChar(255)
-  address2                 String?     @db.VarChar(255)
-  address3                 String?     @db.VarChar(255)
-  phone1                   String      @db.VarChar(20)
-  phone2                   String?     @db.VarChar(20)
-  fax                      String?     @db.VarChar(20)
-  email                    String?     @db.VarChar(255)
-  permanentAddress         String?     @db.VarChar(500) @map("permanent_address")
-  mailingAddressType       AddressType @default(HOME) @map("mailing_address_type")
-  workplaceName            String?     @db.VarChar(255) @map("workplace_name")
-  workplaceKana            String?     @db.VarChar(255) @map("workplace_kana")
-  workplacePostalCode      String?     @db.VarChar(10) @map("workplace_postal_code")
-  workplaceAddress1        String?     @db.VarChar(255) @map("workplace_address1")
-  workplaceAddress2        String?     @db.VarChar(255) @map("workplace_address2")
-  workplaceAddress3        String?     @db.VarChar(255) @map("workplace_address3")
-  workplacePhone1          String?     @db.VarChar(20) @map("workplace_phone1")
-  workplacePhone2          String?     @db.VarChar(20) @map("workplace_phone2")
-  notes                    String?     @db.Text
-  createdAt                DateTime    @default(now()) @map("created_at")
-  updatedAt                DateTime    @default(now()) @updatedAt @map("updated_at")
+  id                   Int       @id @default(autoincrement()) @map("family_contact_id")
+  gravestone_id        Int
+  contractor_id        Int
+  name                 String?   @db.VarChar(100)
+  birth_date           DateTime? @db.Date
+  relation             String?   @db.VarChar(20)
+  phone                String?   @db.VarChar(15)
+  fax                  String?   @db.VarChar(15)
+  email                String?   @db.VarChar(100)
+  address              String?   @db.VarChar(200)
+  domicile_address     String?   @db.VarChar(200)
+  recipient_type       String?   @db.VarChar(20)
+  workplace_name       String?   @db.VarChar(100)
+  workplace_kana       String?   @db.VarChar(100)
+  workplace_address    String?   @db.VarChar(200)
+  workplace_phone      String?   @db.VarChar(15)
+  remarks              String?
+  effective_start_date DateTime? @db.Date
+  effective_end_date   DateTime? @db.Date
+  deleted_at           DateTime?
+  
+  // Relations
+  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
+  Contractor Contractor @relation(fields: [contractor_id], references: [id], onDelete: Cascade)
 
-  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-
-  @@index([contractId])
+  @@map("family_contacts")
 }
 
 model Burial {
-  id               Int            @id @default(autoincrement())
-  contractId       Int            @map("contract_id")
-  name             String         @db.VarChar(100)
-  nameKana         String         @db.VarChar(100) @map("name_kana")
-  birthDate        DateTime?      @map("birth_date") @db.Date
-  gender           Gender
-  posthumousName1  String?        @db.VarChar(100) @map("posthumous_name1")
-  posthumousName2  String?        @db.VarChar(100) @map("posthumous_name2")
-  deathDate        DateTime       @map("death_date") @db.Date
-  ageAtDeath       Int?           @map("age_at_death")
-  burialDate       DateTime       @map("burial_date") @db.Date
-  notificationDate DateTime?      @map("notification_date") @db.Date
-  religiousSectId  Int?           @map("religious_sect_id")
-  memo             String?        @db.Text
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at")
+  id                   Int       @id @default(autoincrement()) @map("burial_id")
+  gravestone_id        Int
+  contractor_id        Int
+  name                 String?   @db.VarChar(100)
+  kana                 String?   @db.VarChar(100)
+  birth_date           DateTime? @db.Date
+  gender               String?   @db.VarChar(10)
+  posthumous_name      String?   @db.VarChar(100)
+  death_date           DateTime? @db.Date
+  age_at_death         Int?
+  burial_date          DateTime? @db.Date
+  notification_date    DateTime? @db.Date
+  denomination         String?   @db.VarChar(20)
+  remarks              String?
+  effective_start_date DateTime? @db.Date
+  effective_end_date   DateTime? @db.Date
+  deleted_at           DateTime?
+  
+  // Relations
+  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
+  Contractor Contractor @relation(fields: [contractor_id], references: [id], onDelete: Cascade)
 
-  contract      Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  religiousSect ReligiousSect? @relation(fields: [religiousSectId], references: [id])
-
-  @@index([contractId])
-  @@index([burialDate])
-  @@index([name])
+  @@map("burials")
 }
 
 model Construction {
-  id                 Int      @id @default(autoincrement())
-  contractId         Int      @map("contract_id")
-  contractorName     String?  @db.VarChar(100) @map("contractor_name")
-  startDate          DateTime? @map("start_date") @db.Date
-  scheduledEndDate   DateTime? @map("scheduled_end_date") @db.Date
-  endDate            DateTime? @map("end_date") @db.Date
-  constructionDetails String?  @db.Text @map("construction_details")
-  constructionAmount Decimal? @db.Decimal(10, 2) @map("construction_amount")
-  paymentAmount      Decimal? @db.Decimal(10, 2) @map("payment_amount")
-  constructionType   String?  @db.VarChar(50) @map("construction_type")
-  notes              String?  @db.Text
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
+  id                   Int       @id @default(autoincrement()) @map("construction_id")
+  gravestone_id        Int
+  contractor_name      String?   @db.VarChar(100)
+  start_date           DateTime? @db.Date
+  planned_end_date     DateTime? @db.Date
+  end_date             DateTime? @db.Date
+  description          String?
+  cost                 Decimal?  @db.Decimal(10, 2)
+  payment_amount       Decimal?  @db.Decimal(10, 2)
+  construction_type    String?   @db.VarChar(20)
+  remarks              String?
+  deleted_at           DateTime?
+  
+  // Relations
+  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
 
-  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-
-  @@index([contractId])
-  @@index([startDate])
+  @@map("constructions")
 }
 
-model ContractorHistory {
-  id                   Int      @id @default(autoincrement())
-  contractId           Int      @map("contract_id")
-  contractorId         Int      @map("contractor_id")
-  name                 String   @db.VarChar(100)
-  nameKana             String   @db.VarChar(100) @map("name_kana")
-  birthDate            DateTime @map("birth_date") @db.Date
-  postalCode           String   @db.VarChar(10) @map("postal_code")
-  address1             String   @db.VarChar(255)
-  address2             String   @db.VarChar(255)
-  phone1               String   @db.VarChar(20)
-  phone2               String?  @db.VarChar(20)
-  fax                  String?  @db.VarChar(20)
-  email                String?  @db.VarChar(255)
-  workplaceName        String?  @db.VarChar(255) @map("workplace_name")
-  workplaceKana        String?  @db.VarChar(255) @map("workplace_kana")
-  workplacePostalCode  String?  @db.VarChar(10) @map("workplace_postal_code")
-  workplaceAddress1    String?  @db.VarChar(255) @map("workplace_address1")
-  workplaceAddress2    String?  @db.VarChar(255) @map("workplace_address2")
-  workplacePhone1      String?  @db.VarChar(20) @map("workplace_phone1")
-  workplacePhone2      String?  @db.VarChar(20) @map("workplace_phone2")
-  changeDate           DateTime @map("change_date") @db.Date
-  changeReason         String?  @db.Text @map("change_reason")
-  createdAt            DateTime @default(now()) @map("created_at")
+model History {
+  id                 Int       @id @default(autoincrement()) @map("history_id")
+  gravestone_id      Int
+  contractor_id      Int
+  before_record_id   Int?
+  after_record_id    Int?
+  update_type        String?   @db.VarChar(20)
+  update_reason      String?   @db.VarChar(100)
+  updated_by         String?   @db.VarChar(50)
+  updated_at         DateTime  @default(now())
+  
+  // Relations
+  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
+  Contractor Contractor @relation(fields: [contractor_id], references: [id], onDelete: Cascade)
 
-  contract   Contract   @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
-
-  @@index([contractId])
-  @@index([changeDate])
+  @@map("histories")
 }
 
-// Enums
-enum ContractStatus {
-  ACTIVE @map("active")
-  TERMINATED @map("terminated")
-  SUSPENDED @map("suspended")
+model Staff {
+  id              Int       @id @default(autoincrement()) @map("staff_id")
+  name            String    @db.VarChar(100)
+  email           String    @unique @db.VarChar(100)
+  password        String    @db.VarChar(255)
+  role            String    @default("viewer") @db.VarChar(20) // viewer, operator, manager, admin
+  is_active       Boolean   @default(true)
+  last_login_at   DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  @@map("staff")
+  @@index([email])
+  @@index([role, is_active])
 }
 
-enum Gender {
-  MALE @map("male")
-  FEMALE @map("female")
-  OTHER @map("other")
+// マスタテーブル
+model UsageStatusMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("usage_status_master")
 }
 
-enum DmSetting {
-  SEND @map("send")
-  NOT_SEND @map("not_send")
+model CemeteryTypeMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("cemetery_type_master")
 }
 
-enum AddressType {
-  HOME @map("home")
-  WORKPLACE @map("workplace")
-  OTHER @map("other")
+model DenominationMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("denomination_master")
 }
 
-enum TaxType {
-  TAX_INCLUDED @map("tax_included")
-  TAX_EXCLUDED @map("tax_excluded")
+model GenderMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("gender_master")
+}
+
+model PaymentMethodMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("payment_method_master")
+}
+
+model TaxTypeMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  tax_rate    Decimal? @db.Decimal(5, 2)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("tax_type_master")
+}
+
+model CalcTypeMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("calc_type_master")
+}
+
+model BillingTypeMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("billing_type_master")
+}
+
+model AccountTypeMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("account_type_master")
+}
+
+model RecipientTypeMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("recipient_type_master")
+}
+
+model RelationMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("relation_master")
+}
+
+model ConstructionTypeMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("construction_type_master")
+}
+
+model UpdateTypeMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("update_type_master")
+}
+
+model PrefectureMaster {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(2)
+  name        String   @db.VarChar(10)
+  name_kana   String?  @db.VarChar(20)
+  sort_order  Int?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("prefecture_master")
 }

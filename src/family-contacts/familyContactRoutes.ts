@@ -1,18 +1,44 @@
 import { Router } from 'express';
-import { getFamilyContacts, createFamilyContact, updateFamilyContact, deleteFamilyContact } from './familyContactController';
+import {
+  createFamilyContact,
+  updateFamilyContact,
+  deleteFamilyContact,
+  getFamilyContacts, // 後方互換性のため
+} from './familyContactController';
 import { authenticate } from '../middleware/auth';
+import { requirePermission } from '../middleware/permission';
 
 const router = Router();
 
-// すべての家族連絡先APIに認証を適用
-router.use(authenticate);
+// 家族連絡先情報登録
+router.post('/',
+  authenticate,
+  requirePermission(['operator', 'manager', 'admin']),
+  createFamilyContact
+);
 
-// Contract-specific family contact routes
-router.get('/contracts/:contract_id/family-contacts', getFamilyContacts);
-router.post('/contracts/:contract_id/family-contacts', createFamilyContact);
+// 家族連絡先情報更新
+router.put('/:id',
+  authenticate,
+  requirePermission(['operator', 'manager', 'admin']),
+  updateFamilyContact
+);
 
-// Individual family contact routes
-router.put('/family-contacts/:contact_id', updateFamilyContact);
-router.delete('/family-contacts/:contact_id', deleteFamilyContact);
+// 家族連絡先情報削除
+router.delete('/:id',
+  authenticate,
+  requirePermission(['manager', 'admin']),
+  deleteFamilyContact
+);
+
+// 後方互換性のためのレガシールート（非推奨）
+router.get('/contracts/:contract_id/family-contacts',
+  authenticate,
+  getFamilyContacts
+);
+router.post('/contracts/:contract_id/family-contacts',
+  authenticate,
+  createFamilyContact
+);
 
 export default router;
