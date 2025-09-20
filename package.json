@@ -8,20 +8,29 @@
     "start": "node dist/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "swagger:validate": "node scripts/swagger.js validate",
+    "swagger:json": "node scripts/swagger.js json",
+    "swagger:build": "node scripts/swagger.js build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@playwright/test": "^1.55.0",
     "@prisma/client": "^6.9.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "prisma": "^6.9.0"
+    "playwright": "^1.55.0",
+    "prisma": "^6.9.0",
+    "swagger-parser": "^10.0.3"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

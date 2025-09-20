@@ -29,13 +29,15 @@ describe('Auth Middleware', () => {
     id: 1,
     name: 'Test User',
     email: 'test@example.com',
-    isActive: true
+    role: 'admin',
+    is_active: true
   };
 
   const mockDecodedToken = {
     id: 1,
     email: 'test@example.com',
-    name: 'Test User'
+    name: 'Test User',
+    role: 'admin'
   };
 
   beforeEach(() => {
@@ -71,13 +73,16 @@ describe('Auth Middleware', () => {
           id: true,
           name: true,
           email: true,
-          isActive: true
+          role: true,
+          is_active: true
         }
       });
       expect(mockRequest.user).toEqual({
         id: 1,
         email: 'test@example.com',
-        name: 'Test User'
+        name: 'Test User',
+        role: 'admin',
+        is_active: true
       });
       expect(mockNext).toHaveBeenCalled();
       expect(mockResponse.status).not.toHaveBeenCalled();
@@ -179,7 +184,7 @@ describe('Auth Middleware', () => {
         authorization: 'Bearer validtoken'
       };
 
-      const inactiveUser = { ...mockUser, isActive: false };
+      const inactiveUser = { ...mockUser, is_active: false };
 
       mockedJwtUtils.extractTokenFromHeader.mockReturnValue('validtoken');
       mockedJwtUtils.verifyToken.mockReturnValue(mockDecodedToken);
@@ -261,7 +266,9 @@ describe('Auth Middleware', () => {
       expect(mockRequest.user).toEqual({
         id: 1,
         email: 'test@example.com',
-        name: 'Test User'
+        name: 'Test User',
+        role: 'admin',
+        is_active: true
       });
       expect(mockNext).toHaveBeenCalled();
       expect(mockResponse.status).not.toHaveBeenCalled();
@@ -298,7 +305,7 @@ describe('Auth Middleware', () => {
         authorization: 'Bearer validtoken'
       };
 
-      const inactiveUser = { ...mockUser, isActive: false };
+      const inactiveUser = { ...mockUser, is_active: false };
 
       mockedJwtUtils.extractTokenFromHeader.mockReturnValue('validtoken');
       mockedJwtUtils.verifyToken.mockReturnValue(mockDecodedToken);

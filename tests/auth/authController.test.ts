@@ -1,10 +1,22 @@
 import { Request, Response } from 'express';
 
+// ユーザー情報を含むRequest型の拡張
+interface AuthRequest extends Request {
+  user?: {
+    id: number;
+    email: string;
+    name: string;
+    role: string;
+    is_active: boolean;
+  };
+}
+
 // モックプリズマインスタンスの作成
 const mockPrisma = {
   staff: {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
+    update: jest.fn(),
   },
 };
 
@@ -30,7 +42,7 @@ const mockPasswordUtils = passwordUtils as jest.Mocked<typeof passwordUtils>;
 const mockJwtUtils = jwtUtils as jest.Mocked<typeof jwtUtils>;
 
 describe('Auth Controller', () => {
-  let mockRequest: Partial<Request>;
+  let mockRequest: Partial<AuthRequest>;
   let mockResponse: Partial<Response>;
 
   const mockStaff = {
@@ -38,9 +50,11 @@ describe('Auth Controller', () => {
     name: 'Test User',
     email: 'test@example.com',
     password: 'hashedPassword123',
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    role: 'admin',
+    is_active: true,
+    created_at: new Date(),
+    updated_at: new Date(),
+    last_login_at: new Date()
   };
 
   beforeEach(() => {
@@ -53,9 +67,9 @@ describe('Auth Controller', () => {
       json: jest.fn()
     };
     jest.clearAllMocks();
-    
+
     // console.errorをモック化してログ出力を抑制
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => { });
   });
 
   afterEach(() => {
@@ -75,19 +89,20 @@ describe('Auth Controller', () => {
       mockPasswordUtils.comparePassword.mockResolvedValue(true);
       mockJwtUtils.generateToken.mockReturnValue(mockToken);
 
-      await login(mockRequest as Request, mockResponse as Response);
+      await login(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockPrisma.staff.findFirst).toHaveBeenCalledWith({
         where: {
           email: 'test@example.com',
-          isActive: true
+          is_active: true
         }
       });
       expect(mockPasswordUtils.comparePassword).toHaveBeenCalledWith('password123', 'hashedPassword123');
       expect(mockJwtUtils.generateToken).toHaveBeenCalledWith({
         id: 1,
         email: 'test@example.com',
-        name: 'Test User'
+        name: 'Test User',
+        role: 'admin'
       });
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
@@ -96,7 +111,9 @@ describe('Auth Controller', () => {
           user: {
             id: 1,
             name: 'Test User',
-            email: 'test@example.com'
+            email: 'test@example.com',
+            role: 'admin',
+            is_active: true
           },
           message: 'ログインが正常に完了しました'
         }
@@ -108,7 +125,7 @@ describe('Auth Controller', () => {
         password: 'password123'
       };
 
-      await login(mockRequest as Request, mockResponse as Response);
+      await login(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -129,7 +146,7 @@ describe('Auth Controller', () => {
         email: 'test@example.com'
       };
 
-      await login(mockRequest as Request, mockResponse as Response);
+      await login(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -148,7 +165,7 @@ describe('Auth Controller', () => {
     it('should return validation error when both email and password are missing', async () => {
       mockRequest.body = {};
 
-      await login(mockRequest as Request, mockResponse as Response);
+      await login(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -173,7 +190,7 @@ describe('Auth Controller', () => {
 
       (mockPrisma.staff.findFirst as jest.Mock).mockResolvedValue(null);
 
-      await login(mockRequest as Request, mockResponse as Response);
+      await login(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(401);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -196,7 +213,7 @@ describe('Auth Controller', () => {
       (mockPrisma.staff.findFirst as jest.Mock).mockResolvedValue(mockStaff);
       mockPasswordUtils.comparePassword.mockResolvedValue(false);
 
-      await login(mockRequest as Request, mockResponse as Response);
+      await login(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(401);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -218,7 +235,7 @@ describe('Auth Controller', () => {
 
       (mockPrisma.staff.findFirst as jest.Mock).mockRejectedValue(new Error('Database error'));
 
-      await login(mockRequest as Request, mockResponse as Response);
+      await login(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(500);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -241,7 +258,7 @@ describe('Auth Controller', () => {
       (mockPrisma.staff.findFirst as jest.Mock).mockResolvedValue(mockStaff);
       mockPasswordUtils.comparePassword.mockRejectedValue(new Error('Password comparison error'));
 
-      await login(mockRequest as Request, mockResponse as Response);
+      await login(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(500);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -267,7 +284,7 @@ describe('Auth Controller', () => {
         throw new Error('Token generation error');
       });
 
-      await login(mockRequest as Request, mockResponse as Response);
+      await login(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(500);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -284,22 +301,28 @@ describe('Auth Controller', () => {
 
   describe('getCurrentUser', () => {
     it('should return current user successfully', async () => {
-      (mockRequest as any).user = {
+      mockRequest.user = {
         id: 1,
         email: 'test@example.com',
-        name: 'Test User'
+        name: 'Test User',
+        role: 'admin',
+        is_active: true
       };
 
       const userResponse = {
         id: 1,
         name: 'Test User',
         email: 'test@example.com',
-        isActive: true
+        role: 'admin',
+        is_active: true,
+        last_login_at: new Date(),
+        created_at: new Date(),
+        updated_at: new Date()
       };
 
       (mockPrisma.staff.findUnique as jest.Mock).mockResolvedValue(userResponse);
 
-      await getCurrentUser(mockRequest as Request, mockResponse as Response);
+      await getCurrentUser(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockPrisma.staff.findUnique).toHaveBeenCalledWith({
         where: { id: 1 },
@@ -307,7 +330,11 @@ describe('Auth Controller', () => {
           id: true,
           name: true,
           email: true,
-          isActive: true
+          role: true,
+          is_active: true,
+          last_login_at: true,
+          created_at: true,
+          updated_at: true
         }
       });
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -319,9 +346,9 @@ describe('Auth Controller', () => {
     });
 
     it('should return unauthorized when user is not authenticated', async () => {
-      (mockRequest as any).user = undefined;
+      mockRequest.user = undefined;
 
-      await getCurrentUser(mockRequest as Request, mockResponse as Response);
+      await getCurrentUser(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(401);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -336,15 +363,17 @@ describe('Auth Controller', () => {
     });
 
     it('should return not found when user does not exist in database', async () => {
-      (mockRequest as any).user = {
+      mockRequest.user = {
         id: 999,
         email: 'test@example.com',
-        name: 'Test User'
+        name: 'Test User',
+        role: 'admin',
+        is_active: true
       };
 
       (mockPrisma.staff.findUnique as jest.Mock).mockResolvedValue(null);
 
-      await getCurrentUser(mockRequest as Request, mockResponse as Response);
+      await getCurrentUser(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(404);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -358,22 +387,28 @@ describe('Auth Controller', () => {
     });
 
     it('should return not found when user is inactive', async () => {
-      (mockRequest as any).user = {
+      mockRequest.user = {
         id: 1,
         email: 'test@example.com',
-        name: 'Test User'
+        name: 'Test User',
+        role: 'admin',
+        is_active: true
       };
 
       const inactiveUser = {
         id: 1,
         name: 'Test User',
         email: 'test@example.com',
-        isActive: false
+        role: 'admin',
+        is_active: false,
+        last_login_at: new Date(),
+        created_at: new Date(),
+        updated_at: new Date()
       };
 
       (mockPrisma.staff.findUnique as jest.Mock).mockResolvedValue(inactiveUser);
 
-      await getCurrentUser(mockRequest as Request, mockResponse as Response);
+      await getCurrentUser(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(404);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -388,15 +423,17 @@ describe('Auth Controller', () => {
 
     it('should return internal error when database query fails', async () => {
       // userオブジェクトをmockRequestに直接設定
-      (mockRequest as any).user = {
+      mockRequest.user = {
         id: 1,
         email: 'test@example.com',
-        name: 'Test User'
+        name: 'Test User',
+        role: 'admin',
+        is_active: true
       };
 
       (mockPrisma.staff.findUnique as jest.Mock).mockRejectedValue(new Error('Database error'));
 
-      await getCurrentUser(mockRequest as Request, mockResponse as Response);
+      await getCurrentUser(mockRequest as AuthRequest, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(500);
       expect(mockResponse.json).toHaveBeenCalledWith({

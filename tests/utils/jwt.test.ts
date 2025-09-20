@@ -8,22 +8,23 @@ jest.mock('jsonwebtoken', () => mockJwt);
 
 describe('JWT Utils', () => {
   let jwtUtils: any;
-  
+
   const mockPayload = {
     id: 1,
     email: 'test@example.com',
-    name: 'Test User'
+    name: 'Test User',
+    role: 'admin'
   };
 
   const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.token';
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    
+
     // 環境変数を確実に設定
     process.env.JWT_SECRET = 'test-secret-key';
     process.env.JWT_EXPIRES_IN = '7d';
-    
+
     // モジュールキャッシュをクリアして動的にインポート
     delete require.cache[require.resolve('../../src/utils/jwt')];
     jwtUtils = await import('../../src/utils/jwt');
@@ -46,15 +47,15 @@ describe('JWT Utils', () => {
     it('should use default values when environment variables are not set', async () => {
       const originalSecret = process.env.JWT_SECRET;
       const originalExpires = process.env.JWT_EXPIRES_IN;
-      
+
       delete process.env.JWT_SECRET;
       delete process.env.JWT_EXPIRES_IN;
-      
+
       // モジュールキャッシュをクリアして再インポート
       jest.resetModules();
       delete require.cache[require.resolve('../../src/utils/jwt')];
       const freshJwtUtils = await import('../../src/utils/jwt');
-      
+
       mockJwt.sign.mockReturnValue(mockToken);
 
       const result = freshJwtUtils.generateToken(mockPayload);
@@ -65,7 +66,7 @@ describe('JWT Utils', () => {
         'cemetery-crm-secret-key',
         { expiresIn: '7d' }
       );
-      
+
       // 環境変数を復元
       if (originalSecret !== undefined) process.env.JWT_SECRET = originalSecret;
       if (originalExpires !== undefined) process.env.JWT_EXPIRES_IN = originalExpires;
@@ -123,21 +124,21 @@ describe('JWT Utils', () => {
 
     it('should use default secret when environment variable is not set', async () => {
       const originalSecret = process.env.JWT_SECRET;
-      
+
       delete process.env.JWT_SECRET;
-      
+
       // モジュールキャッシュをクリアして再インポート
       jest.resetModules();
       delete require.cache[require.resolve('../../src/utils/jwt')];
       const freshJwtUtils = await import('../../src/utils/jwt');
-      
+
       mockJwt.verify.mockReturnValue(mockPayload);
 
       const result = freshJwtUtils.verifyToken(mockToken);
 
       expect(result).toEqual(mockPayload);
       expect(mockJwt.verify).toHaveBeenCalledWith(mockToken, 'cemetery-crm-secret-key');
-      
+
       // 環境変数を復元
       if (originalSecret !== undefined) process.env.JWT_SECRET = originalSecret;
     });

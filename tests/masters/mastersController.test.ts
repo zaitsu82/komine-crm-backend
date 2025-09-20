@@ -5,13 +5,13 @@ const mockPrisma = {
   staff: {
     findMany: jest.fn(),
   },
-  paymentMethod: {
+  paymentMethodMaster: {
     findMany: jest.fn(),
   },
-  graveType: {
+  cemeteryTypeMaster: {
     findMany: jest.fn(),
   },
-  religiousSect: {
+  denominationMaster: {
     findMany: jest.fn(),
   },
 };
@@ -34,9 +34,9 @@ describe('Masters Controller', () => {
       json: jest.fn(),
     };
     jest.clearAllMocks();
-    
+
     // console.errorをモック化してログ出力を抑制
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => { });
   });
 
   afterEach(() => {
@@ -50,13 +50,13 @@ describe('Masters Controller', () => {
           id: 1,
           name: 'Test User 1',
           email: 'test1@example.com',
-          isActive: true,
+          is_active: true,
         },
         {
           id: 2,
           name: 'Test User 2',
           email: 'test2@example.com',
-          isActive: false,
+          is_active: false,
         }
       ];
 
@@ -69,7 +69,7 @@ describe('Masters Controller', () => {
           id: true,
           name: true,
           email: true,
-          isActive: true,
+          is_active: true,
         },
         orderBy: {
           name: 'asc',
@@ -131,11 +131,11 @@ describe('Masters Controller', () => {
         { id: 2, name: '口座振替' },
       ];
 
-      (mockPrisma.paymentMethod.findMany as jest.Mock).mockResolvedValue(mockPaymentMethods);
+      (mockPrisma.paymentMethodMaster.findMany as jest.Mock).mockResolvedValue(mockPaymentMethods);
 
       await getPaymentMethods(mockRequest as Request, mockResponse as Response);
 
-      expect(mockPrisma.paymentMethod.findMany).toHaveBeenCalledWith({
+      expect(mockPrisma.paymentMethodMaster.findMany).toHaveBeenCalledWith({
         select: {
           id: true,
           name: true,
@@ -152,7 +152,7 @@ describe('Masters Controller', () => {
     });
 
     it('should handle empty payment methods list', async () => {
-      (mockPrisma.paymentMethod.findMany as jest.Mock).mockResolvedValue([]);
+      (mockPrisma.paymentMethodMaster.findMany as jest.Mock).mockResolvedValue([]);
 
       await getPaymentMethods(mockRequest as Request, mockResponse as Response);
 
@@ -163,7 +163,7 @@ describe('Masters Controller', () => {
     });
 
     it('should handle database error', async () => {
-      (mockPrisma.paymentMethod.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (mockPrisma.paymentMethodMaster.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await getPaymentMethods(mockRequest as Request, mockResponse as Response);
 
@@ -187,11 +187,11 @@ describe('Masters Controller', () => {
         { id: 2, code: 'S1', name: '特別墓地S1' },
       ];
 
-      (mockPrisma.graveType.findMany as jest.Mock).mockResolvedValue(mockGraveTypes);
+      (mockPrisma.cemeteryTypeMaster.findMany as jest.Mock).mockResolvedValue(mockGraveTypes);
 
       await getGraveTypes(mockRequest as Request, mockResponse as Response);
 
-      expect(mockPrisma.graveType.findMany).toHaveBeenCalledWith({
+      expect(mockPrisma.cemeteryTypeMaster.findMany).toHaveBeenCalledWith({
         select: {
           id: true,
           code: true,
@@ -209,7 +209,7 @@ describe('Masters Controller', () => {
     });
 
     it('should handle empty grave types list', async () => {
-      (mockPrisma.graveType.findMany as jest.Mock).mockResolvedValue([]);
+      (mockPrisma.cemeteryTypeMaster.findMany as jest.Mock).mockResolvedValue([]);
 
       await getGraveTypes(mockRequest as Request, mockResponse as Response);
 
@@ -220,7 +220,7 @@ describe('Masters Controller', () => {
     });
 
     it('should handle database error', async () => {
-      (mockPrisma.graveType.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (mockPrisma.cemeteryTypeMaster.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await getGraveTypes(mockRequest as Request, mockResponse as Response);
 
@@ -245,11 +245,11 @@ describe('Masters Controller', () => {
         { id: 3, name: '真言宗' },
       ];
 
-      (mockPrisma.religiousSect.findMany as jest.Mock).mockResolvedValue(mockReligiousSects);
+      (mockPrisma.denominationMaster.findMany as jest.Mock).mockResolvedValue(mockReligiousSects);
 
       await getReligiousSects(mockRequest as Request, mockResponse as Response);
 
-      expect(mockPrisma.religiousSect.findMany).toHaveBeenCalledWith({
+      expect(mockPrisma.denominationMaster.findMany).toHaveBeenCalledWith({
         select: {
           id: true,
           name: true,
@@ -266,7 +266,7 @@ describe('Masters Controller', () => {
     });
 
     it('should handle empty religious sects list', async () => {
-      (mockPrisma.religiousSect.findMany as jest.Mock).mockResolvedValue([]);
+      (mockPrisma.denominationMaster.findMany as jest.Mock).mockResolvedValue([]);
 
       await getReligiousSects(mockRequest as Request, mockResponse as Response);
 
@@ -277,7 +277,7 @@ describe('Masters Controller', () => {
     });
 
     it('should handle database error', async () => {
-      (mockPrisma.religiousSect.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (mockPrisma.denominationMaster.findMany as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await getReligiousSects(mockRequest as Request, mockResponse as Response);
 

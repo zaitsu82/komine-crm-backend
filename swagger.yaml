@@ -1,0 +1,3486 @@
+openapi: 3.0.3
+info:
+  title: Cemetery CRM API
+  description: |
+    Cemetery CRM Backend API の仕様書
+
+    墓石・霊園管理システムのためのRESTful APIです。
+    墓石、申込者、契約者、使用料、管理料、請求情報、家族連絡先、埋葬者、工事情報の管理を行います。
+
+    ## 認証
+    JWT Bearer Token による認証が必要です。
+
+    ## 権限レベル
+    - **viewer**: 閲覧のみ
+    - **operator**: 作成・更新可能
+    - **manager**: 削除・特殊操作可能
+    - **admin**: 全権限
+
+    ## エラーレスポンス
+    全てのエラーレスポンスは以下の形式で返されます：
+    ```json
+    {
+      "success": false,
+      "error": {
+        "code": "ERROR_CODE",
+        "message": "エラーメッセージ",
+        "details": ["詳細エラー情報"]
+      }
+    }
+    ```
+  version: 1.0.0
+  contact:
+    name: Cemetery CRM API Support
+    email: support@cemetery-crm.com
+  license:
+    name: MIT License
+
+servers:
+  - url: http://localhost:3001/api/v1
+    description: 開発環境
+  - url: https://api.cemetery-crm.com/v1
+    description: 本番環境
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: auth
+    description: 認証関連
+  - name: gravestones
+    description: 墓石管理
+  - name: applicants
+    description: 申込者管理
+  - name: contractors
+    description: 契約者管理
+  - name: usage-fees
+    description: 使用料管理
+  - name: management-fees
+    description: 管理料管理
+  - name: billing-infos
+    description: 請求情報管理
+  - name: family-contacts
+    description: 家族連絡先管理
+  - name: burials
+    description: 埋葬者管理
+  - name: constructions
+    description: 工事情報管理
+  - name: masters
+    description: マスターデータ
+  - name: validations
+    description: バリデーション
+
+paths:
+  # 認証エンドポイント
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: ユーザーログイン
+      description: メールアドレスとパスワードでログインし、JWTトークンを取得します
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: test@example.com
+                password:
+                  type: string
+                  example: password123
+      responses:
+        '200':
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      user:
+                        $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: ユーザー登録
+      description: 新規ユーザーを登録します
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                  example: 新規ユーザー
+                email:
+                  type: string
+                  format: email
+                  example: newuser@example.com
+                password:
+                  type: string
+                  minLength: 6
+                  example: password123
+                role:
+                  type: string
+                  enum: [viewer, operator, manager, admin]
+                  default: viewer
+      responses:
+        '201':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: 現在のユーザー情報取得
+      description: 現在ログインしているユーザーの情報を取得します
+      responses:
+        '200':
+          description: ユーザー情報取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: ログアウト
+      description: 現在のセッションからログアウトします
+      responses:
+        '200':
+          description: ログアウト成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/password:
+    put:
+      tags: [auth]
+      summary: パスワード変更
+      description: 現在のユーザーのパスワードを変更します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                  example: oldpassword
+                newPassword:
+                  type: string
+                  minLength: 6
+                  example: newpassword123
+      responses:
+        '200':
+          description: パスワード変更成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/permissions:
+    get:
+      tags: [auth]
+      summary: ユーザー権限取得
+      description: 現在のユーザーの権限一覧を取得します
+      responses:
+        '200':
+          description: 権限一覧取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                        example: operator
+                      permissions:
+                        type: array
+                        items:
+                          type: string
+                        example: [gravestone:read, gravestone:write, contractor:read]
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/check-permission:
+    post:
+      tags: [auth]
+      summary: 権限チェック
+      description: 指定されたリソース・アクションに対する権限をチェックします
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resource, action]
+              properties:
+                resource:
+                  type: string
+                  example: contract
+                action:
+                  type: string
+                  example: read
+      responses:
+        '200':
+          description: 権限チェック結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      hasPermission:
+                        type: boolean
+                        example: true
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/can/{resource}/{action}:
+    get:
+      tags: [auth]
+      summary: リソース・アクション権限チェック
+      description: 指定されたリソース・アクションに対する権限をURLパラメータでチェックします
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+          example: contract
+        - name: action
+          in: path
+          required: true
+          schema:
+            type: string
+          example: read
+      responses:
+        '200':
+          description: 権限チェック結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      hasPermission:
+                        type: boolean
+                        example: true
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # 墓石管理エンドポイント
+  /gravestones:
+    get:
+      tags: [gravestones]
+      summary: 墓石一覧取得
+      description: 墓石の一覧を取得します（ページング対応）
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: ページ番号
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: 1ページあたりの件数
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: created_at
+          description: ソート項目
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: ソート順
+      responses:
+        '200':
+          description: 墓石一覧取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Gravestone'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationInfo'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+    post:
+      tags: [gravestones]
+      summary: 墓石新規作成
+      description: 新しい墓石を作成します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GravestoneCreateRequest'
+      responses:
+        '201':
+          description: 墓石作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 墓石が正常に作成されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /gravestones/{id}:
+    get:
+      tags: [gravestones]
+      summary: 墓石詳細取得
+      description: 指定されたIDの墓石詳細情報を取得します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 墓石ID
+      responses:
+        '200':
+          description: 墓石詳細取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Gravestone'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags: [gravestones]
+      summary: 墓石更新
+      description: 指定されたIDの墓石情報を更新します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 墓石ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GravestoneUpdateRequest'
+      responses:
+        '200':
+          description: 墓石更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 墓石が正常に更新されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [gravestones]
+      summary: 墓石削除
+      description: 指定されたIDの墓石を削除します（論理削除）
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 墓石ID
+      responses:
+        '200':
+          description: 墓石削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 墓石が正常に削除されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /gravestones/search:
+    get:
+      tags: [gravestones]
+      summary: 墓石検索
+      description: 条件を指定して墓石を検索します
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 検索キーワード（墓石コード、場所など）
+        - name: cemetery_type
+          in: query
+          schema:
+            type: string
+          description: 墓地種別
+        - name: usage_status
+          in: query
+          schema:
+            type: string
+          description: 使用状況
+        - name: denomination
+          in: query
+          schema:
+            type: string
+          description: 宗派
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: ページ番号
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: 1ページあたりの件数
+      responses:
+        '200':
+          description: 墓石検索成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Gravestone'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationInfo'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  # 申込者管理エンドポイント
+  /applicants/{id}:
+    get:
+      tags: [applicants]
+      summary: 申込者詳細取得
+      description: 指定されたIDの申込者詳細情報を取得します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 申込者ID
+      responses:
+        '200':
+          description: 申込者詳細取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Applicant'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags: [applicants]
+      summary: 申込者更新
+      description: 指定されたIDの申込者情報を更新します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 申込者ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicantUpdateRequest'
+      responses:
+        '200':
+          description: 申込者更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 申込者が正常に更新されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [applicants]
+      summary: 申込者削除
+      description: 指定されたIDの申込者を削除します（論理削除）
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 申込者ID
+      responses:
+        '200':
+          description: 申込者削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 申込者が正常に削除されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /applicants:
+    post:
+      tags: [applicants]
+      summary: 申込者新規作成
+      description: 新しい申込者を作成します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicantCreateRequest'
+      responses:
+        '201':
+          description: 申込者作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 申込者が正常に作成されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # 契約者管理エンドポイント
+  /contractors/{id}:
+    get:
+      tags: [contractors]
+      summary: 契約者詳細取得
+      description: 指定されたIDの契約者詳細情報を取得します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 契約者ID
+      responses:
+        '200':
+          description: 契約者詳細取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Contractor'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags: [contractors]
+      summary: 契約者更新
+      description: 指定されたIDの契約者情報を更新します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 契約者ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractorUpdateRequest'
+      responses:
+        '200':
+          description: 契約者更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 契約者が正常に更新されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [contractors]
+      summary: 契約者削除
+      description: 指定されたIDの契約者を削除します（論理削除）
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 契約者ID
+      responses:
+        '200':
+          description: 契約者削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 契約者が正常に削除されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /contractors:
+    post:
+      tags: [contractors]
+      summary: 契約者新規作成
+      description: 新しい契約者を作成します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractorCreateRequest'
+      responses:
+        '201':
+          description: 契約者作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 契約者が正常に作成されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /contractors/search:
+    get:
+      tags: [contractors]
+      summary: 契約者検索
+      description: 条件を指定して契約者を検索します
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 検索キーワード（名前、カナなど）
+        - name: phone
+          in: query
+          schema:
+            type: string
+          description: 電話番号（部分一致）
+        - name: permission_date_from
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 許可日（開始）
+        - name: permission_date_to
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 許可日（終了）
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: ページ番号
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: 1ページあたりの件数
+      responses:
+        '200':
+          description: 契約者検索成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Contractor'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationInfo'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /contractors/{id}/transfer:
+    post:
+      tags: [contractors]
+      summary: 契約者移転
+      description: 契約者を別の墓石に移転します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 契約者ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_gravestone_id, transfer_date]
+              properties:
+                new_gravestone_id:
+                  type: integer
+                  description: 移転先墓石ID
+                  example: 2
+                transfer_date:
+                  type: string
+                  format: date
+                  description: 移転日
+                  example: "2024-01-01"
+                remarks:
+                  type: string
+                  description: 備考
+                  example: 家族の都合により移転
+      responses:
+        '200':
+          description: 契約者移転成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 契約者が正常に移転されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # 使用料管理エンドポイント
+  /usage-fees:
+    post:
+      tags: [usage-fees]
+      summary: 使用料新規作成
+      description: 新しい使用料を作成します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsageFeeCreateRequest'
+      responses:
+        '201':
+          description: 使用料作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 使用料が正常に作成されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /usage-fees/{id}:
+    put:
+      tags: [usage-fees]
+      summary: 使用料更新
+      description: 指定されたIDの使用料を更新します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 使用料ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsageFeeUpdateRequest'
+      responses:
+        '200':
+          description: 使用料更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 使用料が正常に更新されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [usage-fees]
+      summary: 使用料削除
+      description: 指定されたIDの使用料を削除します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 使用料ID
+      responses:
+        '200':
+          description: 使用料削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 使用料が正常に削除されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # 管理料管理エンドポイント
+  /management-fees/calculate:
+    post:
+      tags: [management-fees]
+      summary: 管理料計算
+      description: 管理料を計算します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gravestone_id, period_years]
+              properties:
+                gravestone_id:
+                  type: integer
+                  description: 墓石ID
+                  example: 1
+                period_years:
+                  type: integer
+                  description: 期間（年）
+                  example: 3
+      responses:
+        '200':
+          description: 管理料計算成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      calculated_amount:
+                        type: number
+                        format: float
+                        description: 計算された管理料金額
+                        example: 30000.00
+                      period_years:
+                        type: integer
+                        description: 期間（年）
+                        example: 3
+                      calculation_base:
+                        type: number
+                        format: float
+                        description: 計算基準額
+                        example: 10000.00
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /management-fees:
+    post:
+      tags: [management-fees]
+      summary: 管理料新規作成
+      description: 新しい管理料を作成します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagementFeeCreateRequest'
+      responses:
+        '201':
+          description: 管理料作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 管理料が正常に作成されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /management-fees/{id}:
+    put:
+      tags: [management-fees]
+      summary: 管理料更新
+      description: 指定されたIDの管理料を更新します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 管理料ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagementFeeUpdateRequest'
+      responses:
+        '200':
+          description: 管理料更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 管理料が正常に更新されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [management-fees]
+      summary: 管理料削除
+      description: 指定されたIDの管理料を削除します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 管理料ID
+      responses:
+        '200':
+          description: 管理料削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 管理料が正常に削除されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # 請求情報管理エンドポイント
+  /billing-infos/generate:
+    post:
+      tags: [billing-infos]
+      summary: 請求データ生成
+      description: 請求データを一括生成します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [billing_date, due_date]
+              properties:
+                billing_date:
+                  type: string
+                  format: date
+                  description: 請求日
+                  example: "2024-01-01"
+                due_date:
+                  type: string
+                  format: date
+                  description: 支払期限
+                  example: "2024-01-31"
+                target_gravestone_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: 対象墓石ID（省略時は全墓石）
+                  example: [1, 2, 3]
+      responses:
+        '200':
+          description: 請求データ生成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      generated_count:
+                        type: integer
+                        description: 生成された請求件数
+                        example: 15
+                      message:
+                        type: string
+                        example: 請求データが正常に生成されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /billing-infos:
+    post:
+      tags: [billing-infos]
+      summary: 請求情報新規作成
+      description: 新しい請求情報を作成します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillingInfoCreateRequest'
+      responses:
+        '201':
+          description: 請求情報作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 請求情報が正常に作成されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /billing-infos/{id}:
+    put:
+      tags: [billing-infos]
+      summary: 請求情報更新
+      description: 指定されたIDの請求情報を更新します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 請求情報ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillingInfoUpdateRequest'
+      responses:
+        '200':
+          description: 請求情報更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 請求情報が正常に更新されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [billing-infos]
+      summary: 請求情報削除
+      description: 指定されたIDの請求情報を削除します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 請求情報ID
+      responses:
+        '200':
+          description: 請求情報削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 請求情報が正常に削除されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # 家族連絡先管理エンドポイント
+  /family-contacts:
+    post:
+      tags: [family-contacts]
+      summary: 家族連絡先新規作成
+      description: 新しい家族連絡先を作成します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyContactCreateRequest'
+      responses:
+        '201':
+          description: 家族連絡先作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 家族連絡先が正常に作成されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /family-contacts/{id}:
+    put:
+      tags: [family-contacts]
+      summary: 家族連絡先更新
+      description: 指定されたIDの家族連絡先を更新します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 家族連絡先ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyContactUpdateRequest'
+      responses:
+        '200':
+          description: 家族連絡先更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 家族連絡先が正常に更新されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [family-contacts]
+      summary: 家族連絡先削除
+      description: 指定されたIDの家族連絡先を削除します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 家族連絡先ID
+      responses:
+        '200':
+          description: 家族連絡先削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 家族連絡先が正常に削除されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # 埋葬者管理エンドポイント
+  /burials/search:
+    get:
+      tags: [burials]
+      summary: 埋葬者検索
+      description: 条件を指定して埋葬者を検索します
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 検索キーワード（名前、カナなど）
+        - name: burial_date_from
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 埋葬日（開始）
+        - name: burial_date_to
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 埋葬日（終了）
+        - name: age_from
+          in: query
+          schema:
+            type: integer
+          description: 年齢（開始）
+        - name: age_to
+          in: query
+          schema:
+            type: integer
+          description: 年齢（終了）
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: ページ番号
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: 1ページあたりの件数
+      responses:
+        '200':
+          description: 埋葬者検索成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Burial'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationInfo'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /burials:
+    post:
+      tags: [burials]
+      summary: 埋葬者新規作成
+      description: 新しい埋葬者を作成します
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BurialCreateRequest'
+      responses:
+        '201':
+          description: 埋葬者作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 埋葬者が正常に作成されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /burials/{id}:
+    put:
+      tags: [burials]
+      summary: 埋葬者更新
+      description: 指定されたIDの埋葬者を更新します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 埋葬者ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BurialUpdateRequest'
+      responses:
+        '200':
+          description: 埋葬者更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 埋葬者が正常に更新されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [burials]
+      summary: 埋葬者削除
+      description: 指定されたIDの埋葬者を削除します
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 埋葬者ID
+      responses:
+        '200':
+          description: 埋葬者削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 埋葬者が正常に削除されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # 工事情報管理エンドポイント
+  /constructions/contracts/{contract_id}/constructions:
+    get:
+      tags: [constructions]
+      summary: 契約別工事情報取得
+      description: 指定された契約IDの工事情報一覧を取得します
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 契約ID（墓石ID）
+      responses:
+        '200':
+          description: 工事情報取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Construction'
+        '400':
+          description: 無効なパラメータ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        example: INVALID_PARAMETER
+                      message:
+                        type: string
+                        example: 無効な契約IDです
+                      details:
+                        type: array
+                        items:
+                          type: string
+                        example: []
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+    post:
+      tags: [constructions]
+      summary: 工事情報新規作成
+      description: 指定された契約IDで新しい工事情報を作成します
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 契約ID（墓石ID）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConstructionCreateRequest'
+      responses:
+        '201':
+          description: 工事情報作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 工事情報が正常に作成されました
+        '400':
+          description: 無効なパラメータ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        example: INVALID_PARAMETER
+                      message:
+                        type: string
+                        example: 無効な契約IDです
+                      details:
+                        type: array
+                        items:
+                          type: string
+                        example: []
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /constructions/constructions/{construction_id}:
+    put:
+      tags: [constructions]
+      summary: 工事情報更新
+      description: 指定されたIDの工事情報を更新します
+      parameters:
+        - name: construction_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 工事情報ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConstructionUpdateRequest'
+      responses:
+        '200':
+          description: 工事情報更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      message:
+                        type: string
+                        example: 工事情報が正常に更新されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [constructions]
+      summary: 工事情報削除
+      description: 指定されたIDの工事情報を削除します
+      parameters:
+        - name: construction_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 工事情報ID
+      responses:
+        '200':
+          description: 工事情報削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 工事情報が正常に削除されました
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # マスターデータエンドポイント
+  /masters/staff:
+    get:
+      tags: [masters]
+      summary: スタッフマスター取得
+      description: スタッフマスターデータを取得します
+      responses:
+        '200':
+          description: スタッフマスター取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        name:
+                          type: string
+                          example: 管理者
+                        email:
+                          type: string
+                          example: admin@example.com
+                        role:
+                          type: string
+                          example: admin
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /masters/payment-methods:
+    get:
+      tags: [masters]
+      summary: 支払方法マスター取得
+      description: 支払方法マスターデータを取得します
+      responses:
+        '200':
+          description: 支払方法マスター取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code:
+                          type: string
+                          example: "01"
+                        name:
+                          type: string
+                          example: 現金
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /masters/grave-types:
+    get:
+      tags: [masters]
+      summary: 墓地種別マスター取得
+      description: 墓地種別マスターデータを取得します
+      responses:
+        '200':
+          description: 墓地種別マスター取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code:
+                          type: string
+                          example: "01"
+                        name:
+                          type: string
+                          example: 一般墓
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /masters/religious-sects:
+    get:
+      tags: [masters]
+      summary: 宗派マスター取得
+      description: 宗派マスターデータを取得します
+      responses:
+        '200':
+          description: 宗派マスター取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code:
+                          type: string
+                          example: "01"
+                        name:
+                          type: string
+                          example: 浄土宗
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # バリデーションエンドポイント
+  /validations/contract-number:
+    get:
+      tags: [validations]
+      summary: 契約番号チェック
+      description: 契約番号の有効性をチェックします
+      parameters:
+        - name: contract_number
+          in: query
+          required: true
+          schema:
+            type: string
+          description: チェックする契約番号
+          example: A-001
+      responses:
+        '200':
+          description: 契約番号チェック成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      is_valid:
+                        type: boolean
+                        example: true
+                      exists:
+                        type: boolean
+                        example: false
+                      message:
+                        type: string
+                        example: この契約番号は利用可能です
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /validations/contract:
+    post:
+      tags: [validations]
+      summary: 契約データバリデーション
+      description: 契約データの妥当性をバリデーションします
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                gravestone_code:
+                  type: string
+                  example: A-001
+                contractor_name:
+                  type: string
+                  example: 契約者太郎
+                usage_fee:
+                  type: number
+                  example: 50000
+                management_fee:
+                  type: number
+                  example: 30000
+      responses:
+        '200':
+          description: バリデーション成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      is_valid:
+                        type: boolean
+                        example: true
+                      validation_results:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            field:
+                              type: string
+                              example: gravestone_code
+                            status:
+                              type: string
+                              example: valid
+                            message:
+                              type: string
+                              example: 墓石コードは有効です
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Bearer Token
+
+  schemas:
+    # 共通スキーマ
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+              example: 操作が正常に完了しました
+
+    PaginationInfo:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 100
+        totalPages:
+          type: integer
+          example: 10
+
+    # ユーザー関連スキーマ
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: 管理者
+        email:
+          type: string
+          format: email
+          example: admin@example.com
+        role:
+          type: string
+          enum: [viewer, operator, manager, admin]
+          example: admin
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    # 墓石関連スキーマ
+    Gravestone:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        gravestone_code:
+          type: string
+          example: A-001
+        usage_status:
+          type: string
+          example: 使用中
+        price:
+          type: number
+          format: float
+          example: 500000.00
+        orientation:
+          type: string
+          nullable: true
+          example: 南向き
+        location:
+          type: string
+          nullable: true
+          example: A区画1番
+        cemetery_type:
+          type: string
+          nullable: true
+          example: 一般墓
+        denomination:
+          type: string
+          nullable: true
+          example: 浄土宗
+        inscription:
+          type: string
+          nullable: true
+          example: 〇〇家之墓
+        construction_deadline:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-12-31"
+        construction_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-15"
+        epitaph:
+          type: string
+          nullable: true
+          example: 感謝の気持ちを込めて
+        remarks:
+          type: string
+          nullable: true
+          example: 特記事項
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    GravestoneCreateRequest:
+      type: object
+      required:
+        - gravestone_code
+        - usage_status
+        - price
+      properties:
+        gravestone_code:
+          type: string
+          example: A-001
+        usage_status:
+          type: string
+          example: 空き
+        price:
+          type: number
+          format: float
+          example: 500000.00
+        orientation:
+          type: string
+          nullable: true
+          example: 南向き
+        location:
+          type: string
+          nullable: true
+          example: A区画1番
+        cemetery_type:
+          type: string
+          nullable: true
+          example: 一般墓
+        denomination:
+          type: string
+          nullable: true
+          example: 浄土宗
+        inscription:
+          type: string
+          nullable: true
+          example: 〇〇家之墓
+        construction_deadline:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-12-31"
+        epitaph:
+          type: string
+          nullable: true
+          example: 感謝の気持ちを込めて
+        remarks:
+          type: string
+          nullable: true
+          example: 特記事項
+
+    GravestoneUpdateRequest:
+      type: object
+      properties:
+        usage_status:
+          type: string
+          example: 使用中
+        price:
+          type: number
+          format: float
+          example: 550000.00
+        orientation:
+          type: string
+          nullable: true
+          example: 南向き
+        location:
+          type: string
+          nullable: true
+          example: A区画1番（更新）
+        cemetery_type:
+          type: string
+          nullable: true
+          example: 一般墓
+        denomination:
+          type: string
+          nullable: true
+          example: 浄土宗
+        inscription:
+          type: string
+          nullable: true
+          example: 〇〇家之墓
+        construction_deadline:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-12-31"
+        construction_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-15"
+        epitaph:
+          type: string
+          nullable: true
+          example: 感謝の気持ちを込めて
+        remarks:
+          type: string
+          nullable: true
+          example: 特記事項
+
+    # 申込者関連スキーマ
+    Applicant:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        gravestone_id:
+          type: integer
+          example: 1
+        application_date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        name:
+          type: string
+          example: 申込者太郎
+        kana:
+          type: string
+          nullable: true
+          example: シンコミシャタロウ
+        postal_code:
+          type: string
+          nullable: true
+          example: "123-4567"
+        prefecture:
+          type: string
+          nullable: true
+          example: 東京都
+        address:
+          type: string
+          nullable: true
+          example: 新宿区西新宿1-1-1
+        phone:
+          type: string
+          nullable: true
+          example: "03-1234-5678"
+        mobile:
+          type: string
+          nullable: true
+          example: "090-1234-5678"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: applicant@example.com
+        remarks:
+          type: string
+          nullable: true
+          example: 申込者に関する特記事項
+
+    ApplicantCreateRequest:
+      type: object
+      required:
+        - gravestone_id
+        - application_date
+        - name
+      properties:
+        gravestone_id:
+          type: integer
+          example: 1
+        application_date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        name:
+          type: string
+          example: 申込者太郎
+        kana:
+          type: string
+          nullable: true
+          example: シンコミシャタロウ
+        postal_code:
+          type: string
+          nullable: true
+          example: "123-4567"
+        prefecture:
+          type: string
+          nullable: true
+          example: 東京都
+        address:
+          type: string
+          nullable: true
+          example: 新宿区西新宿1-1-1
+        phone:
+          type: string
+          nullable: true
+          example: "03-1234-5678"
+        mobile:
+          type: string
+          nullable: true
+          example: "090-1234-5678"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: applicant@example.com
+        remarks:
+          type: string
+          nullable: true
+          example: 申込者に関する特記事項
+
+    ApplicantUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: 申込者太郎
+        kana:
+          type: string
+          nullable: true
+          example: シンコミシャタロウ
+        postal_code:
+          type: string
+          nullable: true
+          example: "123-4567"
+        prefecture:
+          type: string
+          nullable: true
+          example: 東京都
+        address:
+          type: string
+          nullable: true
+          example: 新宿区西新宿1-1-1
+        phone:
+          type: string
+          nullable: true
+          example: "03-9876-5432"
+        mobile:
+          type: string
+          nullable: true
+          example: "090-9876-5432"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: applicant@example.com
+        remarks:
+          type: string
+          nullable: true
+          example: 申込者に関する特記事項
+
+    # 契約者関連スキーマ
+    Contractor:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        gravestone_id:
+          type: integer
+          example: 1
+        permission_date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        name:
+          type: string
+          example: 契約者太郎
+        kana:
+          type: string
+          nullable: true
+          example: ケイヤクシャタロウ
+        postal_code:
+          type: string
+          nullable: true
+          example: "123-4567"
+        prefecture:
+          type: string
+          nullable: true
+          example: 東京都
+        address:
+          type: string
+          nullable: true
+          example: 新宿区西新宿1-1-1
+        phone:
+          type: string
+          nullable: true
+          example: "03-1234-5678"
+        mobile:
+          type: string
+          nullable: true
+          example: "090-1234-5678"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: contractor@example.com
+        effective_start_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-01"
+        effective_end_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2029-12-31"
+        remarks:
+          type: string
+          nullable: true
+          example: 契約者に関する特記事項
+
+    ContractorCreateRequest:
+      type: object
+      required:
+        - gravestone_id
+        - permission_date
+        - name
+      properties:
+        gravestone_id:
+          type: integer
+          example: 1
+        permission_date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        name:
+          type: string
+          example: 契約者太郎
+        kana:
+          type: string
+          nullable: true
+          example: ケイヤクシャタロウ
+        postal_code:
+          type: string
+          nullable: true
+          example: "123-4567"
+        prefecture:
+          type: string
+          nullable: true
+          example: 東京都
+        address:
+          type: string
+          nullable: true
+          example: 新宿区西新宿1-1-1
+        phone:
+          type: string
+          nullable: true
+          example: "03-1234-5678"
+        mobile:
+          type: string
+          nullable: true
+          example: "090-1234-5678"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: contractor@example.com
+        effective_start_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-01"
+        effective_end_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2029-12-31"
+        remarks:
+          type: string
+          nullable: true
+          example: 契約者に関する特記事項
+
+    ContractorUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: 契約者太郎
+        kana:
+          type: string
+          nullable: true
+          example: ケイヤクシャタロウ
+        postal_code:
+          type: string
+          nullable: true
+          example: "123-4567"
+        prefecture:
+          type: string
+          nullable: true
+          example: 東京都
+        address:
+          type: string
+          nullable: true
+          example: 新宿区西新宿1-1-1
+        phone:
+          type: string
+          nullable: true
+          example: "03-9876-5432"
+        mobile:
+          type: string
+          nullable: true
+          example: "090-9876-5432"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: contractor@example.com
+        effective_start_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-01"
+        effective_end_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2029-12-31"
+        remarks:
+          type: string
+          nullable: true
+          example: 契約者に関する特記事項
+
+    # 使用料関連スキーマ
+    UsageFeeCreateRequest:
+      type: object
+      required:
+        - gravestone_id
+        - contractor_id
+        - amount
+        - due_date
+      properties:
+        gravestone_id:
+          type: integer
+          example: 1
+        contractor_id:
+          type: integer
+          example: 1
+        amount:
+          type: number
+          format: float
+          example: 50000.00
+        due_date:
+          type: string
+          format: date
+          example: "2024-12-31"
+        payment_method:
+          type: string
+          nullable: true
+          example: 現金
+        remarks:
+          type: string
+          nullable: true
+          example: 使用料に関する特記事項
+
+    UsageFeeUpdateRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: float
+          example: 55000.00
+        due_date:
+          type: string
+          format: date
+          example: "2024-12-31"
+        payment_status:
+          type: string
+          example: paid
+        payment_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-15"
+        payment_method:
+          type: string
+          nullable: true
+          example: 銀行振込
+        remarks:
+          type: string
+          nullable: true
+          example: 使用料に関する特記事項
+
+    # 管理料関連スキーマ
+    ManagementFeeCreateRequest:
+      type: object
+      required:
+        - gravestone_id
+        - contractor_id
+        - amount
+        - period_years
+      properties:
+        gravestone_id:
+          type: integer
+          example: 1
+        contractor_id:
+          type: integer
+          example: 1
+        amount:
+          type: number
+          format: float
+          example: 30000.00
+        period_years:
+          type: integer
+          example: 3
+        start_date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        end_date:
+          type: string
+          format: date
+          example: "2026-12-31"
+        payment_method:
+          type: string
+          nullable: true
+          example: 現金
+        remarks:
+          type: string
+          nullable: true
+          example: 管理料に関する特記事項
+
+    ManagementFeeUpdateRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: float
+          example: 35000.00
+        period_years:
+          type: integer
+          example: 3
+        start_date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        end_date:
+          type: string
+          format: date
+          example: "2026-12-31"
+        payment_status:
+          type: string
+          example: paid
+        payment_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-15"
+        payment_method:
+          type: string
+          nullable: true
+          example: 銀行振込
+        remarks:
+          type: string
+          nullable: true
+          example: 管理料に関する特記事項
+
+    # 請求情報関連スキーマ
+    BillingInfoCreateRequest:
+      type: object
+      required:
+        - gravestone_id
+        - contractor_id
+        - total_amount
+      properties:
+        gravestone_id:
+          type: integer
+          example: 1
+        contractor_id:
+          type: integer
+          example: 1
+        total_amount:
+          type: number
+          format: float
+          example: 85000.00
+        billing_date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        due_date:
+          type: string
+          format: date
+          example: "2024-01-31"
+        payment_method:
+          type: string
+          nullable: true
+          example: 現金
+        remarks:
+          type: string
+          nullable: true
+          example: 請求情報に関する特記事項
+
+    BillingInfoUpdateRequest:
+      type: object
+      properties:
+        total_amount:
+          type: number
+          format: float
+          example: 90000.00
+        billing_date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        due_date:
+          type: string
+          format: date
+          example: "2024-01-31"
+        payment_status:
+          type: string
+          example: paid
+        payment_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-15"
+        payment_method:
+          type: string
+          nullable: true
+          example: 銀行振込
+        remarks:
+          type: string
+          nullable: true
+          example: 請求情報に関する特記事項
+
+    # 家族連絡先関連スキーマ
+    FamilyContactCreateRequest:
+      type: object
+      required:
+        - gravestone_id
+        - contractor_id
+        - name
+        - phone
+      properties:
+        gravestone_id:
+          type: integer
+          example: 1
+        contractor_id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: 連絡先太郎
+        kana:
+          type: string
+          nullable: true
+          example: レンラクサキタロウ
+        phone:
+          type: string
+          example: "03-1234-5678"
+        mobile:
+          type: string
+          nullable: true
+          example: "090-1234-5678"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: contact@example.com
+        relation:
+          type: string
+          nullable: true
+          example: 子
+        emergency_contact:
+          type: boolean
+          default: false
+          example: false
+        remarks:
+          type: string
+          nullable: true
+          example: 家族連絡先に関する特記事項
+
+    FamilyContactUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: 連絡先太郎
+        kana:
+          type: string
+          nullable: true
+          example: レンラクサキタロウ
+        phone:
+          type: string
+          example: "03-9876-5432"
+        mobile:
+          type: string
+          nullable: true
+          example: "090-9876-5432"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: contact@example.com
+        relation:
+          type: string
+          nullable: true
+          example: 子
+        emergency_contact:
+          type: boolean
+          example: true
+        remarks:
+          type: string
+          nullable: true
+          example: 家族連絡先に関する特記事項
+
+    # 埋葬者関連スキーマ
+    Burial:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        gravestone_id:
+          type: integer
+          example: 1
+        contractor_id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          nullable: true
+          example: 故人太郎
+        kana:
+          type: string
+          nullable: true
+          example: コジンタロウ
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+          example: "1940-01-01"
+        gender:
+          type: string
+          nullable: true
+          example: 男性
+        posthumous_name:
+          type: string
+          nullable: true
+          example: 戒名
+        death_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2023-12-25"
+        age_at_death:
+          type: integer
+          nullable: true
+          example: 83
+        burial_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-01"
+        notification_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2023-12-26"
+        denomination:
+          type: string
+          nullable: true
+          example: 浄土宗
+        remarks:
+          type: string
+          nullable: true
+          example: 埋葬者に関する特記事項
+
+    BurialCreateRequest:
+      type: object
+      required:
+        - gravestone_id
+        - contractor_id
+      properties:
+        gravestone_id:
+          type: integer
+          example: 1
+        contractor_id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          nullable: true
+          example: 故人太郎
+        kana:
+          type: string
+          nullable: true
+          example: コジンタロウ
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+          example: "1940-01-01"
+        gender:
+          type: string
+          nullable: true
+          example: 男性
+        posthumous_name:
+          type: string
+          nullable: true
+          example: 戒名
+        death_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2023-12-25"
+        age_at_death:
+          type: integer
+          nullable: true
+          example: 83
+        burial_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-01"
+        notification_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2023-12-26"
+        denomination:
+          type: string
+          nullable: true
+          example: 浄土宗
+        remarks:
+          type: string
+          nullable: true
+          example: 埋葬者に関する特記事項
+
+    BurialUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          example: 故人太郎
+        kana:
+          type: string
+          nullable: true
+          example: コジンタロウ
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+          example: "1940-01-01"
+        gender:
+          type: string
+          nullable: true
+          example: 男性
+        posthumous_name:
+          type: string
+          nullable: true
+          example: 戒名
+        death_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2023-12-25"
+        age_at_death:
+          type: integer
+          nullable: true
+          example: 85
+        burial_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-01"
+        notification_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2023-12-26"
+        denomination:
+          type: string
+          nullable: true
+          example: 浄土宗
+        remarks:
+          type: string
+          nullable: true
+          example: 埋葬者に関する特記事項
+
+    # 工事情報関連スキーマ
+    Construction:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        contractor_name:
+          type: string
+          nullable: true
+          example: 工事業者A
+        start_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-01"
+        planned_end_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-31"
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-15"
+        description:
+          type: string
+          nullable: true
+          example: 墓石設置工事
+        cost:
+          type: number
+          format: float
+          nullable: true
+          example: 200000.00
+        payment_amount:
+          type: number
+          format: float
+          nullable: true
+          example: 200000.00
+        construction_type:
+          type: string
+          nullable: true
+          example: 墓石設置
+        remarks:
+          type: string
+          nullable: true
+          example: 工事に関する特記事項
+
+    ConstructionCreateRequest:
+      type: object
+      required:
+        - contractor_name
+        - construction_type
+      properties:
+        contractor_name:
+          type: string
+          example: 工事業者A
+        start_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-01"
+        planned_end_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-31"
+        description:
+          type: string
+          nullable: true
+          example: 墓石設置工事
+        cost:
+          type: number
+          format: float
+          nullable: true
+          example: 200000.00
+        payment_amount:
+          type: number
+          format: float
+          nullable: true
+          example: 200000.00
+        construction_type:
+          type: string
+          example: 墓石設置
+        remarks:
+          type: string
+          nullable: true
+          example: 工事に関する特記事項
+
+    ConstructionUpdateRequest:
+      type: object
+      properties:
+        contractor_name:
+          type: string
+          example: 工事業者A
+        start_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-01"
+        planned_end_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-31"
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2024-01-15"
+        description:
+          type: string
+          nullable: true
+          example: 墓石設置工事
+        cost:
+          type: number
+          format: float
+          nullable: true
+          example: 220000.00
+        payment_amount:
+          type: number
+          format: float
+          nullable: true
+          example: 220000.00
+        construction_type:
+          type: string
+          example: 墓石設置
+        remarks:
+          type: string
+          nullable: true
+          example: 工事に関する特記事項
+
+  responses:
+    # 共通エラーレスポンス
+    UnauthorizedError:
+      description: 認証が必要です
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: UNAUTHORIZED
+                  message:
+                    type: string
+                    example: 認証が必要です
+                  details:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+
+    ForbiddenError:
+      description: 権限が不足しています
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: FORBIDDEN
+                  message:
+                    type: string
+                    example: この操作を実行する権限がありません
+                  details:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+
+    NotFoundError:
+      description: リソースが見つかりません
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: NOT_FOUND
+                  message:
+                    type: string
+                    example: 指定されたリソースが見つかりません
+                  details:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+
+    ValidationError:
+      description: バリデーションエラー
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: VALIDATION_ERROR
+                  message:
+                    type: string
+                    example: バリデーションエラーが発生しました
+                  details:
+                    type: array
+                    items:
+                      type: string
+                    example: ["name は必須です", "email の形式が正しくありません"]

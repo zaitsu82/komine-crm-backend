@@ -15,19 +15,23 @@ jest.mock('../../src/middleware/auth', () => ({
   authenticate: jest.fn((req, res, next) => next())
 }));
 
+jest.mock('../../src/middleware/permission', () => ({
+  requirePermission: jest.fn(() => (req: any, res: any, next: any) => next())
+}));
+
 describe('FamilyContact Routes', () => {
   let app: express.Application;
 
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    app.use('/api', familyContactRoutes);
+    app.use('/api/v1/family-contacts', familyContactRoutes);
   });
 
-  describe('GET /api/contracts/:contract_id/family-contacts', () => {
-    it('should handle getFamilyContacts request', async () => {
+  describe('GET /api/v1/family-contacts/contracts/:contract_id/family-contacts', () => {
+    it('should handle getFamilyContacts request (legacy route)', async () => {
       const response = await request(app)
-        .get('/api/contracts/1/family-contacts')
+        .get('/api/v1/family-contacts/contracts/1/family-contacts')
         .set('Authorization', 'Bearer token');
 
       expect(response.status).toBe(200);
@@ -35,10 +39,10 @@ describe('FamilyContact Routes', () => {
     });
   });
 
-  describe('POST /api/contracts/:contract_id/family-contacts', () => {
+  describe('POST /api/v1/family-contacts/', () => {
     it('should handle createFamilyContact request', async () => {
       const response = await request(app)
-        .post('/api/contracts/1/family-contacts')
+        .post('/api/v1/family-contacts/')
         .set('Authorization', 'Bearer token')
         .send({ name: 'Test Contact' });
 
@@ -47,10 +51,22 @@ describe('FamilyContact Routes', () => {
     });
   });
 
-  describe('PUT /api/family-contacts/:contact_id', () => {
+  describe('POST /api/v1/family-contacts/contracts/:contract_id/family-contacts', () => {
+    it('should handle createFamilyContact request (legacy route)', async () => {
+      const response = await request(app)
+        .post('/api/v1/family-contacts/contracts/1/family-contacts')
+        .set('Authorization', 'Bearer token')
+        .send({ name: 'Test Contact' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+  });
+
+  describe('PUT /api/v1/family-contacts/:id', () => {
     it('should handle updateFamilyContact request', async () => {
       const response = await request(app)
-        .put('/api/family-contacts/1')
+        .put('/api/v1/family-contacts/1')
         .set('Authorization', 'Bearer token')
         .send({ name: 'Updated Contact' });
 
@@ -59,10 +75,10 @@ describe('FamilyContact Routes', () => {
     });
   });
 
-  describe('DELETE /api/family-contacts/:contact_id', () => {
+  describe('DELETE /api/v1/family-contacts/:id', () => {
     it('should handle deleteFamilyContact request', async () => {
       const response = await request(app)
-        .delete('/api/family-contacts/1')
+        .delete('/api/v1/family-contacts/1')
         .set('Authorization', 'Bearer token');
 
       expect(response.status).toBe(200);

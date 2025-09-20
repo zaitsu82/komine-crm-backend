@@ -31,7 +31,7 @@ describe('Construction Controller', () => {
       json: jest.fn(),
     };
     jest.clearAllMocks();
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => { });
   });
 
   afterEach(() => {
@@ -80,7 +80,7 @@ describe('Construction Controller', () => {
         construction_amount: 500000,
         payment_amount: 500000
       };
-      
+
       const mockConstruction = { id: 1 };
       mockPrisma.construction.create.mockResolvedValue(mockConstruction);
 
@@ -102,7 +102,7 @@ describe('Construction Controller', () => {
         contractor_name: 'テスト業者',
         construction_type: '新設'
       };
-      
+
       mockPrisma.construction.create.mockRejectedValue(new Error('DB error'));
 
       await createConstruction(mockRequest as Request, mockResponse as Response);
@@ -127,7 +127,7 @@ describe('Construction Controller', () => {
         contractor_name: '更新業者',
         construction_type: '修繕'
       };
-      
+
       const mockConstruction = { id: 1 };
       mockPrisma.construction.update.mockResolvedValue(mockConstruction);
 
@@ -148,7 +148,7 @@ describe('Construction Controller', () => {
         contractor_name: '更新業者',
         construction_type: '修繕'
       };
-      
+
       const error = new Error('Record to update not found');
       mockPrisma.construction.update.mockRejectedValue(error);
 
@@ -163,7 +163,7 @@ describe('Construction Controller', () => {
         contractor_name: '更新業者',
         construction_type: '修繕'
       };
-      
+
       mockPrisma.construction.update.mockRejectedValue(new Error('DB error'));
 
       await updateConstruction(mockRequest as Request, mockResponse as Response);

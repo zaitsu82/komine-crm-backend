@@ -5,7 +5,13 @@ import authRoutes from '../../src/auth/authRoutes';
 // コントローラーのモック
 jest.mock('../../src/auth/authController', () => ({
   login: jest.fn((req, res) => res.json({ success: true })),
-  getCurrentUser: jest.fn((req, res) => res.json({ success: true }))
+  getCurrentUser: jest.fn((req, res) => res.json({ success: true })),
+  register: jest.fn((req, res) => res.json({ success: true })),
+  logout: jest.fn((req, res) => res.json({ success: true })),
+  updatePassword: jest.fn((req, res) => res.json({ success: true })),
+  getPermissions: jest.fn((req, res) => res.json({ success: true })),
+  checkPermission: jest.fn((req, res) => res.json({ success: true })),
+  canResourceAction: jest.fn((req, res) => res.json({ success: true }))
 }));
 
 // ミドルウェアのモック

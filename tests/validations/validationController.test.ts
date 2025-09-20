@@ -28,9 +28,9 @@ describe('Validation Controller', () => {
       json: jest.fn(),
     };
     jest.clearAllMocks();
-    
+
     // console.errorをモック化してログ出力を抑制
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => { });
   });
 
   afterEach(() => {

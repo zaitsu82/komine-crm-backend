@@ -5,6 +5,7 @@ node_modules
 /src/generated/prisma
 .vscode/
 .claude/
+.clauderc
 
 # Logs
 logs

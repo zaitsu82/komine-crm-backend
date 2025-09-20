@@ -5,11 +5,24 @@ const prisma = new PrismaClient();
 
 export const getConstructions = async (req: Request, res: Response) => {
   try {
-    const { gravestone_id } = req.params;
+    const { contract_id } = req.params;
+    const gravestone_id = parseInt(contract_id);
+
+    // パラメータバリデーション
+    if (isNaN(gravestone_id)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_PARAMETER',
+          message: '無効な契約IDです',
+          details: [],
+        },
+      });
+    }
 
     const constructions = await prisma.construction.findMany({
       where: {
-        gravestone_id: parseInt(gravestone_id),
+        gravestone_id: gravestone_id,
       },
       select: {
         id: true,
@@ -60,7 +73,8 @@ export const getConstructions = async (req: Request, res: Response) => {
 
 export const createConstruction = async (req: Request, res: Response) => {
   try {
-    const { gravestone_id } = req.params;
+    const { contract_id } = req.params;
+    const gravestone_id = parseInt(contract_id);
     const data = req.body;
 
     // バリデーション
@@ -78,9 +92,21 @@ export const createConstruction = async (req: Request, res: Response) => {
       });
     }
 
+    // パラメータバリデーション
+    if (isNaN(gravestone_id)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_PARAMETER',
+          message: '無効な契約IDです',
+          details: [],
+        },
+      });
+    }
+
     const construction = await prisma.construction.create({
       data: {
-        gravestone_id: parseInt(gravestone_id),
+        gravestone_id: gravestone_id,
         contractor_name: data.contractor_name,
         start_date: data.start_date ? new Date(data.start_date) : null,
         planned_end_date: data.planned_end_date ? new Date(data.planned_end_date) : null,

@@ -4,13 +4,16 @@ import { Request, Response } from 'express';
 const mockPrisma = {
   burial: {
     findMany: jest.fn(),
-    findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn(),
+    count: jest.fn(),
   },
-  contract: {
-    findUnique: jest.fn(),
+  gravestone: {
+    findFirst: jest.fn(),
+  },
+  contractor: {
+    findFirst: jest.fn(),
   },
 };
 
@@ -21,6 +24,7 @@ jest.mock('@prisma/client', () => ({
 
 import {
   getBurials,
+  searchBurials,
   createBurial,
   updateBurial,
   deleteBurial
@@ -40,9 +44,9 @@ describe('Burial Controller', () => {
       json: jest.fn(),
     };
     jest.clearAllMocks();
-    
+
     // console.errorをモック化してログ出力を抑制
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => { });
   });
 
   afterEach(() => {
@@ -50,174 +54,228 @@ describe('Burial Controller', () => {
   });
 
   describe('getBurials', () => {
-    it('should return burials for a contract', async () => {
+    it('should return 501 not implemented', async () => {
+      await getBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(501);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'NOT_IMPLEMENTED',
+          message: 'この機能は実装されていません。埋葬者検索APIをご利用ください。',
+          details: [],
+        },
+      });
+    });
+  });
+
+  describe('searchBurials', () => {
+    it('should return burials with search parameters', async () => {
       const mockBurials = [
         {
           id: 1,
           name: 'テスト故人',
-          nameKana: 'てすとこじん',
-          birthDate: new Date('1950-01-01'),
+          kana: 'てすとこじん',
+          birth_date: new Date('1950-01-01'),
           gender: 'male',
-          posthumousName1: 'テスト院',
-          posthumousName2: '信士',
-          deathDate: new Date('2024-01-01'),
-          ageAtDeath: 74,
-          burialDate: new Date('2024-01-05'),
-          notificationDate: new Date('2024-01-02'),
-          memo: 'テストメモ',
-          religiousSect: {
+          posthumous_name: 'テスト院信士',
+          death_date: new Date('2024-01-01'),
+          age_at_death: 74,
+          burial_date: new Date('2024-01-05'),
+          notification_date: new Date('2024-01-02'),
+          denomination: '浄土宗',
+          remarks: 'テストメモ',
+          Gravestone: {
             id: 1,
-            name: '浄土宗',
+            gravestone_code: 'A-01',
+          },
+          Contractor: {
+            id: 1,
+            name: 'テスト契約者',
           },
         },
       ];
 
-      mockRequest.params = { contract_id: '1' };
-      mockPrisma.burial.findMany.mockResolvedValue(mockBurials);
+      mockRequest.query = {
+        name: 'テスト',
+        page: '1',
+        limit: '20',
+      };
 
-      await getBurials(mockRequest as Request, mockResponse as Response);
+      mockPrisma.burial.findMany.mockResolvedValue(mockBurials);
+      mockPrisma.burial.count.mockResolvedValue(1);
+
+      await searchBurials(mockRequest as Request, mockResponse as Response);
 
       expect(mockPrisma.burial.findMany).toHaveBeenCalledWith({
         where: {
-          contractId: 1,
-        },
-        include: {
-          religiousSect: {
-            select: {
-              id: true,
-              name: true,
-            },
+          deleted_at: null,
+          name: {
+            contains: 'テスト',
           },
         },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
+        skip: 0,
+        take: 20,
         orderBy: {
-          burialDate: 'desc',
+          id: 'desc',
         },
       });
 
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
-        data: [
-          {
-            id: 1,
-            name: 'テスト故人',
-            name_kana: 'てすとこじん',
-            birth_date: mockBurials[0].birthDate,
-            gender: 'male',
-            posthumous_name1: 'テスト院',
-            posthumous_name2: '信士',
-            death_date: mockBurials[0].deathDate,
-            age_at_death: 74,
-            burial_date: mockBurials[0].burialDate,
-            notification_date: mockBurials[0].notificationDate,
-            religious_sect: {
-              id: 1,
-              name: '浄土宗',
-            },
-            memo: 'テストメモ',
+        data: {
+          burials: mockBurials,
+          pagination: {
+            current_page: 1,
+            per_page: 20,
+            total_count: 1,
+            total_pages: 1,
           },
-        ],
+        },
       });
     });
 
-    it('should handle database error when fetching burials', async () => {
-      mockRequest.params = { contract_id: '1' };
+    it('should handle database error when searching burials', async () => {
+      mockRequest.query = { name: 'テスト' };
       mockPrisma.burial.findMany.mockRejectedValue(new Error('Database error'));
 
-      await getBurials(mockRequest as Request, mockResponse as Response);
+      await searchBurials(mockRequest as Request, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(500);
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'サーバー内部エラーが発生しました',
+          message: 'サーバー内部エラー',
           details: [],
         },
       });
-      expect(console.error).toHaveBeenCalledWith('Error fetching burials:', expect.any(Error));
+      expect(console.error).toHaveBeenCalledWith('埋葬者検索エラー:', expect.any(Error));
     });
   });
 
   describe('createBurial', () => {
     it('should create burial successfully', async () => {
       const burialData = {
+        gravestone_id: 1,
+        contractor_id: 1,
         name: 'テスト故人',
-        name_kana: 'てすとこじん',
+        kana: 'てすとこじん',
         birth_date: '1950-01-01',
         gender: 'male',
-        posthumous_name1: 'テスト院',
-        posthumous_name2: '信士',
+        posthumous_name: 'テスト院信士',
         death_date: '2024-01-01',
         age_at_death: 74,
         burial_date: '2024-01-05',
         notification_date: '2024-01-02',
-        religious_sect_id: 1,
-        memo: 'テストメモ',
+        denomination: '浄土宗',
+        remarks: 'テストメモ',
       };
 
-      mockRequest.params = { contract_id: '1' };
+      const mockGravestone = { id: 1, gravestone_code: 'A-01' };
+      const mockContractor = { id: 1, name: 'テスト契約者' };
+      const mockCreatedBurial = {
+        id: 1,
+        ...burialData,
+        Gravestone: mockGravestone,
+        Contractor: mockContractor,
+      };
+
       mockRequest.body = burialData;
-      mockPrisma.burial.create.mockResolvedValue({ id: 1 });
+      mockPrisma.gravestone.findFirst.mockResolvedValue(mockGravestone);
+      mockPrisma.contractor.findFirst.mockResolvedValue(mockContractor);
+      mockPrisma.burial.create.mockResolvedValue(mockCreatedBurial);
 
       await createBurial(mockRequest as Request, mockResponse as Response);
 
       expect(mockPrisma.burial.create).toHaveBeenCalledWith({
         data: {
-          contractId: 1,
+          gravestone_id: burialData.gravestone_id,
+          contractor_id: burialData.contractor_id,
           name: burialData.name,
-          nameKana: burialData.name_kana,
-          birthDate: new Date(burialData.birth_date),
+          kana: burialData.kana,
+          birth_date: new Date(burialData.birth_date),
           gender: burialData.gender,
-          posthumousName1: burialData.posthumous_name1,
-          posthumousName2: burialData.posthumous_name2,
-          deathDate: new Date(burialData.death_date),
-          ageAtDeath: burialData.age_at_death,
-          burialDate: new Date(burialData.burial_date),
-          notificationDate: new Date(burialData.notification_date),
-          religiousSectId: burialData.religious_sect_id,
-          memo: burialData.memo,
+          posthumous_name: burialData.posthumous_name,
+          death_date: new Date(burialData.death_date),
+          age_at_death: burialData.age_at_death,
+          burial_date: new Date(burialData.burial_date),
+          notification_date: new Date(burialData.notification_date),
+          denomination: burialData.denomination,
+          remarks: burialData.remarks,
+          effective_start_date: null,
+          effective_end_date: null,
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
         },
       });
 
       expect(mockResponse.status).toHaveBeenCalledWith(201);
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
-        data: {
-          id: 1,
-          message: '埋葬情報が正常に作成されました',
-        },
+        data: mockCreatedBurial,
       });
     });
 
     it('should return validation error when required fields are missing', async () => {
-      mockRequest.params = { contract_id: '1' };
-      mockRequest.body = { name: 'テスト故人' }; // 必須項目が不足
+      mockRequest.body = { name: 'テスト故人' }; // gravestone_id and contractor_id missing
 
       await createBurial(mockRequest as Request, mockResponse as Response);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(422);
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
           message: '必須項目が不足しています',
-          details: expect.any(Array),
+          details: [
+            { message: '墓石IDと契約者IDは必須です' },
+          ],
         },
       });
       expect(mockPrisma.burial.create).not.toHaveBeenCalled();
     });
 
-    it('should handle database error during creation', async () => {
+    it('should return 404 when gravestone not found', async () => {
       const burialData = {
+        gravestone_id: 999,
+        contractor_id: 1,
         name: 'テスト故人',
-        name_kana: 'てすとこじん',
-        gender: 'male',
-        death_date: '2024-01-01',
-        burial_date: '2024-01-05',
       };
 
-      mockRequest.params = { contract_id: '1' };
       mockRequest.body = burialData;
+      mockPrisma.gravestone.findFirst.mockResolvedValue(null);
+      mockPrisma.contractor.findFirst.mockResolvedValue({ id: 1 });
+
+      await createBurial(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(404);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: '指定された墓石が見つかりません',
+          details: [],
+        },
+      });
+    });
+
+    it('should handle database error during creation', async () => {
+      const burialData = {
+        gravestone_id: 1,
+        contractor_id: 1,
+        name: 'テスト故人',
+      };
+
+      mockRequest.body = burialData;
+      mockPrisma.gravestone.findFirst.mockResolvedValue({ id: 1 });
+      mockPrisma.contractor.findFirst.mockResolvedValue({ id: 1 });
       mockPrisma.burial.create.mockRejectedValue(new Error('Database error'));
 
       await createBurial(mockRequest as Request, mockResponse as Response);
@@ -227,11 +285,11 @@ describe('Burial Controller', () => {
         success: false,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'サーバー内部エラーが発生しました',
+          message: 'サーバー内部エラー',
           details: [],
         },
       });
-      expect(console.error).toHaveBeenCalledWith('Error creating burial:', expect.any(Error));
+      expect(console.error).toHaveBeenCalledWith('埋葬者登録エラー:', expect.any(Error));
     });
   });
 
@@ -239,53 +297,78 @@ describe('Burial Controller', () => {
     it('should update burial successfully', async () => {
       const updateData = {
         name: 'テスト故人更新',
-        name_kana: 'てすとこじんこうしん',
+        kana: 'てすとこじんこうしん',
         gender: 'male',
         death_date: '2024-01-01',
         burial_date: '2024-01-05',
-        memo: '更新されたメモ',
+        remarks: '更新されたメモ',
       };
 
-      mockRequest.params = { burial_id: '1' };
+      const existingBurial = { id: 1, name: 'テスト故人' };
+      const updatedBurial = {
+        id: 1,
+        ...updateData,
+        Gravestone: { id: 1 },
+        Contractor: { id: 1 },
+      };
+
+      mockRequest.params = { id: '1' };
       mockRequest.body = updateData;
-      mockPrisma.burial.update.mockResolvedValue({ id: 1 });
+      mockPrisma.burial.findFirst.mockResolvedValue(existingBurial);
+      mockPrisma.burial.update.mockResolvedValue(updatedBurial);
 
       await updateBurial(mockRequest as Request, mockResponse as Response);
 
+      expect(mockPrisma.burial.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: 1,
+          deleted_at: null,
+        },
+      });
+
       expect(mockPrisma.burial.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: expect.objectContaining({
+        data: {
           name: updateData.name,
-          nameKana: updateData.name_kana,
+          kana: updateData.kana,
+          birth_date: undefined,
           gender: updateData.gender,
-          deathDate: new Date(updateData.death_date),
-          burialDate: new Date(updateData.burial_date),
-          memo: updateData.memo,
-        }),
+          posthumous_name: undefined,
+          death_date: new Date(updateData.death_date),
+          age_at_death: undefined,
+          burial_date: new Date(updateData.burial_date),
+          notification_date: undefined,
+          denomination: undefined,
+          remarks: updateData.remarks,
+          effective_start_date: undefined,
+          effective_end_date: undefined,
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
       });
 
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
-        data: {
-          id: 1,
-          message: '埋葬情報が正常に更新されました',
-        },
+        data: updatedBurial,
       });
     });
 
-    it('should return validation error when required fields are missing', async () => {
-      mockRequest.params = { burial_id: '1' };
-      mockRequest.body = { name: 'テスト故人' }; // 必須項目が不足
+    it('should return 404 when burial not found', async () => {
+      mockRequest.params = { id: '999' };
+      mockRequest.body = { name: 'テスト' };
+      mockPrisma.burial.findFirst.mockResolvedValue(null);
 
       await updateBurial(mockRequest as Request, mockResponse as Response);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(422);
+      expect(mockResponse.status).toHaveBeenCalledWith(404);
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
         error: {
-          code: 'VALIDATION_ERROR',
-          message: '必須項目が不足しています',
-          details: expect.any(Array),
+          code: 'NOT_FOUND',
+          message: '埋葬者が見つかりません',
+          details: [],
         },
       });
       expect(mockPrisma.burial.update).not.toHaveBeenCalled();
@@ -294,14 +377,12 @@ describe('Burial Controller', () => {
     it('should handle database error during update', async () => {
       const updateData = {
         name: 'テスト故人',
-        name_kana: 'てすとこじん',
-        gender: 'male',
-        death_date: '2024-01-01',
-        burial_date: '2024-01-05',
+        kana: 'てすとこじん',
       };
 
-      mockRequest.params = { burial_id: '1' };
+      mockRequest.params = { id: '1' };
       mockRequest.body = updateData;
+      mockPrisma.burial.findFirst.mockResolvedValue({ id: 1 });
       mockPrisma.burial.update.mockRejectedValue(new Error('Database error'));
 
       await updateBurial(mockRequest as Request, mockResponse as Response);
@@ -311,37 +392,47 @@ describe('Burial Controller', () => {
         success: false,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'サーバー内部エラーが発生しました',
+          message: 'サーバー内部エラー',
           details: [],
         },
       });
-      expect(console.error).toHaveBeenCalledWith('Error updating burial:', expect.any(Error));
+      expect(console.error).toHaveBeenCalledWith('埋葬者更新エラー:', expect.any(Error));
     });
   });
 
   describe('deleteBurial', () => {
-    it('should delete burial successfully', async () => {
-      mockRequest.params = { burial_id: '1' };
-      mockPrisma.burial.delete.mockResolvedValue({ id: 1 });
+    it('should delete burial successfully (logical delete)', async () => {
+      const existingBurial = { id: 1, name: 'テスト故人' };
+
+      mockRequest.params = { id: '1' };
+      mockPrisma.burial.findFirst.mockResolvedValue(existingBurial);
+      mockPrisma.burial.update.mockResolvedValue({ id: 1, deleted_at: new Date() });
 
       await deleteBurial(mockRequest as Request, mockResponse as Response);
 
-      expect(mockPrisma.burial.delete).toHaveBeenCalledWith({
+      expect(mockPrisma.burial.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: 1,
+          deleted_at: null,
+        },
+      });
+
+      expect(mockPrisma.burial.update).toHaveBeenCalledWith({
         where: { id: 1 },
+        data: {
+          deleted_at: expect.any(Date),
+        },
       });
 
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
-        data: {
-          message: '埋葬情報が正常に削除されました',
-        },
+        data: { message: '埋葬者を削除しました' },
       });
     });
 
     it('should return 404 when burial not found for deletion', async () => {
-      mockRequest.params = { burial_id: '999' };
-      const notFoundError = new Error('Record to delete does not exist');
-      mockPrisma.burial.delete.mockRejectedValue(notFoundError);
+      mockRequest.params = { id: '999' };
+      mockPrisma.burial.findFirst.mockResolvedValue(null);
 
       await deleteBurial(mockRequest as Request, mockResponse as Response);
 
@@ -350,15 +441,16 @@ describe('Burial Controller', () => {
         success: false,
         error: {
           code: 'NOT_FOUND',
-          message: '指定された埋葬情報が見つかりません',
+          message: '埋葬者が見つかりません',
           details: [],
         },
       });
     });
 
     it('should handle database error during deletion', async () => {
-      mockRequest.params = { burial_id: '1' };
-      mockPrisma.burial.delete.mockRejectedValue(new Error('Database error'));
+      mockRequest.params = { id: '1' };
+      mockPrisma.burial.findFirst.mockResolvedValue({ id: 1 });
+      mockPrisma.burial.update.mockRejectedValue(new Error('Database error'));
 
       await deleteBurial(mockRequest as Request, mockResponse as Response);
 
@@ -367,11 +459,11 @@ describe('Burial Controller', () => {
         success: false,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'サーバー内部エラーが発生しました',
+          message: 'サーバー内部エラー',
           details: [],
         },
       });
-      expect(console.error).toHaveBeenCalledWith('Error deleting burial:', expect.any(Error));
+      expect(console.error).toHaveBeenCalledWith('埋葬者削除エラー:', expect.any(Error));
     });
   });
 });
