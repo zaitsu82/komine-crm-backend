@@ -51,6 +51,22 @@ describe('Construction Controller', () => {
       });
     });
 
+    it('should return error for invalid contract_id', async () => {
+      mockRequest.params = { contract_id: 'invalid' };
+
+      await getConstructions(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'INVALID_PARAMETER',
+          message: '無効な契約IDです',
+          details: [],
+        },
+      });
+    });
+
     it('should handle database error', async () => {
       mockRequest.params = { contract_id: '1' };
       mockPrisma.construction.findMany.mockRejectedValue(new Error('DB error'));
@@ -69,6 +85,79 @@ describe('Construction Controller', () => {
       await createConstruction(mockRequest as Request, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(422);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'バリデーションエラーが発生しました',
+          details: [
+            'contractor_name は必須です',
+            'construction_type は必須です'
+          ],
+        },
+      });
+    });
+
+    it('should return validation error for missing contractor_name only', async () => {
+      mockRequest.params = { contract_id: '1' };
+      mockRequest.body = {
+        construction_type: '新設'
+      };
+
+      await createConstruction(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(422);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'バリデーションエラーが発生しました',
+          details: [
+            'contractor_name は必須です'
+          ],
+        },
+      });
+    });
+
+    it('should return validation error for missing construction_type only', async () => {
+      mockRequest.params = { contract_id: '1' };
+      mockRequest.body = {
+        contractor_name: 'テスト業者'
+      };
+
+      await createConstruction(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(422);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'バリデーションエラーが発生しました',
+          details: [
+            'construction_type は必須です'
+          ],
+        },
+      });
+    });
+
+    it('should return error for invalid contract_id', async () => {
+      mockRequest.params = { contract_id: 'invalid' };
+      mockRequest.body = {
+        contractor_name: 'テスト業者',
+        construction_type: '新設'
+      };
+
+      await createConstruction(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'INVALID_PARAMETER',
+          message: '無効な契約IDです',
+          details: [],
+        },
+      });
     });
 
     it('should create construction successfully', async () => {
@@ -96,6 +185,65 @@ describe('Construction Controller', () => {
       });
     });
 
+    it('should create construction with date fields', async () => {
+      mockRequest.params = { contract_id: '1' };
+      mockRequest.body = {
+        contractor_name: 'テスト業者',
+        construction_type: '新設',
+        start_date: '2024-01-01',
+        planned_end_date: '2024-02-01',
+        end_date: '2024-01-31'
+      };
+
+      const mockConstruction = { id: 1 };
+      mockPrisma.construction.create.mockResolvedValue(mockConstruction);
+
+      await createConstruction(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.construction.create).toHaveBeenCalledWith({
+        data: {
+          gravestone_id: 1,
+          contractor_name: 'テスト業者',
+          construction_type: '新設',
+          start_date: new Date('2024-01-01'),
+          planned_end_date: new Date('2024-02-01'),
+          end_date: new Date('2024-01-31'),
+          description: undefined,
+          cost: undefined,
+          payment_amount: undefined,
+          remarks: undefined,
+        },
+      });
+    });
+
+    it('should create construction without date fields', async () => {
+      mockRequest.params = { contract_id: '1' };
+      mockRequest.body = {
+        contractor_name: 'テスト業者',
+        construction_type: '新設'
+      };
+
+      const mockConstruction = { id: 1 };
+      mockPrisma.construction.create.mockResolvedValue(mockConstruction);
+
+      await createConstruction(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.construction.create).toHaveBeenCalledWith({
+        data: {
+          gravestone_id: 1,
+          contractor_name: 'テスト業者',
+          construction_type: '新設',
+          start_date: null,
+          planned_end_date: null,
+          end_date: null,
+          description: undefined,
+          cost: undefined,
+          payment_amount: undefined,
+          remarks: undefined,
+        },
+      });
+    });
+
     it('should handle database error', async () => {
       mockRequest.params = { contract_id: '1' };
       mockRequest.body = {
@@ -119,6 +267,59 @@ describe('Construction Controller', () => {
       await updateConstruction(mockRequest as Request, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(422);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'バリデーションエラーが発生しました',
+          details: [
+            'contractor_name は必須です',
+            'construction_type は必須です'
+          ],
+        },
+      });
+    });
+
+    it('should return validation error for missing contractor_name only', async () => {
+      mockRequest.params = { construction_id: '1' };
+      mockRequest.body = {
+        construction_type: '修繕'
+      };
+
+      await updateConstruction(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(422);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'バリデーションエラーが発生しました',
+          details: [
+            'contractor_name は必須です'
+          ],
+        },
+      });
+    });
+
+    it('should return validation error for missing construction_type only', async () => {
+      mockRequest.params = { construction_id: '1' };
+      mockRequest.body = {
+        contractor_name: '更新業者'
+      };
+
+      await updateConstruction(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(422);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'バリデーションエラーが発生しました',
+          details: [
+            'construction_type は必須です'
+          ],
+        },
+      });
     });
 
     it('should update construction successfully', async () => {
@@ -139,6 +340,65 @@ describe('Construction Controller', () => {
           id: 1,
           message: '工事情報が正常に更新されました'
         }
+      });
+    });
+
+    it('should update construction with date fields', async () => {
+      mockRequest.params = { construction_id: '1' };
+      mockRequest.body = {
+        contractor_name: '更新業者',
+        construction_type: '修繕',
+        start_date: '2024-01-01',
+        planned_end_date: '2024-02-01',
+        end_date: '2024-01-31'
+      };
+
+      const mockConstruction = { id: 1 };
+      mockPrisma.construction.update.mockResolvedValue(mockConstruction);
+
+      await updateConstruction(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.construction.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          contractor_name: '更新業者',
+          construction_type: '修繕',
+          start_date: new Date('2024-01-01'),
+          planned_end_date: new Date('2024-02-01'),
+          end_date: new Date('2024-01-31'),
+          description: undefined,
+          cost: undefined,
+          payment_amount: undefined,
+          remarks: undefined,
+        },
+      });
+    });
+
+    it('should update construction without date fields', async () => {
+      mockRequest.params = { construction_id: '1' };
+      mockRequest.body = {
+        contractor_name: '更新業者',
+        construction_type: '修繕'
+      };
+
+      const mockConstruction = { id: 1 };
+      mockPrisma.construction.update.mockResolvedValue(mockConstruction);
+
+      await updateConstruction(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.construction.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          contractor_name: '更新業者',
+          construction_type: '修繕',
+          start_date: null,
+          planned_end_date: null,
+          end_date: null,
+          description: undefined,
+          cost: undefined,
+          payment_amount: undefined,
+          remarks: undefined,
+        },
       });
     });
 

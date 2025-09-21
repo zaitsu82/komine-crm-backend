@@ -64,6 +64,18 @@ describe('FamilyContact Controller', () => {
         },
       });
     });
+
+    it('should handle error in catch block', async () => {
+      // getFamilyContactsはtryブロックで501を返すので、catchブロックに入るために
+      // statusメソッドでエラーを投げる
+      mockResponse.status = jest.fn().mockImplementationOnce(() => {
+        throw new Error('Mock error');
+      }).mockReturnValue(mockResponse);
+
+      await getFamilyContacts(mockRequest as Request, mockResponse as Response);
+
+      expect(console.error).toHaveBeenCalledWith('家族連絡先取得エラー:', expect.any(Error));
+    });
   });
 
   describe('createFamilyContact', () => {
@@ -96,6 +108,64 @@ describe('FamilyContact Controller', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
         data: mockCreatedContact,
+      });
+    });
+
+    it('should create family contact with birth_date', async () => {
+      const contactData = {
+        gravestone_id: 1,
+        contractor_id: 1,
+        name: 'テスト太郎',
+        birth_date: '1980-01-01',
+        phone: '012-345-6789',
+        relation: '長男',
+      };
+
+      const mockGravestone = { id: 1 };
+      const mockContractor = { id: 1 };
+      const mockCreatedContact = { id: 1, ...contactData };
+
+      mockRequest.body = contactData;
+      mockPrisma.gravestone.findFirst.mockResolvedValue(mockGravestone);
+      mockPrisma.contractor.findFirst.mockResolvedValue(mockContractor);
+      mockPrisma.familyContact.create.mockResolvedValue(mockCreatedContact);
+
+      await createFamilyContact(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.familyContact.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          birth_date: new Date('1980-01-01'),
+        }),
+        include: expect.any(Object),
+      });
+    });
+
+    it('should create family contact with effective dates', async () => {
+      const contactData = {
+        gravestone_id: 1,
+        contractor_id: 1,
+        name: 'テスト太郎',
+        effective_start_date: '2024-01-01',
+        effective_end_date: '2024-12-31',
+      };
+
+      const mockGravestone = { id: 1 };
+      const mockContractor = { id: 1 };
+      const mockCreatedContact = { id: 1, ...contactData };
+
+      mockRequest.body = contactData;
+      mockPrisma.gravestone.findFirst.mockResolvedValue(mockGravestone);
+      mockPrisma.contractor.findFirst.mockResolvedValue(mockContractor);
+      mockPrisma.familyContact.create.mockResolvedValue(mockCreatedContact);
+
+      await createFamilyContact(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.familyContact.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          effective_start_date: new Date('2024-01-01'),
+          effective_end_date: new Date('2024-12-31'),
+        }),
+        include: expect.any(Object),
       });
     });
 
@@ -136,6 +206,30 @@ describe('FamilyContact Controller', () => {
         error: {
           code: 'NOT_FOUND',
           message: '指定された墓石が見つかりません',
+          details: [],
+        },
+      });
+    });
+
+    it('should return 404 when contractor not found', async () => {
+      const contactData = {
+        gravestone_id: 1,
+        contractor_id: 999,
+        name: 'テスト太郎',
+      };
+
+      mockRequest.body = contactData;
+      mockPrisma.gravestone.findFirst.mockResolvedValue({ id: 1 });
+      mockPrisma.contractor.findFirst.mockResolvedValue(null);
+
+      await createFamilyContact(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(404);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: '指定された契約者が見つかりません',
           details: [],
         },
       });
@@ -201,6 +295,59 @@ describe('FamilyContact Controller', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
         data: updatedContact,
+      });
+    });
+
+    it('should update family contact with birth_date', async () => {
+      const updateData = {
+        name: 'テスト太郎更新',
+        birth_date: '1985-05-15',
+        phone: '090-1234-5678',
+      };
+
+      const existingContact = { id: 1, name: 'テスト太郎' };
+      const updatedContact = { id: 1, ...updateData };
+
+      mockRequest.params = { id: '1' };
+      mockRequest.body = updateData;
+      mockPrisma.familyContact.findFirst.mockResolvedValue(existingContact);
+      mockPrisma.familyContact.update.mockResolvedValue(updatedContact);
+
+      await updateFamilyContact(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.familyContact.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: expect.objectContaining({
+          birth_date: new Date('1985-05-15'),
+        }),
+        include: expect.any(Object),
+      });
+    });
+
+    it('should update family contact with effective dates', async () => {
+      const updateData = {
+        name: 'テスト太郎更新',
+        effective_start_date: '2024-06-01',
+        effective_end_date: '2025-05-31',
+      };
+
+      const existingContact = { id: 1, name: 'テスト太郎' };
+      const updatedContact = { id: 1, ...updateData };
+
+      mockRequest.params = { id: '1' };
+      mockRequest.body = updateData;
+      mockPrisma.familyContact.findFirst.mockResolvedValue(existingContact);
+      mockPrisma.familyContact.update.mockResolvedValue(updatedContact);
+
+      await updateFamilyContact(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.familyContact.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: expect.objectContaining({
+          effective_start_date: new Date('2024-06-01'),
+          effective_end_date: new Date('2025-05-31'),
+        }),
+        include: expect.any(Object),
       });
     });
 

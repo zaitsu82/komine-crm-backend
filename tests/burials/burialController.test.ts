@@ -67,6 +67,18 @@ describe('Burial Controller', () => {
         },
       });
     });
+
+    it('should handle error in catch block', async () => {
+      // getBurialsはtryブロックで501を返すので、catchブロックに入るために
+      // statusメソッドでエラーを投げる
+      mockResponse.status = jest.fn().mockImplementationOnce(() => {
+        throw new Error('Mock error');
+      }).mockReturnValue(mockResponse);
+
+      await getBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(console.error).toHaveBeenCalledWith('埋葬者取得エラー:', expect.any(Error));
+    });
   });
 
   describe('searchBurials', () => {
@@ -135,6 +147,292 @@ describe('Burial Controller', () => {
             total_count: 1,
             total_pages: 1,
           },
+        },
+      });
+    });
+
+    it('should search burials with kana parameter', async () => {
+      mockRequest.query = {
+        kana: 'てすと',
+        page: '1',
+        limit: '20',
+      };
+
+      mockPrisma.burial.findMany.mockResolvedValue([]);
+      mockPrisma.burial.count.mockResolvedValue(0);
+
+      await searchBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.burial.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          kana: {
+            contains: 'てすと',
+          },
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
+        skip: 0,
+        take: 20,
+        orderBy: {
+          id: 'desc',
+        },
+      });
+    });
+
+    it('should search burials with posthumous_name parameter', async () => {
+      mockRequest.query = {
+        posthumous_name: '院信士',
+        page: '1',
+        limit: '20',
+      };
+
+      mockPrisma.burial.findMany.mockResolvedValue([]);
+      mockPrisma.burial.count.mockResolvedValue(0);
+
+      await searchBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.burial.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          posthumous_name: {
+            contains: '院信士',
+          },
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
+        skip: 0,
+        take: 20,
+        orderBy: {
+          id: 'desc',
+        },
+      });
+    });
+
+    it('should search burials with death_date range', async () => {
+      mockRequest.query = {
+        death_date_from: '2024-01-01',
+        death_date_to: '2024-12-31',
+        page: '1',
+        limit: '20',
+      };
+
+      mockPrisma.burial.findMany.mockResolvedValue([]);
+      mockPrisma.burial.count.mockResolvedValue(0);
+
+      await searchBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.burial.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          death_date: {
+            gte: new Date('2024-01-01'),
+            lte: new Date('2024-12-31'),
+          },
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
+        skip: 0,
+        take: 20,
+        orderBy: {
+          id: 'desc',
+        },
+      });
+    });
+
+    it('should search burials with death_date_from only', async () => {
+      mockRequest.query = {
+        death_date_from: '2024-01-01',
+        page: '1',
+        limit: '20',
+      };
+
+      mockPrisma.burial.findMany.mockResolvedValue([]);
+      mockPrisma.burial.count.mockResolvedValue(0);
+
+      await searchBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.burial.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          death_date: {
+            gte: new Date('2024-01-01'),
+          },
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
+        skip: 0,
+        take: 20,
+        orderBy: {
+          id: 'desc',
+        },
+      });
+    });
+
+    it('should search burials with death_date_to only', async () => {
+      mockRequest.query = {
+        death_date_to: '2024-12-31',
+        page: '1',
+        limit: '20',
+      };
+
+      mockPrisma.burial.findMany.mockResolvedValue([]);
+      mockPrisma.burial.count.mockResolvedValue(0);
+
+      await searchBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.burial.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          death_date: {
+            lte: new Date('2024-12-31'),
+          },
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
+        skip: 0,
+        take: 20,
+        orderBy: {
+          id: 'desc',
+        },
+      });
+    });
+
+    it('should search burials with burial_date range', async () => {
+      mockRequest.query = {
+        burial_date_from: '2024-01-01',
+        burial_date_to: '2024-12-31',
+        page: '1',
+        limit: '20',
+      };
+
+      mockPrisma.burial.findMany.mockResolvedValue([]);
+      mockPrisma.burial.count.mockResolvedValue(0);
+
+      await searchBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.burial.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          burial_date: {
+            gte: new Date('2024-01-01'),
+            lte: new Date('2024-12-31'),
+          },
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
+        skip: 0,
+        take: 20,
+        orderBy: {
+          id: 'desc',
+        },
+      });
+    });
+
+    it('should search burials with burial_date_from only', async () => {
+      mockRequest.query = {
+        burial_date_from: '2024-01-01',
+        page: '1',
+        limit: '20',
+      };
+
+      mockPrisma.burial.findMany.mockResolvedValue([]);
+      mockPrisma.burial.count.mockResolvedValue(0);
+
+      await searchBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.burial.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          burial_date: {
+            gte: new Date('2024-01-01'),
+          },
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
+        skip: 0,
+        take: 20,
+        orderBy: {
+          id: 'desc',
+        },
+      });
+    });
+
+    it('should search burials with burial_date_to only', async () => {
+      mockRequest.query = {
+        burial_date_to: '2024-12-31',
+        page: '1',
+        limit: '20',
+      };
+
+      mockPrisma.burial.findMany.mockResolvedValue([]);
+      mockPrisma.burial.count.mockResolvedValue(0);
+
+      await searchBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.burial.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          burial_date: {
+            lte: new Date('2024-12-31'),
+          },
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
+        skip: 0,
+        take: 20,
+        orderBy: {
+          id: 'desc',
+        },
+      });
+    });
+
+    it('should search burials with gravestone_code parameter', async () => {
+      mockRequest.query = {
+        gravestone_code: 'A-01',
+        page: '1',
+        limit: '20',
+      };
+
+      mockPrisma.burial.findMany.mockResolvedValue([]);
+      mockPrisma.burial.count.mockResolvedValue(0);
+
+      await searchBurials(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.burial.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          Gravestone: {
+            gravestone_code: {
+              contains: 'A-01',
+            },
+            deleted_at: null,
+          },
+        },
+        include: {
+          Gravestone: true,
+          Contractor: true,
+        },
+        skip: 0,
+        take: 20,
+        orderBy: {
+          id: 'desc',
         },
       });
     });
@@ -261,6 +559,30 @@ describe('Burial Controller', () => {
         error: {
           code: 'NOT_FOUND',
           message: '指定された墓石が見つかりません',
+          details: [],
+        },
+      });
+    });
+
+    it('should return 404 when contractor not found', async () => {
+      const burialData = {
+        gravestone_id: 1,
+        contractor_id: 999,
+        name: 'テスト故人',
+      };
+
+      mockRequest.body = burialData;
+      mockPrisma.gravestone.findFirst.mockResolvedValue({ id: 1 });
+      mockPrisma.contractor.findFirst.mockResolvedValue(null);
+
+      await createBurial(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(404);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: '指定された契約者が見つかりません',
           details: [],
         },
       });

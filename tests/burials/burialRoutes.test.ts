@@ -1,14 +1,17 @@
 import request from 'supertest';
 import express from 'express';
 import burialRoutes from '../../src/burials/burialRoutes';
+import * as burialController from '../../src/burials/burialController';
+import * as authMiddleware from '../../src/middleware/auth';
+import * as permissionMiddleware from '../../src/middleware/permission';
 
 // コントローラーのモック
 jest.mock('../../src/burials/burialController', () => ({
-  searchBurials: jest.fn((req, res) => res.json({ success: true })),
-  getBurials: jest.fn((req, res) => res.json({ success: true })),
-  createBurial: jest.fn((req, res) => res.json({ success: true })),
-  updateBurial: jest.fn((req, res) => res.json({ success: true })),
-  deleteBurial: jest.fn((req, res) => res.json({ success: true }))
+  searchBurials: jest.fn((req, res) => res.json({ success: true, controller: 'searchBurials' })),
+  getBurials: jest.fn((req, res) => res.json({ success: true, controller: 'getBurials' })),
+  createBurial: jest.fn((req, res) => res.json({ success: true, controller: 'createBurial' })),
+  updateBurial: jest.fn((req, res) => res.json({ success: true, controller: 'updateBurial' })),
+  deleteBurial: jest.fn((req, res) => res.json({ success: true, controller: 'deleteBurial' }))
 }));
 
 // ミドルウェアのモック
@@ -20,6 +23,10 @@ jest.mock('../../src/middleware/permission', () => ({
   requirePermission: jest.fn(() => (req: any, res: any, next: any) => next())
 }));
 
+const mockBurialController = burialController as jest.Mocked<typeof burialController>;
+const mockAuthMiddleware = authMiddleware as jest.Mocked<typeof authMiddleware>;
+const mockPermissionMiddleware = permissionMiddleware as jest.Mocked<typeof permissionMiddleware>;
+
 describe('Burial Routes', () => {
   let app: express.Application;
 
@@ -27,6 +34,7 @@ describe('Burial Routes', () => {
     app = express();
     app.use(express.json());
     app.use('/api/v1/burials', burialRoutes);
+    jest.clearAllMocks();
   });
 
   describe('GET /api/v1/burials/search', () => {
@@ -37,6 +45,10 @@ describe('Burial Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('searchBurials');
+      expect(mockBurialController.searchBurials).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
+      // requirePermissionはルートセットアップ時に呼ばれる
     });
   });
 
@@ -48,6 +60,9 @@ describe('Burial Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('getBurials');
+      expect(mockBurialController.getBurials).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -60,6 +75,10 @@ describe('Burial Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('createBurial');
+      expect(mockBurialController.createBurial).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
+      // requirePermissionはルートセットアップ時に呼ばれる
     });
   });
 
@@ -72,6 +91,9 @@ describe('Burial Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('createBurial');
+      expect(mockBurialController.createBurial).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -84,6 +106,10 @@ describe('Burial Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('updateBurial');
+      expect(mockBurialController.updateBurial).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
+      // requirePermissionはルートセットアップ時に呼ばれる
     });
   });
 
@@ -95,6 +121,10 @@ describe('Burial Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('deleteBurial');
+      expect(mockBurialController.deleteBurial).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
+      // requirePermissionはルートセットアップ時に呼ばれる
     });
   });
 });

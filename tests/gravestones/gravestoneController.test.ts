@@ -145,6 +145,42 @@ describe('Gravestone Controller', () => {
       });
     });
 
+    it('should handle denomination filter', async () => {
+      mockRequest.query = {
+        denomination: 'buddhist',
+      };
+
+      mockPrisma.gravestone.findMany.mockResolvedValue([]);
+      mockPrisma.gravestone.count.mockResolvedValue(0);
+
+      await getGravestones(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            denomination: 'buddhist',
+          }),
+        })
+      );
+    });
+
+    it('should use default sort when invalid sort_by provided', async () => {
+      mockRequest.query = {
+        sort_by: 'invalid_field',
+      };
+
+      mockPrisma.gravestone.findMany.mockResolvedValue([]);
+      mockPrisma.gravestone.count.mockResolvedValue(0);
+
+      await getGravestones(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { created_at: 'desc' },
+        })
+      );
+    });
+
     it('should handle database error', async () => {
       mockPrisma.gravestone.findMany.mockRejectedValue(new Error('Database error'));
 
@@ -316,6 +352,133 @@ describe('Gravestone Controller', () => {
       });
     });
 
+    it('should search gravestones with location filter', async () => {
+      mockRequest.query = {
+        location: '区画A',
+      };
+
+      mockPrisma.gravestone.findMany.mockResolvedValue([]);
+      mockPrisma.gravestone.count.mockResolvedValue(0);
+
+      await searchGravestones(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            location: {
+              contains: '区画A',
+              mode: 'insensitive',
+            },
+          }),
+        })
+      );
+    });
+
+    it('should search gravestones with cemetery_type and denomination filters', async () => {
+      mockRequest.query = {
+        cemetery_type: 'general',
+        denomination: 'buddhist',
+      };
+
+      mockPrisma.gravestone.findMany.mockResolvedValue([]);
+      mockPrisma.gravestone.count.mockResolvedValue(0);
+
+      await searchGravestones(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            cemetery_type: 'general',
+            denomination: 'buddhist',
+          }),
+        })
+      );
+    });
+
+    it('should search gravestones with price_min only', async () => {
+      mockRequest.query = {
+        price_min: '500000',
+      };
+
+      mockPrisma.gravestone.findMany.mockResolvedValue([]);
+      mockPrisma.gravestone.count.mockResolvedValue(0);
+
+      await searchGravestones(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            price: {
+              gte: 500000,
+            },
+          }),
+        })
+      );
+    });
+
+    it('should search gravestones with price_max only', async () => {
+      mockRequest.query = {
+        price_max: '1500000',
+      };
+
+      mockPrisma.gravestone.findMany.mockResolvedValue([]);
+      mockPrisma.gravestone.count.mockResolvedValue(0);
+
+      await searchGravestones(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            price: {
+              lte: 1500000,
+            },
+          }),
+        })
+      );
+    });
+
+    it('should search gravestones with construction_date_from only', async () => {
+      mockRequest.query = {
+        construction_date_from: '2024-01-01',
+      };
+
+      mockPrisma.gravestone.findMany.mockResolvedValue([]);
+      mockPrisma.gravestone.count.mockResolvedValue(0);
+
+      await searchGravestones(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            construction_date: {
+              gte: new Date('2024-01-01'),
+            },
+          }),
+        })
+      );
+    });
+
+    it('should search gravestones with construction_date_to only', async () => {
+      mockRequest.query = {
+        construction_date_to: '2024-12-31',
+      };
+
+      mockPrisma.gravestone.findMany.mockResolvedValue([]);
+      mockPrisma.gravestone.count.mockResolvedValue(0);
+
+      await searchGravestones(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            construction_date: {
+              lte: new Date('2024-12-31'),
+            },
+          }),
+        })
+      );
+    });
+
     it('should handle database error', async () => {
       mockRequest.query = { q: 'テスト' };
       mockPrisma.gravestone.findMany.mockRejectedValue(new Error('Database error'));
@@ -384,6 +547,31 @@ describe('Gravestone Controller', () => {
           gravestone: mockCreatedGravestone,
           message: '墓石情報が正常に登録されました',
         },
+      });
+    });
+
+    it('should create gravestone with construction dates', async () => {
+      const gravestoneData = {
+        gravestone_code: 'A-02',
+        usage_status: 'available',
+        price: 1200000,
+        construction_deadline: '2024-12-31',
+        construction_date: '2024-06-15',
+      };
+
+      const mockCreatedGravestone = { id: 2, ...gravestoneData };
+
+      mockRequest.body = gravestoneData;
+      mockPrisma.gravestone.findFirst.mockResolvedValue(null);
+      mockPrisma.gravestone.create.mockResolvedValue(mockCreatedGravestone);
+
+      await createGravestone(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          construction_deadline: new Date('2024-12-31'),
+          construction_date: new Date('2024-06-15'),
+        }),
       });
     });
 
@@ -580,6 +768,111 @@ describe('Gravestone Controller', () => {
             { field: 'gravestone_code', message: '墓石コードが既に存在します' },
           ],
         },
+      });
+    });
+
+    it('should return validation error for invalid price in update', async () => {
+      mockRequest.params = { id: '1' };
+      mockRequest.body = { price: 'invalid' };
+      mockPrisma.gravestone.findFirst.mockResolvedValue({ id: 1 });
+
+      await updateGravestone(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: '墓石代は0以上の数値である必要があります',
+          details: [
+            { field: 'price', message: '墓石代は0以上の数値である必要があります' },
+          ],
+        },
+      });
+    });
+
+    it('should update gravestone with construction dates', async () => {
+      const updateData = {
+        construction_deadline: '2024-12-31',
+        construction_date: '2024-06-15',
+      };
+
+      const existingGravestone = { id: 1, gravestone_code: 'A-01' };
+      const updatedGravestone = { ...existingGravestone, ...updateData };
+
+      mockRequest.params = { id: '1' };
+      mockRequest.body = updateData;
+      mockPrisma.gravestone.findFirst.mockResolvedValue(existingGravestone);
+      mockPrisma.gravestone.update.mockResolvedValue(updatedGravestone);
+
+      await updateGravestone(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: expect.objectContaining({
+          construction_deadline: new Date('2024-12-31'),
+          construction_date: new Date('2024-06-15'),
+        }),
+      });
+    });
+
+    it('should update gravestone with all fields', async () => {
+      const updateData = {
+        usage_status: 'occupied',
+        orientation: 'north',
+        cemetery_type: 'family',
+        denomination: 'christian',
+        inscription: '安らかに眠れ',
+        epitaph: '愛する家族の記憶',
+        remarks: '特記事項',
+      };
+
+      const existingGravestone = { id: 1, gravestone_code: 'A-01' };
+      const updatedGravestone = { ...existingGravestone, ...updateData };
+
+      mockRequest.params = { id: '1' };
+      mockRequest.body = updateData;
+      mockPrisma.gravestone.findFirst.mockResolvedValue(existingGravestone);
+      mockPrisma.gravestone.update.mockResolvedValue(updatedGravestone);
+
+      await updateGravestone(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: expect.objectContaining({
+          usage_status: 'occupied',
+          orientation: 'north',
+          cemetery_type: 'family',
+          denomination: 'christian',
+          inscription: '安らかに眠れ',
+          epitaph: '愛する家族の記憶',
+          remarks: '特記事項',
+        }),
+      });
+    });
+
+    it('should update gravestone with null construction dates', async () => {
+      const updateData = {
+        construction_deadline: '',
+        construction_date: '',
+      };
+
+      const existingGravestone = { id: 1, gravestone_code: 'A-01' };
+      const updatedGravestone = { ...existingGravestone, ...updateData };
+
+      mockRequest.params = { id: '1' };
+      mockRequest.body = updateData;
+      mockPrisma.gravestone.findFirst.mockResolvedValue(existingGravestone);
+      mockPrisma.gravestone.update.mockResolvedValue(updatedGravestone);
+
+      await updateGravestone(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestone.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: expect.objectContaining({
+          construction_deadline: null,
+          construction_date: null,
+        }),
       });
     });
 

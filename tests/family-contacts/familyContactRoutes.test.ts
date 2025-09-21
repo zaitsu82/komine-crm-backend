@@ -1,13 +1,16 @@
 import request from 'supertest';
 import express from 'express';
 import familyContactRoutes from '../../src/family-contacts/familyContactRoutes';
+import * as familyContactController from '../../src/family-contacts/familyContactController';
+import * as authMiddleware from '../../src/middleware/auth';
+import * as permissionMiddleware from '../../src/middleware/permission';
 
 // コントローラーのモック
 jest.mock('../../src/family-contacts/familyContactController', () => ({
-  getFamilyContacts: jest.fn((req, res) => res.json({ success: true })),
-  createFamilyContact: jest.fn((req, res) => res.json({ success: true })),
-  updateFamilyContact: jest.fn((req, res) => res.json({ success: true })),
-  deleteFamilyContact: jest.fn((req, res) => res.json({ success: true }))
+  getFamilyContacts: jest.fn((req, res) => res.json({ success: true, controller: 'getFamilyContacts' })),
+  createFamilyContact: jest.fn((req, res) => res.json({ success: true, controller: 'createFamilyContact' })),
+  updateFamilyContact: jest.fn((req, res) => res.json({ success: true, controller: 'updateFamilyContact' })),
+  deleteFamilyContact: jest.fn((req, res) => res.json({ success: true, controller: 'deleteFamilyContact' }))
 }));
 
 // ミドルウェアのモック
@@ -19,6 +22,10 @@ jest.mock('../../src/middleware/permission', () => ({
   requirePermission: jest.fn(() => (req: any, res: any, next: any) => next())
 }));
 
+const mockFamilyContactController = familyContactController as jest.Mocked<typeof familyContactController>;
+const mockAuthMiddleware = authMiddleware as jest.Mocked<typeof authMiddleware>;
+const mockPermissionMiddleware = permissionMiddleware as jest.Mocked<typeof permissionMiddleware>;
+
 describe('FamilyContact Routes', () => {
   let app: express.Application;
 
@@ -26,6 +33,7 @@ describe('FamilyContact Routes', () => {
     app = express();
     app.use(express.json());
     app.use('/api/v1/family-contacts', familyContactRoutes);
+    jest.clearAllMocks();
   });
 
   describe('GET /api/v1/family-contacts/contracts/:contract_id/family-contacts', () => {
@@ -36,6 +44,9 @@ describe('FamilyContact Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('getFamilyContacts');
+      expect(mockFamilyContactController.getFamilyContacts).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -48,6 +59,9 @@ describe('FamilyContact Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('createFamilyContact');
+      expect(mockFamilyContactController.createFamilyContact).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -60,6 +74,9 @@ describe('FamilyContact Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('createFamilyContact');
+      expect(mockFamilyContactController.createFamilyContact).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -72,6 +89,9 @@ describe('FamilyContact Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('updateFamilyContact');
+      expect(mockFamilyContactController.updateFamilyContact).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -83,6 +103,9 @@ describe('FamilyContact Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('deleteFamilyContact');
+      expect(mockFamilyContactController.deleteFamilyContact).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalledTimes(1);
     });
   });
 });
