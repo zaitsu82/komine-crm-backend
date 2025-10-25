@@ -8,275 +8,307 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// メインテーブル
-model Gravestone {
-  id                    Int              @id @default(autoincrement()) @map("gravestone_id")
-  gravestone_code       String           @unique @db.VarChar(20)
-  usage_status          String           @db.VarChar(20)
-  price                 Decimal          @db.Decimal(10, 2)
-  orientation           String?          @db.VarChar(10)
-  location              String?          @db.VarChar(100)
-  cemetery_type         String?          @db.VarChar(20)
-  denomination          String?          @db.VarChar(20)
-  inscription           String?
-  construction_deadline DateTime?        @db.Date
-  construction_date     DateTime?        @db.Date
-  epitaph               String?
-  remarks               String?
-  deleted_at            DateTime?
-  created_at            DateTime         @default(now())
-  updated_at            DateTime         @updatedAt
-  
-  // Relations
-  Applicant             Applicant?
-  Contractors           Contractor[]
-  UsageFees             UsageFee[]
-  ManagementFees        ManagementFee[]
-  BillingInfos          BillingInfo[]
-  FamilyContacts        FamilyContact[]
-  Burials               Burial[]
-  Constructions         Construction[]
-  Histories             History[]
+// メインテーブル: Plot（区画）
+model Plot {
+  id            String    @id @default(uuid()) @map("plot_id")
+  plot_number   String    @unique @db.VarChar(20)
+  section       String    @db.VarChar(50)
+  usage         String    @db.VarChar(20) // in_use, available, reserved
+  size          String    @db.VarChar(50)
+  price         String    @db.VarChar(50)
+  contract_date DateTime? @db.Date
+  status        String    @default("active") @db.VarChar(20) // active, inactive
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  deleted_at    DateTime?
 
-  @@map("gravestones")
-  @@index([gravestone_code])
-  @@index([usage_status, cemetery_type])
+  // Relations
+  Applicant        Applicant?
+  Contractors      Contractor[]
+  UsageFee         UsageFee?
+  ManagementFee    ManagementFee?
+  GravestoneInfo   GravestoneInfo?
+  FamilyContacts   FamilyContact[]
+  EmergencyContact EmergencyContact?
+  BuriedPersons    BuriedPerson[]
+
+  @@index([plot_number])
+  @@index([usage, section])
   @@index([deleted_at])
+  @@map("plots")
 }
 
+// 申込者情報
 model Applicant {
-  id                     Int       @id @default(autoincrement()) @map("applicant_id")
-  gravestone_id          Int       @unique
-  application_date       DateTime  @db.Date
-  staff_name             String?   @db.VarChar(50)
-  name                   String    @db.VarChar(100)
-  kana                   String    @db.VarChar(100)
-  postal_code            String    @db.VarChar(8)
-  address                String    @db.VarChar(200)
-  phone                  String    @db.VarChar(15)
-  remarks                String?
-  effective_start_date   DateTime? @db.Date
-  effective_end_date     DateTime? @db.Date
-  deleted_at             DateTime?
-  
-  // Relations
-  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
+  id               String    @id @default(uuid()) @map("applicant_id")
+  plot_id          String    @unique
+  application_date DateTime? @db.Date
+  staff_name       String    @db.VarChar(100)
+  name             String    @db.VarChar(100)
+  name_kana        String    @db.VarChar(100)
+  postal_code      String    @db.VarChar(8)
+  phone_number     String    @db.VarChar(15)
+  address          String    @db.VarChar(200)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  deleted_at       DateTime?
 
+  // Relations
+  Plot Plot @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+
+  @@index([plot_id])
   @@map("applicants")
 }
 
+// 契約者情報
 model Contractor {
-  id                     Int              @id @default(autoincrement()) @map("contractor_id")
-  gravestone_id          Int
-  reservation_date       DateTime?        @db.Date
-  consent_form_number    String?          @db.VarChar(50)
-  permission_date        DateTime?        @db.Date
-  start_date             DateTime         @db.Date
-  name                   String           @db.VarChar(100)
-  kana                   String           @db.VarChar(100)
-  birth_date             DateTime?        @db.Date
-  gender                 String?          @db.VarChar(10)
-  postal_code            String           @db.VarChar(8)
-  address                String           @db.VarChar(200)
-  phone                  String           @db.VarChar(15)
-  fax                    String?          @db.VarChar(15)
-  email                  String?          @db.VarChar(100)
-  domicile_address       String?          @db.VarChar(200)
-  workplace_name         String?          @db.VarChar(100)
-  workplace_kana         String?          @db.VarChar(100)
-  workplace_address      String?          @db.VarChar(200)
-  workplace_phone        String?          @db.VarChar(15)
-  dm_setting             String?          @db.VarChar(20)
-  recipient_type         String?          @db.VarChar(20)
-  remarks                String?
-  effective_start_date   DateTime?        @db.Date
-  effective_end_date     DateTime?        @db.Date
-  deleted_at             DateTime?
-  
-  // Relations
-  Gravestone      Gravestone      @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
-  BillingInfos    BillingInfo[]
-  FamilyContacts  FamilyContact[]
-  Burials         Burial[]
-  Histories       History[]
+  id                 String    @id @default(uuid()) @map("contractor_id")
+  plot_id            String
+  reservation_date   DateTime? @db.Date
+  acceptance_number  String?   @db.VarChar(50)
+  permit_date        DateTime? @db.Date
+  start_date         DateTime? @db.Date
+  name               String    @db.VarChar(100)
+  name_kana          String    @db.VarChar(100)
+  birth_date         DateTime? @db.Date
+  gender             String?   @db.VarChar(10)
+  phone_number       String    @db.VarChar(15)
+  fax_number         String?   @db.VarChar(15)
+  email              String?   @db.VarChar(100)
+  address            String    @db.VarChar(200)
+  registered_address String?   @db.VarChar(200)
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  deleted_at         DateTime?
 
+  // Relations
+  Plot        Plot         @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+  WorkInfo    WorkInfo?
+  BillingInfo BillingInfo?
+
+  @@index([plot_id])
+  @@index([name, name_kana])
   @@map("contractors")
 }
 
+// 使用料
 model UsageFee {
-  id                   Int       @id @default(autoincrement()) @map("usage_fee_id")
-  gravestone_id        Int
-  calc_type            String?   @db.VarChar(20)
-  area                 Decimal?  @db.Decimal(10, 2)
-  fee                  Decimal   @db.Decimal(10, 2)
-  tax_type             String?   @db.VarChar(20)
-  billing_years        Int?
-  unit_price           Decimal?  @db.Decimal(10, 2)
-  payment_method       String?   @db.VarChar(20)
-  remarks              String?
-  effective_start_date DateTime? @db.Date
-  effective_end_date   DateTime? @db.Date
-  deleted_at           DateTime?
-  
-  // Relations
-  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
+  id               String    @id @default(uuid()) @map("usage_fee_id")
+  plot_id          String    @unique
+  calculation_type String    @db.VarChar(20)
+  tax_type         String    @db.VarChar(20)
+  billing_type     String    @db.VarChar(20)
+  billing_years    String    @db.VarChar(20)
+  area             String    @db.VarChar(50)
+  unit_price       String    @db.VarChar(50)
+  usage_fee        String    @db.VarChar(50)
+  payment_method   String    @db.VarChar(20)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  deleted_at       DateTime?
 
+  // Relations
+  Plot Plot @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+
+  @@index([plot_id])
   @@map("usage_fees")
 }
 
+// 管理料
 model ManagementFee {
-  id                   Int       @id @default(autoincrement()) @map("management_fee_id")
-  gravestone_id        Int
-  calc_type            String?   @db.VarChar(20)
-  billing_type         String?   @db.VarChar(20)
-  area                 Decimal?  @db.Decimal(10, 2)
-  fee                  Decimal   @db.Decimal(10, 2)
-  last_billing_date    DateTime? @db.Date
-  tax_type             String?   @db.VarChar(20)
-  billing_years        Int?
-  billing_month        Int?
-  unit_price           Decimal?  @db.Decimal(10, 2)
-  payment_method       String    @db.VarChar(20)
-  remarks              String?
-  effective_start_date DateTime? @db.Date
-  effective_end_date   DateTime? @db.Date
-  deleted_at           DateTime?
-  
-  // Relations
-  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
+  id                 String    @id @default(uuid()) @map("management_fee_id")
+  plot_id            String    @unique
+  calculation_type   String    @db.VarChar(20)
+  tax_type           String    @db.VarChar(20)
+  billing_type       String    @db.VarChar(20)
+  billing_years      String    @db.VarChar(20)
+  area               String    @db.VarChar(50)
+  billing_month      String    @db.VarChar(20)
+  management_fee     String    @db.VarChar(50)
+  unit_price         String    @db.VarChar(50)
+  last_billing_month String    @db.VarChar(20)
+  payment_method     String    @db.VarChar(20)
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  deleted_at         DateTime?
 
+  // Relations
+  Plot Plot @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+
+  @@index([plot_id])
   @@map("management_fees")
 }
 
-model BillingInfo {
-  id                   Int       @id @default(autoincrement()) @map("billing_info_id")
-  gravestone_id        Int
-  contractor_id        Int
-  billing_type         String?   @db.VarChar(20)
-  bank_name            String?   @db.VarChar(50)
-  branch_name          String?   @db.VarChar(50)
-  account_type         String?   @db.VarChar(20)
-  account_number       String?   @db.VarChar(20)
-  account_holder       String?   @db.VarChar(100)
-  remarks              String?
-  effective_start_date DateTime? @db.Date
-  effective_end_date   DateTime? @db.Date
-  deleted_at           DateTime?
-  
-  // Relations
-  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
-  Contractor Contractor @relation(fields: [contractor_id], references: [id], onDelete: Cascade)
+// 墓石情報
+model GravestoneInfo {
+  id                     String    @id @default(uuid()) @map("gravestone_info_id")
+  plot_id                String    @unique
+  gravestone_base        String    @db.VarChar(100)
+  enclosure_position     String    @db.VarChar(100)
+  gravestone_dealer      String    @db.VarChar(100)
+  gravestone_type        String    @db.VarChar(50)
+  surrounding_area       String    @db.VarChar(100)
+  establishment_deadline DateTime? @db.Date
+  establishment_date     DateTime? @db.Date
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+  deleted_at             DateTime?
 
-  @@map("billing_infos")
+  // Relations
+  Plot Plot @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+
+  @@index([plot_id])
+  @@map("gravestone_infos")
 }
 
+// 家族・連絡先
 model FamilyContact {
-  id                   Int       @id @default(autoincrement()) @map("family_contact_id")
-  gravestone_id        Int
-  contractor_id        Int
-  name                 String?   @db.VarChar(100)
-  birth_date           DateTime? @db.Date
-  relation             String?   @db.VarChar(20)
-  phone                String?   @db.VarChar(15)
-  fax                  String?   @db.VarChar(15)
-  email                String?   @db.VarChar(100)
-  address              String?   @db.VarChar(200)
-  domicile_address     String?   @db.VarChar(200)
-  recipient_type       String?   @db.VarChar(20)
-  workplace_name       String?   @db.VarChar(100)
-  workplace_kana       String?   @db.VarChar(100)
-  workplace_address    String?   @db.VarChar(200)
-  workplace_phone      String?   @db.VarChar(15)
-  remarks              String?
-  effective_start_date DateTime? @db.Date
-  effective_end_date   DateTime? @db.Date
-  deleted_at           DateTime?
-  
-  // Relations
-  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
-  Contractor Contractor @relation(fields: [contractor_id], references: [id], onDelete: Cascade)
+  id                 String    @id @default(uuid()) @map("family_contact_id")
+  plot_id            String
+  name               String    @db.VarChar(100)
+  birth_date         DateTime? @db.Date
+  relationship       String    @db.VarChar(50)
+  address            String    @db.VarChar(200)
+  phone_number       String    @db.VarChar(15)
+  fax_number         String?   @db.VarChar(15)
+  email              String?   @db.VarChar(100)
+  registered_address String?   @db.VarChar(200)
+  mailing_type       String?   @db.VarChar(20) // home, work, other
+  company_name       String?   @db.VarChar(100)
+  company_name_kana  String?   @db.VarChar(100)
+  company_address    String?   @db.VarChar(200)
+  company_phone      String?   @db.VarChar(15)
+  notes              String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  deleted_at         DateTime?
 
+  // Relations
+  Plot Plot @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+
+  @@index([plot_id])
   @@map("family_contacts")
 }
 
-model Burial {
-  id                   Int       @id @default(autoincrement()) @map("burial_id")
-  gravestone_id        Int
-  contractor_id        Int
-  name                 String?   @db.VarChar(100)
-  kana                 String?   @db.VarChar(100)
-  birth_date           DateTime? @db.Date
-  gender               String?   @db.VarChar(10)
-  posthumous_name      String?   @db.VarChar(100)
-  death_date           DateTime? @db.Date
-  age_at_death         Int?
-  burial_date          DateTime? @db.Date
-  notification_date    DateTime? @db.Date
-  denomination         String?   @db.VarChar(20)
-  remarks              String?
-  effective_start_date DateTime? @db.Date
-  effective_end_date   DateTime? @db.Date
-  deleted_at           DateTime?
-  
+// 緊急連絡先
+model EmergencyContact {
+  id           String    @id @default(uuid()) @map("emergency_contact_id")
+  plot_id      String    @unique
+  name         String    @db.VarChar(100)
+  relationship String    @db.VarChar(50)
+  phone_number String    @db.VarChar(15)
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+  deleted_at   DateTime?
+
   // Relations
-  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
+  Plot Plot @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+
+  @@index([plot_id])
+  @@map("emergency_contacts")
+}
+
+// 埋葬者一覧
+model BuriedPerson {
+  id           String    @id @default(uuid()) @map("buried_person_id")
+  plot_id      String
+  name         String    @db.VarChar(100)
+  name_kana    String?   @db.VarChar(100)
+  relationship String?   @db.VarChar(50)
+  death_date   DateTime? @db.Date
+  age          Int?
+  gender       String?   @db.VarChar(10)
+  burial_date  DateTime? @db.Date
+  memo         String?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+  deleted_at   DateTime?
+
+  // Relations
+  Plot Plot @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+
+  @@index([plot_id])
+  @@map("buried_persons")
+}
+
+// 勤務先・連絡情報
+model WorkInfo {
+  id                String    @id @default(uuid()) @map("work_info_id")
+  contractor_id     String    @unique
+  company_name      String    @db.VarChar(100)
+  company_name_kana String    @db.VarChar(100)
+  work_address      String    @db.VarChar(200)
+  work_postal_code  String    @db.VarChar(8)
+  work_phone_number String    @db.VarChar(15)
+  dm_setting        String    @db.VarChar(20) // allow, deny, limited
+  address_type      String    @db.VarChar(20) // home, work, other
+  notes             String?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  deleted_at        DateTime?
+
+  // Relations
   Contractor Contractor @relation(fields: [contractor_id], references: [id], onDelete: Cascade)
 
-  @@map("burials")
+  @@index([contractor_id])
+  @@map("work_infos")
 }
 
-model Construction {
-  id                   Int       @id @default(autoincrement()) @map("construction_id")
-  gravestone_id        Int
-  contractor_name      String?   @db.VarChar(100)
-  start_date           DateTime? @db.Date
-  planned_end_date     DateTime? @db.Date
-  end_date             DateTime? @db.Date
-  description          String?
-  cost                 Decimal?  @db.Decimal(10, 2)
-  payment_amount       Decimal?  @db.Decimal(10, 2)
-  construction_type    String?   @db.VarChar(20)
-  remarks              String?
-  deleted_at           DateTime?
-  
+// 請求情報
+model BillingInfo {
+  id             String    @id @default(uuid()) @map("billing_info_id")
+  contractor_id  String    @unique
+  billing_type   String    @db.VarChar(20) // individual, corporate, bank_transfer
+  bank_name      String    @db.VarChar(100)
+  branch_name    String    @db.VarChar(100)
+  account_type   String    @db.VarChar(20) // ordinary, current, savings
+  account_number String    @db.VarChar(50)
+  account_holder String    @db.VarChar(100)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime?
+
   // Relations
-  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
+  Contractor Contractor @relation(fields: [contractor_id], references: [id], onDelete: Cascade)
 
-  @@map("constructions")
+  @@index([contractor_id])
+  @@map("billing_infos")
 }
 
+// 更新履歴テーブル
 model History {
-  id                 Int       @id @default(autoincrement()) @map("history_id")
-  gravestone_id      Int
-  contractor_id      Int
-  before_record_id   Int?
-  after_record_id    Int?
-  update_type        String?   @db.VarChar(20)
-  update_reason      String?   @db.VarChar(100)
-  updated_by         String?   @db.VarChar(50)
-  updated_at         DateTime  @default(now())
-  
-  // Relations
-  Gravestone Gravestone @relation(fields: [gravestone_id], references: [id], onDelete: Cascade)
-  Contractor Contractor @relation(fields: [contractor_id], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid()) @map("history_id")
+  entity_type    String   @db.VarChar(50) // テーブル名: Plot, Applicant, Contractor など
+  entity_id      String   @db.VarChar(255) // 対象レコードのID
+  plot_id        String? // 関連する区画ID（検索用）
+  action_type    String   @db.VarChar(20) // CREATE, UPDATE, DELETE
+  changed_fields Json? // 変更されたフィールド名のリスト例: ["plot_number", "section"]
+  changed_by     String?  @db.VarChar(100) // 変更者（Staff IDまたは名前）
+  change_reason  String?  @db.VarChar(200) // 変更理由
+  ip_address     String?  @db.VarChar(50) // 変更元IPアドレス
+  created_at     DateTime @default(now())
 
+  @@index([entity_type, entity_id])
+  @@index([plot_id])
+  @@index([created_at])
+  @@index([changed_by])
   @@map("histories")
 }
 
 model Staff {
-  id              Int       @id @default(autoincrement()) @map("staff_id")
-  name            String    @db.VarChar(100)
-  email           String    @unique @db.VarChar(100)
-  password        String    @db.VarChar(255)
-  role            String    @default("viewer") @db.VarChar(20) // viewer, operator, manager, admin
-  is_active       Boolean   @default(true)
-  last_login_at   DateTime?
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  id            Int       @id @default(autoincrement()) @map("staff_id")
+  name          String    @db.VarChar(100)
+  email         String    @unique @db.VarChar(100)
+  password      String    @db.VarChar(255)
+  role          String    @default("viewer") @db.VarChar(20) // viewer, operator, manager, admin
+  is_active     Boolean   @default(true)
+  last_login_at DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
 
-  @@map("staff")
   @@index([email])
   @@index([role, is_active])
+  @@map("staff")
 }
 
 // マスタテーブル
@@ -451,14 +483,14 @@ model UpdateTypeMaster {
 }
 
 model PrefectureMaster {
-  id          Int      @id @default(autoincrement())
-  code        String   @unique @db.VarChar(2)
-  name        String   @db.VarChar(10)
-  name_kana   String?  @db.VarChar(20)
-  sort_order  Int?
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  code       String   @unique @db.VarChar(2)
+  name       String   @db.VarChar(10)
+  name_kana  String?  @db.VarChar(20)
+  sort_order Int?
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@map("prefecture_master")
 }
