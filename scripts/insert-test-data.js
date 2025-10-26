@@ -153,7 +153,7 @@ async function insertTestData() {
 
     // スタッフデータ
     const bcrypt = require('bcrypt');
-    
+
     // 複数のスタッフを作成（権限レベル別）
     const staffData = [
       {
@@ -190,195 +190,226 @@ async function insertTestData() {
       await prisma.staff.create({ data: staffMember });
     }
 
-    // 墓石データ
-    const gravestone1 = await prisma.gravestone.create({
+    // 区画データ1（利用中）
+    const plot1 = await prisma.plot.create({
       data: {
-        gravestone_code: 'A-001',
-        usage_status: '03', // 利用中
-        price: 800000.00,
-        orientation: '南向き',
-        location: '1区画1号',
-        cemetery_type: '01', // 公営墓地
-        denomination: '01', // 浄土真宗
-        inscription: '○○家之墓',
-        construction_deadline: new Date('2025-12-31'),
-        construction_date: new Date('2024-06-15'),
-        epitaph: '先祖代々の墓',
-        remarks: '特になし',
+        plot_number: 'A-001',
+        section: '東区',
+        usage: 'in_use',
+        size: '4.0㎡',
+        price: '800,000円',
+        contract_date: new Date('2024-03-01'),
+        status: 'active',
+        notes: '墓石建立済み、定期メンテナンス対象',
       },
     });
 
-    const gravestone2 = await prisma.gravestone.create({
+    // 区画データ2（空き）
+    const plot2 = await prisma.plot.create({
       data: {
-        gravestone_code: 'B-056',
-        usage_status: '01', // 空き
-        price: 650000.00,
-        orientation: '東向き',
-        location: '2区画56号',
-        cemetery_type: '02', // 民営墓地
-        denomination: '03', // 真言宗
-        remarks: '空き区画',
+        plot_number: 'B-056',
+        section: '西区',
+        usage: 'available',
+        size: '3.5㎡',
+        price: '650,000円',
+        status: 'active',
+        notes: null,
       },
     });
 
-    // 申込者データ
+    // 区画データ3（予約済み）
+    const plot3 = await prisma.plot.create({
+      data: {
+        plot_number: 'C-102',
+        section: '南区',
+        usage: 'reserved',
+        size: '5.0㎡',
+        price: '1,000,000円',
+        contract_date: new Date('2025-01-15'),
+        status: 'active',
+        notes: '2025年春より利用開始予定',
+      },
+    });
+
+    // 申込者データ（区画1）
     await prisma.applicant.create({
       data: {
-        gravestone_id: gravestone1.id,
+        plot_id: plot1.id,
         application_date: new Date('2024-01-15'),
         staff_name: '田中太郎',
         name: '山田花子',
-        kana: 'ヤマダハナコ',
+        name_kana: 'やまだはなこ',
         postal_code: '123-4567',
+        phone_number: '03-1234-5678',
         address: '東京都新宿区西新宿1-1-1',
-        phone: '03-1234-5678',
-        remarks: '初回申込',
-        effective_start_date: new Date('2024-01-15'),
       },
     });
 
-    // 契約者データ
+    // 契約者データ（区画1）
     const contractor1 = await prisma.contractor.create({
       data: {
-        gravestone_id: gravestone1.id,
+        plot_id: plot1.id,
         reservation_date: new Date('2024-02-01'),
-        consent_form_number: 'C-2024-001',
-        permission_date: new Date('2024-02-15'),
+        acceptance_number: 'C-2024-001',
+        permit_date: new Date('2024-02-15'),
         start_date: new Date('2024-03-01'),
         name: '山田太郎',
-        kana: 'ヤマダタロウ',
+        name_kana: 'やまだたろう',
         birth_date: new Date('1965-05-20'),
-        gender: '01', // 男性
-        postal_code: '123-4567',
-        address: '東京都新宿区西新宿1-1-1',
-        phone: '03-1234-5678',
-        fax: '03-1234-5679',
+        gender: 'male',
+        phone_number: '03-1234-5678',
+        fax_number: '03-1234-5679',
         email: 'yamada@example.com',
-        domicile_address: '東京都新宿区西新宿1-1-1',
-        workplace_name: '株式会社山田商事',
-        workplace_kana: 'カブシキガイシャヤマダショウジ',
-        workplace_address: '東京都渋谷区渋谷1-1-1',
-        workplace_phone: '03-9876-5432',
-        dm_setting: '送付希望',
-        recipient_type: '01', // 契約者住所
-        remarks: '長男、跡継ぎ',
-        effective_start_date: new Date('2024-03-01'),
+        address: '東京都新宿区西新宿1-1-1',
+        registered_address: '東京都新宿区西新宿1-1-1',
       },
     });
 
-    // 使用料情報
+    // 使用料情報（区画1）
     await prisma.usageFee.create({
       data: {
-        gravestone_id: gravestone1.id,
-        calc_type: '01', // 面積単価
-        area: 4.00,
-        fee: 320000.00,
-        tax_type: '03', // 消費税10%
-        billing_years: 1,
-        unit_price: 80000.00,
-        payment_method: '03', // 口座振替
-        remarks: '年間使用料',
-        effective_start_date: new Date('2024-03-01'),
+        plot_id: plot1.id,
+        calculation_type: '面積単価',
+        tax_type: '消費税10%',
+        billing_type: '一括請求',
+        billing_years: '永代',
+        area: '4.0㎡',
+        unit_price: '80,000円/㎡',
+        usage_fee: '320,000円',
+        payment_method: '口座振替',
       },
     });
 
-    // 管理料情報
+    // 管理料情報（区画1）
     await prisma.managementFee.create({
       data: {
-        gravestone_id: gravestone1.id,
-        calc_type: '02', // 一律料金
-        billing_type: '01', // 年次請求
-        area: 4.00,
-        fee: 24000.00,
-        last_billing_date: new Date('2024-04-01'),
-        tax_type: '03', // 消費税10%
-        billing_years: 1,
-        billing_month: 4,
-        unit_price: 24000.00,
-        payment_method: '03', // 口座振替
-        remarks: '年間管理料',
-        effective_start_date: new Date('2024-03-01'),
+        plot_id: plot1.id,
+        calculation_type: '一律料金',
+        tax_type: '消費税10%',
+        billing_type: '年次請求',
+        billing_years: '毎年',
+        area: '4.0㎡',
+        billing_month: '4月',
+        management_fee: '24,000円',
+        unit_price: '24,000円',
+        last_billing_month: '2025年4月',
+        payment_method: '口座振替',
       },
     });
 
-    // 請求情報
+    // 墓石情報（区画1）
+    await prisma.gravestoneInfo.create({
+      data: {
+        plot_id: plot1.id,
+        gravestone_base: '御影石',
+        enclosure_position: '全面囲い',
+        gravestone_dealer: '石材工業株式会社',
+        gravestone_type: '和型',
+        surrounding_area: '植栽あり',
+        establishment_deadline: new Date('2024-06-30'),
+        establishment_date: new Date('2024-06-25'),
+      },
+    });
+
+    // 勤務先・連絡情報（契約者1）
+    await prisma.workInfo.create({
+      data: {
+        contractor_id: contractor1.id,
+        company_name: '株式会社山田商事',
+        company_name_kana: 'かぶしきがいしゃやまだしょうじ',
+        work_address: '東京都渋谷区渋谷1-1-1',
+        work_postal_code: '150-0001',
+        work_phone_number: '03-9876-5432',
+        dm_setting: 'allow',
+        address_type: 'home',
+        notes: '平日9-18時連絡可',
+      },
+    });
+
+    // 請求情報（契約者1）
     await prisma.billingInfo.create({
       data: {
-        gravestone_id: gravestone1.id,
         contractor_id: contractor1.id,
-        billing_type: '01', // 年次請求
+        billing_type: 'bank_transfer',
         bank_name: 'みずほ銀行',
         branch_name: '新宿支店',
-        account_type: '01', // 普通預金
+        account_type: 'ordinary',
         account_number: '1234567',
         account_holder: '山田太郎',
-        remarks: '自動振替設定済み',
-        effective_start_date: new Date('2024-03-01'),
       },
     });
 
-    // 家族連絡先情報
+    // 家族連絡先情報（区画1）
     await prisma.familyContact.create({
       data: {
-        gravestone_id: gravestone1.id,
-        contractor_id: contractor1.id,
+        plot_id: plot1.id,
         name: '山田花子',
         birth_date: new Date('1970-08-15'),
-        relation: '01', // 配偶者
-        phone: '090-1234-5678',
-        email: 'hanako@example.com',
+        relationship: '配偶者',
         address: '東京都新宿区西新宿1-1-1',
-        recipient_type: '01', // 契約者住所
-        remarks: '緊急連絡先',
-        effective_start_date: new Date('2024-03-01'),
+        phone_number: '090-1234-5678',
+        fax_number: null,
+        email: 'hanako@example.com',
+        registered_address: null,
+        mailing_type: 'home',
+        company_name: null,
+        company_name_kana: null,
+        company_address: null,
+        company_phone: null,
+        notes: '緊急連絡先',
       },
     });
 
-    // 埋葬者情報
-    await prisma.burial.create({
+    // 緊急連絡先（区画1）
+    await prisma.emergencyContact.create({
       data: {
-        gravestone_id: gravestone1.id,
-        contractor_id: contractor1.id,
+        plot_id: plot1.id,
+        name: '山田次郎',
+        relationship: '長男',
+        phone_number: '090-9876-5432',
+      },
+    });
+
+    // 埋葬者情報（区画1）
+    await prisma.buriedPerson.create({
+      data: {
+        plot_id: plot1.id,
         name: '山田一郎',
-        kana: 'ヤマダイチロウ',
-        birth_date: new Date('1940-12-01'),
-        gender: '01', // 男性
-        posthumous_name: '○○院○○居士',
+        name_kana: 'やまだいちろう',
+        relationship: '父',
         death_date: new Date('2023-11-15'),
-        age_at_death: 83,
+        age: 83,
+        gender: 'male',
         burial_date: new Date('2023-11-20'),
-        notification_date: new Date('2023-11-16'),
-        denomination: '01', // 浄土真宗
-        remarks: '父',
-        effective_start_date: new Date('2023-11-20'),
+        memo: '2023年11月20日納骨',
       },
     });
 
-    // 工事情報
-    await prisma.construction.create({
+    await prisma.buriedPerson.create({
       data: {
-        gravestone_id: gravestone1.id,
-        contractor_name: '石材工業株式会社',
-        start_date: new Date('2024-06-01'),
-        planned_end_date: new Date('2024-06-30'),
-        end_date: new Date('2024-06-25'),
-        description: '墓石新規建立工事',
-        cost: 1200000.00,
-        payment_amount: 1200000.00,
-        construction_type: '01', // 新規建立
-        remarks: '工事完了',
+        plot_id: plot1.id,
+        name: '山田美代子',
+        name_kana: 'やまだみよこ',
+        relationship: '母',
+        death_date: new Date('2020-03-10'),
+        age: 78,
+        gender: 'female',
+        burial_date: new Date('2020-03-15'),
+        memo: '2020年3月15日納骨',
       },
     });
 
-    // 履歴情報
+    // 履歴情報（区画1）
     await prisma.history.create({
       data: {
-        gravestone_id: gravestone1.id,
-        contractor_id: contractor1.id,
-        update_type: '01', // 新規登録
-        update_reason: '新規契約',
-        updated_by: '管理者',
-        updated_at: new Date('2024-03-01'),
+        entity_type: 'Plot',
+        entity_id: plot1.id,
+        plot_id: plot1.id,
+        action_type: 'CREATE',
+        changed_fields: ['plot_number', 'section', 'usage'],
+        changed_by: '管理者',
+        change_reason: '新規契約',
+        ip_address: '192.168.1.100',
       },
     });
 
@@ -386,17 +417,17 @@ async function insertTestData() {
     console.log('🎉 すべてのテストデータの挿入が完了しました！');
 
     // データ確認
-    const gravestoneCount = await prisma.gravestone.count();
+    const plotCount = await prisma.plot.count();
     const contractorCount = await prisma.contractor.count();
     const staffCount = await prisma.staff.count();
     const masterTablesCount = await prisma.usageStatusMaster.count();
 
     console.log('\n📊 挿入されたデータの件数:');
-    console.log(`- 墓石: ${gravestoneCount}件`);
+    console.log(`- 区画: ${plotCount}件`);
     console.log(`- 契約者: ${contractorCount}件`);
     console.log(`- スタッフ: ${staffCount}件`);
     console.log(`- マスタテーブル例（利用状況）: ${masterTablesCount}件`);
-    
+
     console.log('\n🔐 テストアカウント:');
     console.log('- 管理者: admin@example.com / admin123');
     console.log('- マネージャー: manager@example.com / manager123');

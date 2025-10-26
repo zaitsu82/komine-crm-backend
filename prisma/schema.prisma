@@ -18,6 +18,7 @@ model Plot {
   price         String    @db.VarChar(50)
   contract_date DateTime? @db.Date
   status        String    @default("active") @db.VarChar(20) // active, inactive
+  notes         String?   @db.Text // 備考/注意
   created_at    DateTime  @default(now())
   updated_at    DateTime  @updatedAt
   deleted_at    DateTime?
