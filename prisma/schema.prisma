@@ -298,9 +298,9 @@ model History {
 
 model Staff {
   id            Int       @id @default(autoincrement()) @map("staff_id")
+  supabase_uid  String?   @unique @db.VarChar(255) // Supabase User IDとの紐付け
   name          String    @db.VarChar(100)
   email         String    @unique @db.VarChar(100)
-  password      String    @db.VarChar(255)
   role          String    @default("viewer") @db.VarChar(20) // viewer, operator, manager, admin
   is_active     Boolean   @default(true)
   last_login_at DateTime?
@@ -308,6 +308,7 @@ model Staff {
   updated_at    DateTime  @updatedAt
 
   @@index([email])
+  @@index([supabase_uid])
   @@index([role, is_active])
   @@map("staff")
 }
