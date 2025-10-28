@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getPlots, getPlotById } from './plotController';
+import { getPlots, getPlotById, createPlot } from './plotController';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission';
 
@@ -19,6 +19,14 @@ router.get(
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   getPlotById
+);
+
+// 区画情報登録
+router.post(
+  '/',
+  authenticate,
+  requirePermission(['operator', 'manager', 'admin']),
+  createPlot
 );
 
 export default router;

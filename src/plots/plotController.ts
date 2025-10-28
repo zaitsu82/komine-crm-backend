@@ -1,8 +1,17 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { PlotListItem, plotInfo } from '../type';
+import { PlotListItem, plotInfo, CreatePlotInput } from '../type';
 
 const prisma = new PrismaClient();
+
+/**
+ * 日付文字列をDateオブジェクトに変換するヘルパー関数
+ */
+const parseDate = (date: Date | string | null | undefined): Date | null => {
+  if (!date) return null;
+  if (date instanceof Date) return date;
+  return new Date(date);
+};
 
 /**
  * 区画情報一覧取得
@@ -283,6 +292,319 @@ export const getPlotById = async (req: Request, res: Response) => {
       error: {
         code: 'INTERNAL_SERVER_ERROR',
         message: '区画情報の取得に失敗しました',
+      },
+    });
+  }
+};
+
+/**
+ * 区画情報登録
+ * POST /api/v1/plots
+ */
+export const createPlot = async (req: Request, res: Response) => {
+  try {
+    const input: CreatePlotInput = req.body;
+
+    // 必須項目のバリデーション
+    if (!input.plot) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: '区画基本情報は必須です',
+          details: [{ field: 'plot', message: '区画基本情報を入力してください' }],
+        },
+      });
+    }
+
+    const { plotNumber, section, usage, size, price } = input.plot;
+
+    if (!plotNumber || !section || !usage || !size || !price) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: '区画基本情報の必須項目が不足しています',
+          details: [
+            { field: 'plotNumber', message: '区画番号は必須です' },
+            { field: 'section', message: '区域は必須です' },
+            { field: 'usage', message: '利用状況は必須です' },
+            { field: 'size', message: '面積は必須です' },
+            { field: 'price', message: '金額は必須です' },
+          ],
+        },
+      });
+    }
+
+    // 区画番号の重複チェック
+    const existingPlot = await prisma.plot.findUnique({
+      where: { plot_number: plotNumber },
+    });
+
+    if (existingPlot) {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'DUPLICATE_PLOT_NUMBER',
+          message: '区画番号が既に存在します',
+          details: [{ field: 'plotNumber', message: `区画番号 ${plotNumber} は既に使用されています` }],
+        },
+      });
+    }
+
+    // 契約者に依存するデータのバリデーション
+    if ((input.workInfo || input.billingInfo) && !input.contractor) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: '契約者情報がない場合、勤務先・請求情報は登録できません',
+          details: [],
+        },
+      });
+    }
+
+    // トランザクション処理で一括登録
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Plot作成（必須）
+      const plot = await tx.plot.create({
+        data: {
+          plot_number: plotNumber,
+          section,
+          usage,
+          size,
+          price,
+          contract_date: parseDate(input.plot.contractDate),
+          status: input.plot.status || 'active',
+          notes: input.plot.notes || null,
+        },
+      });
+
+      // 2. Applicant作成（任意）
+      if (input.applicant) {
+        await tx.applicant.create({
+          data: {
+            plot_id: plot.id, // ★外部キー設定
+            application_date: parseDate(input.applicant.applicationDate),
+            staff_name: input.applicant.staffName,
+            name: input.applicant.name,
+            name_kana: input.applicant.nameKana,
+            postal_code: input.applicant.postalCode,
+            phone_number: input.applicant.phoneNumber,
+            address: input.applicant.address,
+          },
+        });
+      }
+
+      // 3. Contractor作成（任意）
+      let contractor = null;
+      if (input.contractor) {
+        contractor = await tx.contractor.create({
+          data: {
+            plot_id: plot.id, // ★外部キー設定
+            reservation_date: parseDate(input.contractor.reservationDate),
+            acceptance_number: input.contractor.acceptanceNumber || null,
+            permit_date: parseDate(input.contractor.permitDate),
+            start_date: parseDate(input.contractor.startDate),
+            name: input.contractor.name,
+            name_kana: input.contractor.nameKana,
+            birth_date: parseDate(input.contractor.birthDate),
+            gender: input.contractor.gender || null,
+            phone_number: input.contractor.phoneNumber,
+            fax_number: input.contractor.faxNumber || null,
+            email: input.contractor.email || null,
+            address: input.contractor.address,
+            registered_address: input.contractor.registeredAddress || null,
+          },
+        });
+      }
+
+      // 4. UsageFee作成（任意）
+      if (input.usageFee) {
+        await tx.usageFee.create({
+          data: {
+            plot_id: plot.id, // ★外部キー設定
+            calculation_type: input.usageFee.calculationType,
+            tax_type: input.usageFee.taxType,
+            billing_type: input.usageFee.billingType,
+            billing_years: input.usageFee.billingYears,
+            area: input.usageFee.area,
+            unit_price: input.usageFee.unitPrice,
+            usage_fee: input.usageFee.usageFee,
+            payment_method: input.usageFee.paymentMethod,
+          },
+        });
+      }
+
+      // 5. ManagementFee作成（任意）
+      if (input.managementFee) {
+        await tx.managementFee.create({
+          data: {
+            plot_id: plot.id, // ★外部キー設定
+            calculation_type: input.managementFee.calculationType,
+            tax_type: input.managementFee.taxType,
+            billing_type: input.managementFee.billingType,
+            billing_years: input.managementFee.billingYears,
+            area: input.managementFee.area,
+            billing_month: input.managementFee.billingMonth,
+            management_fee: input.managementFee.managementFee,
+            unit_price: input.managementFee.unitPrice,
+            last_billing_month: input.managementFee.lastBillingMonth,
+            payment_method: input.managementFee.paymentMethod,
+          },
+        });
+      }
+
+      // 6. GravestoneInfo作成（任意）
+      if (input.gravestoneInfo) {
+        await tx.gravestoneInfo.create({
+          data: {
+            plot_id: plot.id, // ★外部キー設定
+            gravestone_base: input.gravestoneInfo.gravestoneBase,
+            enclosure_position: input.gravestoneInfo.enclosurePosition,
+            gravestone_dealer: input.gravestoneInfo.gravestoneDealer,
+            gravestone_type: input.gravestoneInfo.gravestoneType,
+            surrounding_area: input.gravestoneInfo.surroundingArea,
+            establishment_deadline: parseDate(input.gravestoneInfo.establishmentDeadline),
+            establishment_date: parseDate(input.gravestoneInfo.establishmentDate),
+          },
+        });
+      }
+
+      // 7. FamilyContact作成（配列・任意）
+      if (input.familyContacts && input.familyContacts.length > 0) {
+        for (const fc of input.familyContacts) {
+          await tx.familyContact.create({
+            data: {
+              plot_id: plot.id, // ★外部キー設定
+              name: fc.name,
+              birth_date: parseDate(fc.birthDate),
+              relationship: fc.relationship,
+              address: fc.address,
+              phone_number: fc.phoneNumber,
+              fax_number: fc.faxNumber || null,
+              email: fc.email || null,
+              registered_address: fc.registeredAddress || null,
+              mailing_type: fc.mailingType || null,
+              company_name: fc.companyName || null,
+              company_name_kana: fc.companyNameKana || null,
+              company_address: fc.companyAddress || null,
+              company_phone: fc.companyPhone || null,
+              notes: fc.notes || null,
+            },
+          });
+        }
+      }
+
+      // 8. EmergencyContact作成（任意）
+      if (input.emergencyContact) {
+        await tx.emergencyContact.create({
+          data: {
+            plot_id: plot.id, // ★外部キー設定
+            name: input.emergencyContact.name,
+            relationship: input.emergencyContact.relationship,
+            phone_number: input.emergencyContact.phoneNumber,
+          },
+        });
+      }
+
+      // 9. BuriedPerson作成（配列・任意）
+      if (input.buriedPersons && input.buriedPersons.length > 0) {
+        for (const bp of input.buriedPersons) {
+          await tx.buriedPerson.create({
+            data: {
+              plot_id: plot.id, // ★外部キー設定
+              name: bp.name,
+              name_kana: bp.nameKana || null,
+              relationship: bp.relationship || null,
+              death_date: parseDate(bp.deathDate),
+              age: bp.age || null,
+              gender: bp.gender || null,
+              burial_date: parseDate(bp.burialDate),
+              memo: bp.memo || null,
+            },
+          });
+        }
+      }
+
+      // 10. WorkInfo作成（任意、契約者に依存）
+      if (input.workInfo && contractor) {
+        await tx.workInfo.create({
+          data: {
+            contractor_id: contractor.id, // ★外部キー設定（contractor_id）
+            company_name: input.workInfo.companyName,
+            company_name_kana: input.workInfo.companyNameKana,
+            work_address: input.workInfo.workAddress,
+            work_postal_code: input.workInfo.workPostalCode,
+            work_phone_number: input.workInfo.workPhoneNumber,
+            dm_setting: input.workInfo.dmSetting,
+            address_type: input.workInfo.addressType,
+            notes: input.workInfo.notes || null,
+          },
+        });
+      }
+
+      // 11. BillingInfo作成（任意、契約者に依存）
+      if (input.billingInfo && contractor) {
+        await tx.billingInfo.create({
+          data: {
+            contractor_id: contractor.id, // ★外部キー設定（contractor_id）
+            billing_type: input.billingInfo.billingType,
+            bank_name: input.billingInfo.bankName,
+            branch_name: input.billingInfo.branchName,
+            account_type: input.billingInfo.accountType,
+            account_number: input.billingInfo.accountNumber,
+            account_holder: input.billingInfo.accountHolder,
+          },
+        });
+      }
+
+      // 12. History作成（履歴記録）
+      await tx.history.create({
+        data: {
+          entity_type: 'Plot',
+          entity_id: plot.id,
+          plot_id: plot.id, // ★外部キー設定
+          action_type: 'CREATE',
+          changed_fields: ['plot_number', 'section', 'usage', 'size', 'price'],
+          changed_by: req.user?.name || 'システム',
+          change_reason: '新規区画登録',
+          ip_address: req.ip || req.connection.remoteAddress || null,
+        },
+      });
+
+      return plot;
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: result.id,
+        plotNumber: result.plot_number,
+        message: '区画情報を登録しました',
+      },
+    });
+  } catch (error: any) {
+    console.error('Error creating plot:', error);
+
+    // Prismaの一意制約違反エラー
+    if (error.code === 'P2002') {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'DUPLICATE_ERROR',
+          message: '重複するデータが存在します',
+          details: [],
+        },
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: '区画情報の登録に失敗しました',
+        details: [],
       },
     });
   }

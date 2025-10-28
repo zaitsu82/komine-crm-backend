@@ -11,6 +11,145 @@ export interface PlotListItem {
   notes: string | null; // 備考/注意
 }
 
+// 区画情報登録リクエスト
+export interface CreatePlotInput {
+  // 区画基本情報（必須）
+  plot: {
+    plotNumber: string; // 区画番号 *必須
+    section: string; // 区域 *必須
+    usage: 'in_use' | 'available' | 'reserved'; // 利用状況 *必須
+    size: string; // 面積 *必須
+    price: string; // 金額 *必須
+    contractDate?: Date | string | null; // 契約日（任意）
+    status?: 'active' | 'inactive'; // ステータス（デフォルト: active）
+    notes?: string | null; // 備考
+  };
+
+  // 申込者情報（任意）
+  applicant?: {
+    applicationDate?: Date | string | null;
+    staffName: string;
+    name: string;
+    nameKana: string;
+    postalCode: string;
+    phoneNumber: string;
+    address: string;
+  };
+
+  // 契約者情報（任意）
+  contractor?: {
+    reservationDate?: Date | string | null;
+    acceptanceNumber?: string;
+    permitDate?: Date | string | null;
+    startDate?: Date | string | null;
+    name: string;
+    nameKana: string;
+    birthDate?: Date | string | null;
+    gender?: 'male' | 'female';
+    phoneNumber: string;
+    faxNumber?: string;
+    email?: string;
+    address: string;
+    registeredAddress?: string;
+  };
+
+  // 使用料（任意）
+  usageFee?: {
+    calculationType: string;
+    taxType: string;
+    billingType: string;
+    billingYears: string;
+    area: string;
+    unitPrice: string;
+    usageFee: string;
+    paymentMethod: string;
+  };
+
+  // 管理料（任意）
+  managementFee?: {
+    calculationType: string;
+    taxType: string;
+    billingType: string;
+    billingYears: string;
+    area: string;
+    billingMonth: string;
+    managementFee: string;
+    unitPrice: string;
+    lastBillingMonth: string;
+    paymentMethod: string;
+  };
+
+  // 墓石情報（任意）
+  gravestoneInfo?: {
+    gravestoneBase: string;
+    enclosurePosition: string;
+    gravestoneDealer: string;
+    gravestoneType: string;
+    surroundingArea: string;
+    establishmentDeadline?: Date | string | null;
+    establishmentDate?: Date | string | null;
+  };
+
+  // 家族連絡先（複数・任意）
+  familyContacts?: Array<{
+    name: string;
+    birthDate?: Date | string | null;
+    relationship: string;
+    address: string;
+    phoneNumber: string;
+    faxNumber?: string;
+    email?: string;
+    registeredAddress?: string;
+    mailingType?: 'home' | 'work' | 'other';
+    companyName?: string;
+    companyNameKana?: string;
+    companyAddress?: string;
+    companyPhone?: string;
+    notes?: string;
+  }>;
+
+  // 緊急連絡先（任意）
+  emergencyContact?: {
+    name: string;
+    relationship: string;
+    phoneNumber: string;
+  };
+
+  // 埋葬者一覧（複数・任意）
+  buriedPersons?: Array<{
+    name: string;
+    nameKana?: string;
+    relationship?: string;
+    deathDate?: Date | string | null;
+    age?: number;
+    gender?: 'male' | 'female';
+    burialDate?: Date | string | null;
+    memo?: string;
+  }>;
+
+  // 勤務先・連絡情報（任意、契約者情報がある場合のみ）
+  workInfo?: {
+    companyName: string;
+    companyNameKana: string;
+    workAddress: string;
+    workPostalCode: string;
+    workPhoneNumber: string;
+    dmSetting: 'allow' | 'deny' | 'limited';
+    addressType: 'home' | 'work' | 'other';
+    notes?: string;
+  };
+
+  // 請求情報（任意、契約者情報がある場合のみ）
+  billingInfo?: {
+    billingType: 'individual' | 'corporate' | 'bank_transfer';
+    bankName: string;
+    branchName: string;
+    accountType: 'ordinary' | 'current' | 'savings';
+    accountNumber: string;
+    accountHolder: string;
+  };
+}
+
 // 区画情報インターフェース
 export interface plotInfo {
 
