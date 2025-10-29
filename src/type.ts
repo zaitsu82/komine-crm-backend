@@ -302,6 +302,149 @@ export interface plotInfo {
   status: 'active' | 'inactive'; // 契約ステータス
 }
 
+// 区画情報更新リクエスト（部分更新対応）
+export interface UpdatePlotInput {
+  // 区画基本情報（部分更新）
+  plot?: {
+    plotNumber?: string; // 区画番号
+    section?: string; // 区域
+    usage?: 'in_use' | 'available' | 'reserved'; // 利用状況
+    size?: string; // 面積
+    price?: string; // 金額
+    contractDate?: Date | string | null; // 契約日
+    status?: 'active' | 'inactive'; // ステータス
+    notes?: string | null; // 備考
+  };
+
+  // 申込者情報（upsert: 存在すれば更新、なければ作成）
+  applicant?: {
+    applicationDate?: Date | string | null;
+    staffName?: string;
+    name?: string;
+    nameKana?: string;
+    postalCode?: string;
+    phoneNumber?: string;
+    address?: string;
+  } | null; // null指定で削除
+
+  // 契約者情報（最新の契約者のみ更新）
+  contractor?: {
+    reservationDate?: Date | string | null;
+    acceptanceNumber?: string;
+    permitDate?: Date | string | null;
+    startDate?: Date | string | null;
+    name?: string;
+    nameKana?: string;
+    birthDate?: Date | string | null;
+    gender?: 'male' | 'female';
+    phoneNumber?: string;
+    faxNumber?: string;
+    email?: string;
+    address?: string;
+    registeredAddress?: string;
+  };
+
+  // 使用料（upsert）
+  usageFee?: {
+    calculationType?: string;
+    taxType?: string;
+    billingType?: string;
+    billingYears?: string;
+    area?: string;
+    unitPrice?: string;
+    usageFee?: string;
+    paymentMethod?: string;
+  } | null;
+
+  // 管理料（upsert）
+  managementFee?: {
+    calculationType?: string;
+    taxType?: string;
+    billingType?: string;
+    billingYears?: string;
+    area?: string;
+    billingMonth?: string;
+    managementFee?: string;
+    unitPrice?: string;
+    lastBillingMonth?: string;
+    paymentMethod?: string;
+  } | null;
+
+  // 墓石情報（upsert）
+  gravestoneInfo?: {
+    gravestoneBase?: string;
+    enclosurePosition?: string;
+    gravestoneDealer?: string;
+    gravestoneType?: string;
+    surroundingArea?: string;
+    establishmentDeadline?: Date | string | null;
+    establishmentDate?: Date | string | null;
+  } | null;
+
+  // 家族連絡先（差分更新：idあり=更新、idなし=作成）
+  familyContacts?: Array<{
+    id?: string; // IDがあれば既存データ更新
+    name?: string;
+    birthDate?: Date | string | null;
+    relationship?: string;
+    address?: string;
+    phoneNumber?: string;
+    faxNumber?: string;
+    email?: string;
+    registeredAddress?: string;
+    mailingType?: 'home' | 'work' | 'other';
+    companyName?: string;
+    companyNameKana?: string;
+    companyAddress?: string;
+    companyPhone?: string;
+    notes?: string;
+    _delete?: boolean; // 削除フラグ
+  }>;
+
+  // 緊急連絡先（upsert）
+  emergencyContact?: {
+    name?: string;
+    relationship?: string;
+    phoneNumber?: string;
+  } | null;
+
+  // 埋葬者一覧（差分更新）
+  buriedPersons?: Array<{
+    id?: string; // IDがあれば既存データ更新
+    name?: string;
+    nameKana?: string;
+    relationship?: string;
+    deathDate?: Date | string | null;
+    age?: number;
+    gender?: 'male' | 'female';
+    burialDate?: Date | string | null;
+    memo?: string;
+    _delete?: boolean; // 削除フラグ
+  }>;
+
+  // 勤務先・連絡情報（upsert、契約者に依存）
+  workInfo?: {
+    companyName?: string;
+    companyNameKana?: string;
+    workAddress?: string;
+    workPostalCode?: string;
+    workPhoneNumber?: string;
+    dmSetting?: 'allow' | 'deny' | 'limited';
+    addressType?: 'home' | 'work' | 'other';
+    notes?: string;
+  } | null;
+
+  // 請求情報（upsert、契約者に依存）
+  billingInfo?: {
+    billingType?: 'individual' | 'corporate' | 'bank_transfer';
+    bankName?: string;
+    branchName?: string;
+    accountType?: 'ordinary' | 'current' | 'savings';
+    accountNumber?: string;
+    accountHolder?: string;
+  } | null;
+}
+
 // 合祀情報（複数の故人を一つの墓所に祀る管理）
 export interface collectiveBurial {
 

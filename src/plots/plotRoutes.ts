@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getPlots, getPlotById, createPlot } from './plotController';
+import { getPlots, getPlotById, createPlot, updatePlot } from './plotController';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission';
 
@@ -27,6 +27,14 @@ router.post(
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
   createPlot
+);
+
+// 区画情報更新
+router.put(
+  '/:id',
+  authenticate,
+  requirePermission(['operator', 'manager', 'admin']),
+  updatePlot
 );
 
 export default router;
