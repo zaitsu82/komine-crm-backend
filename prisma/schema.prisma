@@ -29,6 +29,7 @@ model Plot {
   UsageFee         UsageFee?
   ManagementFee    ManagementFee?
   GravestoneInfo   GravestoneInfo?
+  ConstructionInfo ConstructionInfo?
   FamilyContacts   FamilyContact[]
   EmergencyContact EmergencyContact?
   BuriedPersons    BuriedPerson[]
@@ -160,6 +161,53 @@ model GravestoneInfo {
 
   @@index([plot_id])
   @@map("gravestone_infos")
+}
+
+// 工事情報
+model ConstructionInfo {
+  id                       String    @id @default(uuid()) @map("construction_info_id")
+  plot_id                  String    @unique
+  // 工事進捗状況
+  construction_type        String?   @db.VarChar(50) // 工事区分
+  start_date               DateTime? @db.Date // 着工予定日
+  completion_date          DateTime? @db.Date // 完工予定日
+  contractor               String?   @db.VarChar(100) // 工事業者名
+  supervisor               String?   @db.VarChar(100) // 工事担当者名
+  progress                 String?   @db.VarChar(100) // 進捗状況
+  // 工事詳細
+  work_item_1              String?   @db.VarChar(100) // 工事項目1
+  work_date_1              DateTime? @db.Date // 実施日1
+  work_amount_1            Decimal?  @db.Decimal(15, 2) // 金額1
+  work_status_1            String?   @db.VarChar(50) // 状況1
+  work_item_2              String?   @db.VarChar(100) // 工事項目2
+  work_date_2              DateTime? @db.Date // 予定日2
+  work_amount_2            Decimal?  @db.Decimal(15, 2) // 金額2
+  work_status_2            String?   @db.VarChar(50) // 状況2
+  // 許可・申請状況
+  permit_number            String?   @db.VarChar(50) // 工事許可番号
+  application_date         DateTime? @db.Date // 申請日
+  permit_date              DateTime? @db.Date // 許可日
+  permit_status            String?   @db.VarChar(50) // 許可状況
+  // 工事代金支払状況
+  payment_type_1           String?   @db.VarChar(50) // 支払区分1
+  payment_amount_1         Decimal?  @db.Decimal(15, 2) // 金額1
+  payment_date_1           DateTime? @db.Date // 支払日1
+  payment_status_1         String?   @db.VarChar(50) // 状況1
+  payment_type_2           String?   @db.VarChar(50) // 支払区分2
+  payment_amount_2         Decimal?  @db.Decimal(15, 2) // 金額2
+  payment_scheduled_date_2 DateTime? @db.Date // 支払予定日2
+  payment_status_2         String?   @db.VarChar(50) // 状況2
+  // 工事備考
+  construction_notes       String?   @db.Text // 工事備考
+  created_at               DateTime  @default(now())
+  updated_at               DateTime  @updatedAt
+  deleted_at               DateTime?
+
+  // Relations
+  Plot Plot @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+
+  @@index([plot_id])
+  @@map("construction_infos")
 }
 
 // 家族・連絡先

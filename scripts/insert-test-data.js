@@ -151,36 +151,34 @@ async function insertTestData() {
 
     console.log('🏛️ メインデータを挿入中...');
 
-    // スタッフデータ
-    const bcrypt = require('bcrypt');
-
+    // スタッフデータ（Supabase認証を使用）
     // 複数のスタッフを作成（権限レベル別）
     const staffData = [
       {
         name: '管理者',
         email: 'admin@example.com',
-        password: await bcrypt.hash('admin123', 10),
+        supabase_uid: null, // Supabase登録後にUIDを設定
         role: 'admin',
         is_active: true,
       },
       {
         name: 'マネージャー',
         email: 'manager@example.com',
-        password: await bcrypt.hash('manager123', 10),
+        supabase_uid: null,
         role: 'manager',
         is_active: true,
       },
       {
         name: 'オペレーター',
         email: 'operator@example.com',
-        password: await bcrypt.hash('operator123', 10),
+        supabase_uid: null,
         role: 'operator',
         is_active: true,
       },
       {
         name: 'ビューワー',
         email: 'viewer@example.com',
-        password: await bcrypt.hash('viewer123', 10),
+        supabase_uid: null,
         role: 'viewer',
         is_active: true,
       },
@@ -228,6 +226,72 @@ async function insertTestData() {
         contract_date: new Date('2025-01-15'),
         status: 'active',
         notes: '2025年春より利用開始予定',
+      },
+    });
+
+    // 申込者データ（区画3）
+    await prisma.applicant.create({
+      data: {
+        plot_id: plot3.id,
+        application_date: new Date('2024-12-01'),
+        staff_name: '鈴木一郎',
+        name: '佐藤健一',
+        name_kana: 'さとうけんいち',
+        postal_code: '456-7890',
+        phone_number: '06-9876-5432',
+        address: '大阪府大阪市中央区本町2-2-2',
+      },
+    });
+
+    // 契約者データ（区画3）
+    const contractor3 = await prisma.contractor.create({
+      data: {
+        plot_id: plot3.id,
+        reservation_date: new Date('2024-12-10'),
+        acceptance_number: 'C-2025-003',
+        permit_date: new Date('2025-01-10'),
+        start_date: new Date('2025-04-01'),
+        name: '佐藤健一',
+        name_kana: 'さとうけんいち',
+        birth_date: new Date('1975-03-10'),
+        gender: 'male',
+        phone_number: '06-9876-5432',
+        email: 'sato@example.com',
+        address: '大阪府大阪市中央区本町2-2-2',
+      },
+    });
+
+    // 工事情報（区画3 - 進行中）
+    await prisma.constructionInfo.create({
+      data: {
+        plot_id: plot3.id,
+        construction_type: '新規建立',
+        start_date: new Date('2025-04-01'),
+        completion_date: new Date('2025-06-30'),
+        contractor: '関西石材株式会社',
+        supervisor: '田中建設',
+        progress: '許可申請中',
+        work_item_1: '基礎工事',
+        work_date_1: new Date('2025-04-15'),
+        work_amount_1: 600000,
+        work_status_1: '予定',
+        work_item_2: '墓石設置',
+        work_date_2: new Date('2025-06-15'),
+        work_amount_2: 1500000,
+        work_status_2: '予定',
+        permit_number: '大阪-工-2025-0023',
+        application_date: new Date('2025-02-01'),
+        permit_date: null,
+        permit_status: '申請中',
+        payment_type_1: '着手金',
+        payment_amount_1: 1050000,
+        payment_date_1: null,
+        payment_status_1: '未払い',
+        payment_type_2: '完工金',
+        payment_amount_2: 1050000,
+        payment_scheduled_date_2: new Date('2025-06-30'),
+        payment_status_2: '未払い',
+        construction_notes: '黒御影石を使用予定。洋型墓石。',
       },
     });
 
@@ -308,6 +372,40 @@ async function insertTestData() {
         surrounding_area: '植栽あり',
         establishment_deadline: new Date('2024-06-30'),
         establishment_date: new Date('2024-06-25'),
+      },
+    });
+
+    // 工事情報（区画1）
+    await prisma.constructionInfo.create({
+      data: {
+        plot_id: plot1.id,
+        construction_type: '新規建立',
+        start_date: new Date('2024-04-01'),
+        completion_date: new Date('2024-06-25'),
+        contractor: '石材工業株式会社',
+        supervisor: '佐藤工務店',
+        progress: '完工',
+        work_item_1: '基礎工事',
+        work_date_1: new Date('2024-04-15'),
+        work_amount_1: 500000,
+        work_status_1: '完了',
+        work_item_2: '墓石設置',
+        work_date_2: new Date('2024-06-20'),
+        work_amount_2: 1200000,
+        work_status_2: '完了',
+        permit_number: '北九-工-2024-0156',
+        application_date: new Date('2024-03-10'),
+        permit_date: new Date('2024-03-25'),
+        permit_status: '許可済み',
+        payment_type_1: '着手金',
+        payment_amount_1: 850000,
+        payment_date_1: new Date('2024-04-01'),
+        payment_status_1: '支払済み',
+        payment_type_2: '完工金',
+        payment_amount_2: 850000,
+        payment_scheduled_date_2: new Date('2024-06-30'),
+        payment_status_2: '支払済み',
+        construction_notes: '御影石を使用した和型墓石。家紋彫刻あり。周辺に植栽を施工。',
       },
     });
 
@@ -428,11 +526,11 @@ async function insertTestData() {
     console.log(`- スタッフ: ${staffCount}件`);
     console.log(`- マスタテーブル例（利用状況）: ${masterTablesCount}件`);
 
-    console.log('\n🔐 テストアカウント:');
-    console.log('- 管理者: admin@example.com / admin123');
-    console.log('- マネージャー: manager@example.com / manager123');
-    console.log('- オペレーター: operator@example.com / operator123');
-    console.log('- ビューワー: viewer@example.com / viewer123');
+    console.log('\n🔐 登録済みスタッフ:');
+    console.log('- 管理者: admin@example.com (Supabase認証が必要)');
+    console.log('- マネージャー: manager@example.com (Supabase認証が必要)');
+    console.log('- オペレーター: operator@example.com (Supabase認証が必要)');
+    console.log('- ビューワー: viewer@example.com (Supabase認証が必要)');
 
   } catch (error) {
     console.error('❌ エラーが発生しました:', error);

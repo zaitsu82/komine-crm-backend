@@ -109,6 +109,7 @@ export const getPlotById = async (req: Request, res: Response) => {
         UsageFee: true,
         ManagementFee: true,
         GravestoneInfo: true,
+        ConstructionInfo: true,
         FamilyContacts: {
           where: { deleted_at: null },
         },
@@ -142,73 +143,105 @@ export const getPlotById = async (req: Request, res: Response) => {
       contractDate: plot.contract_date,
       applicantInfo: plot.Applicant
         ? {
-            id: plot.Applicant.id,
-            applicationDate: plot.Applicant.application_date,
-            staffName: plot.Applicant.staff_name,
-            name: plot.Applicant.name,
-            nameKana: plot.Applicant.name_kana,
-            postalCode: plot.Applicant.postal_code,
-            phoneNumber: plot.Applicant.phone_number,
-            address: plot.Applicant.address,
-          }
+          id: plot.Applicant.id,
+          applicationDate: plot.Applicant.application_date,
+          staffName: plot.Applicant.staff_name,
+          name: plot.Applicant.name,
+          nameKana: plot.Applicant.name_kana,
+          postalCode: plot.Applicant.postal_code,
+          phoneNumber: plot.Applicant.phone_number,
+          address: plot.Applicant.address,
+        }
         : undefined,
       contractInfo: latestContractor
         ? {
-            id: latestContractor.id,
-            reservationDate: latestContractor.reservation_date,
-            acceptanceNumber: latestContractor.acceptance_number || undefined,
-            permitDate: latestContractor.permit_date,
-            startDate: latestContractor.start_date,
-            name: latestContractor.name,
-            nameKana: latestContractor.name_kana,
-            birthDate: latestContractor.birth_date,
-            gender: latestContractor.gender as 'male' | 'female' | undefined,
-            phoneNumber: latestContractor.phone_number,
-            faxNumber: latestContractor.fax_number || undefined,
-            email: latestContractor.email || undefined,
-            address: latestContractor.address,
-            registeredAddress: latestContractor.registered_address || undefined,
-          }
+          id: latestContractor.id,
+          reservationDate: latestContractor.reservation_date,
+          acceptanceNumber: latestContractor.acceptance_number || undefined,
+          permitDate: latestContractor.permit_date,
+          startDate: latestContractor.start_date,
+          name: latestContractor.name,
+          nameKana: latestContractor.name_kana,
+          birthDate: latestContractor.birth_date,
+          gender: latestContractor.gender as 'male' | 'female' | undefined,
+          phoneNumber: latestContractor.phone_number,
+          faxNumber: latestContractor.fax_number || undefined,
+          email: latestContractor.email || undefined,
+          address: latestContractor.address,
+          registeredAddress: latestContractor.registered_address || undefined,
+        }
         : undefined,
       usageFee: plot.UsageFee
         ? {
-            id: plot.UsageFee.id,
-            calculationType: plot.UsageFee.calculation_type,
-            taxType: plot.UsageFee.tax_type,
-            billingType: plot.UsageFee.billing_type,
-            billingYears: plot.UsageFee.billing_years,
-            area: plot.UsageFee.area,
-            unitPrice: plot.UsageFee.unit_price,
-            usageFee: plot.UsageFee.usage_fee,
-            paymentMethod: plot.UsageFee.payment_method,
-          }
+          id: plot.UsageFee.id,
+          calculationType: plot.UsageFee.calculation_type,
+          taxType: plot.UsageFee.tax_type,
+          billingType: plot.UsageFee.billing_type,
+          billingYears: plot.UsageFee.billing_years,
+          area: plot.UsageFee.area,
+          unitPrice: plot.UsageFee.unit_price,
+          usageFee: plot.UsageFee.usage_fee,
+          paymentMethod: plot.UsageFee.payment_method,
+        }
         : undefined,
       managementFee: plot.ManagementFee
         ? {
-            id: plot.ManagementFee.id,
-            calculationType: plot.ManagementFee.calculation_type,
-            taxType: plot.ManagementFee.tax_type,
-            billingType: plot.ManagementFee.billing_type,
-            billingYears: plot.ManagementFee.billing_years,
-            area: plot.ManagementFee.area,
-            billingMonth: plot.ManagementFee.billing_month,
-            managementFee: plot.ManagementFee.management_fee,
-            unitPrice: plot.ManagementFee.unit_price,
-            lastBillingMonth: plot.ManagementFee.last_billing_month,
-            paymentMethod: plot.ManagementFee.payment_method,
-          }
+          id: plot.ManagementFee.id,
+          calculationType: plot.ManagementFee.calculation_type,
+          taxType: plot.ManagementFee.tax_type,
+          billingType: plot.ManagementFee.billing_type,
+          billingYears: plot.ManagementFee.billing_years,
+          area: plot.ManagementFee.area,
+          billingMonth: plot.ManagementFee.billing_month,
+          managementFee: plot.ManagementFee.management_fee,
+          unitPrice: plot.ManagementFee.unit_price,
+          lastBillingMonth: plot.ManagementFee.last_billing_month,
+          paymentMethod: plot.ManagementFee.payment_method,
+        }
         : undefined,
       gravestoneInfo: plot.GravestoneInfo
         ? {
-            id: plot.GravestoneInfo.id,
-            gravestoneBase: plot.GravestoneInfo.gravestone_base,
-            enclosurePosition: plot.GravestoneInfo.enclosure_position,
-            gravestoneDealer: plot.GravestoneInfo.gravestone_dealer,
-            gravestoneType: plot.GravestoneInfo.gravestone_type,
-            surroundingArea: plot.GravestoneInfo.surrounding_area,
-            establishmentDeadline: plot.GravestoneInfo.establishment_deadline,
-            establishmentDate: plot.GravestoneInfo.establishment_date,
-          }
+          id: plot.GravestoneInfo.id,
+          gravestoneBase: plot.GravestoneInfo.gravestone_base,
+          enclosurePosition: plot.GravestoneInfo.enclosure_position,
+          gravestoneDealer: plot.GravestoneInfo.gravestone_dealer,
+          gravestoneType: plot.GravestoneInfo.gravestone_type,
+          surroundingArea: plot.GravestoneInfo.surrounding_area,
+          establishmentDeadline: plot.GravestoneInfo.establishment_deadline,
+          establishmentDate: plot.GravestoneInfo.establishment_date,
+        }
+        : undefined,
+      constructionInfo: plot.ConstructionInfo
+        ? {
+          id: plot.ConstructionInfo.id,
+          constructionType: plot.ConstructionInfo.construction_type || undefined,
+          startDate: plot.ConstructionInfo.start_date,
+          completionDate: plot.ConstructionInfo.completion_date,
+          contractor: plot.ConstructionInfo.contractor || undefined,
+          supervisor: plot.ConstructionInfo.supervisor || undefined,
+          progress: plot.ConstructionInfo.progress || undefined,
+          workItem1: plot.ConstructionInfo.work_item_1 || undefined,
+          workDate1: plot.ConstructionInfo.work_date_1,
+          workAmount1: plot.ConstructionInfo.work_amount_1 ? Number(plot.ConstructionInfo.work_amount_1) : undefined,
+          workStatus1: plot.ConstructionInfo.work_status_1 || undefined,
+          workItem2: plot.ConstructionInfo.work_item_2 || undefined,
+          workDate2: plot.ConstructionInfo.work_date_2,
+          workAmount2: plot.ConstructionInfo.work_amount_2 ? Number(plot.ConstructionInfo.work_amount_2) : undefined,
+          workStatus2: plot.ConstructionInfo.work_status_2 || undefined,
+          permitNumber: plot.ConstructionInfo.permit_number || undefined,
+          applicationDate: plot.ConstructionInfo.application_date,
+          permitDate: plot.ConstructionInfo.permit_date,
+          permitStatus: plot.ConstructionInfo.permit_status || undefined,
+          paymentType1: plot.ConstructionInfo.payment_type_1 || undefined,
+          paymentAmount1: plot.ConstructionInfo.payment_amount_1 ? Number(plot.ConstructionInfo.payment_amount_1) : undefined,
+          paymentDate1: plot.ConstructionInfo.payment_date_1,
+          paymentStatus1: plot.ConstructionInfo.payment_status_1 || undefined,
+          paymentType2: plot.ConstructionInfo.payment_type_2 || undefined,
+          paymentAmount2: plot.ConstructionInfo.payment_amount_2 ? Number(plot.ConstructionInfo.payment_amount_2) : undefined,
+          paymentScheduledDate2: plot.ConstructionInfo.payment_scheduled_date_2,
+          paymentStatus2: plot.ConstructionInfo.payment_status_2 || undefined,
+          constructionNotes: plot.ConstructionInfo.construction_notes || undefined,
+        }
         : undefined,
       familyContacts: plot.FamilyContacts.map((fc) => ({
         id: fc.id,
@@ -229,11 +262,11 @@ export const getPlotById = async (req: Request, res: Response) => {
       })),
       emergencyContact: plot.EmergencyContact
         ? {
-            id: plot.EmergencyContact.id,
-            name: plot.EmergencyContact.name,
-            relationship: plot.EmergencyContact.relationship,
-            phoneNumber: plot.EmergencyContact.phone_number,
-          }
+          id: plot.EmergencyContact.id,
+          name: plot.EmergencyContact.name,
+          relationship: plot.EmergencyContact.relationship,
+          phoneNumber: plot.EmergencyContact.phone_number,
+        }
         : null,
       buriedPersons: plot.BuriedPersons.map((bp) => ({
         id: bp.id,
@@ -248,33 +281,33 @@ export const getPlotById = async (req: Request, res: Response) => {
       })),
       workInfo: latestContractor?.WorkInfo
         ? {
-            id: latestContractor.WorkInfo.id,
-            companyName: latestContractor.WorkInfo.company_name,
-            companyNameKana: latestContractor.WorkInfo.company_name_kana,
-            workAddress: latestContractor.WorkInfo.work_address,
-            workPostalCode: latestContractor.WorkInfo.work_postal_code,
-            workPhoneNumber: latestContractor.WorkInfo.work_phone_number,
-            dmSetting: latestContractor.WorkInfo.dm_setting as 'allow' | 'deny' | 'limited',
-            addressType: latestContractor.WorkInfo.address_type as 'home' | 'work' | 'other',
-            notes: latestContractor.WorkInfo.notes || '',
-          }
+          id: latestContractor.WorkInfo.id,
+          companyName: latestContractor.WorkInfo.company_name,
+          companyNameKana: latestContractor.WorkInfo.company_name_kana,
+          workAddress: latestContractor.WorkInfo.work_address,
+          workPostalCode: latestContractor.WorkInfo.work_postal_code,
+          workPhoneNumber: latestContractor.WorkInfo.work_phone_number,
+          dmSetting: latestContractor.WorkInfo.dm_setting as 'allow' | 'deny' | 'limited',
+          addressType: latestContractor.WorkInfo.address_type as 'home' | 'work' | 'other',
+          notes: latestContractor.WorkInfo.notes || '',
+        }
         : undefined,
       billingInfo: latestContractor?.BillingInfo
         ? {
-            id: latestContractor.BillingInfo.id,
-            billingType: latestContractor.BillingInfo.billing_type as
-              | 'individual'
-              | 'corporate'
-              | 'bank_transfer',
-            bankName: latestContractor.BillingInfo.bank_name,
-            branchName: latestContractor.BillingInfo.branch_name,
-            accountType: latestContractor.BillingInfo.account_type as
-              | 'ordinary'
-              | 'current'
-              | 'savings',
-            accountNumber: latestContractor.BillingInfo.account_number,
-            accountHolder: latestContractor.BillingInfo.account_holder,
-          }
+          id: latestContractor.BillingInfo.id,
+          billingType: latestContractor.BillingInfo.billing_type as
+            | 'individual'
+            | 'corporate'
+            | 'bank_transfer',
+          bankName: latestContractor.BillingInfo.bank_name,
+          branchName: latestContractor.BillingInfo.branch_name,
+          accountType: latestContractor.BillingInfo.account_type as
+            | 'ordinary'
+            | 'current'
+            | 'savings',
+          accountNumber: latestContractor.BillingInfo.account_number,
+          accountHolder: latestContractor.BillingInfo.account_holder,
+        }
         : undefined,
       createdAt: plot.created_at,
       updatedAt: plot.updated_at,
@@ -471,6 +504,42 @@ export const createPlot = async (req: Request, res: Response) => {
         });
       }
 
+      // 6-2. ConstructionInfo作成（任意）
+      if (input.constructionInfo) {
+        await tx.constructionInfo.create({
+          data: {
+            plot_id: plot.id, // ★外部キー設定
+            construction_type: input.constructionInfo.constructionType || null,
+            start_date: parseDate(input.constructionInfo.startDate),
+            completion_date: parseDate(input.constructionInfo.completionDate),
+            contractor: input.constructionInfo.contractor || null,
+            supervisor: input.constructionInfo.supervisor || null,
+            progress: input.constructionInfo.progress || null,
+            work_item_1: input.constructionInfo.workItem1 || null,
+            work_date_1: parseDate(input.constructionInfo.workDate1),
+            work_amount_1: input.constructionInfo.workAmount1 || null,
+            work_status_1: input.constructionInfo.workStatus1 || null,
+            work_item_2: input.constructionInfo.workItem2 || null,
+            work_date_2: parseDate(input.constructionInfo.workDate2),
+            work_amount_2: input.constructionInfo.workAmount2 || null,
+            work_status_2: input.constructionInfo.workStatus2 || null,
+            permit_number: input.constructionInfo.permitNumber || null,
+            application_date: parseDate(input.constructionInfo.applicationDate),
+            permit_date: parseDate(input.constructionInfo.permitDate),
+            permit_status: input.constructionInfo.permitStatus || null,
+            payment_type_1: input.constructionInfo.paymentType1 || null,
+            payment_amount_1: input.constructionInfo.paymentAmount1 || null,
+            payment_date_1: parseDate(input.constructionInfo.paymentDate1),
+            payment_status_1: input.constructionInfo.paymentStatus1 || null,
+            payment_type_2: input.constructionInfo.paymentType2 || null,
+            payment_amount_2: input.constructionInfo.paymentAmount2 || null,
+            payment_scheduled_date_2: parseDate(input.constructionInfo.paymentScheduledDate2),
+            payment_status_2: input.constructionInfo.paymentStatus2 || null,
+            construction_notes: input.constructionInfo.constructionNotes || null,
+          },
+        });
+      }
+
       // 7. FamilyContact作成（配列・任意）
       if (input.familyContacts && input.familyContacts.length > 0) {
         for (const fc of input.familyContacts) {
@@ -636,6 +705,7 @@ export const updatePlot = async (req: Request, res: Response) => {
         UsageFee: true,
         ManagementFee: true,
         GravestoneInfo: true,
+        ConstructionInfo: true,
         EmergencyContact: true,
         FamilyContacts: {
           where: { deleted_at: null },
@@ -1044,6 +1114,121 @@ export const updatePlot = async (req: Request, res: Response) => {
                 },
               });
               changedFields.push('gravestoneInfo_created');
+            }
+          }
+        }
+      }
+
+      // 4-6-2. ConstructionInfo（工事情報）のupsert
+      if (input.constructionInfo !== undefined) {
+        if (input.constructionInfo === null) {
+          // 削除
+          if (existingPlot.ConstructionInfo) {
+            await tx.constructionInfo.update({
+              where: { id: existingPlot.ConstructionInfo.id },
+              data: { deleted_at: new Date() },
+            });
+            changedFields.push('constructionInfo_deleted');
+          }
+        } else {
+          const constructionInfoData: any = {};
+          if (input.constructionInfo.constructionType !== undefined) {
+            constructionInfoData.construction_type = input.constructionInfo.constructionType;
+          }
+          if (input.constructionInfo.startDate !== undefined) {
+            constructionInfoData.start_date = parseDate(input.constructionInfo.startDate);
+          }
+          if (input.constructionInfo.completionDate !== undefined) {
+            constructionInfoData.completion_date = parseDate(input.constructionInfo.completionDate);
+          }
+          if (input.constructionInfo.contractor !== undefined) {
+            constructionInfoData.contractor = input.constructionInfo.contractor;
+          }
+          if (input.constructionInfo.supervisor !== undefined) {
+            constructionInfoData.supervisor = input.constructionInfo.supervisor;
+          }
+          if (input.constructionInfo.progress !== undefined) {
+            constructionInfoData.progress = input.constructionInfo.progress;
+          }
+          if (input.constructionInfo.workItem1 !== undefined) {
+            constructionInfoData.work_item_1 = input.constructionInfo.workItem1;
+          }
+          if (input.constructionInfo.workDate1 !== undefined) {
+            constructionInfoData.work_date_1 = parseDate(input.constructionInfo.workDate1);
+          }
+          if (input.constructionInfo.workAmount1 !== undefined) {
+            constructionInfoData.work_amount_1 = input.constructionInfo.workAmount1;
+          }
+          if (input.constructionInfo.workStatus1 !== undefined) {
+            constructionInfoData.work_status_1 = input.constructionInfo.workStatus1;
+          }
+          if (input.constructionInfo.workItem2 !== undefined) {
+            constructionInfoData.work_item_2 = input.constructionInfo.workItem2;
+          }
+          if (input.constructionInfo.workDate2 !== undefined) {
+            constructionInfoData.work_date_2 = parseDate(input.constructionInfo.workDate2);
+          }
+          if (input.constructionInfo.workAmount2 !== undefined) {
+            constructionInfoData.work_amount_2 = input.constructionInfo.workAmount2;
+          }
+          if (input.constructionInfo.workStatus2 !== undefined) {
+            constructionInfoData.work_status_2 = input.constructionInfo.workStatus2;
+          }
+          if (input.constructionInfo.permitNumber !== undefined) {
+            constructionInfoData.permit_number = input.constructionInfo.permitNumber;
+          }
+          if (input.constructionInfo.applicationDate !== undefined) {
+            constructionInfoData.application_date = parseDate(input.constructionInfo.applicationDate);
+          }
+          if (input.constructionInfo.permitDate !== undefined) {
+            constructionInfoData.permit_date = parseDate(input.constructionInfo.permitDate);
+          }
+          if (input.constructionInfo.permitStatus !== undefined) {
+            constructionInfoData.permit_status = input.constructionInfo.permitStatus;
+          }
+          if (input.constructionInfo.paymentType1 !== undefined) {
+            constructionInfoData.payment_type_1 = input.constructionInfo.paymentType1;
+          }
+          if (input.constructionInfo.paymentAmount1 !== undefined) {
+            constructionInfoData.payment_amount_1 = input.constructionInfo.paymentAmount1;
+          }
+          if (input.constructionInfo.paymentDate1 !== undefined) {
+            constructionInfoData.payment_date_1 = parseDate(input.constructionInfo.paymentDate1);
+          }
+          if (input.constructionInfo.paymentStatus1 !== undefined) {
+            constructionInfoData.payment_status_1 = input.constructionInfo.paymentStatus1;
+          }
+          if (input.constructionInfo.paymentType2 !== undefined) {
+            constructionInfoData.payment_type_2 = input.constructionInfo.paymentType2;
+          }
+          if (input.constructionInfo.paymentAmount2 !== undefined) {
+            constructionInfoData.payment_amount_2 = input.constructionInfo.paymentAmount2;
+          }
+          if (input.constructionInfo.paymentScheduledDate2 !== undefined) {
+            constructionInfoData.payment_scheduled_date_2 = parseDate(input.constructionInfo.paymentScheduledDate2);
+          }
+          if (input.constructionInfo.paymentStatus2 !== undefined) {
+            constructionInfoData.payment_status_2 = input.constructionInfo.paymentStatus2;
+          }
+          if (input.constructionInfo.constructionNotes !== undefined) {
+            constructionInfoData.construction_notes = input.constructionInfo.constructionNotes;
+          }
+
+          if (Object.keys(constructionInfoData).length > 0) {
+            if (existingPlot.ConstructionInfo) {
+              await tx.constructionInfo.update({
+                where: { id: existingPlot.ConstructionInfo.id },
+                data: constructionInfoData,
+              });
+              changedFields.push('constructionInfo_updated');
+            } else {
+              await tx.constructionInfo.create({
+                data: {
+                  plot_id: id,
+                  ...constructionInfoData,
+                },
+              });
+              changedFields.push('constructionInfo_created');
             }
           }
         }

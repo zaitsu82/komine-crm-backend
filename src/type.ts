@@ -90,6 +90,46 @@ export interface CreatePlotInput {
     establishmentDate?: Date | string | null;
   };
 
+  // 工事情報（任意）
+  constructionInfo?: {
+    // 工事進捗状況
+    constructionType?: string; // 工事区分 例: 新設工事、改修工事
+    startDate?: Date | string | null; // 着工予定日
+    completionDate?: Date | string | null; // 完工予定日
+    contractor?: string; // 工事業者名
+    supervisor?: string; // 工事担当者名
+    progress?: string; // 進捗状況 例: 基礎工事完了、進行中
+
+    // 工事詳細（複数の工事項目に対応）
+    workItem1?: string; // 工事項目1 例: 基礎工事
+    workDate1?: Date | string | null; // 実施日1
+    workAmount1?: number; // 金額1
+    workStatus1?: string; // 状況1 例: 完了、進行中、予定
+    workItem2?: string; // 工事項目2 例: 墓石設置
+    workDate2?: Date | string | null; // 予定日2
+    workAmount2?: number; // 金額2
+    workStatus2?: string; // 状況2
+
+    // 許可・申請状況
+    permitNumber?: string; // 工事許可番号 例: 北九-工-2024-0156
+    applicationDate?: Date | string | null; // 申請日
+    permitDate?: Date | string | null; // 許可日
+    permitStatus?: string; // 許可状況 例: 許可済み、申請中、未申請
+
+    // 工事代金支払状況
+    paymentType1?: string; // 支払区分1 例: 着手金、中間金
+    paymentAmount1?: number; // 金額1
+    paymentDate1?: Date | string | null; // 支払日1
+    paymentStatus1?: string; // 状況1 例: 支払済み、未払い
+    paymentType2?: string; // 支払区分2 例: 完工時、残金
+    paymentAmount2?: number; // 金額2
+    paymentScheduledDate2?: Date | string | null; // 支払予定日2
+    paymentStatus2?: string; // 状況2
+
+    // 工事備考
+    constructionNotes?: string; // 工事備考 例: 使用石材の詳細、特記事項等
+  };
+
   // 家族連絡先（複数・任意）
   familyContacts?: Array<{
     name: string;
@@ -230,6 +270,47 @@ export interface plotInfo {
     surroundingArea: string; // 周辺設備
     establishmentDeadline: Date | null; // 設立期限
     establishmentDate: Date | null; // 設立日
+  };
+
+  // 工事情報
+  constructionInfo?: {
+    id: string; // 工事情報ID
+    // 工事進捗状況
+    constructionType?: string; // 工事区分 例: 新設工事、改修工事
+    startDate?: Date | null; // 着工予定日
+    completionDate?: Date | null; // 完工予定日
+    contractor?: string; // 工事業者名
+    supervisor?: string; // 工事担当者名
+    progress?: string; // 進捗状況 例: 基礎工事完了、進行中
+
+    // 工事詳細（複数の工事項目に対応）
+    workItem1?: string; // 工事項目1 例: 基礎工事
+    workDate1?: Date | null; // 実施日1
+    workAmount1?: number; // 金額1
+    workStatus1?: string; // 状況1 例: 完了、進行中、予定
+    workItem2?: string; // 工事項目2 例: 墓石設置
+    workDate2?: Date | null; // 予定日2
+    workAmount2?: number; // 金額2
+    workStatus2?: string; // 状況2
+
+    // 許可・申請状況
+    permitNumber?: string; // 工事許可番号 例: 北九-工-2024-0156
+    applicationDate?: Date | null; // 申請日
+    permitDate?: Date | null; // 許可日
+    permitStatus?: string; // 許可状況 例: 許可済み、申請中、未申請
+
+    // 工事代金支払状況
+    paymentType1?: string; // 支払区分1 例: 着手金、中間金
+    paymentAmount1?: number; // 金額1
+    paymentDate1?: Date | null; // 支払日1
+    paymentStatus1?: string; // 状況1 例: 支払済み、未払い
+    paymentType2?: string; // 支払区分2 例: 完工時、残金
+    paymentAmount2?: number; // 金額2
+    paymentScheduledDate2?: Date | null; // 支払予定日2
+    paymentStatus2?: string; // 状況2
+
+    // 工事備考
+    constructionNotes?: string; // 工事備考 例: 使用石材の詳細、特記事項等
   };
 
   // 家族・連絡先（複数対応）
@@ -379,6 +460,46 @@ export interface UpdatePlotInput {
     surroundingArea?: string;
     establishmentDeadline?: Date | string | null;
     establishmentDate?: Date | string | null;
+  } | null;
+
+  // 工事情報（upsert）
+  constructionInfo?: {
+    // 工事進捗状況
+    constructionType?: string; // 工事区分 例: 新設工事、改修工事
+    startDate?: Date | string | null; // 着工予定日
+    completionDate?: Date | string | null; // 完工予定日
+    contractor?: string; // 工事業者名
+    supervisor?: string; // 工事担当者名
+    progress?: string; // 進捗状況 例: 基礎工事完了、進行中
+
+    // 工事詳細（複数の工事項目に対応）
+    workItem1?: string; // 工事項目1 例: 基礎工事
+    workDate1?: Date | string | null; // 実施日1
+    workAmount1?: number; // 金額1
+    workStatus1?: string; // 状況1 例: 完了、進行中、予定
+    workItem2?: string; // 工事項目2 例: 墓石設置
+    workDate2?: Date | string | null; // 予定日2
+    workAmount2?: number; // 金額2
+    workStatus2?: string; // 状況2
+
+    // 許可・申請状況
+    permitNumber?: string; // 工事許可番号 例: 北九-工-2024-0156
+    applicationDate?: Date | string | null; // 申請日
+    permitDate?: Date | string | null; // 許可日
+    permitStatus?: string; // 許可状況 例: 許可済み、申請中、未申請
+
+    // 工事代金支払状況
+    paymentType1?: string; // 支払区分1 例: 着手金、中間金
+    paymentAmount1?: number; // 金額1
+    paymentDate1?: Date | string | null; // 支払日1
+    paymentStatus1?: string; // 状況1 例: 支払済み、未払い
+    paymentType2?: string; // 支払区分2 例: 完工時、残金
+    paymentAmount2?: number; // 金額2
+    paymentScheduledDate2?: Date | string | null; // 支払予定日2
+    paymentStatus2?: string; // 状況2
+
+    // 工事備考
+    constructionNotes?: string; // 工事備考 例: 使用石材の詳細、特記事項等
   } | null;
 
   // 家族連絡先（差分更新：idあり=更新、idなし=作成）
