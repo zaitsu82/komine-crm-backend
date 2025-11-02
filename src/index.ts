@@ -1,20 +1,58 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import authRoutes from './auth/authRoutes';
 import plotRoutes from './plots/plotRoutes';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { requestLogger, securityHeaders } from './middleware/logger';
 
+// 環境変数の読み込み
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
-app.use(express.json());
+// ミドルウェアの設定
+app.use(cors()); // CORS設定
+app.use(express.json()); // JSONパーサー
+app.use(express.urlencoded({ extended: true })); // URLエンコードされたボディのパーサー
+app.use(requestLogger); // リクエストログ
+app.use(securityHeaders); // セキュリティヘッダー
 
-// 区画情報ルート
-app.use('/api/v1/plots', plotRoutes);
+// ヘルスチェックエンドポイント
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+    },
+  });
+});
+
+// APIルート
+app.use('/api/v1/auth', authRoutes); // 認証ルート
+app.use('/api/v1/plots', plotRoutes); // 区画情報ルート
+
+// 404エラーハンドラー（すべてのルートの後に配置）
+app.use(notFoundHandler);
+
+// グローバルエラーハンドラー（最後に配置）
+app.use(errorHandler);
 
 // サーバー起動処理
 app.listen(PORT, () => {
-  console.log(`Cemetery CRM Server is running on http://localhost:${PORT}`);
+  console.log(`
+╔════════════════════════════════════════════════════════╗
+║   Cemetery CRM Backend Server                          ║
+╠════════════════════════════════════════════════════════╣
+║   Status: Running                                      ║
+║   Port: ${PORT}                                           ║
+║   Environment: ${process.env.NODE_ENV || 'development'}                               ║
+║   URL: http://localhost:${PORT}                           ║
+║   Health Check: http://localhost:${PORT}/health           ║
+╚════════════════════════════════════════════════════════╝
+  `);
 });

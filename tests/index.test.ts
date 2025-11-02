@@ -3,15 +3,23 @@ describe('Server Index', () => {
   let mockExpress: any;
   let mockCors: any;
   let mockDotenv: any;
+  let mockRequestLogger: jest.Mock;
+  let mockSecurityHeaders: jest.Mock;
+  let mockErrorHandler: jest.Mock;
+  let mockNotFoundHandler: jest.Mock;
   let consoleSpy: jest.SpyInstance;
 
   beforeEach(() => {
     // すべてのモジュールをリセット
     jest.resetModules();
 
+    // ヘルスチェックハンドラー用のモック
+    const mockHealthHandler = jest.fn();
+
     // モックの作成
     mockApp = {
       use: jest.fn(),
+      get: jest.fn(),
       listen: jest.fn((port, callback) => {
         if (callback) callback();
         return { close: jest.fn() };
@@ -20,6 +28,7 @@ describe('Server Index', () => {
 
     mockExpress = jest.fn(() => mockApp);
     mockExpress.json = jest.fn(() => 'json-middleware');
+    mockExpress.urlencoded = jest.fn(() => 'urlencoded-middleware');
 
     mockCors = jest.fn(() => 'cors-middleware');
 
@@ -27,32 +36,46 @@ describe('Server Index', () => {
       config: jest.fn()
     };
 
+    mockRequestLogger = jest.fn((req: any, res: any, next: any) => next());
+    mockSecurityHeaders = jest.fn((req: any, res: any, next: any) => next());
+    mockErrorHandler = jest.fn();
+    mockNotFoundHandler = jest.fn();
+
     // モジュールのモック
     jest.doMock('express', () => mockExpress);
     jest.doMock('cors', () => mockCors);
     jest.doMock('dotenv', () => mockDotenv);
 
     // ルートモジュールのモック
-    jest.doMock('../src/auth/authRoutes', () => ({ default: 'auth-routes' }));
-    jest.doMock('../src/masters/mastersRoutes', () => ({ default: 'masters-routes' }));
-    jest.doMock('../src/validations/validationRoutes', () => ({ default: 'validation-routes' }));
-    jest.doMock('../src/family-contacts/familyContactRoutes', () => ({ default: 'family-contact-routes' }));
-    jest.doMock('../src/burials/burialRoutes', () => ({ default: 'burial-routes' }));
-    jest.doMock('../src/constructions/constructionRoutes', () => ({ default: 'construction-routes' }));
-    jest.doMock('../src/gravestones/gravestoneRoutes', () => ({ default: 'gravestone-routes' }));
-    jest.doMock('../src/applicants/applicantRoutes', () => ({ default: 'applicant-routes' }));
-    jest.doMock('../src/contractors/contractorRoutes', () => ({ default: 'contractor-routes' }));
-    jest.doMock('../src/usage-fees/usageFeeRoutes', () => ({ default: 'usage-fee-routes' }));
-    jest.doMock('../src/management-fees/managementFeeRoutes', () => ({ default: 'management-fee-routes' }));
-    jest.doMock('../src/billing-infos/billingInfoRoutes', () => ({ default: 'billing-info-routes' }));
+    jest.doMock('../src/auth/authRoutes', () => ({
+      __esModule: true,
+      default: 'auth-routes'
+    }));
+    jest.doMock('../src/plots/plotRoutes', () => ({
+      __esModule: true,
+      default: 'plot-routes'
+    }));
 
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    // ミドルウェアのモック
+    jest.doMock('../src/middleware/errorHandler', () => ({
+      errorHandler: mockErrorHandler,
+      notFoundHandler: mockNotFoundHandler
+    }));
+    jest.doMock('../src/middleware/logger', () => ({
+      requestLogger: mockRequestLogger,
+      securityHeaders: mockSecurityHeaders
+    }));
+
+    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
     process.env.PORT = '3001';
   });
 
   afterEach(() => {
-    consoleSpy.mockRestore();
+    if (consoleSpy) {
+      consoleSpy.mockRestore();
+    }
     delete process.env.PORT;
+    delete process.env.NODE_ENV;
     jest.clearAllMocks();
   });
 
@@ -62,24 +85,43 @@ describe('Server Index', () => {
     expect(mockExpress).toHaveBeenCalledTimes(1);
     expect(mockCors).toHaveBeenCalledTimes(1);
     expect(mockExpress.json).toHaveBeenCalledTimes(1);
+    expect(mockExpress.urlencoded).toHaveBeenCalledWith({ extended: true });
     expect(mockDotenv.config).toHaveBeenCalledTimes(1);
   });
 
-  it('should configure all API routes', () => {
+  it('should configure all middleware in correct order', () => {
     require('../src/index');
 
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/auth', { default: 'auth-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/masters', { default: 'masters-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/validations', { default: 'validation-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/gravestones', { default: 'gravestone-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/applicants', { default: 'applicant-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/contractors', { default: 'contractor-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/usage-fees', { default: 'usage-fee-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/management-fees', { default: 'management-fee-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/billing-infos', { default: 'billing-info-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/family-contacts', { default: 'family-contact-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/burials', { default: 'burial-routes' });
-    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/constructions', { default: 'construction-routes' });
+    const useCalls = mockApp.use.mock.calls;
+
+    expect(useCalls[0]).toEqual(['cors-middleware']); // CORS
+    expect(useCalls[1]).toEqual(['json-middleware']); // JSON parser
+    expect(useCalls[2]).toEqual(['urlencoded-middleware']); // URL encoded parser
+    expect(useCalls[3]).toEqual([mockRequestLogger]); // Request logger
+    expect(useCalls[4]).toEqual([mockSecurityHeaders]); // Security headers
+  });
+
+  it('should configure API routes', () => {
+    require('../src/index');
+
+    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/auth', 'auth-routes');
+    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/plots', 'plot-routes');
+  });
+
+  it('should configure error handlers last', () => {
+    require('../src/index');
+
+    const useCalls = mockApp.use.mock.calls;
+    const lastTwoCalls = useCalls.slice(-2);
+
+    expect(lastTwoCalls[0]).toEqual([mockNotFoundHandler]); // 404 handler
+    expect(lastTwoCalls[1]).toEqual([mockErrorHandler]); // Error handler
+  });
+
+  it('should configure health check endpoint', () => {
+    require('../src/index');
+
+    expect(mockApp.get).toHaveBeenCalledWith('/health', expect.any(Function));
   });
 
   it('should start server on specified port', () => {
@@ -102,29 +144,22 @@ describe('Server Index', () => {
     );
   });
 
-  it('should log server startup message', () => {
+  it('should log server startup message with correct port', () => {
     require('../src/index');
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      'Cemetery CRM Server is running on http://localhost:3001'
-    );
+    expect(consoleSpy).toHaveBeenCalled();
+    const logMessage = consoleSpy.mock.calls[0][0];
+    expect(logMessage).toContain('Cemetery CRM Backend Server');
+    expect(logMessage).toContain('3001');
   });
 
-  it('should configure middleware in correct order', () => {
+  it('should register all middleware and routes correctly', () => {
     require('../src/index');
 
-    const calls = mockApp.use.mock.calls;
-
-    expect(calls[0]).toEqual(['cors-middleware']);
-    expect(calls[1]).toEqual(['json-middleware']);
-    expect(calls[2]).toEqual(['/api/v1/auth', { default: 'auth-routes' }]);
-  });
-
-  it('should register all routes and middleware', () => {
-    require('../src/index');
-
-    // 2つのミドルウェア + 12個のAPIルート = 14回の呼び出し
-    expect(mockApp.use).toHaveBeenCalledTimes(14);
+    // 5 middleware + 2 API routes + 2 error handlers = 9 use calls
+    expect(mockApp.use).toHaveBeenCalledTimes(9);
+    // 1 health check endpoint
+    expect(mockApp.get).toHaveBeenCalledTimes(1);
   });
 
   it('should handle different port environments', () => {
@@ -155,6 +190,7 @@ describe('Server Index', () => {
 
     it('should handle missing environment variables', () => {
       delete process.env.PORT;
+      delete process.env.NODE_ENV;
 
       expect(() => require('../src/index')).not.toThrow();
     });
@@ -180,43 +216,128 @@ describe('Server Index', () => {
       expect(mockExpress.json).toHaveBeenCalledTimes(1);
       expect(mockApp.use).toHaveBeenCalledWith('json-middleware');
     });
+
+    it('should configure URL encoded body parser', () => {
+      require('../src/index');
+
+      expect(mockExpress.urlencoded).toHaveBeenCalledWith({ extended: true });
+      expect(mockApp.use).toHaveBeenCalledWith('urlencoded-middleware');
+    });
+
+    it('should configure request logger', () => {
+      require('../src/index');
+
+      expect(mockApp.use).toHaveBeenCalledWith(mockRequestLogger);
+    });
+
+    it('should configure security headers', () => {
+      require('../src/index');
+
+      expect(mockApp.use).toHaveBeenCalledWith(mockSecurityHeaders);
+    });
   });
 
   describe('Route validation', () => {
     it('should mount auth routes', () => {
       require('../src/index');
 
-      expect(mockApp.use).toHaveBeenCalledWith('/api/v1/auth', { default: 'auth-routes' });
+      expect(mockApp.use).toHaveBeenCalledWith('/api/v1/auth', 'auth-routes');
     });
 
-    it('should mount all business logic routes', () => {
+    it('should mount plot routes', () => {
       require('../src/index');
 
-      const businessRoutes = [
-        '/api/v1/gravestones',
-        '/api/v1/applicants',
-        '/api/v1/contractors',
-        '/api/v1/usage-fees',
-        '/api/v1/management-fees',
-        '/api/v1/billing-infos',
-        '/api/v1/family-contacts',
-        '/api/v1/burials',
-        '/api/v1/constructions'
-      ];
+      expect(mockApp.use).toHaveBeenCalledWith('/api/v1/plots', 'plot-routes');
+    });
 
-      businessRoutes.forEach(route => {
-        expect(mockApp.use).toHaveBeenCalledWith(
-          route,
-          expect.objectContaining({ default: expect.any(String) })
-        );
+    it('should mount health check endpoint', () => {
+      require('../src/index');
+
+      expect(mockApp.get).toHaveBeenCalledWith('/health', expect.any(Function));
+    });
+  });
+
+  describe('Health check endpoint', () => {
+    it('should return correct health check response', () => {
+      require('../src/index');
+
+      const healthHandler = mockApp.get.mock.calls.find(
+        (call: any) => call[0] === '/health'
+      )[1];
+
+      const mockReq = {};
+      const mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+
+      healthHandler(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.objectContaining({
+          status: 'ok',
+          timestamp: expect.any(String),
+          uptime: expect.any(Number),
+          environment: expect.any(String)
+        })
       });
     });
 
-    it('should mount utility routes', () => {
+    it('should include NODE_ENV in health check when set', () => {
+      process.env.NODE_ENV = 'production';
+
       require('../src/index');
 
-      expect(mockApp.use).toHaveBeenCalledWith('/api/v1/masters', { default: 'masters-routes' });
-      expect(mockApp.use).toHaveBeenCalledWith('/api/v1/validations', { default: 'validation-routes' });
+      const healthHandler = mockApp.get.mock.calls.find(
+        (call: any) => call[0] === '/health'
+      )[1];
+
+      const mockReq = {};
+      const mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+
+      healthHandler(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.objectContaining({
+          environment: 'production'
+        })
+      });
+    });
+  });
+
+  describe('Server startup logging', () => {
+    it('should log with development environment by default', () => {
+      delete process.env.NODE_ENV;
+
+      require('../src/index');
+
+      const logMessage = consoleSpy.mock.calls[0][0];
+      expect(logMessage).toContain('development');
+    });
+
+    it('should log with production environment when set', () => {
+      process.env.NODE_ENV = 'production';
+
+      require('../src/index');
+
+      const logMessage = consoleSpy.mock.calls[0][0];
+      expect(logMessage).toContain('production');
+    });
+
+    it('should log server URL correctly', () => {
+      process.env.PORT = '5000';
+
+      require('../src/index');
+
+      const logMessage = consoleSpy.mock.calls[0][0];
+      expect(logMessage).toContain('http://localhost:5000');
+      expect(logMessage).toContain('http://localhost:5000/health');
     });
   });
 });

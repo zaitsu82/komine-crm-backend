@@ -1291,6 +1291,664 @@ describe('Plot Controller', () => {
     // ========================================
     // Phase 4: トランザクション・History記録テスト
     // ========================================
+    // ========================================
+    // updatePlot - その他のリレーション更新テスト
+    // ========================================
+    describe('Other relations update', () => {
+      it('should create usageFee when not exists', async () => {
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          usageFee: {
+            calculationType: 'calc1',
+            taxType: 'tax1',
+            billingType: 'billing1',
+            billingYears: '5',
+            area: '10',
+            unitPrice: '1000',
+            usageFee: '50000',
+            paymentMethod: 'bank',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(existingPlot)
+          .mockResolvedValueOnce(existingPlot);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return existingPlot;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.usageFee.create).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should update existing usageFee', async () => {
+        const plotWithUsageFee = {
+          ...existingPlot,
+          UsageFee: {
+            id: 'usage-fee-uuid-1',
+            usage_fee: '50000',
+          },
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          usageFee: {
+            usageFee: '60000',
+            unitPrice: '1200',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithUsageFee)
+          .mockResolvedValueOnce(plotWithUsageFee);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithUsageFee;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.usageFee.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should soft delete usageFee when null is specified', async () => {
+        const plotWithUsageFee = {
+          ...existingPlot,
+          UsageFee: {
+            id: 'usage-fee-uuid-1',
+          },
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          usageFee: null,
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithUsageFee)
+          .mockResolvedValueOnce(plotWithUsageFee);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithUsageFee;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.usageFee.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should create managementFee when not exists', async () => {
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          managementFee: {
+            calculationType: 'calc2',
+            taxType: 'tax2',
+            billingType: 'billing2',
+            billingYears: '3',
+            area: '15',
+            billingMonth: '4',
+            managementFee: '30000',
+            unitPrice: '2000',
+            lastBillingMonth: '2024年3月',
+            paymentMethod: 'cash',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(existingPlot)
+          .mockResolvedValueOnce(existingPlot);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return existingPlot;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.managementFee.create).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should update existing managementFee', async () => {
+        const plotWithManagementFee = {
+          ...existingPlot,
+          ManagementFee: {
+            id: 'management-fee-uuid-1',
+          },
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          managementFee: {
+            managementFee: '35000',
+            billingMonth: '5',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithManagementFee)
+          .mockResolvedValueOnce(plotWithManagementFee);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithManagementFee;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.managementFee.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should soft delete managementFee when null is specified', async () => {
+        const plotWithManagementFee = {
+          ...existingPlot,
+          ManagementFee: {
+            id: 'management-fee-uuid-1',
+          },
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          managementFee: null,
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithManagementFee)
+          .mockResolvedValueOnce(plotWithManagementFee);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithManagementFee;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.managementFee.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should create gravestoneInfo when not exists', async () => {
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          gravestoneInfo: {
+            gravestoneBase: 'base1',
+            enclosurePosition: 'pos1',
+            gravestoneDealer: 'dealer1',
+            gravestoneType: 'type1',
+            surroundingArea: 'area1',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(existingPlot)
+          .mockResolvedValueOnce(existingPlot);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return existingPlot;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.gravestoneInfo.create).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should update existing gravestoneInfo', async () => {
+        const plotWithGravestoneInfo = {
+          ...existingPlot,
+          GravestoneInfo: {
+            id: 'gravestone-uuid-1',
+          },
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          gravestoneInfo: {
+            gravestoneBase: 'base2',
+            gravestoneType: 'type2',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithGravestoneInfo)
+          .mockResolvedValueOnce(plotWithGravestoneInfo);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithGravestoneInfo;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.gravestoneInfo.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should soft delete gravestoneInfo when null is specified', async () => {
+        const plotWithGravestoneInfo = {
+          ...existingPlot,
+          GravestoneInfo: {
+            id: 'gravestone-uuid-1',
+          },
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          gravestoneInfo: null,
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithGravestoneInfo)
+          .mockResolvedValueOnce(plotWithGravestoneInfo);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithGravestoneInfo;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.gravestoneInfo.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should create emergencyContact when not exists', async () => {
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          emergencyContact: {
+            name: '緊急連絡先太郎',
+            relationship: '息子',
+            phoneNumber: '090-9999-0000',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(existingPlot)
+          .mockResolvedValueOnce(existingPlot);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return existingPlot;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.emergencyContact.create).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should update existing emergencyContact', async () => {
+        const plotWithEmergencyContact = {
+          ...existingPlot,
+          EmergencyContact: {
+            id: 'emergency-uuid-1',
+          },
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          emergencyContact: {
+            phoneNumber: '090-8888-0000',
+            name: '緊急連絡先次郎',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithEmergencyContact)
+          .mockResolvedValueOnce(plotWithEmergencyContact);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithEmergencyContact;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.emergencyContact.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should soft delete emergencyContact when null is specified', async () => {
+        const plotWithEmergencyContact = {
+          ...existingPlot,
+          EmergencyContact: {
+            id: 'emergency-uuid-1',
+          },
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          emergencyContact: null,
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithEmergencyContact)
+          .mockResolvedValueOnce(plotWithEmergencyContact);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithEmergencyContact;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.emergencyContact.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should create workInfo for existing contractor', async () => {
+        const plotWithContractor = {
+          ...existingPlot,
+          Contractors: [{ id: 'contractor-uuid-1', WorkInfo: null }],
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          workInfo: {
+            companyName: 'テスト株式会社',
+            companyNameKana: 'テストカブシキガイシャ',
+            workAddress: '東京都新宿区4-4-4',
+            workPostalCode: '160-0001',
+            workPhoneNumber: '03-1111-2222',
+            dmSetting: 'allow',
+            addressType: 'work',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithContractor)
+          .mockResolvedValueOnce(plotWithContractor);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithContractor;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.workInfo.create).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should update existing workInfo', async () => {
+        const plotWithContractorAndWorkInfo = {
+          ...existingPlot,
+          Contractors: [{
+            id: 'contractor-uuid-1',
+            WorkInfo: { id: 'work-info-uuid-1' },
+          }],
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          workInfo: {
+            companyName: '更新株式会社',
+            dmSetting: 'deny',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithContractorAndWorkInfo)
+          .mockResolvedValueOnce(plotWithContractorAndWorkInfo);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithContractorAndWorkInfo;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.workInfo.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should soft delete workInfo when null is specified', async () => {
+        const plotWithContractorAndWorkInfo = {
+          ...existingPlot,
+          Contractors: [{
+            id: 'contractor-uuid-1',
+            WorkInfo: { id: 'work-info-uuid-1' },
+          }],
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          workInfo: null,
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithContractorAndWorkInfo)
+          .mockResolvedValueOnce(plotWithContractorAndWorkInfo);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithContractorAndWorkInfo;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.workInfo.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should create billingInfo for existing contractor', async () => {
+        const plotWithContractor = {
+          ...existingPlot,
+          Contractors: [{ id: 'contractor-uuid-1', BillingInfo: null }],
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          billingInfo: {
+            billingType: 'individual',
+            bankName: 'テスト銀行',
+            branchName: '渋谷支店',
+            accountType: 'ordinary',
+            accountNumber: '1234567',
+            accountHolder: 'テストタロウ',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithContractor)
+          .mockResolvedValueOnce(plotWithContractor);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithContractor;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.billingInfo.create).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should update existing billingInfo', async () => {
+        const plotWithContractorAndBillingInfo = {
+          ...existingPlot,
+          Contractors: [{
+            id: 'contractor-uuid-1',
+            BillingInfo: { id: 'billing-info-uuid-1' },
+          }],
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          billingInfo: {
+            bankName: '更新銀行',
+            accountNumber: '9999999',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithContractorAndBillingInfo)
+          .mockResolvedValueOnce(plotWithContractorAndBillingInfo);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithContractorAndBillingInfo;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.billingInfo.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should soft delete billingInfo when null is specified', async () => {
+        const plotWithContractorAndBillingInfo = {
+          ...existingPlot,
+          Contractors: [{
+            id: 'contractor-uuid-1',
+            BillingInfo: { id: 'billing-info-uuid-1' },
+          }],
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          billingInfo: null,
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithContractorAndBillingInfo)
+          .mockResolvedValueOnce(plotWithContractorAndBillingInfo);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithContractorAndBillingInfo;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.billingInfo.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should update gravestoneInfo with date fields', async () => {
+        const plotWithGravestoneInfo = {
+          ...existingPlot,
+          GravestoneInfo: {
+            id: 'gravestone-uuid-1',
+          },
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          gravestoneInfo: {
+            establishmentDeadline: '2024-12-31',
+            establishmentDate: '2024-06-01',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithGravestoneInfo)
+          .mockResolvedValueOnce(plotWithGravestoneInfo);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithGravestoneInfo;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.gravestoneInfo.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should update all contractor fields individually', async () => {
+        const plotWithContractor = {
+          ...existingPlot,
+          Contractors: [{
+            id: 'contractor-uuid-1',
+            name: '既存契約者',
+          }],
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          contractor: {
+            reservationDate: '2024-02-01',
+            acceptanceNumber: 'ACC123',
+            permitDate: '2024-02-15',
+            startDate: '2024-03-01',
+            name: '更新契約者',
+            nameKana: 'コウシンケイヤクシャ',
+            birthDate: '1980-05-15',
+            gender: 'female',
+            phoneNumber: '090-4444-5555',
+            faxNumber: '03-9999-8888',
+            email: 'updated@example.com',
+            address: '東京都品川区5-5-5',
+            registeredAddress: '東京都目黒区6-6-6',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithContractor)
+          .mockResolvedValueOnce(plotWithContractor);
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithContractor;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.contractor.update).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should create new contractor when not exists', async () => {
+        const plotWithoutContractor = {
+          ...existingPlot,
+          Contractors: [],
+        };
+
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          contractor: {
+            name: '新規契約者',
+            nameKana: 'シンキケイヤクシャ',
+            phoneNumber: '090-1111-1111',
+            address: '東京都渋谷区1-1-1',
+            reservationDate: '2024-01-01',
+            startDate: '2024-02-01',
+            gender: 'male',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(plotWithoutContractor)
+          .mockResolvedValueOnce(plotWithoutContractor);
+
+        mockPrisma.contractor.create.mockResolvedValue({
+          id: 'new-contractor-id',
+          name: '新規契約者',
+        });
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return plotWithoutContractor;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.contractor.create).toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+    });
+
     describe('Transaction and History logging', () => {
       it('should create history record with all changed fields', async () => {
         mockRequest.params = { id: 'plot-uuid-1' };
@@ -1312,6 +1970,11 @@ describe('Plot Controller', () => {
         mockPrisma.plot.findUnique
           .mockResolvedValueOnce(plotWithApplicant)
           .mockResolvedValueOnce(plotWithApplicant);
+
+        mockPrisma.applicant.update.mockResolvedValue({
+          id: 'applicant-uuid-1',
+          name: '更新申込者',
+        });
 
         mockPrisma.$transaction.mockImplementation(async (callback: any) => {
           await callback(mockPrisma);
@@ -1946,83 +2609,39 @@ describe('Plot Controller', () => {
 
       const mockContractor = { id: 'contractor-uuid-1' };
 
-      // トランザクション内で呼び出されるモックを返す
+      // トランザクション内で呼び出される関数を外部で定義して追跡可能にする
+      const plotCreateSpy = jest.fn().mockResolvedValue(createdPlot);
+      const applicantCreateSpy = jest.fn().mockResolvedValue({ id: 'applicant-1' });
+      const contractorCreateSpy = jest.fn().mockResolvedValue(mockContractor);
+      const usageFeeCreateSpy = jest.fn().mockResolvedValue({ id: 'usage-fee-1' });
+      const managementFeeCreateSpy = jest.fn().mockResolvedValue({ id: 'management-fee-1' });
+      const gravestoneInfoCreateSpy = jest.fn().mockResolvedValue({ id: 'gravestone-1' });
+      const constructionInfoCreateSpy = jest.fn().mockResolvedValue({ id: 'construction-1' });
+      const familyContactCreateSpy = jest.fn().mockResolvedValue({ id: 'family-1' });
+      const emergencyContactCreateSpy = jest.fn().mockResolvedValue({ id: 'emergency-1' });
+      const buriedPersonCreateSpy = jest.fn().mockResolvedValue({ id: 'buried-1' });
+      const workInfoCreateSpy = jest.fn().mockResolvedValue({ id: 'work-1' });
+      const billingInfoCreateSpy = jest.fn().mockResolvedValue({ id: 'billing-1' });
+      const historyCreateSpy = jest.fn().mockResolvedValue({ id: 'history-1' });
+
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {
-        // トランザクション内のモックを設定
         const txMockPrisma = {
-          ...mockPrisma,
-          plot: {
-            ...mockPrisma.plot,
-            create: jest.fn().mockResolvedValue(createdPlot),
-          },
-          applicant: {
-            ...mockPrisma.applicant,
-            create: jest.fn().mockResolvedValue({ id: 'applicant-1' }),
-          },
-          contractor: {
-            ...mockPrisma.contractor,
-            create: jest.fn().mockResolvedValue(mockContractor),
-          },
-          usageFee: {
-            ...mockPrisma.usageFee,
-            create: jest.fn().mockResolvedValue({ id: 'usage-fee-1' }),
-          },
-          managementFee: {
-            ...mockPrisma.managementFee,
-            create: jest.fn().mockResolvedValue({ id: 'management-fee-1' }),
-          },
-          gravestoneInfo: {
-            ...mockPrisma.gravestoneInfo,
-            create: jest.fn().mockResolvedValue({ id: 'gravestone-1' }),
-          },
-          constructionInfo: {
-            ...mockPrisma.constructionInfo,
-            create: jest.fn().mockResolvedValue({ id: 'construction-1' }),
-          },
-          familyContact: {
-            ...mockPrisma.familyContact,
-            create: jest.fn().mockResolvedValue({ id: 'family-1' }),
-          },
-          emergencyContact: {
-            ...mockPrisma.emergencyContact,
-            create: jest.fn().mockResolvedValue({ id: 'emergency-1' }),
-          },
-          buriedPerson: {
-            ...mockPrisma.buriedPerson,
-            create: jest.fn().mockResolvedValue({ id: 'buried-1' }),
-          },
-          workInfo: {
-            ...mockPrisma.workInfo,
-            create: jest.fn().mockResolvedValue({ id: 'work-1' }),
-          },
-          billingInfo: {
-            ...mockPrisma.billingInfo,
-            create: jest.fn().mockResolvedValue({ id: 'billing-1' }),
-          },
-          history: {
-            ...mockPrisma.history,
-            create: jest.fn().mockResolvedValue({ id: 'history-1' }),
-          },
+          plot: { create: plotCreateSpy },
+          applicant: { create: applicantCreateSpy },
+          contractor: { create: contractorCreateSpy },
+          usageFee: { create: usageFeeCreateSpy },
+          managementFee: { create: managementFeeCreateSpy },
+          gravestoneInfo: { create: gravestoneInfoCreateSpy },
+          constructionInfo: { create: constructionInfoCreateSpy },
+          familyContact: { create: familyContactCreateSpy },
+          emergencyContact: { create: emergencyContactCreateSpy },
+          buriedPerson: { create: buriedPersonCreateSpy },
+          workInfo: { create: workInfoCreateSpy },
+          billingInfo: { create: billingInfoCreateSpy },
+          history: { create: historyCreateSpy },
         };
 
-        const result = await callback(txMockPrisma);
-
-        // トランザクション内で呼び出されたことをmockPrismaに記録する
-        mockPrisma.plot.create.mockImplementation(txMockPrisma.plot.create);
-        mockPrisma.applicant.create.mockImplementation(txMockPrisma.applicant.create);
-        mockPrisma.contractor.create.mockImplementation(txMockPrisma.contractor.create);
-        mockPrisma.usageFee.create.mockImplementation(txMockPrisma.usageFee.create);
-        mockPrisma.managementFee.create.mockImplementation(txMockPrisma.managementFee.create);
-        mockPrisma.gravestoneInfo.create.mockImplementation(txMockPrisma.gravestoneInfo.create);
-        mockPrisma.constructionInfo.create.mockImplementation(txMockPrisma.constructionInfo.create);
-        mockPrisma.familyContact.create.mockImplementation(txMockPrisma.familyContact.create);
-        mockPrisma.emergencyContact.create.mockImplementation(txMockPrisma.emergencyContact.create);
-        mockPrisma.buriedPerson.create.mockImplementation(txMockPrisma.buriedPerson.create);
-        mockPrisma.workInfo.create.mockImplementation(txMockPrisma.workInfo.create);
-        mockPrisma.billingInfo.create.mockImplementation(txMockPrisma.billingInfo.create);
-        mockPrisma.history.create.mockImplementation(txMockPrisma.history.create);
-
-        return result;
+        return await callback(txMockPrisma);
       });
 
       await createPlot(mockRequest as Request, mockResponse as Response);
@@ -2031,7 +2650,7 @@ describe('Plot Controller', () => {
         where: { plot_number: 'A-100' },
       });
 
-      expect(mockPrisma.plot.create).toHaveBeenCalledWith({
+      expect(plotCreateSpy).toHaveBeenCalledWith({
         data: expect.objectContaining({
           plot_number: 'A-100',
           section: 'A',
@@ -2039,18 +2658,18 @@ describe('Plot Controller', () => {
         }),
       });
 
-      expect(mockPrisma.applicant.create).toHaveBeenCalled();
-      expect(mockPrisma.contractor.create).toHaveBeenCalled();
-      expect(mockPrisma.usageFee.create).toHaveBeenCalled();
-      expect(mockPrisma.managementFee.create).toHaveBeenCalled();
-      expect(mockPrisma.gravestoneInfo.create).toHaveBeenCalled();
-      expect(mockPrisma.constructionInfo.create).toHaveBeenCalled();
-      expect(mockPrisma.familyContact.create).toHaveBeenCalled();
-      expect(mockPrisma.emergencyContact.create).toHaveBeenCalled();
-      expect(mockPrisma.buriedPerson.create).toHaveBeenCalled();
-      expect(mockPrisma.workInfo.create).toHaveBeenCalled();
-      expect(mockPrisma.billingInfo.create).toHaveBeenCalled();
-      expect(mockPrisma.history.create).toHaveBeenCalled();
+      expect(applicantCreateSpy).toHaveBeenCalled();
+      expect(contractorCreateSpy).toHaveBeenCalled();
+      expect(usageFeeCreateSpy).toHaveBeenCalled();
+      expect(managementFeeCreateSpy).toHaveBeenCalled();
+      expect(gravestoneInfoCreateSpy).toHaveBeenCalled();
+      expect(constructionInfoCreateSpy).toHaveBeenCalled();
+      expect(familyContactCreateSpy).toHaveBeenCalled();
+      expect(emergencyContactCreateSpy).toHaveBeenCalled();
+      expect(buriedPersonCreateSpy).toHaveBeenCalled();
+      expect(workInfoCreateSpy).toHaveBeenCalled();
+      expect(billingInfoCreateSpy).toHaveBeenCalled();
+      expect(historyCreateSpy).toHaveBeenCalled();
 
       expect(mockResponse.status).toHaveBeenCalledWith(201);
       expect(mockResponse.json).toHaveBeenCalledWith({

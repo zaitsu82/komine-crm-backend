@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const prisma = new PrismaClient();
 
@@ -14,7 +14,12 @@ if (!supabaseUrl || !supabaseServiceKey) {
   );
 }
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+let supabase: SupabaseClient | null = null;
+
+// 環境変数が設定されている場合のみクライアントを初期化
+if (supabaseUrl && supabaseServiceKey) {
+  supabase = createClient(supabaseUrl, supabaseServiceKey);
+}
 
 declare global {
   namespace Express {
@@ -37,6 +42,17 @@ declare global {
  */
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Supabase認証サービスが利用できません',
+          details: [],
+        },
+      });
+    }
+
     // Authorizationヘッダーからトークンを取得
     const authHeader = req.headers.authorization;
 
@@ -152,6 +168,10 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
  */
 export const optionalAuthenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (!supabase) {
+      return next();
+    }
+
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
