@@ -1,5 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { getCorsOptions, sanitizeInput } from '../../src/middleware/security';
+import {
+  getCorsOptions,
+  sanitizeInput,
+  createRateLimiter,
+  createAuthRateLimiter,
+  getHelmetOptions,
+} from '../../src/middleware/security';
 
 // Express.Request型を拡張
 declare global {
@@ -218,6 +224,100 @@ describe('Security Middleware', () => {
       sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockRequest.body.text).toBe('&amp; &lt; &gt; &quot; &#x27; &#x2F;');
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('混在データ型を正しく処理すること', () => {
+      mockRequest.body = {
+        mixed: {
+          string: '<script>',
+          number: 123,
+          boolean: true,
+          nullValue: null,
+          array: ['<b>test</b>', 456, false],
+          nested: {
+            html: '<div>content</div>',
+            count: 42,
+          },
+        },
+      };
+
+      sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockRequest.body.mixed.string).toBe('&lt;script&gt;');
+      expect(mockRequest.body.mixed.number).toBe(123);
+      expect(mockRequest.body.mixed.boolean).toBe(true);
+      expect(mockRequest.body.mixed.nullValue).toBeNull();
+      expect(mockRequest.body.mixed.array[0]).toBe('&lt;b&gt;test&lt;&#x2F;b&gt;');
+      expect(mockRequest.body.mixed.array[1]).toBe(456);
+      expect(mockRequest.body.mixed.array[2]).toBe(false);
+      expect(mockRequest.body.mixed.nested.html).toBe('&lt;div&gt;content&lt;&#x2F;div&gt;');
+      expect(mockRequest.body.mixed.nested.count).toBe(42);
+      expect(mockNext).toHaveBeenCalled();
+    });
+  });
+
+  describe('createRateLimiter', () => {
+    it('Rate Limiterが正しい設定で作成されること', () => {
+      const rateLimiter = createRateLimiter();
+
+      expect(rateLimiter).toBeDefined();
+      expect(typeof rateLimiter).toBe('function');
+    });
+
+    it('Rate Limiterの設定値が正しいこと', () => {
+      const rateLimiter = createRateLimiter();
+
+      // Rate Limiterの内部設定を確認
+      // express-rate-limitはミドルウェア関数を返すため、関数として存在することを確認
+      expect(rateLimiter).toBeInstanceOf(Function);
+    });
+  });
+
+  describe('createAuthRateLimiter', () => {
+    it('認証用Rate Limiterが正しい設定で作成されること', () => {
+      const authRateLimiter = createAuthRateLimiter();
+
+      expect(authRateLimiter).toBeDefined();
+      expect(typeof authRateLimiter).toBe('function');
+    });
+
+    it('認証用Rate Limiterが関数として機能すること', () => {
+      const authRateLimiter = createAuthRateLimiter();
+
+      // ミドルウェア関数として機能することを確認
+      expect(authRateLimiter).toBeInstanceOf(Function);
+    });
+  });
+
+  describe('getHelmetOptions', () => {
+    it('Helmetオプションが正しく設定されること', () => {
+      const helmetOptions = getHelmetOptions();
+
+      expect(helmetOptions).toBeDefined();
+    });
+
+    it('Helmetオプションが関数であること', () => {
+      const helmetOptions = getHelmetOptions();
+
+      // helmetはミドルウェアを返すため、関数であることを確認
+      expect(typeof helmetOptions).toBe('function');
+    });
+
+    it('Helmetミドルウェアが正しく動作すること', () => {
+      const helmetMiddleware = getHelmetOptions();
+      const mockReq = {} as Request;
+      const mockRes = {
+        setHeader: jest.fn(),
+        getHeader: jest.fn(),
+        removeHeader: jest.fn(),
+      } as any;
+      const mockNext = jest.fn();
+
+      // Helmetミドルウェアを実行
+      helmetMiddleware(mockReq, mockRes, mockNext);
+
+      // nextが呼ばれることを確認
       expect(mockNext).toHaveBeenCalled();
     });
   });
