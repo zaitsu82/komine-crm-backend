@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './auth/authRoutes';
 import plotRoutes from './plots/plotRoutes';
+import masterRoutes from './masters/masterRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requestLogger, securityHeaders } from './middleware/logger';
 
@@ -35,6 +36,7 @@ app.get('/health', (req, res) => {
 // APIルート
 app.use('/api/v1/auth', authRoutes); // 認証ルート
 app.use('/api/v1/plots', plotRoutes); // 区画情報ルート
+app.use('/api/v1/masters', masterRoutes); // マスタデータルート
 
 // 404エラーハンドラー（すべてのルートの後に配置）
 app.use(notFoundHandler);
