@@ -29,6 +29,13 @@ describe('Server Index', () => {
     mockExpress = jest.fn(() => mockApp);
     mockExpress.json = jest.fn(() => 'json-middleware');
     mockExpress.urlencoded = jest.fn(() => 'urlencoded-middleware');
+    mockExpress.Router = jest.fn(() => ({
+      get: jest.fn(),
+      post: jest.fn(),
+      put: jest.fn(),
+      delete: jest.fn(),
+      use: jest.fn()
+    }));
 
     mockCors = jest.fn(() => 'cors-middleware');
 
@@ -54,6 +61,10 @@ describe('Server Index', () => {
     jest.doMock('../src/plots/plotRoutes', () => ({
       __esModule: true,
       default: 'plot-routes'
+    }));
+    jest.doMock('../src/masters/masterRoutes', () => ({
+      __esModule: true,
+      default: 'master-routes'
     }));
 
     // ミドルウェアのモック
@@ -106,6 +117,7 @@ describe('Server Index', () => {
 
     expect(mockApp.use).toHaveBeenCalledWith('/api/v1/auth', 'auth-routes');
     expect(mockApp.use).toHaveBeenCalledWith('/api/v1/plots', 'plot-routes');
+    expect(mockApp.use).toHaveBeenCalledWith('/api/v1/masters', 'master-routes');
   });
 
   it('should configure error handlers last', () => {
@@ -156,8 +168,8 @@ describe('Server Index', () => {
   it('should register all middleware and routes correctly', () => {
     require('../src/index');
 
-    // 5 middleware + 2 API routes + 2 error handlers = 9 use calls
-    expect(mockApp.use).toHaveBeenCalledTimes(9);
+    // 5 middleware + 3 API routes + 2 error handlers = 10 use calls
+    expect(mockApp.use).toHaveBeenCalledTimes(10);
     // 1 health check endpoint
     expect(mockApp.get).toHaveBeenCalledTimes(1);
   });
@@ -248,6 +260,12 @@ describe('Server Index', () => {
       require('../src/index');
 
       expect(mockApp.use).toHaveBeenCalledWith('/api/v1/plots', 'plot-routes');
+    });
+
+    it('should mount master routes', () => {
+      require('../src/index');
+
+      expect(mockApp.use).toHaveBeenCalledWith('/api/v1/masters', 'master-routes');
     });
 
     it('should mount health check endpoint', () => {
