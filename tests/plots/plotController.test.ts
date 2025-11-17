@@ -972,6 +972,7 @@ describe('Plot Controller', () => {
               id: 'family-uuid-1',
               phoneNumber: '090-9999-8888',
               email: 'family@example.com',
+              registeredAddress: '東京都目黒区7-7-7',
             },
           ],
         };
@@ -992,6 +993,7 @@ describe('Plot Controller', () => {
           data: {
             phone_number: '090-9999-8888',
             email: 'family@example.com',
+            registered_address: '東京都目黒区7-7-7',
           },
         });
 
