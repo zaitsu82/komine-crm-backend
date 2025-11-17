@@ -111,7 +111,7 @@ export const API_PERMISSIONS: Record<string, Role[]> = {
  * 特定の権限レベルが必要な操作をチェック
  */
 export const requirePermission = (requiredRoles: Role[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction): any => {
     if (!req.user) {
       return res.status(401).json({
         success: false,

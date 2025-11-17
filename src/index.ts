@@ -9,7 +9,6 @@ import { requestLogger, securityHeaders } from './middleware/logger';
 import {
   getCorsOptions,
   createRateLimiter,
-  createAuthRateLimiter,
   getHelmetOptions,
   hppProtection,
   sanitizeInput,
@@ -19,7 +18,7 @@ import {
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env['PORT'] || 4000;
 
 // セキュリティミドルウェアの設定（最初に適用）
 app.use(getHelmetOptions()); // Helmet: セキュリティヘッダー
@@ -41,14 +40,14 @@ app.use(requestLogger);
 app.use(securityHeaders); // 追加のセキュリティヘッダー
 
 // ヘルスチェックエンドポイント
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.status(200).json({
     success: true,
     data: {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      environment: process.env.NODE_ENV || 'development',
+      environment: process.env['NODE_ENV'] || 'development',
     },
   });
 });
@@ -72,7 +71,7 @@ app.listen(PORT, () => {
 ╠════════════════════════════════════════════════════════╣
 ║   Status: Running                                      ║
 ║   Port: ${PORT}                                           ║
-║   Environment: ${process.env.NODE_ENV || 'development'}                               ║
+║   Environment: ${process.env['NODE_ENV'] || 'development'}                               ║
 ║   URL: http://localhost:${PORT}                           ║
 ║   Health Check: http://localhost:${PORT}/health           ║
 ╚════════════════════════════════════════════════════════╝

@@ -16,7 +16,7 @@ export interface ValidationSchemas {
  * リクエストのボディ、クエリパラメータ、パスパラメータをバリデーション
  */
 export const validate = (schemas: ValidationSchemas) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       // ボディのバリデーション
       if (schemas.body) {

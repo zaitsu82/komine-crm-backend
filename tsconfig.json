@@ -4,12 +4,54 @@
     "module": "CommonJS",
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+
+    /* 型チェック */
+    "strict": true,                                      /* 全ての厳格な型チェックオプションを有効化 */
+    "noImplicitAny": true,                               /* 暗黙的な 'any' 型のエラーを報告 */
+    "strictNullChecks": true,                            /* 厳格な null チェックを有効化 */
+    "strictFunctionTypes": true,                         /* 関数型の厳格なチェック */
+    "strictBindCallApply": true,                         /* bind, call, apply の厳格なチェック */
+    "strictPropertyInitialization": true,                /* クラスプロパティの初期化チェック */
+    "noImplicitThis": true,                              /* 暗黙的な 'this' のエラーを報告 */
+    "useUnknownInCatchVariables": true,                  /* catch 句の変数を 'unknown' 型にする */
+    "alwaysStrict": true,                                /* 'use strict' を全ファイルに出力 */
+
+    /* 追加の厳格チェック */
+    "noUnusedLocals": true,                              /* 未使用のローカル変数を報告 */
+    "noUnusedParameters": true,                          /* 未使用のパラメータを報告 */
+    "noImplicitReturns": true,                           /* 関数の全コードパスで return があることを確認 */
+    "noFallthroughCasesInSwitch": true,                  /* switch 文の fall-through を報告 */
+    "noUncheckedIndexedAccess": true,                    /* インデックスアクセスに undefined を含める */
+    "noImplicitOverride": true,                          /* override キーワードなしのオーバーライドを報告 */
+    "noPropertyAccessFromIndexSignature": true,          /* インデックスシグネチャからのプロパティアクセスを厳格化 */
+
+    /* モジュール解決 */
+    "esModuleInterop": true,                             /* CommonJS/ES モジュール間の相互運用性を向上 */
+    "allowSyntheticDefaultImports": true,                /* デフォルトエクスポートのない モジュールからの デフォルトインポートを許可 */
+    "resolveJsonModule": true,                           /* .json ファイルのインポートを許可 */
+    "forceConsistentCasingInFileNames": true,            /* インポート時のファイル名の大文字小文字を一貫させる */
+
+    /* 出力設定 */
+    "declaration": true,                                 /* .d.ts ファイルを生成 */
+    "declarationMap": true,                              /* .d.ts.map ファイルを生成 */
+    "sourceMap": true,                                   /* ソースマップを生成 */
+    "removeComments": true,                              /* コメントを出力から削除 */
+
+    /* その他 */
+    "skipLibCheck": true,                                /* ライブラリの型定義ファイルのチェックをスキップ */
+    "allowJs": false,                                    /* JavaScript ファイルのコンパイルを許可しない */
+    "checkJs": false,                                    /* JavaScript ファイルの型チェックを無効化 */
+    "isolatedModules": true,                             /* 各ファイルを個別のモジュールとして扱う */
+    "noEmitOnError": true                                /* エラーがある場合は出力しない */
   },
   "include": [
-    "src"
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests",
+    "**/*.test.ts",
+    "**/*.spec.ts"
   ]
 }

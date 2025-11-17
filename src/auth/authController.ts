@@ -5,8 +5,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const prisma = new PrismaClient();
 
 // Supabaseクライアントの初期化
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseUrl = process.env['SUPABASE_URL'] || '';
+const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || '';
 
 if (!supabaseUrl || !supabaseServiceKey) {
   console.warn(

@@ -4,10 +4,8 @@ import {
   dateSchema,
   emailSchema,
   phoneSchema,
-  postalCodeSchema,
   paginationSchema,
   katakanaSchema,
-  amountSchema,
   yearMonthSchema,
   areaSchema,
 } from '../middleware/validation';

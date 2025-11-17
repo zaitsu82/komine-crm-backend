@@ -5,8 +5,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const prisma = new PrismaClient();
 
 // Supabaseクライアントの初期化
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseUrl = process.env['SUPABASE_URL'] || '';
+const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || '';
 
 if (!supabaseUrl || !supabaseServiceKey) {
   console.warn(
@@ -40,7 +40,7 @@ declare global {
  * Supabase認証ミドルウェア
  * リクエストヘッダーのJWTトークンを検証し、Staffテーブルのユーザー情報を取得
  */
-export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
     if (!supabase) {
       return res.status(503).json({
@@ -166,7 +166,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
  * オプショナル認証ミドルウェア
  * トークンがある場合のみ認証を試みる（エラーでも次に進む）
  */
-export const optionalAuthenticate = async (req: Request, res: Response, next: NextFunction) => {
+export const optionalAuthenticate = async (req: Request, _res: Response, next: NextFunction): Promise<any> => {
   try {
     if (!supabase) {
       return next();

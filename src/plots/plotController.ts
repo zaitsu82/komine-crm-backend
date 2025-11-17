@@ -17,7 +17,7 @@ const parseDate = (date: Date | string | null | undefined): Date | null => {
  * 区画情報一覧取得
  * GET /api/v1/plots
  */
-export const getPlots = async (req: Request, res: Response) => {
+export const getPlots = async (_req: Request, res: Response) => {
   try {
     const plots = await prisma.plot.findMany({
       where: {
@@ -48,7 +48,7 @@ export const getPlots = async (req: Request, res: Response) => {
       let nextBillingDate: Date | null = null;
       if (plot.ManagementFee?.last_billing_month) {
         const match = plot.ManagementFee.last_billing_month.match(/(\d{4})年(\d{1,2})月/);
-        if (match) {
+        if (match && match[1] && match[2]) {
           const year = parseInt(match[1]);
           const month = parseInt(match[2]);
           const nextDate = new Date(year, month, 1); // 次の月の1日
@@ -89,9 +89,19 @@ export const getPlots = async (req: Request, res: Response) => {
  * 区画情報詳細取得
  * GET /api/v1/plots/:id
  */
-export const getPlotById = async (req: Request, res: Response) => {
+export const getPlotById = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'IDが指定されていません',
+          details: [],
+        },
+      });
+    }
 
     const plot = await prisma.plot.findUnique({
       where: { id },
@@ -334,7 +344,7 @@ export const getPlotById = async (req: Request, res: Response) => {
  * 区画情報登録
  * POST /api/v1/plots
  */
-export const createPlot = async (req: Request, res: Response) => {
+export const createPlot = async (req: Request, res: Response): Promise<any> => {
   try {
     const input: CreatePlotInput = req.body;
 
@@ -683,9 +693,19 @@ export const createPlot = async (req: Request, res: Response) => {
  * 区画情報更新
  * PUT /api/v1/plots/:id
  */
-export const updatePlot = async (req: Request, res: Response) => {
+export const updatePlot = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'IDが指定されていません',
+          details: [],
+        },
+      });
+    }
     const input: UpdatePlotInput = req.body;
 
     // 1. 区画の存在確認

@@ -2,19 +2,19 @@ import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import hpp from 'hpp';
-import cors, { CorsOptions } from 'cors';
+import { CorsOptions } from 'cors';
 
 /**
  * CORS設定
  * 環境変数からオリジンを読み込み、厳格なCORS制御を実装
  */
 export const getCorsOptions = (): CorsOptions => {
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
+  const allowedOrigins = process.env['ALLOWED_ORIGINS']
+    ? process.env['ALLOWED_ORIGINS'].split(',').map((origin) => origin.trim())
     : [];
 
   // 開発環境では全許可、本番環境では環境変数で指定されたオリジンのみ許可
-  if (process.env.NODE_ENV === 'development' && allowedOrigins.length === 0) {
+  if (process.env['NODE_ENV'] === 'development' && allowedOrigins.length === 0) {
     return {
       origin: true,
       credentials: true,
@@ -142,7 +142,7 @@ export const hppProtection = hpp();
  * 入力サニタイゼーションミドルウェア
  * XSS攻撃を防ぐため、危険な文字をエスケープ
  */
-export const sanitizeInput = (req: Request, res: Response, next: NextFunction) => {
+export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) => {
   // リクエストボディのサニタイゼーション
   if (req.body) {
     req.body = sanitizeObject(req.body);

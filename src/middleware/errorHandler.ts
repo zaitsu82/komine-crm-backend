@@ -9,7 +9,7 @@ export const errorHandler = (
   error: any,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   console.error('Error occurred:', {
     message: error.message,
@@ -108,7 +108,7 @@ const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Res
   switch (error.code) {
     case 'P2002':
       // Unique constraint violation
-      const target = error.meta?.target as string[];
+      const target = error.meta?.['target'] as string[];
       return res.status(409).json({
         success: false,
         error: {

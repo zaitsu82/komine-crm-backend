@@ -27,7 +27,7 @@ interface PrefectureMasterData extends MasterData {
  * 使用状況マスタ取得
  * GET /api/v1/masters/usage-status
  */
-export const getUsageStatusMaster = async (req: Request, res: Response) => {
+export const getUsageStatusMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.usageStatusMaster.findMany({
       where: { is_active: true },
@@ -63,7 +63,7 @@ export const getUsageStatusMaster = async (req: Request, res: Response) => {
  * 墓地タイプマスタ取得
  * GET /api/v1/masters/cemetery-type
  */
-export const getCemeteryTypeMaster = async (req: Request, res: Response) => {
+export const getCemeteryTypeMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.cemeteryTypeMaster.findMany({
       where: { is_active: true },
@@ -99,7 +99,7 @@ export const getCemeteryTypeMaster = async (req: Request, res: Response) => {
  * 宗派マスタ取得
  * GET /api/v1/masters/denomination
  */
-export const getDenominationMaster = async (req: Request, res: Response) => {
+export const getDenominationMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.denominationMaster.findMany({
       where: { is_active: true },
@@ -135,7 +135,7 @@ export const getDenominationMaster = async (req: Request, res: Response) => {
  * 性別マスタ取得
  * GET /api/v1/masters/gender
  */
-export const getGenderMaster = async (req: Request, res: Response) => {
+export const getGenderMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.genderMaster.findMany({
       where: { is_active: true },
@@ -171,7 +171,7 @@ export const getGenderMaster = async (req: Request, res: Response) => {
  * 支払方法マスタ取得
  * GET /api/v1/masters/payment-method
  */
-export const getPaymentMethodMaster = async (req: Request, res: Response) => {
+export const getPaymentMethodMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.paymentMethodMaster.findMany({
       where: { is_active: true },
@@ -207,7 +207,7 @@ export const getPaymentMethodMaster = async (req: Request, res: Response) => {
  * 税タイプマスタ取得
  * GET /api/v1/masters/tax-type
  */
-export const getTaxTypeMaster = async (req: Request, res: Response) => {
+export const getTaxTypeMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.taxTypeMaster.findMany({
       where: { is_active: true },
@@ -244,7 +244,7 @@ export const getTaxTypeMaster = async (req: Request, res: Response) => {
  * 計算タイプマスタ取得
  * GET /api/v1/masters/calc-type
  */
-export const getCalcTypeMaster = async (req: Request, res: Response) => {
+export const getCalcTypeMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.calcTypeMaster.findMany({
       where: { is_active: true },
@@ -280,7 +280,7 @@ export const getCalcTypeMaster = async (req: Request, res: Response) => {
  * 請求タイプマスタ取得
  * GET /api/v1/masters/billing-type
  */
-export const getBillingTypeMaster = async (req: Request, res: Response) => {
+export const getBillingTypeMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.billingTypeMaster.findMany({
       where: { is_active: true },
@@ -316,7 +316,7 @@ export const getBillingTypeMaster = async (req: Request, res: Response) => {
  * 口座タイプマスタ取得
  * GET /api/v1/masters/account-type
  */
-export const getAccountTypeMaster = async (req: Request, res: Response) => {
+export const getAccountTypeMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.accountTypeMaster.findMany({
       where: { is_active: true },
@@ -352,7 +352,7 @@ export const getAccountTypeMaster = async (req: Request, res: Response) => {
  * 受取人タイプマスタ取得
  * GET /api/v1/masters/recipient-type
  */
-export const getRecipientTypeMaster = async (req: Request, res: Response) => {
+export const getRecipientTypeMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.recipientTypeMaster.findMany({
       where: { is_active: true },
@@ -388,7 +388,7 @@ export const getRecipientTypeMaster = async (req: Request, res: Response) => {
  * 続柄マスタ取得
  * GET /api/v1/masters/relation
  */
-export const getRelationMaster = async (req: Request, res: Response) => {
+export const getRelationMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.relationMaster.findMany({
       where: { is_active: true },
@@ -424,7 +424,7 @@ export const getRelationMaster = async (req: Request, res: Response) => {
  * 工事タイプマスタ取得
  * GET /api/v1/masters/construction-type
  */
-export const getConstructionTypeMaster = async (req: Request, res: Response) => {
+export const getConstructionTypeMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.constructionTypeMaster.findMany({
       where: { is_active: true },
@@ -460,7 +460,7 @@ export const getConstructionTypeMaster = async (req: Request, res: Response) => 
  * 更新タイプマスタ取得
  * GET /api/v1/masters/update-type
  */
-export const getUpdateTypeMaster = async (req: Request, res: Response) => {
+export const getUpdateTypeMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.updateTypeMaster.findMany({
       where: { is_active: true },
@@ -496,7 +496,7 @@ export const getUpdateTypeMaster = async (req: Request, res: Response) => {
  * 都道府県マスタ取得
  * GET /api/v1/masters/prefecture
  */
-export const getPrefectureMaster = async (req: Request, res: Response) => {
+export const getPrefectureMaster = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.prefectureMaster.findMany({
       where: { is_active: true },
@@ -533,7 +533,7 @@ export const getPrefectureMaster = async (req: Request, res: Response) => {
  * 全マスタデータ一括取得
  * GET /api/v1/masters/all
  */
-export const getAllMasters = async (req: Request, res: Response) => {
+export const getAllMasters = async (_req: Request, res: Response) => {
   try {
     const [
       usageStatus,
