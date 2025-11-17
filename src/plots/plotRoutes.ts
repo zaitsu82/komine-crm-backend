@@ -2,6 +2,13 @@ import { Router } from 'express';
 import { getPlots, getPlotById, createPlot, updatePlot } from './plotController';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission';
+import { validate } from '../middleware/validation';
+import {
+  plotSearchQuerySchema,
+  plotIdParamsSchema,
+  createPlotSchema,
+  updatePlotSchema,
+} from '../validations/plotValidation';
 
 const router = Router();
 
@@ -10,6 +17,7 @@ router.get(
   '/',
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
+  validate({ query: plotSearchQuerySchema }),
   getPlots
 );
 
@@ -18,6 +26,7 @@ router.get(
   '/:id',
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
+  validate({ params: plotIdParamsSchema }),
   getPlotById
 );
 
@@ -26,6 +35,7 @@ router.post(
   '/',
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
+  validate({ body: createPlotSchema }),
   createPlot
 );
 
@@ -34,6 +44,7 @@ router.put(
   '/:id',
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
+  validate({ params: plotIdParamsSchema, body: updatePlotSchema }),
   updatePlot
 );
 
