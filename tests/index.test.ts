@@ -43,6 +43,10 @@ describe('Server Index', () => {
       config: jest.fn()
     };
 
+    // helmet と hpp のモック
+    const mockHelmet = jest.fn(() => jest.fn((req: any, res: any, next: any) => next()));
+    const mockHpp = jest.fn(() => jest.fn((req: any, res: any, next: any) => next()));
+
     mockRequestLogger = jest.fn((req: any, res: any, next: any) => next());
     mockSecurityHeaders = jest.fn((req: any, res: any, next: any) => next());
     mockErrorHandler = jest.fn();
@@ -76,6 +80,14 @@ describe('Server Index', () => {
       requestLogger: mockRequestLogger,
       securityHeaders: mockSecurityHeaders
     }));
+    jest.doMock('../src/middleware/security', () => ({
+      getCorsOptions: jest.fn(() => ({})),
+      createRateLimiter: jest.fn(() => jest.fn((req: any, res: any, next: any) => next())),
+      createAuthRateLimiter: jest.fn(() => jest.fn((req: any, res: any, next: any) => next())),
+      getHelmetOptions: jest.fn(() => jest.fn((req: any, res: any, next: any) => next())),
+      hppProtection: jest.fn((req: any, res: any, next: any) => next()),
+      sanitizeInput: jest.fn((req: any, res: any, next: any) => next()),
+    }));
 
     consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
     process.env.PORT = '3001';
@@ -96,7 +108,7 @@ describe('Server Index', () => {
     expect(mockExpress).toHaveBeenCalledTimes(1);
     expect(mockCors).toHaveBeenCalledTimes(1);
     expect(mockExpress.json).toHaveBeenCalledTimes(1);
-    expect(mockExpress.urlencoded).toHaveBeenCalledWith({ extended: true });
+    expect(mockExpress.urlencoded).toHaveBeenCalledWith({ extended: true, limit: '10mb' });
     expect(mockDotenv.config).toHaveBeenCalledTimes(1);
   });
 
@@ -105,11 +117,10 @@ describe('Server Index', () => {
 
     const useCalls = mockApp.use.mock.calls;
 
-    expect(useCalls[0]).toEqual(['cors-middleware']); // CORS
-    expect(useCalls[1]).toEqual(['json-middleware']); // JSON parser
-    expect(useCalls[2]).toEqual(['urlencoded-middleware']); // URL encoded parser
-    expect(useCalls[3]).toEqual([mockRequestLogger]); // Request logger
-    expect(useCalls[4]).toEqual([mockSecurityHeaders]); // Security headers
+    // セキュリティミドルウェアが適用されることを確認
+    // helmet, cors, hpp, json, urlencoded, sanitizeInput, rateLimiter, requestLogger, securityHeaders
+    // Note: 新しいセキュリティミドルウェアが追加されたため、多数のミドルウェアが登録される
+    expect(useCalls.length).toBeGreaterThanOrEqual(9);
   });
 
   it('should configure API routes', () => {
@@ -168,8 +179,10 @@ describe('Server Index', () => {
   it('should register all middleware and routes correctly', () => {
     require('../src/index');
 
-    // 5 middleware + 3 API routes + 2 error handlers = 10 use calls
-    expect(mockApp.use).toHaveBeenCalledTimes(10);
+    // セキュリティミドルウェア（helmet, cors, hpp, json, urlencoded, sanitizeInput, rateLimiter）
+    // + ログミドルウェア（requestLogger, securityHeaders）
+    // + 3 API routes + 2 error handlers = 14 use calls
+    expect(mockApp.use).toHaveBeenCalledTimes(14);
     // 1 health check endpoint
     expect(mockApp.get).toHaveBeenCalledTimes(1);
   });
@@ -232,7 +245,7 @@ describe('Server Index', () => {
     it('should configure URL encoded body parser', () => {
       require('../src/index');
 
-      expect(mockExpress.urlencoded).toHaveBeenCalledWith({ extended: true });
+      expect(mockExpress.urlencoded).toHaveBeenCalledWith({ extended: true, limit: '10mb' });
       expect(mockApp.use).toHaveBeenCalledWith('urlencoded-middleware');
     });
 

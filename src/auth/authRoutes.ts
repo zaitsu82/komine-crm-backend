@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { login, logout, getCurrentUser, changePassword } from './authController';
 import { authenticate } from '../middleware/auth';
+import { createAuthRateLimiter } from '../middleware/security';
 
 const router = Router();
 
-// ログイン（認証不要）
-router.post('/login', login);
+// ログイン（認証不要、厳格なRate Limiting適用）
+router.post('/login', createAuthRateLimiter(), login);
 
 // ログアウト（認証必要）
 router.post('/logout', authenticate, logout);
