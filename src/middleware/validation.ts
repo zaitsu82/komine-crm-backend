@@ -37,7 +37,7 @@ export const validate = (schemas: ValidationSchemas) => {
     } catch (error) {
       if (error instanceof ZodError) {
         // Zodエラーを統一されたエラーフォーマットに変換
-        const details = error.errors.map((err: any) => ({
+        const details = error.issues.map((err) => ({
           field: err.path.join('.'),
           message: err.message,
         }));

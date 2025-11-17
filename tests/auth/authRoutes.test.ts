@@ -37,6 +37,20 @@ jest.mock('../../src/middleware/auth', () => ({
   authenticate: (req: any, res: any, next: any) => mockAuthenticate(req, res, next),
 }));
 
+// Validationミドルウェアのモック
+jest.mock('../../src/middleware/validation', () => {
+  const actual = jest.requireActual('../../src/middleware/validation');
+  return {
+    ...actual,
+    validate: jest.fn(() => (req: any, res: any, next: any) => next()),
+  };
+});
+
+// Securityミドルウェアのモック
+jest.mock('../../src/middleware/security', () => ({
+  createAuthRateLimiter: jest.fn(() => (req: any, res: any, next: any) => next()),
+}));
+
 // Supabaseモック
 jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => ({

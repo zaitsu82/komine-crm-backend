@@ -22,6 +22,14 @@ jest.mock('../../src/middleware/permission', () => ({
   requirePermission: jest.fn(() => (req: any, res: any, next: any) => next()),
 }));
 
+jest.mock('../../src/middleware/validation', () => {
+  const actual = jest.requireActual('../../src/middleware/validation');
+  return {
+    ...actual,
+    validate: jest.fn(() => (req: any, res: any, next: any) => next()),
+  };
+});
+
 const mockPlotController = plotController as jest.Mocked<typeof plotController>;
 const mockAuthMiddleware = authMiddleware as jest.Mocked<typeof authMiddleware>;
 const mockPermissionMiddleware = permissionMiddleware as jest.Mocked<typeof permissionMiddleware>;
