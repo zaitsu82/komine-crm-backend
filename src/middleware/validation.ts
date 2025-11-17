@@ -25,12 +25,12 @@ export const validate = (schemas: ValidationSchemas) => {
 
       // クエリパラメータのバリデーション
       if (schemas.query) {
-        req.query = await schemas.query.parseAsync(req.query) as any;
+        req.query = (await schemas.query.parseAsync(req.query)) as any;
       }
 
       // パスパラメータのバリデーション
       if (schemas.params) {
-        req.params = await schemas.params.parseAsync(req.params) as any;
+        req.params = (await schemas.params.parseAsync(req.params)) as any;
       }
 
       next();
@@ -58,7 +58,9 @@ export const validate = (schemas: ValidationSchemas) => {
 export const uuidSchema = z.string().uuid('有効なUUID形式で入力してください');
 
 // 日付形式のバリデーション (YYYY-MM-DD)
-export const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日付はYYYY-MM-DD形式で入力してください');
+export const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, '日付はYYYY-MM-DD形式で入力してください');
 
 // メールアドレスのバリデーション
 export const emailSchema = z.string().email('有効なメールアドレスを入力してください');

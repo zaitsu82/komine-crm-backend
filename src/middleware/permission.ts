@@ -5,17 +5,17 @@ export const ROLES = {
   VIEWER: 'viewer',
   OPERATOR: 'operator',
   MANAGER: 'manager',
-  ADMIN: 'admin'
+  ADMIN: 'admin',
 } as const;
 
-export type Role = typeof ROLES[keyof typeof ROLES];
+export type Role = (typeof ROLES)[keyof typeof ROLES];
 
 // 権限階層（上位権限は下位権限を含む）
 const ROLE_HIERARCHY: Record<Role, Role[]> = {
   [ROLES.VIEWER]: ['viewer'],
   [ROLES.OPERATOR]: ['viewer', 'operator'],
   [ROLES.MANAGER]: ['viewer', 'operator', 'manager'],
-  [ROLES.ADMIN]: ['viewer', 'operator', 'manager', 'admin']
+  [ROLES.ADMIN]: ['viewer', 'operator', 'manager', 'admin'],
 };
 
 // API権限マトリクス
@@ -118,8 +118,8 @@ export const requirePermission = (requiredRoles: Role[]) => {
         error: {
           code: 'UNAUTHORIZED',
           message: '認証が必要です',
-          details: []
-        }
+          details: [],
+        },
       });
     }
 
@@ -127,7 +127,7 @@ export const requirePermission = (requiredRoles: Role[]) => {
     const userPermissions = ROLE_HIERARCHY[userRole] || [];
 
     // ユーザーの権限が要求された権限のいずれかと一致するかチェック
-    const hasPermission = requiredRoles.some(role => userPermissions.includes(role));
+    const hasPermission = requiredRoles.some((role) => userPermissions.includes(role));
 
     if (!hasPermission) {
       return res.status(403).json({
@@ -135,10 +135,12 @@ export const requirePermission = (requiredRoles: Role[]) => {
         error: {
           code: 'FORBIDDEN',
           message: '権限が不足しています',
-          details: [{
-            message: `必要な権限: ${requiredRoles.join(', ')}、現在の権限: ${userRole}`
-          }]
-        }
+          details: [
+            {
+              message: `必要な権限: ${requiredRoles.join(', ')}、現在の権限: ${userRole}`,
+            },
+          ],
+        },
       });
     }
 
@@ -157,8 +159,8 @@ export const checkApiPermission = () => {
         error: {
           code: 'UNAUTHORIZED',
           message: '認証が必要です',
-          details: []
-        }
+          details: [],
+        },
       });
     }
 
@@ -185,7 +187,7 @@ export const checkApiPermission = () => {
  */
 export const hasPermission = (userRole: Role, requiredRoles: Role[]): boolean => {
   const userPermissions = ROLE_HIERARCHY[userRole] || [];
-  return requiredRoles.some(role => userPermissions.includes(role));
+  return requiredRoles.some((role) => userPermissions.includes(role));
 };
 
 /**

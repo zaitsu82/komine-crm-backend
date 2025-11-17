@@ -93,8 +93,12 @@ describe('Plot Validation', () => {
     });
 
     it('墓石番号が大文字英数字とハイフンのみ使用できること', () => {
-      expect(() => createPlotSchema.parse({ ...validPlotData, gravestoneCode: 'A-001' })).not.toThrow();
-      expect(() => createPlotSchema.parse({ ...validPlotData, gravestoneCode: 'ABC123' })).not.toThrow();
+      expect(() =>
+        createPlotSchema.parse({ ...validPlotData, gravestoneCode: 'A-001' })
+      ).not.toThrow();
+      expect(() =>
+        createPlotSchema.parse({ ...validPlotData, gravestoneCode: 'ABC123' })
+      ).not.toThrow();
       expect(() => createPlotSchema.parse({ ...validPlotData, gravestoneCode: 'a-001' })).toThrow();
       expect(() => createPlotSchema.parse({ ...validPlotData, gravestoneCode: 'A_001' })).toThrow();
     });

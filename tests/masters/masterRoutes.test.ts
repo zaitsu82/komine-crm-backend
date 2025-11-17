@@ -7,21 +7,51 @@ import * as permissionMiddleware from '../../src/middleware/permission';
 
 // コントローラーのモック
 jest.mock('../../src/masters/masterController', () => ({
-  getUsageStatusMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getUsageStatusMaster' })),
-  getCemeteryTypeMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getCemeteryTypeMaster' })),
-  getDenominationMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getDenominationMaster' })),
-  getGenderMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getGenderMaster' })),
-  getPaymentMethodMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getPaymentMethodMaster' })),
-  getTaxTypeMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getTaxTypeMaster' })),
-  getCalcTypeMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getCalcTypeMaster' })),
-  getBillingTypeMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getBillingTypeMaster' })),
-  getAccountTypeMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getAccountTypeMaster' })),
-  getRecipientTypeMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getRecipientTypeMaster' })),
-  getRelationMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getRelationMaster' })),
-  getConstructionTypeMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getConstructionTypeMaster' })),
-  getUpdateTypeMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getUpdateTypeMaster' })),
-  getPrefectureMaster: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getPrefectureMaster' })),
-  getAllMasters: jest.fn((req, res) => res.status(200).json({ success: true, controller: 'getAllMasters' })),
+  getUsageStatusMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getUsageStatusMaster' })
+  ),
+  getCemeteryTypeMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getCemeteryTypeMaster' })
+  ),
+  getDenominationMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getDenominationMaster' })
+  ),
+  getGenderMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getGenderMaster' })
+  ),
+  getPaymentMethodMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getPaymentMethodMaster' })
+  ),
+  getTaxTypeMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getTaxTypeMaster' })
+  ),
+  getCalcTypeMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getCalcTypeMaster' })
+  ),
+  getBillingTypeMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getBillingTypeMaster' })
+  ),
+  getAccountTypeMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getAccountTypeMaster' })
+  ),
+  getRecipientTypeMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getRecipientTypeMaster' })
+  ),
+  getRelationMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getRelationMaster' })
+  ),
+  getConstructionTypeMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getConstructionTypeMaster' })
+  ),
+  getUpdateTypeMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getUpdateTypeMaster' })
+  ),
+  getPrefectureMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getPrefectureMaster' })
+  ),
+  getAllMasters: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getAllMasters' })
+  ),
 }));
 
 // ミドルウェアのモック

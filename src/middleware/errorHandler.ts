@@ -5,12 +5,7 @@ import { Prisma } from '@prisma/client';
  * グローバルエラーハンドラー
  * すべてのエラーをキャッチして統一されたレスポンス形式で返す
  */
-export const errorHandler = (
-  error: any,
-  req: Request,
-  res: Response,
-  _next: NextFunction
-) => {
+export const errorHandler = (error: any, req: Request, res: Response, _next: NextFunction) => {
   console.error('Error occurred:', {
     message: error.message,
     stack: error.stack,
@@ -106,7 +101,7 @@ export const errorHandler = (
  */
 const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Response) => {
   switch (error.code) {
-    case 'P2002':
+    case 'P2002': {
       // Unique constraint violation
       const target = error.meta?.['target'] as string[];
       return res.status(409).json({
@@ -122,6 +117,7 @@ const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Res
           ],
         },
       });
+    }
 
     case 'P2025':
       // Record not found

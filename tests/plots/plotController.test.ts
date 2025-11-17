@@ -79,12 +79,7 @@ jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => mockPrisma),
 }));
 
-import {
-  getPlots,
-  getPlotById,
-  createPlot,
-  updatePlot,
-} from '../../src/plots/plotController';
+import { getPlots, getPlotById, createPlot, updatePlot } from '../../src/plots/plotController';
 
 describe('Plot Controller', () => {
   let mockRequest: Partial<Request>;
@@ -112,7 +107,7 @@ describe('Plot Controller', () => {
     jest.clearAllMocks();
 
     // console.errorをモック化してログ出力を抑制
-    jest.spyOn(console, 'error').mockImplementation(() => { });
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -322,9 +317,7 @@ describe('Plot Controller', () => {
           error: {
             code: 'DUPLICATE_PLOT_NUMBER',
             message: '区画番号が既に存在します',
-            details: [
-              { field: 'plotNumber', message: '区画番号 A-002 は既に使用されています' },
-            ],
+            details: [{ field: 'plotNumber', message: '区画番号 A-002 は既に使用されています' }],
           },
         });
       });
@@ -1685,10 +1678,12 @@ describe('Plot Controller', () => {
       it('should update existing workInfo', async () => {
         const plotWithContractorAndWorkInfo = {
           ...existingPlot,
-          Contractors: [{
-            id: 'contractor-uuid-1',
-            WorkInfo: { id: 'work-info-uuid-1' },
-          }],
+          Contractors: [
+            {
+              id: 'contractor-uuid-1',
+              WorkInfo: { id: 'work-info-uuid-1' },
+            },
+          ],
         };
 
         mockRequest.params = { id: 'plot-uuid-1' };
@@ -1717,10 +1712,12 @@ describe('Plot Controller', () => {
       it('should soft delete workInfo when null is specified', async () => {
         const plotWithContractorAndWorkInfo = {
           ...existingPlot,
-          Contractors: [{
-            id: 'contractor-uuid-1',
-            WorkInfo: { id: 'work-info-uuid-1' },
-          }],
+          Contractors: [
+            {
+              id: 'contractor-uuid-1',
+              WorkInfo: { id: 'work-info-uuid-1' },
+            },
+          ],
         };
 
         mockRequest.params = { id: 'plot-uuid-1' };
@@ -1779,10 +1776,12 @@ describe('Plot Controller', () => {
       it('should update existing billingInfo', async () => {
         const plotWithContractorAndBillingInfo = {
           ...existingPlot,
-          Contractors: [{
-            id: 'contractor-uuid-1',
-            BillingInfo: { id: 'billing-info-uuid-1' },
-          }],
+          Contractors: [
+            {
+              id: 'contractor-uuid-1',
+              BillingInfo: { id: 'billing-info-uuid-1' },
+            },
+          ],
         };
 
         mockRequest.params = { id: 'plot-uuid-1' };
@@ -1811,10 +1810,12 @@ describe('Plot Controller', () => {
       it('should soft delete billingInfo when null is specified', async () => {
         const plotWithContractorAndBillingInfo = {
           ...existingPlot,
-          Contractors: [{
-            id: 'contractor-uuid-1',
-            BillingInfo: { id: 'billing-info-uuid-1' },
-          }],
+          Contractors: [
+            {
+              id: 'contractor-uuid-1',
+              BillingInfo: { id: 'billing-info-uuid-1' },
+            },
+          ],
         };
 
         mockRequest.params = { id: 'plot-uuid-1' };
@@ -1871,10 +1872,12 @@ describe('Plot Controller', () => {
       it('should update all contractor fields individually', async () => {
         const plotWithContractor = {
           ...existingPlot,
-          Contractors: [{
-            id: 'contractor-uuid-1',
-            name: '既存契約者',
-          }],
+          Contractors: [
+            {
+              id: 'contractor-uuid-1',
+              name: '既存契約者',
+            },
+          ],
         };
 
         mockRequest.params = { id: 'plot-uuid-1' };

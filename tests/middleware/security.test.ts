@@ -113,14 +113,7 @@ describe('Security Middleware', () => {
 
       const corsOptions = getCorsOptions();
 
-      expect(corsOptions.methods).toEqual([
-        'GET',
-        'POST',
-        'PUT',
-        'DELETE',
-        'PATCH',
-        'OPTIONS',
-      ]);
+      expect(corsOptions.methods).toEqual(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']);
       expect(corsOptions.allowedHeaders).toEqual(['Content-Type', 'Authorization']);
       expect(corsOptions.credentials).toBe(true);
       expect(corsOptions.maxAge).toBe(86400);
@@ -136,7 +129,9 @@ describe('Security Middleware', () => {
 
       sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockRequest.body.name).toBe('&lt;script&gt;alert(&quot;XSS&quot;)&lt;&#x2F;script&gt;');
+      expect(mockRequest.body.name).toBe(
+        '&lt;script&gt;alert(&quot;XSS&quot;)&lt;&#x2F;script&gt;'
+      );
       expect(mockRequest.body.email).toBe('user@example.com');
       expect(mockNext).toHaveBeenCalled();
     });
@@ -148,9 +143,7 @@ describe('Security Middleware', () => {
 
       sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockRequest.query.search).toBe(
-        '&lt;img src=x onerror=alert(1)&gt;'
-      );
+      expect(mockRequest.query.search).toBe('&lt;img src=x onerror=alert(1)&gt;');
       expect(mockNext).toHaveBeenCalled();
     });
 
@@ -180,9 +173,7 @@ describe('Security Middleware', () => {
 
       sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockRequest.body.tags[0]).toBe(
-        '&lt;script&gt;evil&lt;&#x2F;script&gt;'
-      );
+      expect(mockRequest.body.tags[0]).toBe('&lt;script&gt;evil&lt;&#x2F;script&gt;');
       expect(mockRequest.body.tags[1]).toBe('normal');
       expect(mockRequest.body.tags[2]).toBe('&lt;div&gt;html&lt;&#x2F;div&gt;');
       expect(mockNext).toHaveBeenCalled();

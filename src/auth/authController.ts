@@ -9,9 +9,7 @@ const supabaseUrl = process.env['SUPABASE_URL'] || '';
 const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || '';
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn(
-    '⚠️  SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in environment variables'
-  );
+  console.warn('⚠️  SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in environment variables');
 }
 
 let supabase: SupabaseClient | null = null;
@@ -321,10 +319,9 @@ export const changePassword = async (req: Request, res: Response) => {
     }
 
     // Supabaseでパスワード更新
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      req.user.supabase_uid,
-      { password: newPassword }
-    );
+    const { error: updateError } = await supabase.auth.admin.updateUserById(req.user.supabase_uid, {
+      password: newPassword,
+    });
 
     if (updateError) {
       return res.status(500).json({

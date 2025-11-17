@@ -153,9 +153,7 @@ describe('Auth Routes', () => {
         res.status(200).json({ success: true });
       });
 
-      await request(app)
-        .post('/api/v1/auth/logout')
-        .set('Authorization', 'Bearer test-token');
+      await request(app).post('/api/v1/auth/logout').set('Authorization', 'Bearer test-token');
 
       expect(mockAuthenticate).toHaveBeenCalled();
     });

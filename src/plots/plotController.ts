@@ -153,105 +153,113 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
       contractDate: plot.contract_date,
       applicantInfo: plot.Applicant
         ? {
-          id: plot.Applicant.id,
-          applicationDate: plot.Applicant.application_date,
-          staffName: plot.Applicant.staff_name,
-          name: plot.Applicant.name,
-          nameKana: plot.Applicant.name_kana,
-          postalCode: plot.Applicant.postal_code,
-          phoneNumber: plot.Applicant.phone_number,
-          address: plot.Applicant.address,
-        }
+            id: plot.Applicant.id,
+            applicationDate: plot.Applicant.application_date,
+            staffName: plot.Applicant.staff_name,
+            name: plot.Applicant.name,
+            nameKana: plot.Applicant.name_kana,
+            postalCode: plot.Applicant.postal_code,
+            phoneNumber: plot.Applicant.phone_number,
+            address: plot.Applicant.address,
+          }
         : undefined,
       contractInfo: latestContractor
         ? {
-          id: latestContractor.id,
-          reservationDate: latestContractor.reservation_date,
-          acceptanceNumber: latestContractor.acceptance_number || undefined,
-          permitDate: latestContractor.permit_date,
-          startDate: latestContractor.start_date,
-          name: latestContractor.name,
-          nameKana: latestContractor.name_kana,
-          birthDate: latestContractor.birth_date,
-          gender: latestContractor.gender as 'male' | 'female' | undefined,
-          phoneNumber: latestContractor.phone_number,
-          faxNumber: latestContractor.fax_number || undefined,
-          email: latestContractor.email || undefined,
-          address: latestContractor.address,
-          registeredAddress: latestContractor.registered_address || undefined,
-        }
+            id: latestContractor.id,
+            reservationDate: latestContractor.reservation_date,
+            acceptanceNumber: latestContractor.acceptance_number || undefined,
+            permitDate: latestContractor.permit_date,
+            startDate: latestContractor.start_date,
+            name: latestContractor.name,
+            nameKana: latestContractor.name_kana,
+            birthDate: latestContractor.birth_date,
+            gender: latestContractor.gender as 'male' | 'female' | undefined,
+            phoneNumber: latestContractor.phone_number,
+            faxNumber: latestContractor.fax_number || undefined,
+            email: latestContractor.email || undefined,
+            address: latestContractor.address,
+            registeredAddress: latestContractor.registered_address || undefined,
+          }
         : undefined,
       usageFee: plot.UsageFee
         ? {
-          id: plot.UsageFee.id,
-          calculationType: plot.UsageFee.calculation_type,
-          taxType: plot.UsageFee.tax_type,
-          billingType: plot.UsageFee.billing_type,
-          billingYears: plot.UsageFee.billing_years,
-          area: plot.UsageFee.area,
-          unitPrice: plot.UsageFee.unit_price,
-          usageFee: plot.UsageFee.usage_fee,
-          paymentMethod: plot.UsageFee.payment_method,
-        }
+            id: plot.UsageFee.id,
+            calculationType: plot.UsageFee.calculation_type,
+            taxType: plot.UsageFee.tax_type,
+            billingType: plot.UsageFee.billing_type,
+            billingYears: plot.UsageFee.billing_years,
+            area: plot.UsageFee.area,
+            unitPrice: plot.UsageFee.unit_price,
+            usageFee: plot.UsageFee.usage_fee,
+            paymentMethod: plot.UsageFee.payment_method,
+          }
         : undefined,
       managementFee: plot.ManagementFee
         ? {
-          id: plot.ManagementFee.id,
-          calculationType: plot.ManagementFee.calculation_type,
-          taxType: plot.ManagementFee.tax_type,
-          billingType: plot.ManagementFee.billing_type,
-          billingYears: plot.ManagementFee.billing_years,
-          area: plot.ManagementFee.area,
-          billingMonth: plot.ManagementFee.billing_month,
-          managementFee: plot.ManagementFee.management_fee,
-          unitPrice: plot.ManagementFee.unit_price,
-          lastBillingMonth: plot.ManagementFee.last_billing_month,
-          paymentMethod: plot.ManagementFee.payment_method,
-        }
+            id: plot.ManagementFee.id,
+            calculationType: plot.ManagementFee.calculation_type,
+            taxType: plot.ManagementFee.tax_type,
+            billingType: plot.ManagementFee.billing_type,
+            billingYears: plot.ManagementFee.billing_years,
+            area: plot.ManagementFee.area,
+            billingMonth: plot.ManagementFee.billing_month,
+            managementFee: plot.ManagementFee.management_fee,
+            unitPrice: plot.ManagementFee.unit_price,
+            lastBillingMonth: plot.ManagementFee.last_billing_month,
+            paymentMethod: plot.ManagementFee.payment_method,
+          }
         : undefined,
       gravestoneInfo: plot.GravestoneInfo
         ? {
-          id: plot.GravestoneInfo.id,
-          gravestoneBase: plot.GravestoneInfo.gravestone_base,
-          enclosurePosition: plot.GravestoneInfo.enclosure_position,
-          gravestoneDealer: plot.GravestoneInfo.gravestone_dealer,
-          gravestoneType: plot.GravestoneInfo.gravestone_type,
-          surroundingArea: plot.GravestoneInfo.surrounding_area,
-          establishmentDeadline: plot.GravestoneInfo.establishment_deadline,
-          establishmentDate: plot.GravestoneInfo.establishment_date,
-        }
+            id: plot.GravestoneInfo.id,
+            gravestoneBase: plot.GravestoneInfo.gravestone_base,
+            enclosurePosition: plot.GravestoneInfo.enclosure_position,
+            gravestoneDealer: plot.GravestoneInfo.gravestone_dealer,
+            gravestoneType: plot.GravestoneInfo.gravestone_type,
+            surroundingArea: plot.GravestoneInfo.surrounding_area,
+            establishmentDeadline: plot.GravestoneInfo.establishment_deadline,
+            establishmentDate: plot.GravestoneInfo.establishment_date,
+          }
         : undefined,
       constructionInfo: plot.ConstructionInfo
         ? {
-          id: plot.ConstructionInfo.id,
-          constructionType: plot.ConstructionInfo.construction_type || undefined,
-          startDate: plot.ConstructionInfo.start_date,
-          completionDate: plot.ConstructionInfo.completion_date,
-          contractor: plot.ConstructionInfo.contractor || undefined,
-          supervisor: plot.ConstructionInfo.supervisor || undefined,
-          progress: plot.ConstructionInfo.progress || undefined,
-          workItem1: plot.ConstructionInfo.work_item_1 || undefined,
-          workDate1: plot.ConstructionInfo.work_date_1,
-          workAmount1: plot.ConstructionInfo.work_amount_1 ? Number(plot.ConstructionInfo.work_amount_1) : undefined,
-          workStatus1: plot.ConstructionInfo.work_status_1 || undefined,
-          workItem2: plot.ConstructionInfo.work_item_2 || undefined,
-          workDate2: plot.ConstructionInfo.work_date_2,
-          workAmount2: plot.ConstructionInfo.work_amount_2 ? Number(plot.ConstructionInfo.work_amount_2) : undefined,
-          workStatus2: plot.ConstructionInfo.work_status_2 || undefined,
-          permitNumber: plot.ConstructionInfo.permit_number || undefined,
-          applicationDate: plot.ConstructionInfo.application_date,
-          permitDate: plot.ConstructionInfo.permit_date,
-          permitStatus: plot.ConstructionInfo.permit_status || undefined,
-          paymentType1: plot.ConstructionInfo.payment_type_1 || undefined,
-          paymentAmount1: plot.ConstructionInfo.payment_amount_1 ? Number(plot.ConstructionInfo.payment_amount_1) : undefined,
-          paymentDate1: plot.ConstructionInfo.payment_date_1,
-          paymentStatus1: plot.ConstructionInfo.payment_status_1 || undefined,
-          paymentType2: plot.ConstructionInfo.payment_type_2 || undefined,
-          paymentAmount2: plot.ConstructionInfo.payment_amount_2 ? Number(plot.ConstructionInfo.payment_amount_2) : undefined,
-          paymentScheduledDate2: plot.ConstructionInfo.payment_scheduled_date_2,
-          paymentStatus2: plot.ConstructionInfo.payment_status_2 || undefined,
-          constructionNotes: plot.ConstructionInfo.construction_notes || undefined,
-        }
+            id: plot.ConstructionInfo.id,
+            constructionType: plot.ConstructionInfo.construction_type || undefined,
+            startDate: plot.ConstructionInfo.start_date,
+            completionDate: plot.ConstructionInfo.completion_date,
+            contractor: plot.ConstructionInfo.contractor || undefined,
+            supervisor: plot.ConstructionInfo.supervisor || undefined,
+            progress: plot.ConstructionInfo.progress || undefined,
+            workItem1: plot.ConstructionInfo.work_item_1 || undefined,
+            workDate1: plot.ConstructionInfo.work_date_1,
+            workAmount1: plot.ConstructionInfo.work_amount_1
+              ? Number(plot.ConstructionInfo.work_amount_1)
+              : undefined,
+            workStatus1: plot.ConstructionInfo.work_status_1 || undefined,
+            workItem2: plot.ConstructionInfo.work_item_2 || undefined,
+            workDate2: plot.ConstructionInfo.work_date_2,
+            workAmount2: plot.ConstructionInfo.work_amount_2
+              ? Number(plot.ConstructionInfo.work_amount_2)
+              : undefined,
+            workStatus2: plot.ConstructionInfo.work_status_2 || undefined,
+            permitNumber: plot.ConstructionInfo.permit_number || undefined,
+            applicationDate: plot.ConstructionInfo.application_date,
+            permitDate: plot.ConstructionInfo.permit_date,
+            permitStatus: plot.ConstructionInfo.permit_status || undefined,
+            paymentType1: plot.ConstructionInfo.payment_type_1 || undefined,
+            paymentAmount1: plot.ConstructionInfo.payment_amount_1
+              ? Number(plot.ConstructionInfo.payment_amount_1)
+              : undefined,
+            paymentDate1: plot.ConstructionInfo.payment_date_1,
+            paymentStatus1: plot.ConstructionInfo.payment_status_1 || undefined,
+            paymentType2: plot.ConstructionInfo.payment_type_2 || undefined,
+            paymentAmount2: plot.ConstructionInfo.payment_amount_2
+              ? Number(plot.ConstructionInfo.payment_amount_2)
+              : undefined,
+            paymentScheduledDate2: plot.ConstructionInfo.payment_scheduled_date_2,
+            paymentStatus2: plot.ConstructionInfo.payment_status_2 || undefined,
+            constructionNotes: plot.ConstructionInfo.construction_notes || undefined,
+          }
         : undefined,
       familyContacts: plot.FamilyContacts.map((fc) => ({
         id: fc.id,
@@ -272,11 +280,11 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
       })),
       emergencyContact: plot.EmergencyContact
         ? {
-          id: plot.EmergencyContact.id,
-          name: plot.EmergencyContact.name,
-          relationship: plot.EmergencyContact.relationship,
-          phoneNumber: plot.EmergencyContact.phone_number,
-        }
+            id: plot.EmergencyContact.id,
+            name: plot.EmergencyContact.name,
+            relationship: plot.EmergencyContact.relationship,
+            phoneNumber: plot.EmergencyContact.phone_number,
+          }
         : null,
       buriedPersons: plot.BuriedPersons.map((bp) => ({
         id: bp.id,
@@ -291,33 +299,33 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
       })),
       workInfo: latestContractor?.WorkInfo
         ? {
-          id: latestContractor.WorkInfo.id,
-          companyName: latestContractor.WorkInfo.company_name,
-          companyNameKana: latestContractor.WorkInfo.company_name_kana,
-          workAddress: latestContractor.WorkInfo.work_address,
-          workPostalCode: latestContractor.WorkInfo.work_postal_code,
-          workPhoneNumber: latestContractor.WorkInfo.work_phone_number,
-          dmSetting: latestContractor.WorkInfo.dm_setting as 'allow' | 'deny' | 'limited',
-          addressType: latestContractor.WorkInfo.address_type as 'home' | 'work' | 'other',
-          notes: latestContractor.WorkInfo.notes || '',
-        }
+            id: latestContractor.WorkInfo.id,
+            companyName: latestContractor.WorkInfo.company_name,
+            companyNameKana: latestContractor.WorkInfo.company_name_kana,
+            workAddress: latestContractor.WorkInfo.work_address,
+            workPostalCode: latestContractor.WorkInfo.work_postal_code,
+            workPhoneNumber: latestContractor.WorkInfo.work_phone_number,
+            dmSetting: latestContractor.WorkInfo.dm_setting as 'allow' | 'deny' | 'limited',
+            addressType: latestContractor.WorkInfo.address_type as 'home' | 'work' | 'other',
+            notes: latestContractor.WorkInfo.notes || '',
+          }
         : undefined,
       billingInfo: latestContractor?.BillingInfo
         ? {
-          id: latestContractor.BillingInfo.id,
-          billingType: latestContractor.BillingInfo.billing_type as
-            | 'individual'
-            | 'corporate'
-            | 'bank_transfer',
-          bankName: latestContractor.BillingInfo.bank_name,
-          branchName: latestContractor.BillingInfo.branch_name,
-          accountType: latestContractor.BillingInfo.account_type as
-            | 'ordinary'
-            | 'current'
-            | 'savings',
-          accountNumber: latestContractor.BillingInfo.account_number,
-          accountHolder: latestContractor.BillingInfo.account_holder,
-        }
+            id: latestContractor.BillingInfo.id,
+            billingType: latestContractor.BillingInfo.billing_type as
+              | 'individual'
+              | 'corporate'
+              | 'bank_transfer',
+            bankName: latestContractor.BillingInfo.bank_name,
+            branchName: latestContractor.BillingInfo.branch_name,
+            accountType: latestContractor.BillingInfo.account_type as
+              | 'ordinary'
+              | 'current'
+              | 'savings',
+            accountNumber: latestContractor.BillingInfo.account_number,
+            accountHolder: latestContractor.BillingInfo.account_holder,
+          }
         : undefined,
       createdAt: plot.created_at,
       updatedAt: plot.updated_at,
@@ -390,7 +398,9 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
         error: {
           code: 'DUPLICATE_PLOT_NUMBER',
           message: '区画番号が既に存在します',
-          details: [{ field: 'plotNumber', message: `区画番号 ${plotNumber} は既に使用されています` }],
+          details: [
+            { field: 'plotNumber', message: `区画番号 ${plotNumber} は既に使用されています` },
+          ],
         },
       });
     }
@@ -759,7 +769,10 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
             code: 'DUPLICATE_PLOT_NUMBER',
             message: '区画番号が既に存在します',
             details: [
-              { field: 'plotNumber', message: `区画番号 ${input.plot.plotNumber} は既に使用されています` },
+              {
+                field: 'plotNumber',
+                message: `区画番号 ${input.plot.plotNumber} は既に使用されています`,
+              },
             ],
           },
         });
@@ -1113,10 +1126,14 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
             gravestoneInfoData.surrounding_area = input.gravestoneInfo.surroundingArea;
           }
           if (input.gravestoneInfo.establishmentDeadline !== undefined) {
-            gravestoneInfoData.establishment_deadline = parseDate(input.gravestoneInfo.establishmentDeadline);
+            gravestoneInfoData.establishment_deadline = parseDate(
+              input.gravestoneInfo.establishmentDeadline
+            );
           }
           if (input.gravestoneInfo.establishmentDate !== undefined) {
-            gravestoneInfoData.establishment_date = parseDate(input.gravestoneInfo.establishmentDate);
+            gravestoneInfoData.establishment_date = parseDate(
+              input.gravestoneInfo.establishmentDate
+            );
           }
 
           if (Object.keys(gravestoneInfoData).length > 0) {
@@ -1198,7 +1215,9 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
             constructionInfoData.permit_number = input.constructionInfo.permitNumber;
           }
           if (input.constructionInfo.applicationDate !== undefined) {
-            constructionInfoData.application_date = parseDate(input.constructionInfo.applicationDate);
+            constructionInfoData.application_date = parseDate(
+              input.constructionInfo.applicationDate
+            );
           }
           if (input.constructionInfo.permitDate !== undefined) {
             constructionInfoData.permit_date = parseDate(input.constructionInfo.permitDate);
@@ -1225,7 +1244,9 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
             constructionInfoData.payment_amount_2 = input.constructionInfo.paymentAmount2;
           }
           if (input.constructionInfo.paymentScheduledDate2 !== undefined) {
-            constructionInfoData.payment_scheduled_date_2 = parseDate(input.constructionInfo.paymentScheduledDate2);
+            constructionInfoData.payment_scheduled_date_2 = parseDate(
+              input.constructionInfo.paymentScheduledDate2
+            );
           }
           if (input.constructionInfo.paymentStatus2 !== undefined) {
             constructionInfoData.payment_status_2 = input.constructionInfo.paymentStatus2;
@@ -1311,7 +1332,8 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
             // 既存データの更新
             const contactData: any = {};
             if (contact.name !== undefined) contactData.name = contact.name;
-            if (contact.birthDate !== undefined) contactData.birth_date = parseDate(contact.birthDate);
+            if (contact.birthDate !== undefined)
+              contactData.birth_date = parseDate(contact.birthDate);
             if (contact.relationship !== undefined) contactData.relationship = contact.relationship;
             if (contact.address !== undefined) contactData.address = contact.address;
             if (contact.phoneNumber !== undefined) contactData.phone_number = contact.phoneNumber;
@@ -1321,9 +1343,12 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               contactData.registered_address = contact.registeredAddress;
             if (contact.mailingType !== undefined) contactData.mailing_type = contact.mailingType;
             if (contact.companyName !== undefined) contactData.company_name = contact.companyName;
-            if (contact.companyNameKana !== undefined) contactData.company_name_kana = contact.companyNameKana;
-            if (contact.companyAddress !== undefined) contactData.company_address = contact.companyAddress;
-            if (contact.companyPhone !== undefined) contactData.company_phone = contact.companyPhone;
+            if (contact.companyNameKana !== undefined)
+              contactData.company_name_kana = contact.companyNameKana;
+            if (contact.companyAddress !== undefined)
+              contactData.company_address = contact.companyAddress;
+            if (contact.companyPhone !== undefined)
+              contactData.company_phone = contact.companyPhone;
             if (contact.notes !== undefined) contactData.notes = contact.notes;
 
             if (Object.keys(contactData).length > 0) {
@@ -1378,7 +1403,8 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
             if (person.deathDate !== undefined) personData.death_date = parseDate(person.deathDate);
             if (person.age !== undefined) personData.age = person.age;
             if (person.gender !== undefined) personData.gender = person.gender;
-            if (person.burialDate !== undefined) personData.burial_date = parseDate(person.burialDate);
+            if (person.burialDate !== undefined)
+              personData.burial_date = parseDate(person.burialDate);
             if (person.memo !== undefined) personData.memo = person.memo;
 
             if (Object.keys(personData).length > 0) {
@@ -1423,16 +1449,20 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
           }
         } else {
           const workInfoData: any = {};
-          if (input.workInfo.companyName !== undefined) workInfoData.company_name = input.workInfo.companyName;
+          if (input.workInfo.companyName !== undefined)
+            workInfoData.company_name = input.workInfo.companyName;
           if (input.workInfo.companyNameKana !== undefined)
             workInfoData.company_name_kana = input.workInfo.companyNameKana;
-          if (input.workInfo.workAddress !== undefined) workInfoData.work_address = input.workInfo.workAddress;
+          if (input.workInfo.workAddress !== undefined)
+            workInfoData.work_address = input.workInfo.workAddress;
           if (input.workInfo.workPostalCode !== undefined)
             workInfoData.work_postal_code = input.workInfo.workPostalCode;
           if (input.workInfo.workPhoneNumber !== undefined)
             workInfoData.work_phone_number = input.workInfo.workPhoneNumber;
-          if (input.workInfo.dmSetting !== undefined) workInfoData.dm_setting = input.workInfo.dmSetting;
-          if (input.workInfo.addressType !== undefined) workInfoData.address_type = input.workInfo.addressType;
+          if (input.workInfo.dmSetting !== undefined)
+            workInfoData.dm_setting = input.workInfo.dmSetting;
+          if (input.workInfo.addressType !== undefined)
+            workInfoData.address_type = input.workInfo.addressType;
           if (input.workInfo.notes !== undefined) workInfoData.notes = input.workInfo.notes;
 
           if (Object.keys(workInfoData).length > 0) {
@@ -1470,10 +1500,14 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
           }
         } else {
           const billingInfoData: any = {};
-          if (input.billingInfo.billingType !== undefined) billingInfoData.billing_type = input.billingInfo.billingType;
-          if (input.billingInfo.bankName !== undefined) billingInfoData.bank_name = input.billingInfo.bankName;
-          if (input.billingInfo.branchName !== undefined) billingInfoData.branch_name = input.billingInfo.branchName;
-          if (input.billingInfo.accountType !== undefined) billingInfoData.account_type = input.billingInfo.accountType;
+          if (input.billingInfo.billingType !== undefined)
+            billingInfoData.billing_type = input.billingInfo.billingType;
+          if (input.billingInfo.bankName !== undefined)
+            billingInfoData.bank_name = input.billingInfo.bankName;
+          if (input.billingInfo.branchName !== undefined)
+            billingInfoData.branch_name = input.billingInfo.branchName;
+          if (input.billingInfo.accountType !== undefined)
+            billingInfoData.account_type = input.billingInfo.accountType;
           if (input.billingInfo.accountNumber !== undefined)
             billingInfoData.account_number = input.billingInfo.accountNumber;
           if (input.billingInfo.accountHolder !== undefined)

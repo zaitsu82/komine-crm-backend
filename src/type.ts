@@ -192,7 +192,6 @@ export interface CreatePlotInput {
 
 // 区画情報インターフェース
 export interface plotInfo {
-
   // 区画基本情報
   id: string; // 区画ID
   plotNumber: string; // 区画番号 例: A-56 *必須
@@ -230,7 +229,7 @@ export interface plotInfo {
     email?: string; // メール 例: example@email.com
     address: string; // 住所 *必須
     registeredAddress?: string; // 本籍地住所
-  }
+  };
 
   // 使用料
   usageFee?: {
@@ -249,7 +248,7 @@ export interface plotInfo {
   managementFee?: {
     id: string; // 管理料ID
     calculationType: string; // 計算区分 (セレクトボックス)
-    taxType: string; // 税区分 (セレクトボックス)  
+    taxType: string; // 税区分 (セレクトボックス)
     billingType: string; // 請求区分 (セレクトボックス)
     billingYears: string; // 請求年数
     area: string; // 面積 例: 10㎡
@@ -568,7 +567,6 @@ export interface UpdatePlotInput {
 
 // 合祀情報（複数の故人を一つの墓所に祀る管理）
 export interface collectiveBurial {
-
   collectiveBurialInfo?: {
     id: string;
     type: 'family' | 'relative' | 'other'; // 合祀種別（家族・親族・その他）

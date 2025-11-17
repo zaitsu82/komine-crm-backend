@@ -28,8 +28,24 @@ const mockCemeteryTypeData = [
 ];
 
 const mockTaxTypeData = [
-  { id: 1, code: 'included', name: '税込', description: null, sort_order: 1, is_active: true, tax_rate: 10.0 },
-  { id: 2, code: 'excluded', name: '税抜', description: null, sort_order: 2, is_active: true, tax_rate: null },
+  {
+    id: 1,
+    code: 'included',
+    name: '税込',
+    description: null,
+    sort_order: 1,
+    is_active: true,
+    tax_rate: 10.0,
+  },
+  {
+    id: 2,
+    code: 'excluded',
+    name: '税抜',
+    description: null,
+    sort_order: 2,
+    is_active: true,
+    tax_rate: null,
+  },
 ];
 
 const mockPrefectureData = [

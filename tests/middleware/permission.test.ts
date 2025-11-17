@@ -6,7 +6,7 @@ import {
   hasPermission,
   checkResourceAction,
   API_PERMISSIONS,
-  Role
+  Role,
 } from '../../src/middleware/permission';
 
 // Express Request型の拡張定義
@@ -39,15 +39,15 @@ describe('Permission Middleware', () => {
         name: 'Test User',
         role: 'operator',
         is_active: true,
-        supabase_uid: 'test-supabase-uid'
+        supabase_uid: 'test-supabase-uid',
       },
       method: 'GET',
       path: '/test',
-      route: { path: '/test' }
+      route: { path: '/test' },
     };
     mockResponse = {
       status: jest.fn().mockReturnThis(),
-      json: jest.fn()
+      json: jest.fn(),
     };
     mockNext = jest.fn();
   });
@@ -63,7 +63,14 @@ describe('Permission Middleware', () => {
 
   describe('requirePermission', () => {
     it('should allow access when user has required permission', () => {
-      mockRequest.user = { id: 1, email: 'test@example.com', name: 'Test User', role: 'operator', is_active: true, supabase_uid: 'test-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        role: 'operator',
+        is_active: true,
+        supabase_uid: 'test-supabase-uid',
+      };
       const middleware = requirePermission(['operator', 'manager']);
 
       middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -73,7 +80,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should allow access when user has higher permission level', () => {
-      mockRequest.user = { id: 1, email: 'admin@example.com', name: 'Admin User', role: 'admin', is_active: true, supabase_uid: 'admin-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'admin@example.com',
+        name: 'Admin User',
+        role: 'admin',
+        is_active: true,
+        supabase_uid: 'admin-supabase-uid',
+      };
       const middleware = requirePermission(['operator']);
 
       middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -83,7 +97,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should deny access when user lacks required permission', () => {
-      mockRequest.user = { id: 1, email: 'viewer@example.com', name: 'Viewer User', role: 'viewer', is_active: true, supabase_uid: 'viewer-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'viewer@example.com',
+        name: 'Viewer User',
+        role: 'viewer',
+        is_active: true,
+        supabase_uid: 'viewer-supabase-uid',
+      };
       const middleware = requirePermission(['operator', 'manager']);
 
       middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -95,10 +116,12 @@ describe('Permission Middleware', () => {
         error: {
           code: 'FORBIDDEN',
           message: '権限が不足しています',
-          details: [{
-            message: '必要な権限: operator, manager、現在の権限: viewer'
-          }]
-        }
+          details: [
+            {
+              message: '必要な権限: operator, manager、現在の権限: viewer',
+            },
+          ],
+        },
       });
     });
 
@@ -115,13 +138,20 @@ describe('Permission Middleware', () => {
         error: {
           code: 'UNAUTHORIZED',
           message: '認証が必要です',
-          details: []
-        }
+          details: [],
+        },
       });
     });
 
     it('should handle viewer role correctly', () => {
-      mockRequest.user = { id: 1, email: 'viewer@example.com', name: 'Viewer User', role: 'viewer', is_active: true, supabase_uid: 'viewer-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'viewer@example.com',
+        name: 'Viewer User',
+        role: 'viewer',
+        is_active: true,
+        supabase_uid: 'viewer-supabase-uid',
+      };
       const middleware = requirePermission(['viewer']);
 
       middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -131,7 +161,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should handle manager role with all permissions', () => {
-      mockRequest.user = { id: 1, email: 'manager@example.com', name: 'Manager User', role: 'manager', is_active: true, supabase_uid: 'manager-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'manager@example.com',
+        name: 'Manager User',
+        role: 'manager',
+        is_active: true,
+        supabase_uid: 'manager-supabase-uid',
+      };
       const middleware = requirePermission(['viewer', 'operator']);
 
       middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -141,7 +178,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should handle admin role with all permissions', () => {
-      mockRequest.user = { id: 1, email: 'admin@example.com', name: 'Admin User', role: 'admin', is_active: true, supabase_uid: 'admin-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'admin@example.com',
+        name: 'Admin User',
+        role: 'admin',
+        is_active: true,
+        supabase_uid: 'admin-supabase-uid',
+      };
       const middleware = requirePermission(['viewer', 'operator', 'manager']);
 
       middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -151,7 +195,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should handle undefined user role', () => {
-      mockRequest.user = { id: 1, email: 'test@example.com', name: 'Test User', role: undefined as any, is_active: true, supabase_uid: 'test-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        role: undefined as any,
+        is_active: true,
+        supabase_uid: 'test-supabase-uid',
+      };
       const middleware = requirePermission(['viewer']);
 
       middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -161,7 +212,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should handle multiple required roles', () => {
-      mockRequest.user = { id: 1, email: 'test@example.com', name: 'Test User', role: 'operator', is_active: true, supabase_uid: 'test-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        role: 'operator',
+        is_active: true,
+        supabase_uid: 'test-supabase-uid',
+      };
       const middleware = requirePermission(['manager', 'admin']);
 
       middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -173,15 +231,24 @@ describe('Permission Middleware', () => {
         error: {
           code: 'FORBIDDEN',
           message: '権限が不足しています',
-          details: [{
-            message: '必要な権限: manager, admin、現在の権限: operator'
-          }]
-        }
+          details: [
+            {
+              message: '必要な権限: manager, admin、現在の権限: operator',
+            },
+          ],
+        },
       });
     });
 
     it('should handle empty required roles array', () => {
-      mockRequest.user = { id: 1, email: 'viewer@example.com', name: 'Viewer User', role: 'viewer', is_active: true, supabase_uid: 'viewer-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'viewer@example.com',
+        name: 'Viewer User',
+        role: 'viewer',
+        is_active: true,
+        supabase_uid: 'viewer-supabase-uid',
+      };
       const middleware = requirePermission([]);
 
       middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -193,7 +260,14 @@ describe('Permission Middleware', () => {
 
   describe('checkApiPermission', () => {
     it('should allow access for defined API with correct permission', () => {
-      mockRequest.user = { id: 1, email: 'test@example.com', name: 'Test User', role: 'operator', is_active: true, supabase_uid: 'test-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        role: 'operator',
+        is_active: true,
+        supabase_uid: 'test-supabase-uid',
+      };
       mockRequest.method = 'POST';
       mockRequest.route = { path: '/applicants' };
       const middleware = checkApiPermission();
@@ -205,7 +279,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should deny access for defined API with insufficient permission', () => {
-      mockRequest.user = { id: 1, email: 'viewer@example.com', name: 'Viewer User', role: 'viewer', is_active: true, supabase_uid: 'viewer-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'viewer@example.com',
+        name: 'Viewer User',
+        role: 'viewer',
+        is_active: true,
+        supabase_uid: 'viewer-supabase-uid',
+      };
       mockRequest.method = 'POST';
       mockRequest.route = { path: '/applicants' };
       const middleware = checkApiPermission();
@@ -217,7 +298,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should require admin for undefined API routes', () => {
-      mockRequest.user = { id: 1, email: 'test@example.com', name: 'Test User', role: 'operator', is_active: true, supabase_uid: 'test-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        role: 'operator',
+        is_active: true,
+        supabase_uid: 'test-supabase-uid',
+      };
       mockRequest.method = 'POST';
       mockRequest.route = { path: '/undefined-route' };
       const middleware = checkApiPermission();
@@ -229,7 +317,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should allow admin for undefined API routes', () => {
-      mockRequest.user = { id: 1, email: 'admin@example.com', name: 'Admin User', role: 'admin', is_active: true, supabase_uid: 'admin-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'admin@example.com',
+        name: 'Admin User',
+        role: 'admin',
+        is_active: true,
+        supabase_uid: 'admin-supabase-uid',
+      };
       mockRequest.method = 'POST';
       mockRequest.route = { path: '/undefined-route' };
       const middleware = checkApiPermission();
@@ -240,7 +335,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should handle path parameters correctly', () => {
-      mockRequest.user = { id: 1, email: 'viewer@example.com', name: 'Viewer User', role: 'viewer', is_active: true, supabase_uid: 'viewer-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'viewer@example.com',
+        name: 'Viewer User',
+        role: 'viewer',
+        is_active: true,
+        supabase_uid: 'viewer-supabase-uid',
+      };
       mockRequest.method = 'GET';
       mockRequest.route = { path: '/applicants/:id' };
       const middleware = checkApiPermission();
@@ -252,7 +354,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should handle multiple path parameters', () => {
-      mockRequest.user = { id: 1, email: 'manager@example.com', name: 'Manager User', role: 'manager', is_active: true, supabase_uid: 'manager-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'manager@example.com',
+        name: 'Manager User',
+        role: 'manager',
+        is_active: true,
+        supabase_uid: 'manager-supabase-uid',
+      };
       mockRequest.method = 'DELETE';
       mockRequest.route = { path: '/applicants/:id' };
       const middleware = checkApiPermission();
@@ -278,13 +387,20 @@ describe('Permission Middleware', () => {
         error: {
           code: 'UNAUTHORIZED',
           message: '認証が必要です',
-          details: []
-        }
+          details: [],
+        },
       });
     });
 
     it('should handle missing route path', () => {
-      mockRequest.user = { id: 1, email: 'admin@example.com', name: 'Admin User', role: 'admin', is_active: true, supabase_uid: 'admin-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'admin@example.com',
+        name: 'Admin User',
+        role: 'admin',
+        is_active: true,
+        supabase_uid: 'admin-supabase-uid',
+      };
       mockRequest.method = 'GET';
       mockRequest.route = undefined;
       const mockRequestWithPath = { ...mockRequest, path: '/test-path' } as Request;
@@ -296,7 +412,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should handle auth endpoints correctly', () => {
-      mockRequest.user = { id: 1, email: 'viewer@example.com', name: 'Viewer User', role: 'viewer', is_active: true, supabase_uid: 'viewer-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'viewer@example.com',
+        name: 'Viewer User',
+        role: 'viewer',
+        is_active: true,
+        supabase_uid: 'viewer-supabase-uid',
+      };
       mockRequest.method = 'GET';
       mockRequest.route = { path: '/auth/me' };
       const middleware = checkApiPermission();
@@ -307,7 +430,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should handle gravestone management endpoints', () => {
-      mockRequest.user = { id: 1, email: 'test@example.com', name: 'Test User', role: 'operator', is_active: true, supabase_uid: 'test-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        role: 'operator',
+        is_active: true,
+        supabase_uid: 'test-supabase-uid',
+      };
       mockRequest.method = 'POST';
       mockRequest.route = { path: '/gravestones' };
       const middleware = checkApiPermission();
@@ -318,7 +448,14 @@ describe('Permission Middleware', () => {
     });
 
     it('should deny gravestone deletion for operator', () => {
-      mockRequest.user = { id: 1, email: 'test@example.com', name: 'Test User', role: 'operator', is_active: true, supabase_uid: 'test-supabase-uid' };
+      mockRequest.user = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        role: 'operator',
+        is_active: true,
+        supabase_uid: 'test-supabase-uid',
+      };
       mockRequest.method = 'DELETE';
       mockRequest.route = { path: '/gravestones/:id' };
       const middleware = checkApiPermission();
@@ -449,24 +586,43 @@ describe('Permission Middleware', () => {
   describe('API_PERMISSIONS constant', () => {
     it('should have correct auth endpoint permissions', () => {
       expect(API_PERMISSIONS['GET /auth/me']).toEqual(['viewer', 'operator', 'manager', 'admin']);
-      expect(API_PERMISSIONS['POST /auth/logout']).toEqual(['viewer', 'operator', 'manager', 'admin']);
+      expect(API_PERMISSIONS['POST /auth/logout']).toEqual([
+        'viewer',
+        'operator',
+        'manager',
+        'admin',
+      ]);
     });
 
     it('should have correct gravestone endpoint permissions', () => {
-      expect(API_PERMISSIONS['GET /gravestones']).toEqual(['viewer', 'operator', 'manager', 'admin']);
+      expect(API_PERMISSIONS['GET /gravestones']).toEqual([
+        'viewer',
+        'operator',
+        'manager',
+        'admin',
+      ]);
       expect(API_PERMISSIONS['POST /gravestones']).toEqual(['operator', 'manager', 'admin']);
       expect(API_PERMISSIONS['DELETE /gravestones/*']).toEqual(['manager', 'admin']);
     });
 
     it('should have correct applicant endpoint permissions', () => {
-      expect(API_PERMISSIONS['GET /applicants/*']).toEqual(['viewer', 'operator', 'manager', 'admin']);
+      expect(API_PERMISSIONS['GET /applicants/*']).toEqual([
+        'viewer',
+        'operator',
+        'manager',
+        'admin',
+      ]);
       expect(API_PERMISSIONS['POST /applicants']).toEqual(['operator', 'manager', 'admin']);
       expect(API_PERMISSIONS['DELETE /applicants/*']).toEqual(['manager', 'admin']);
     });
 
     it('should have correct usage and management fee permissions', () => {
       expect(API_PERMISSIONS['POST /usage-fees']).toEqual(['operator', 'manager', 'admin']);
-      expect(API_PERMISSIONS['POST /management-fees/calculate']).toEqual(['operator', 'manager', 'admin']);
+      expect(API_PERMISSIONS['POST /management-fees/calculate']).toEqual([
+        'operator',
+        'manager',
+        'admin',
+      ]);
     });
 
     it('should have correct admin-only permissions', () => {

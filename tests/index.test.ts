@@ -23,7 +23,7 @@ describe('Server Index', () => {
       listen: jest.fn((port, callback) => {
         if (callback) callback();
         return { close: jest.fn() };
-      })
+      }),
     };
 
     mockExpress = jest.fn(() => mockApp);
@@ -34,13 +34,13 @@ describe('Server Index', () => {
       post: jest.fn(),
       put: jest.fn(),
       delete: jest.fn(),
-      use: jest.fn()
+      use: jest.fn(),
     }));
 
     mockCors = jest.fn(() => 'cors-middleware');
 
     mockDotenv = {
-      config: jest.fn()
+      config: jest.fn(),
     };
 
     // helmet と hpp のモック
@@ -60,25 +60,25 @@ describe('Server Index', () => {
     // ルートモジュールのモック
     jest.doMock('../src/auth/authRoutes', () => ({
       __esModule: true,
-      default: 'auth-routes'
+      default: 'auth-routes',
     }));
     jest.doMock('../src/plots/plotRoutes', () => ({
       __esModule: true,
-      default: 'plot-routes'
+      default: 'plot-routes',
     }));
     jest.doMock('../src/masters/masterRoutes', () => ({
       __esModule: true,
-      default: 'master-routes'
+      default: 'master-routes',
     }));
 
     // ミドルウェアのモック
     jest.doMock('../src/middleware/errorHandler', () => ({
       errorHandler: mockErrorHandler,
-      notFoundHandler: mockNotFoundHandler
+      notFoundHandler: mockNotFoundHandler,
     }));
     jest.doMock('../src/middleware/logger', () => ({
       requestLogger: mockRequestLogger,
-      securityHeaders: mockSecurityHeaders
+      securityHeaders: mockSecurityHeaders,
     }));
     jest.doMock('../src/middleware/security', () => ({
       getCorsOptions: jest.fn(() => ({})),
@@ -89,7 +89,7 @@ describe('Server Index', () => {
       sanitizeInput: jest.fn((req: any, res: any, next: any) => next()),
     }));
 
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
+    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     process.env.PORT = '3001';
   });
 
@@ -150,10 +150,7 @@ describe('Server Index', () => {
   it('should start server on specified port', () => {
     require('../src/index');
 
-    expect(mockApp.listen).toHaveBeenCalledWith(
-      '3001',
-      expect.any(Function)
-    );
+    expect(mockApp.listen).toHaveBeenCalledWith('3001', expect.any(Function));
   });
 
   it('should start server on default port when PORT env is not set', () => {
@@ -161,10 +158,7 @@ describe('Server Index', () => {
 
     require('../src/index');
 
-    expect(mockApp.listen).toHaveBeenCalledWith(
-      4000,
-      expect.any(Function)
-    );
+    expect(mockApp.listen).toHaveBeenCalledWith(4000, expect.any(Function));
   });
 
   it('should log server startup message with correct port', () => {
@@ -192,10 +186,7 @@ describe('Server Index', () => {
 
     require('../src/index');
 
-    expect(mockApp.listen).toHaveBeenCalledWith(
-      '8080',
-      expect.any(Function)
-    );
+    expect(mockApp.listen).toHaveBeenCalledWith('8080', expect.any(Function));
   });
 
   it('should successfully import all modules', () => {
@@ -292,14 +283,12 @@ describe('Server Index', () => {
     it('should return correct health check response', () => {
       require('../src/index');
 
-      const healthHandler = mockApp.get.mock.calls.find(
-        (call: any) => call[0] === '/health'
-      )[1];
+      const healthHandler = mockApp.get.mock.calls.find((call: any) => call[0] === '/health')[1];
 
       const mockReq = {};
       const mockRes = {
         status: jest.fn().mockReturnThis(),
-        json: jest.fn()
+        json: jest.fn(),
       };
 
       healthHandler(mockReq, mockRes);
@@ -311,8 +300,8 @@ describe('Server Index', () => {
           status: 'ok',
           timestamp: expect.any(String),
           uptime: expect.any(Number),
-          environment: expect.any(String)
-        })
+          environment: expect.any(String),
+        }),
       });
     });
 
@@ -321,14 +310,12 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const healthHandler = mockApp.get.mock.calls.find(
-        (call: any) => call[0] === '/health'
-      )[1];
+      const healthHandler = mockApp.get.mock.calls.find((call: any) => call[0] === '/health')[1];
 
       const mockReq = {};
       const mockRes = {
         status: jest.fn().mockReturnThis(),
-        json: jest.fn()
+        json: jest.fn(),
       };
 
       healthHandler(mockReq, mockRes);
@@ -336,8 +323,8 @@ describe('Server Index', () => {
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
         data: expect.objectContaining({
-          environment: 'production'
-        })
+          environment: 'production',
+        }),
       });
     });
   });

@@ -565,10 +565,9 @@ describe('Auth Controller', () => {
           email: 'test@example.com',
           password: 'oldpassword123',
         });
-        expect(mockSupabaseAuth.admin.updateUserById).toHaveBeenCalledWith(
-          'supabase-uid-123',
-          { password: 'newpassword123' }
-        );
+        expect(mockSupabaseAuth.admin.updateUserById).toHaveBeenCalledWith('supabase-uid-123', {
+          password: 'newpassword123',
+        });
         expect(mockResponse.status).toHaveBeenCalledWith(200);
         expect(mockResponse.json).toHaveBeenCalledWith({
           success: true,

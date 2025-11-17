@@ -31,14 +31,24 @@ export const plotIdParamsSchema = z.object({
  */
 const applicantSchema = z
   .object({
-    name: z.string().min(1, '申込者名は必須です').max(100, '申込者名は100文字以内で入力してください'),
-    nameKana: katakanaSchema('申込者名（カナ）').max(100, '申込者名（カナ）は100文字以内で入力してください'),
+    name: z
+      .string()
+      .min(1, '申込者名は必須です')
+      .max(100, '申込者名は100文字以内で入力してください'),
+    nameKana: katakanaSchema('申込者名（カナ）').max(
+      100,
+      '申込者名（カナ）は100文字以内で入力してください'
+    ),
     birthDate: dateSchema.optional().or(z.literal('')),
     gender: z.enum(['male', 'female', 'other']).optional().or(z.literal('')),
     phoneNumber: phoneSchema,
     faxNumber: phoneSchema,
     email: emailSchema.optional().or(z.literal('')),
-    address: z.string().max(200, '住所は200文字以内で入力してください').optional().or(z.literal('')),
+    address: z
+      .string()
+      .max(200, '住所は200文字以内で入力してください')
+      .optional()
+      .or(z.literal('')),
     registeredAddress: z
       .string()
       .max(200, '登録住所は200文字以内で入力してください')
@@ -52,14 +62,24 @@ const applicantSchema = z
  */
 const contractorSchema = z
   .object({
-    name: z.string().min(1, '契約者名は必須です').max(100, '契約者名は100文字以内で入力してください'),
-    nameKana: katakanaSchema('契約者名（カナ）').max(100, '契約者名（カナ）は100文字以内で入力してください'),
+    name: z
+      .string()
+      .min(1, '契約者名は必須です')
+      .max(100, '契約者名は100文字以内で入力してください'),
+    nameKana: katakanaSchema('契約者名（カナ）').max(
+      100,
+      '契約者名（カナ）は100文字以内で入力してください'
+    ),
     birthDate: dateSchema.optional().or(z.literal('')),
     gender: z.enum(['male', 'female', 'other']).optional().or(z.literal('')),
     phoneNumber: phoneSchema,
     faxNumber: phoneSchema,
     email: emailSchema.optional().or(z.literal('')),
-    address: z.string().max(200, '住所は200文字以内で入力してください').optional().or(z.literal('')),
+    address: z
+      .string()
+      .max(200, '住所は200文字以内で入力してください')
+      .optional()
+      .or(z.literal('')),
     registeredAddress: z
       .string()
       .max(200, '登録住所は200文字以内で入力してください')
