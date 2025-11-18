@@ -1,14 +1,101 @@
+# Node.js
 node_modules
 npm-debug.log
+yarn-error.log
+package-lock.json.bak
+
+# Build artifacts
 dist
+build
+*.tsbuildinfo
+
+# Tests
+coverage
+.nyc_output
+tests
+__tests__
+*.test.ts
+*.spec.ts
+__mocks__
+
+# Environment files (セキュリティのため除外)
+.env
+.env.*
+!.env.example
+
+# Git
 .git
 .gitignore
-.env
-.env.local
-.env.*.local
-coverage
-tests
-__mocks__
-*.md
+.gitattributes
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+azure-pipelines.yml
+codecov.yml
+
+# IDE & Editor
 .vscode
+.idea
 .claude
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Scripts (開発用スクリプトは除外)
+scripts
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp
+temp
+.cache
+
+# Husky & Git hooks
+.husky
+
+# ESLint & Prettier
+.eslintrc.*
+.prettierrc.*
+eslint.config.*
+prettier.config.*
+
+# Jest
+jest.config.js
+
+# TypeScript config (ビルド時には不要)
+tsconfig.json
+
+# Playwright
+playwright-report
+test-results
+playwright.config.ts
+
+# Database files (開発用のローカルDB)
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Misc
+TODO.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+CI_CD_SETUP.md
+PRODUCTION_SETUP.md
+DOCKER_SETUP.md

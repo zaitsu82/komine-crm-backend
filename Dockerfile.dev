@@ -1,0 +1,29 @@
+# ============================================
+# Development Dockerfile (ホットリロード対応)
+# ============================================
+FROM node:20-alpine AS development
+
+# 作業ディレクトリの設定
+WORKDIR /app
+
+# 依存関係のインストールに必要なファイルをコピー
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# すべての依存関係をインストール（devDependenciesを含む）
+RUN npm ci && \
+    npx prisma generate && \
+    npm cache clean --force
+
+# ソースコードをコピー（docker-compose.dev.ymlでボリュームマウントされる）
+COPY . .
+
+# 開発用環境変数
+ENV NODE_ENV=development
+ENV PORT=4000
+
+# ポートを公開
+EXPOSE 4000
+
+# 開発サーバー起動（ts-node-devでホットリロード）
+CMD ["npm", "run", "dev"]

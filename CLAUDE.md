@@ -41,6 +41,23 @@ This is Cemetery CRM (kurosakicrm) - a comprehensive backend system for managing
 - `node scripts/insert-test-data.js` - Insert test data into database
 - `node scripts/test-prisma.js` - Test Prisma connection
 
+### Docker Commands
+- **Production Environment**:
+  - `docker compose up -d` - Start all services in production mode
+  - `docker compose down` - Stop all services
+  - `docker compose logs -f app` - View application logs
+  - `docker compose exec app npx prisma migrate deploy` - Run migrations
+- **Development Environment** (with hot reload):
+  - `docker compose -f docker-compose.dev.yml up -d` - Start dev environment
+  - `docker compose -f docker-compose.dev.yml down` - Stop dev environment
+  - `docker compose -f docker-compose.dev.yml logs -f app` - View logs
+- **Utility Commands**:
+  - `docker compose exec app sh` - Access application container shell
+  - `docker compose exec db psql -U cemetery_user -d komine_cemetery_crm` - Access PostgreSQL
+  - `docker compose exec app npx prisma studio` - Open Prisma Studio
+  - `docker compose down -v` - Remove all containers and volumes
+- **See DOCKER_SETUP.md for comprehensive Docker documentation**
+
 ## Architecture Overview
 
 ### Core Structure
@@ -265,6 +282,8 @@ The specification includes:
 
 ### Required Environment Variables
 - **DATABASE_URL**: PostgreSQL connection string for Prisma
+  - Local: `postgresql://username:password@localhost:5432/komine_cemetery_crm`
+  - Docker: Automatically constructed from `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`
 - **ALLOWED_ORIGINS**: Comma-separated list of allowed CORS origins (e.g., "https://example.com,https://app.example.com")
   - In development, if not set, all origins are allowed
   - In production, this is REQUIRED - unset will reject all cross-origin requests
@@ -273,7 +292,13 @@ The specification includes:
 - **PORT**: Server port (optional, defaults to 4000)
 - **NODE_ENV**: Environment mode (development, test, production)
 
-See `PRODUCTION_SETUP.md` for detailed production deployment configuration including CORS setup, security checklist, and troubleshooting.
+### Docker-specific Environment Variables
+- **DB_USER**: PostgreSQL username (default: cemetery_user)
+- **DB_PASSWORD**: PostgreSQL password (default: cemetery_password)
+- **DB_NAME**: PostgreSQL database name (default: komine_cemetery_crm)
+- **DB_PORT**: PostgreSQL port (default: 5432)
+
+See `PRODUCTION_SETUP.md` for detailed production deployment configuration and `DOCKER_SETUP.md` for Docker-specific setup including CORS setup, security checklist, and troubleshooting.
 
 ## CI/CD Pipeline
 
@@ -308,8 +333,10 @@ See `CI_CD_SETUP.md` for detailed setup instructions including Codecov integrati
   - HPP protection against parameter pollution
   - XSS sanitization on all inputs
 - **Documentation**:
+  - Project overview: README.md
   - API specification: API_SPECIFICATION.md, swagger.yaml, swagger.json
   - Database specification: DATABASE_SPECIFICATION.md
+  - Docker setup: DOCKER_SETUP.md
   - Production setup: PRODUCTION_SETUP.md
   - CI/CD setup: CI_CD_SETUP.md
   - Postman collection: postman-collection.json
@@ -347,3 +374,12 @@ If frontend cannot connect to backend:
 - Include protocol (https://) and exact domain (no wildcards)
 - Check server logs for "CORS blocked:" warnings
 - See `PRODUCTION_SETUP.md` for detailed troubleshooting
+
+### Docker Issues
+If Docker containers fail to start or connect:
+- **Database connection errors**: Check `DB_USER`, `DB_PASSWORD`, `DB_NAME` in `.env`
+- **Port conflicts**: Change `PORT` or `DB_PORT` in `.env` if already in use
+- **Permission errors**: Ensure proper file permissions on volumes
+- **Container not updating**: Rebuild with `docker compose build --no-cache`
+- **Prisma client errors**: Run `docker compose exec app npx prisma generate`
+- See `DOCKER_SETUP.md` for comprehensive troubleshooting guide
