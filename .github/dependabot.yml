@@ -1,0 +1,74 @@
+# Dependabot設定ファイル
+# https://docs.github.com/ja/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # npm依存関係の更新
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    # プルリクエスト設定
+    open-pull-requests-limit: 5
+    # ラベル設定
+    labels:
+      - "dependencies"
+      - "npm"
+      - "security"
+    # コミットメッセージ設定
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+    # レビュー担当者（任意）
+    # reviewers:
+    #   - "your-username"
+    # マイルストーン（任意）
+    # milestone: 1
+    # セキュリティアップデートの優先順位
+    versioning-strategy: increase
+    # グループ化（メジャーバージョン更新は個別PR）
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actionsの更新
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "ci"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Dockerの更新
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+      - "infrastructure"
+    commit-message:
+      prefix: "chore"
+      include: "scope"

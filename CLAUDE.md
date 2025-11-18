@@ -309,11 +309,22 @@ See `PRODUCTION_SETUP.md` for detailed production deployment configuration and `
   - **Build**: TypeScript compilation check, Prisma client generation
   - **Lint & Format Check**: ESLint + Prettier validation
   - **Swagger Validation**: OpenAPI spec validation
+  - **Security Audit**: npm audit (moderate+ vulnerabilities)
+  - **Docker Security Scan**: Trivy vulnerability scanner (CRITICAL/HIGH)
   - **Test**: Run all 424 tests on Node.js 18.x, 20.x, 22.x (parallel)
   - **Coverage**: Generate and upload to Codecov (Node 20.x only)
   - **All Checks Passed**: Final validation gate
 
-See `CI_CD_SETUP.md` for detailed setup instructions including Codecov integration and branch protection rules.
+### Security Scanning
+- **Dependabot**: Automated dependency updates (weekly, Monday 9:00 JST)
+  - npm packages
+  - GitHub Actions
+  - Docker base images
+- **npm audit**: Runs on every push/PR (moderate+ level)
+- **Trivy**: Docker image vulnerability scanning with GitHub Security integration
+- Results uploaded to GitHub Security tab for centralized management
+
+See `CI_CD_SETUP.md` for detailed setup instructions and `SECURITY.md` for security policy.
 
 ### Test Environment
 - CI uses **Prisma Mock** (not real PostgreSQL) for fast execution
@@ -335,6 +346,7 @@ See `CI_CD_SETUP.md` for detailed setup instructions including Codecov integrati
 - **Documentation**:
   - Project overview: README.md
   - Contributing guidelines: CONTRIBUTING.md
+  - Security policy: SECURITY.md
   - Change history: CHANGELOG.md
   - API specification: API_SPECIFICATION.md, swagger.yaml, swagger.json
   - Database specification: DATABASE_SPECIFICATION.md

@@ -369,6 +369,7 @@ GitHub Actionsによる自動テスト・ビルドパイプラインを実装し
 
 - **[README.md](./README.md)** - このファイル（プロジェクト概要）
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** - 貢献者向けガイドライン
+- **[SECURITY.md](./SECURITY.md)** - セキュリティポリシー
 - **[CHANGELOG.md](./CHANGELOG.md)** - 変更履歴
 - **[CLAUDE.md](./CLAUDE.md)** - プロジェクト概要と開発ガイドライン
 - **[DOCKER_SETUP.md](./DOCKER_SETUP.md)** - Docker環境セットアップ
@@ -399,13 +400,38 @@ GitHub Actionsによる自動テスト・ビルドパイプラインを実装し
 - **JWT認証**: Supabaseベースのトークン認証
 - **Role-based Access Control**: ロールベースの権限管理
 
+### 自動セキュリティスキャン
+
+- **Dependabot**: npm依存関係の脆弱性を週次で自動検出・PR作成
+- **npm audit**: CI/CDパイプラインで自動実行
+- **Trivy**: Dockerイメージの脆弱性スキャン（CRITICAL/HIGH検出）
+- **GitHub Security**: Security Advisoriesで脆弱性を一元管理
+
+### 手動セキュリティチェック
+
+```bash
+# npm依存関係の脆弱性チェック
+npm audit
+
+# 本番環境依存関係のみチェック
+npm audit --production
+
+# Dockerイメージの脆弱性スキャン
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  aquasec/trivy image cemetery-crm-backend:latest
+```
+
 ### セキュリティベストプラクティス
 
 1. `.env`ファイルをGitにコミットしない
 2. 本番環境では強力なパスワードを使用
 3. `ALLOWED_ORIGINS`を適切に設定
-4. 定期的な依存関係の更新（`npm audit`）
+4. 定期的な依存関係の更新（Dependabotによる自動PR）
 5. ログから機密情報を除外
+
+### 脆弱性の報告
+
+セキュリティ上の脆弱性を発見した場合は、**[SECURITY.md](./SECURITY.md)** を参照してください。
 
 ---
 

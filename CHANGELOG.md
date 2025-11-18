@@ -8,10 +8,42 @@
 ## [Unreleased]
 
 ### 計画中
-- セキュリティスキャン（Dependabot、npm audit）
-- Swagger UIホスティング
-- AWS自動デプロイ
+- Swagger UIホスティング (`/api-docs` エンドポイント)
+- AWS自動デプロイ（GitHub Actions → ECR → ECS/EC2）
 - Sentry導入（エラーモニタリング）
+- パフォーマンス最適化（Redis、Connection Pooling）
+
+---
+
+## [1.1.0] - 2025-11-19
+
+### Added
+- **セキュリティスキャン強化**
+  - .github/dependabot.yml作成 - 自動依存関係更新
+    - npm依存関係の週次自動更新
+    - GitHub Actionsの週次自動更新
+    - Dockerベースイメージの週次自動更新
+    - 月曜9:00（JST）に自動実行
+  - GitHub Actions CI/CDにセキュリティスキャン追加
+    - npm audit自動実行（moderate+脆弱性検出）
+    - Trivy Dockerイメージスキャン（CRITICAL/HIGH検出）
+    - GitHub Securityタブへの結果アップロード
+  - SECURITY.md作成 - セキュリティポリシー
+    - 脆弱性報告方法
+    - サポートバージョン
+    - セキュリティアップデート方針
+    - セキュリティベストプラクティス
+
+### Changed
+- README.md更新 - セキュリティスキャン情報追加
+- CLAUDE.md更新 - CI/CDパイプラインにセキュリティジョブ追加
+- .github/workflows/ci.yml更新 - セキュリティスキャンジョブ追加
+- TODO.md更新 - セキュリティスキャン完了マーク
+
+### Security
+- Dependabotによる自動脆弱性検出・修正PR作成
+- npm auditによるCI/CD時の脆弱性チェック
+- TrivyによるDockerイメージ脆弱性スキャン
 
 ---
 
