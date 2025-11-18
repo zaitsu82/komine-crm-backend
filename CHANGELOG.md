@@ -15,6 +15,24 @@
 
 ---
 
+## [1.1.1] - 2025-11-19
+
+### Fixed
+- **セキュリティ脆弱性の修正**
+  - playwright/playwrightを1.55.1にアップグレード（SSL証明書検証の脆弱性修正）
+  - npm audit fixによる全脆弱性の解決
+    - js-yaml: Prototype pollution修正
+    - validator: URL検証バイパス修正
+  - npm audit結果: 0 vulnerabilities
+
+### Changed
+- **依存関係の最適化**
+  - playwright, @playwright/test, prisma, swagger-parserをdevDependenciesに移動
+  - 本番環境の依存関係を9パッケージに削減（セキュリティリスク低減）
+  - CI/CD時のnpm audit --productionエラーを解消
+
+---
+
 ## [1.1.0] - 2025-11-19
 
 ### Added
