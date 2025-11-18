@@ -334,6 +334,8 @@ See `CI_CD_SETUP.md` for detailed setup instructions including Codecov integrati
   - XSS sanitization on all inputs
 - **Documentation**:
   - Project overview: README.md
+  - Contributing guidelines: CONTRIBUTING.md
+  - Change history: CHANGELOG.md
   - API specification: API_SPECIFICATION.md, swagger.yaml, swagger.json
   - Database specification: DATABASE_SPECIFICATION.md
   - Docker setup: DOCKER_SETUP.md

@@ -367,6 +367,9 @@ GitHub Actionsによる自動テスト・ビルドパイプラインを実装し
 
 ### 主要ドキュメント
 
+- **[README.md](./README.md)** - このファイル（プロジェクト概要）
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - 貢献者向けガイドライン
+- **[CHANGELOG.md](./CHANGELOG.md)** - 変更履歴
 - **[CLAUDE.md](./CLAUDE.md)** - プロジェクト概要と開発ガイドライン
 - **[DOCKER_SETUP.md](./DOCKER_SETUP.md)** - Docker環境セットアップ
 - **[PRODUCTION_SETUP.md](./PRODUCTION_SETUP.md)** - 本番環境セットアップ
@@ -408,7 +411,9 @@ GitHub Actionsによる自動テスト・ビルドパイプラインを実装し
 
 ## 🤝 貢献
 
-貢献は歓迎します！以下の手順でお願いします：
+貢献は歓迎します！詳細な貢献ガイドラインは **[CONTRIBUTING.md](./CONTRIBUTING.md)** を参照してください。
+
+### クイックスタート
 
 1. このリポジトリをフォーク
 2. 機能ブランチを作成 (`git checkout -b feature/amazing-feature`)
@@ -429,6 +434,15 @@ npm test
 # カバレッジ確認
 npm run test:coverage
 ```
+
+### その他の貢献方法
+
+- バグ報告（Issue作成）
+- 機能提案（Issue作成）
+- ドキュメント改善
+- コードレビュー
+
+詳細は **[CONTRIBUTING.md](./CONTRIBUTING.md)** をご覧ください。
 
 ---
 
