@@ -384,6 +384,9 @@ export interface plotInfo {
 
 // 区画情報更新リクエスト（部分更新対応）
 export interface UpdatePlotInput {
+  // 変更理由（履歴記録用・任意）
+  changeReason?: string;
+
   // 区画基本情報（部分更新）
   plot?: {
     plotNumber?: string; // 区画番号

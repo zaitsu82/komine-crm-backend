@@ -1,0 +1,1071 @@
+openapi: 3.0.3
+info:
+  title: Cemetery CRM API
+  description: 墓石管理システム（Cemetery Management System）のバックエンドAPI
+  version: 1.0.0
+  contact:
+    name: Cemetery CRM Support
+
+servers:
+  - url: http://localhost:4000
+    description: ローカル開発環境
+  - url: http://localhost:4000/api/v1
+    description: API v1 ベースURL
+
+tags:
+  - name: Auth
+    description: 認証関連のエンドポイント
+  - name: Plots
+    description: 区画（墓石）管理
+  - name: Masters
+    description: マスターデータ
+
+paths:
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: ログイン
+      description: メールアドレスとパスワードでログインし、JWTトークンを取得
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  example: password123
+      responses:
+        '200':
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                      session:
+                        type: object
+                        properties:
+                          access_token:
+                            type: string
+                          refresh_token:
+                            type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/plots:
+    get:
+      tags:
+        - Plots
+      summary: 区画一覧取得
+      description: 区画の一覧を取得（検索・ページネーション対応）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: ページ番号（1から開始）
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: 1ページあたりの件数
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          description: 検索キーワード（区画番号、申込者名、契約者名で検索）
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      plots:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PlotSummary'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Plots
+      summary: 区画新規作成
+      description: 新しい区画を作成（履歴も自動記録）
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlotInput'
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PlotDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/plots/{id}:
+    get:
+      tags:
+        - Plots
+      summary: 区画詳細取得
+      description: 指定した区画の詳細情報を取得（履歴も取得可能）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 区画ID（UUID）
+          schema:
+            type: string
+            format: uuid
+        - name: includeHistory
+          in: query
+          description: 履歴を含めるかどうか（trueで履歴も取得）
+          schema:
+            type: boolean
+            default: false
+            example: true
+        - name: historyLimit
+          in: query
+          description: 履歴の取得件数制限（デフォルト50、最大200）
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PlotDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Plots
+      summary: 区画更新
+      description: 区画情報を更新（履歴も自動記録）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 区画ID（UUID）
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlotInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PlotDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+    delete:
+      tags:
+        - Plots
+      summary: 区画削除（論理削除）
+      description: 区画を論理削除（deleted_atを設定）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 区画ID（UUID）
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 区画を削除しました
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabaseから発行されたJWTトークンを使用
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        name:
+          type: string
+          example: 山田太郎
+        role:
+          type: string
+          enum: [viewer, operator, manager, admin]
+          example: operator
+        is_active:
+          type: boolean
+          example: true
+
+    PlotSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+        plotNumber:
+          type: string
+          example: A-56
+        section:
+          type: string
+          example: A区
+        usage:
+          type: string
+          example: in_use
+        price:
+          type: string
+          example: '1000000'
+        applicantName:
+          type: string
+          nullable: true
+          example: 山田太郎
+        contractorName:
+          type: string
+          nullable: true
+          example: 山田花子
+
+    PlotDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        plotNumber:
+          type: string
+        section:
+          type: string
+        usage:
+          type: string
+        size:
+          type: string
+          nullable: true
+        price:
+          type: string
+        contractDate:
+          type: string
+          format: date
+          nullable: true
+        status:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        applicant:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            lastName:
+              type: string
+            firstName:
+              type: string
+            lastNameKana:
+              type: string
+            firstNameKana:
+              type: string
+            birthDate:
+              type: string
+              format: date
+              nullable: true
+            gender:
+              type: string
+              nullable: true
+            postalCode:
+              type: string
+              nullable: true
+            prefecture:
+              type: string
+              nullable: true
+            city:
+              type: string
+              nullable: true
+            address:
+              type: string
+              nullable: true
+            building:
+              type: string
+              nullable: true
+            phoneNumber:
+              type: string
+              nullable: true
+            mobilePhoneNumber:
+              type: string
+              nullable: true
+            email:
+              type: string
+              nullable: true
+            relationship:
+              type: string
+              nullable: true
+        contractor:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            lastName:
+              type: string
+            firstName:
+              type: string
+            lastNameKana:
+              type: string
+            firstNameKana:
+              type: string
+            birthDate:
+              type: string
+              format: date
+              nullable: true
+            gender:
+              type: string
+              nullable: true
+            relationship:
+              type: string
+              nullable: true
+            effectiveStartDate:
+              type: string
+              format: date
+            effectiveEndDate:
+              type: string
+              format: date
+              nullable: true
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  postalCode:
+                    type: string
+                    nullable: true
+                  prefecture:
+                    type: string
+                    nullable: true
+                  city:
+                    type: string
+                    nullable: true
+                  address:
+                    type: string
+                    nullable: true
+                  building:
+                    type: string
+                    nullable: true
+                  phoneNumber:
+                    type: string
+                    nullable: true
+                  mobilePhoneNumber:
+                    type: string
+                    nullable: true
+                  email:
+                    type: string
+                    nullable: true
+                  effectiveStartDate:
+                    type: string
+                    format: date
+                  effectiveEndDate:
+                    type: string
+                    format: date
+                    nullable: true
+        usageFee:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            feeAmount:
+              type: string
+            contractDate:
+              type: string
+              format: date
+            paymentDueDate:
+              type: string
+              format: date
+              nullable: true
+            paymentDate:
+              type: string
+              format: date
+              nullable: true
+            paymentStatus:
+              type: string
+            paymentMethod:
+              type: string
+              nullable: true
+            notes:
+              type: string
+              nullable: true
+        managementFee:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            annualFeeAmount:
+              type: string
+            billingStartDate:
+              type: string
+              format: date
+            billingEndDate:
+              type: string
+              format: date
+              nullable: true
+            paymentCycle:
+              type: string
+            notes:
+              type: string
+              nullable: true
+        gravestone:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            installationDate:
+              type: string
+              format: date
+              nullable: true
+            stoneType:
+              type: string
+              nullable: true
+            stoneOrigin:
+              type: string
+              nullable: true
+            stoneColor:
+              type: string
+              nullable: true
+            inscriptionText:
+              type: string
+              nullable: true
+            notes:
+              type: string
+              nullable: true
+        billingAccount:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            accountHolderName:
+              type: string
+              nullable: true
+            accountHolderNameKana:
+              type: string
+              nullable: true
+            bankName:
+              type: string
+              nullable: true
+            branchName:
+              type: string
+              nullable: true
+            accountType:
+              type: string
+              nullable: true
+            accountNumber:
+              type: string
+              nullable: true
+            effectiveStartDate:
+              type: string
+              format: date
+            effectiveEndDate:
+              type: string
+              format: date
+              nullable: true
+        familyContacts:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              lastName:
+                type: string
+              firstName:
+                type: string
+              lastNameKana:
+                type: string
+              firstNameKana:
+                type: string
+              relationship:
+                type: string
+                nullable: true
+              phoneNumber:
+                type: string
+                nullable: true
+              mobilePhoneNumber:
+                type: string
+                nullable: true
+              email:
+                type: string
+                nullable: true
+              postalCode:
+                type: string
+                nullable: true
+              prefecture:
+                type: string
+                nullable: true
+              city:
+                type: string
+                nullable: true
+              address:
+                type: string
+                nullable: true
+              building:
+                type: string
+                nullable: true
+              isPrimaryContact:
+                type: boolean
+              notes:
+                type: string
+                nullable: true
+        buriedPersons:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              lastName:
+                type: string
+              firstName:
+                type: string
+              lastNameKana:
+                type: string
+                nullable: true
+              firstNameKana:
+                type: string
+                nullable: true
+              birthDate:
+                type: string
+                format: date
+                nullable: true
+              deathDate:
+                type: string
+                format: date
+                nullable: true
+              burialDate:
+                type: string
+                format: date
+                nullable: true
+              gender:
+                type: string
+                nullable: true
+              relationship:
+                type: string
+                nullable: true
+              buddhistName:
+                type: string
+                nullable: true
+              notes:
+                type: string
+                nullable: true
+        constructionInfo:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              constructionDate:
+                type: string
+                format: date
+              constructionType:
+                type: string
+              contractor:
+                type: string
+                nullable: true
+              cost:
+                type: string
+                nullable: true
+              description:
+                type: string
+                nullable: true
+              notes:
+                type: string
+                nullable: true
+        history:
+          type: array
+          description: 履歴データ（includeHistory=trueの場合のみ）
+          items:
+            $ref: '#/components/schemas/HistoryRecord'
+
+    HistoryRecord:
+      type: object
+      description: 履歴レコード（変更履歴の記録）
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 789e4567-e89b-12d3-a456-426614174000
+        entity_type:
+          type: string
+          description: エンティティタイプ
+          example: Plot
+        entity_id:
+          type: string
+          format: uuid
+          description: 変更されたエンティティのID
+        plot_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: 関連する区画ID
+        action_type:
+          type: string
+          enum: [CREATE, UPDATE, DELETE]
+          description: アクションタイプ
+          example: UPDATE
+        changed_fields:
+          type: object
+          nullable: true
+          description: 変更されたフィールド（before/after形式）
+          example:
+            plot_number:
+              before: A-55
+              after: A-56
+            price:
+              before: '1000000'
+              after: '1500000'
+        changed_by:
+          type: string
+          description: 変更者のユーザーID
+          example: '3'
+        change_reason:
+          type: string
+          nullable: true
+          description: 変更理由
+          example: 区画番号と価格の更新
+        ip_address:
+          type: string
+          description: 変更時のIPアドレス
+          example: 192.168.1.100
+        created_at:
+          type: string
+          format: date-time
+          description: 履歴作成日時
+
+    CreatePlotInput:
+      type: object
+      required:
+        - plot
+      properties:
+        plot:
+          type: object
+          required:
+            - plotNumber
+            - section
+            - usage
+            - price
+            - status
+          properties:
+            plotNumber:
+              type: string
+              example: A-56
+            section:
+              type: string
+              example: A区
+            usage:
+              type: string
+              example: in_use
+            size:
+              type: string
+              nullable: true
+              example: 2.0㎡
+            price:
+              type: string
+              example: '1000000'
+            contractDate:
+              type: string
+              format: date
+              nullable: true
+            status:
+              type: string
+              example: active
+            notes:
+              type: string
+              nullable: true
+        applicant:
+          type: object
+          properties:
+            lastName:
+              type: string
+            firstName:
+              type: string
+            lastNameKana:
+              type: string
+            firstNameKana:
+              type: string
+            birthDate:
+              type: string
+              format: date
+              nullable: true
+            gender:
+              type: string
+              nullable: true
+            postalCode:
+              type: string
+              nullable: true
+            prefecture:
+              type: string
+              nullable: true
+            city:
+              type: string
+              nullable: true
+            address:
+              type: string
+              nullable: true
+            building:
+              type: string
+              nullable: true
+            phoneNumber:
+              type: string
+              nullable: true
+            mobilePhoneNumber:
+              type: string
+              nullable: true
+            email:
+              type: string
+              nullable: true
+            relationship:
+              type: string
+              nullable: true
+
+    UpdatePlotInput:
+      type: object
+      properties:
+        changeReason:
+          type: string
+          description: 変更理由（履歴記録用・任意）
+          example: 区画番号と価格の更新
+        plot:
+          type: object
+          properties:
+            plotNumber:
+              type: string
+            section:
+              type: string
+            usage:
+              type: string
+            size:
+              type: string
+              nullable: true
+            price:
+              type: string
+            contractDate:
+              type: string
+              format: date
+              nullable: true
+            status:
+              type: string
+            notes:
+              type: string
+              nullable: true
+        applicant:
+          type: object
+          properties:
+            lastName:
+              type: string
+            firstName:
+              type: string
+            lastNameKana:
+              type: string
+            firstNameKana:
+              type: string
+            birthDate:
+              type: string
+              format: date
+              nullable: true
+            gender:
+              type: string
+              nullable: true
+            postalCode:
+              type: string
+              nullable: true
+            prefecture:
+              type: string
+              nullable: true
+            city:
+              type: string
+              nullable: true
+            address:
+              type: string
+              nullable: true
+            building:
+              type: string
+              nullable: true
+            phoneNumber:
+              type: string
+              nullable: true
+            mobilePhoneNumber:
+              type: string
+              nullable: true
+            email:
+              type: string
+              nullable: true
+            relationship:
+              type: string
+              nullable: true
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 100
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        totalPages:
+          type: integer
+          example: 5
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: バリデーションエラーが発生しました
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                    example: plot.plotNumber
+                  message:
+                    type: string
+                    example: 区画番号は必須です
+
+  responses:
+    BadRequest:
+      description: バリデーションエラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: VALIDATION_ERROR
+              message: バリデーションエラーが発生しました
+              details:
+                - field: plot.plotNumber
+                  message: 区画番号は必須です
+
+    Unauthorized:
+      description: 認証エラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: UNAUTHORIZED
+              message: 認証が必要です
+              details: []
+
+    Forbidden:
+      description: 権限エラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: FORBIDDEN
+              message: この操作を実行する権限がありません
+              details: []
+
+    NotFound:
+      description: リソースが見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: NOT_FOUND
+              message: 指定されたリソースが見つかりません
+              details: []
+
+    Conflict:
+      description: データ競合エラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: CONFLICT
+              message: 区画番号が既に存在します
+              details: []
+
+    ServiceUnavailable:
+      description: サービス利用不可
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: SERVICE_UNAVAILABLE
+              message: Supabase認証サービスが利用できません
+              details: []

@@ -69,7 +69,12 @@ const mockPrisma: any = {
     update: jest.fn(),
   },
   history: {
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
   },
   $transaction: jest.fn((callback: any) => callback(mockPrisma)),
 };
@@ -433,6 +438,97 @@ describe('Plot Controller', () => {
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
+
+      it('should record history when plot basic info is updated', async () => {
+        const updatedPlot = {
+          ...existingPlot,
+          plot_number: 'A-999',
+          price: '1500000',
+        };
+
+        mockRequest = {
+          params: { id: 'plot-uuid-1' },
+          body: {
+            plot: {
+              plotNumber: 'A-999',
+              price: '1500000',
+            },
+            changeReason: 'Plot number and price update',
+          },
+          user: {
+            id: 3,
+            email: 'test@example.com',
+            name: 'Test User',
+            role: 'operator',
+            is_active: true,
+            supabase_uid: 'test-uid',
+          },
+          ip: '192.168.1.100',
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(existingPlot) // 存在確認
+          .mockResolvedValueOnce(null) // 重複チェック（重複なし）
+          .mockResolvedValueOnce(updatedPlot); // トランザクション後の更新データ
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return updatedPlot;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.history.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              entity_type: 'Plot',
+              entity_id: 'plot-uuid-1',
+              plot_id: 'plot-uuid-1',
+              action_type: 'UPDATE',
+              changed_fields: expect.objectContaining({
+                plot_number: expect.objectContaining({
+                  before: 'A-001',
+                  after: 'A-999',
+                }),
+                price: expect.objectContaining({
+                  before: '1000000',
+                  after: '1500000',
+                }),
+              }),
+              changed_by: '3',
+              change_reason: 'Plot number and price update',
+              ip_address: '192.168.1.100',
+            }),
+          })
+        );
+
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should not record history when no plot fields are changed', async () => {
+        mockRequest.params = { id: 'plot-uuid-1' };
+        mockRequest.body = {
+          applicant: {
+            name: 'New applicant',
+          },
+        };
+
+        mockPrisma.plot.findUnique
+          .mockResolvedValueOnce(existingPlot)
+          .mockResolvedValueOnce(existingPlot); // 変更なし
+
+        mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+          await callback(mockPrisma);
+          return existingPlot;
+        });
+
+        await updatePlot(mockRequest as Request, mockResponse as Response);
+
+        // Plotテーブルの変更がないため、履歴は記録されない
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
+
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
     });
 
     describe('契約者依存バリデーション', () => {
@@ -525,13 +621,9 @@ describe('Plot Controller', () => {
           },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['applicant_created']),
-            }),
-          })
-        );
+        // 新しい仕様では、Applicantの作成のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -578,13 +670,9 @@ describe('Plot Controller', () => {
           },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['applicant_updated']),
-            }),
-          })
-        );
+        // 新しい仕様では、Applicantの更新のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -619,13 +707,9 @@ describe('Plot Controller', () => {
           data: { deleted_at: expect.any(Date) },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['applicant_deleted']),
-            }),
-          })
-        );
+        // 新しい仕様では、Applicantの削除のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -701,14 +785,6 @@ describe('Plot Controller', () => {
           },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['constructionInfo_created']),
-            }),
-          })
-        );
-
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
 
@@ -752,13 +828,9 @@ describe('Plot Controller', () => {
           },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['constructionInfo_updated']),
-            }),
-          })
-        );
+        // 新しい仕様では、関連エンティティの変更のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -793,18 +865,14 @@ describe('Plot Controller', () => {
           data: { deleted_at: expect.any(Date) },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['constructionInfo_deleted']),
-            }),
-          })
-        );
+        // 新しい仕様では、関連エンティティの変更のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
 
-      it('should handle all 26 construction info fields', async () => {
+      it('should create new constructionInfo when provided', async () => {
         mockRequest.params = { id: 'plot-uuid-1' };
         mockRequest.body = {
           constructionInfo: {
@@ -882,6 +950,10 @@ describe('Plot Controller', () => {
           },
         });
 
+        // 新しい仕様では、関連エンティティの変更のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
+
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
     });
@@ -935,13 +1007,9 @@ describe('Plot Controller', () => {
           },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['familyContact_created']),
-            }),
-          })
-        );
+        // 新しい仕様では、関連エンティティの変更のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -990,13 +1058,9 @@ describe('Plot Controller', () => {
           },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['familyContact_updated']),
-            }),
-          })
-        );
+        // 新しい仕様では、関連エンティティの変更のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -1038,13 +1102,9 @@ describe('Plot Controller', () => {
           data: { deleted_at: expect.any(Date) },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['familyContact_deleted']),
-            }),
-          })
-        );
+        // 新しい仕様では、関連エンティティの変更のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -1170,13 +1230,9 @@ describe('Plot Controller', () => {
           },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['buriedPerson_created']),
-            }),
-          })
-        );
+        // 新しい仕様では、関連エンティティの変更のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -1223,13 +1279,9 @@ describe('Plot Controller', () => {
           },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['buriedPerson_updated']),
-            }),
-          })
-        );
+        // 新しい仕様では、関連エンティティの変更のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -1271,13 +1323,9 @@ describe('Plot Controller', () => {
           data: { deleted_at: expect.any(Date) },
         });
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({
-              changed_fields: expect.arrayContaining(['buriedPerson_deleted']),
-            }),
-          })
-        );
+        // 新しい仕様では、関連エンティティの変更のみでは履歴は記録されない
+        // （Plotテーブルの変更がないため）
+        expect(mockPrisma.history.create).not.toHaveBeenCalled();
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -1956,50 +2004,67 @@ describe('Plot Controller', () => {
 
     describe('Transaction and History logging', () => {
       it('should create history record with all changed fields', async () => {
-        mockRequest.params = { id: 'plot-uuid-1' };
-        mockRequest.body = {
-          plot: {
-            section: 'B',
-            price: '1500000',
-          },
-          applicant: {
-            name: '更新申込者',
-          },
+        const updatedPlot = {
+          ...existingPlot,
+          section: 'B区',
+          price: '1500000',
         };
 
-        const plotWithApplicant = {
-          ...existingPlot,
-          Applicant: { id: 'applicant-uuid-1', name: '既存申込者' },
+        mockRequest = {
+          params: { id: 'plot-uuid-1' },
+          body: {
+            plot: {
+              section: 'B区',
+              price: '1500000',
+            },
+            changeReason: '区画情報更新',
+          },
+          user: {
+            id: 3,
+            email: 'test@example.com',
+            name: 'テストユーザー',
+            role: 'operator',
+            is_active: true,
+            supabase_uid: 'test-uid',
+          },
+          ip: '127.0.0.1',
         };
 
         mockPrisma.plot.findUnique
-          .mockResolvedValueOnce(plotWithApplicant)
-          .mockResolvedValueOnce(plotWithApplicant);
-
-        mockPrisma.applicant.update.mockResolvedValue({
-          id: 'applicant-uuid-1',
-          name: '更新申込者',
-        });
+          .mockResolvedValueOnce(existingPlot)
+          .mockResolvedValueOnce(updatedPlot);
 
         mockPrisma.$transaction.mockImplementation(async (callback: any) => {
           await callback(mockPrisma);
-          return plotWithApplicant;
+          return updatedPlot;
         });
 
         await updatePlot(mockRequest as Request, mockResponse as Response);
 
-        expect(mockPrisma.history.create).toHaveBeenCalledWith({
-          data: {
-            entity_type: 'Plot',
-            entity_id: 'plot-uuid-1',
-            plot_id: 'plot-uuid-1',
-            action_type: 'UPDATE',
-            changed_fields: expect.arrayContaining(['section', 'price', 'applicant_updated']),
-            changed_by: 'テストユーザー',
-            change_reason: '区画情報更新',
-            ip_address: '127.0.0.1',
-          },
-        });
+        // 新しい仕様では、Plotテーブルの変更のみ履歴に記録（before/after形式）
+        expect(mockPrisma.history.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              entity_type: 'Plot',
+              entity_id: 'plot-uuid-1',
+              plot_id: 'plot-uuid-1',
+              action_type: 'UPDATE',
+              changed_fields: expect.objectContaining({
+                section: expect.objectContaining({
+                  before: 'A',
+                  after: 'B区',
+                }),
+                price: expect.objectContaining({
+                  before: '1000000',
+                  after: '1500000',
+                }),
+              }),
+              changed_by: '3',
+              change_reason: '区画情報更新',
+              ip_address: '127.0.0.1',
+            }),
+          })
+        );
 
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
@@ -2447,6 +2512,181 @@ describe('Plot Controller', () => {
           message: '区画情報の取得に失敗しました',
         },
       });
+    });
+
+    it('should include history when includeHistory=true', async () => {
+      const mockPlot = {
+        id: 'plot-uuid-1',
+        plot_number: 'A-001',
+        section: 'A',
+        usage: 'in_use',
+        size: '3.0㎡',
+        price: '1000000',
+        contract_date: new Date('2024-01-01'),
+        status: 'active',
+        notes: 'テスト区画',
+        deleted_at: null,
+        created_at: new Date('2024-01-01'),
+        updated_at: new Date('2024-01-01'),
+        Applicant: null,
+        Contractors: [],
+        UsageFee: null,
+        ManagementFee: null,
+        GravestoneInfo: null,
+        ConstructionInfo: null,
+        FamilyContacts: [],
+        EmergencyContact: null,
+        BuriedPersons: [],
+      };
+
+      const mockHistories = [
+        {
+          id: 'history-1',
+          entity_type: 'Plot',
+          entity_id: 'plot-uuid-1',
+          plot_id: 'plot-uuid-1',
+          action_type: 'UPDATE',
+          changed_fields: {
+            price: { before: '900000', after: '1000000' },
+          },
+          changed_by: '1',
+          change_reason: 'Price adjustment',
+          ip_address: '192.168.1.1',
+          created_at: new Date('2024-01-15'),
+        },
+        {
+          id: 'history-2',
+          entity_type: 'Plot',
+          entity_id: 'plot-uuid-1',
+          plot_id: 'plot-uuid-1',
+          action_type: 'CREATE',
+          changed_fields: undefined,
+          changed_by: '1',
+          change_reason: undefined,
+          ip_address: '192.168.1.1',
+          created_at: new Date('2024-01-01'),
+        },
+      ];
+
+      mockRequest.params = { id: 'plot-uuid-1' };
+      mockRequest.query = { includeHistory: 'true', historyLimit: '10' };
+
+      mockPrisma.plot.findUnique.mockResolvedValue(mockPlot as any);
+      mockPrisma.history.findMany.mockResolvedValue(mockHistories as any);
+
+      await getPlotById(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.history.findMany).toHaveBeenCalledWith({
+        where: { plot_id: 'plot-uuid-1' },
+        orderBy: { created_at: 'desc' },
+        take: 10,
+      });
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.objectContaining({
+          id: 'plot-uuid-1',
+          history: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'history-1',
+              action_type: 'UPDATE',
+              changed_fields: {
+                price: { before: '900000', after: '1000000' },
+              },
+            }),
+            expect.objectContaining({
+              id: 'history-2',
+              action_type: 'CREATE',
+            }),
+          ]),
+        }),
+      });
+    });
+
+    it('should not include history when includeHistory is not specified', async () => {
+      const mockPlot = {
+        id: 'plot-uuid-1',
+        plot_number: 'A-001',
+        section: 'A',
+        usage: 'in_use',
+        size: '3.0㎡',
+        price: '1000000',
+        contract_date: new Date('2024-01-01'),
+        status: 'active',
+        notes: 'テスト区画',
+        deleted_at: null,
+        created_at: new Date('2024-01-01'),
+        updated_at: new Date('2024-01-01'),
+        Applicant: null,
+        Contractors: [],
+        UsageFee: null,
+        ManagementFee: null,
+        GravestoneInfo: null,
+        ConstructionInfo: null,
+        FamilyContacts: [],
+        EmergencyContact: null,
+        BuriedPersons: [],
+      };
+
+      mockRequest.params = { id: 'plot-uuid-1' };
+      mockRequest.query = {};
+
+      mockPrisma.plot.findUnique.mockResolvedValue(mockPlot as any);
+
+      await getPlotById(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.history.findMany).not.toHaveBeenCalled();
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.not.objectContaining({
+          history: expect.anything(),
+        }),
+      });
+    });
+
+    it('should use default limit of 50 when historyLimit is not specified', async () => {
+      const mockPlot = {
+        id: 'plot-uuid-1',
+        plot_number: 'A-001',
+        section: 'A',
+        usage: 'in_use',
+        size: '3.0㎡',
+        price: '1000000',
+        contract_date: new Date('2024-01-01'),
+        status: 'active',
+        notes: null,
+        deleted_at: null,
+        created_at: new Date('2024-01-01'),
+        updated_at: new Date('2024-01-01'),
+        Applicant: null,
+        Contractors: [],
+        UsageFee: null,
+        ManagementFee: null,
+        GravestoneInfo: null,
+        ConstructionInfo: null,
+        FamilyContacts: [],
+        EmergencyContact: null,
+        BuriedPersons: [],
+      };
+
+      mockRequest.params = { id: 'plot-uuid-1' };
+      mockRequest.query = { includeHistory: 'true' };
+
+      mockPrisma.plot.findUnique.mockResolvedValue(mockPlot as any);
+      mockPrisma.history.findMany.mockResolvedValue([]);
+
+      await getPlotById(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.history.findMany).toHaveBeenCalledWith({
+        where: { plot_id: 'plot-uuid-1' },
+        orderBy: { created_at: 'desc' },
+        take: 50, // デフォルト値
+      });
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
     });
   });
 

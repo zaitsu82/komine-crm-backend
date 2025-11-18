@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { PlotListItem, plotInfo, CreatePlotInput, UpdatePlotInput } from '../type';
+import {
+  detectChangedFields,
+  getIpAddress,
+  createHistoryRecord,
+  hasChanges,
+} from '../utils/historyUtils';
 
 const prisma = new PrismaClient();
 
@@ -87,11 +93,13 @@ export const getPlots = async (_req: Request, res: Response) => {
 
 /**
  * 区画情報詳細取得
- * GET /api/v1/plots/:id
+ * GET /api/v1/plots/:id?includeHistory=true&historyLimit=50
  */
 export const getPlotById = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
+    const { includeHistory, historyLimit } = req.query;
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -102,6 +110,11 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
         },
       });
     }
+
+    // historyLimitのバリデーション（デフォルト: 50、最大: 200）
+    const limit = historyLimit
+      ? Math.min(Math.max(parseInt(historyLimit as string, 10), 1), 200)
+      : 50;
 
     const plot = await prisma.plot.findUnique({
       where: { id },
@@ -331,6 +344,36 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
       updatedAt: plot.updated_at,
       status: plot.status as 'active' | 'inactive',
     };
+
+    // 履歴データの取得（includeHistory=trueの場合のみ）
+    if (includeHistory === 'true') {
+      const histories = await prisma.history.findMany({
+        where: {
+          plot_id: id,
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+        take: limit,
+      });
+
+      // 履歴データを整形してレスポンスに追加
+      const formattedHistories = histories.map((h) => ({
+        id: h.id,
+        entity_type: h.entity_type,
+        entity_id: h.entity_id,
+        plot_id: h.plot_id,
+        action_type: h.action_type,
+        changed_fields: h.changed_fields,
+        changed_by: h.changed_by,
+        change_reason: h.change_reason,
+        ip_address: h.ip_address,
+        created_at: h.created_at,
+      }));
+
+      // plotDataに履歴を追加
+      (plotData as any).history = formattedHistories;
+    }
 
     res.status(200).json({
       success: true,
@@ -649,17 +692,19 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
       }
 
       // 12. History作成（履歴記録）
+      const historyData = createHistoryRecord({
+        entityType: 'Plot',
+        entityId: plot.id,
+        plotId: plot.id,
+        actionType: 'CREATE',
+        changedFields: null, // CREATEの場合はnull
+        changedBy: req.user?.id.toString() || 'unknown',
+        changeReason: null, // CREATEの場合は変更理由なし
+        ipAddress: getIpAddress(req),
+      });
+
       await tx.history.create({
-        data: {
-          entity_type: 'Plot',
-          entity_id: plot.id,
-          plot_id: plot.id, // ★外部キー設定
-          action_type: 'CREATE',
-          changed_fields: ['plot_number', 'section', 'usage', 'size', 'price'],
-          changed_by: req.user?.name || 'システム',
-          change_reason: '新規区画登録',
-          ip_address: req.ip || req.connection.remoteAddress || null,
-        },
+        data: historyData,
       });
 
       return plot;
@@ -792,45 +837,47 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
       });
     }
 
-    // 変更されたフィールドを追跡
-    const changedFields: string[] = [];
-
     // 4. トランザクション処理で一括更新
     const result = await prisma.$transaction(async (tx) => {
+      // 更新前のデータ全体を取得（履歴用）
+      const beforeData = {
+        plot: {
+          plot_number: existingPlot.plot_number,
+          section: existingPlot.section,
+          usage: existingPlot.usage,
+          size: existingPlot.size,
+          price: existingPlot.price,
+          contract_date: existingPlot.contract_date,
+          status: existingPlot.status,
+          notes: existingPlot.notes,
+        },
+      };
       // 4-1. Plot基本情報の更新
       if (input.plot) {
         const updateData: any = {};
         if (input.plot.plotNumber !== undefined) {
           updateData.plot_number = input.plot.plotNumber;
-          changedFields.push('plot_number');
         }
         if (input.plot.section !== undefined) {
           updateData.section = input.plot.section;
-          changedFields.push('section');
         }
         if (input.plot.usage !== undefined) {
           updateData.usage = input.plot.usage;
-          changedFields.push('usage');
         }
         if (input.plot.size !== undefined) {
           updateData.size = input.plot.size;
-          changedFields.push('size');
         }
         if (input.plot.price !== undefined) {
           updateData.price = input.plot.price;
-          changedFields.push('price');
         }
         if (input.plot.contractDate !== undefined) {
           updateData.contract_date = parseDate(input.plot.contractDate);
-          changedFields.push('contract_date');
         }
         if (input.plot.status !== undefined) {
           updateData.status = input.plot.status;
-          changedFields.push('status');
         }
         if (input.plot.notes !== undefined) {
           updateData.notes = input.plot.notes;
-          changedFields.push('notes');
         }
 
         if (Object.keys(updateData).length > 0) {
@@ -850,7 +897,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               where: { id: existingPlot.Applicant.id },
               data: { deleted_at: new Date() },
             });
-            changedFields.push('applicant_deleted');
           }
         } else {
           const applicantData: any = {};
@@ -883,7 +929,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 where: { id: existingPlot.Applicant.id },
                 data: applicantData,
               });
-              changedFields.push('applicant_updated');
             } else {
               // 新規作成
               await tx.applicant.create({
@@ -892,7 +937,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                   ...applicantData,
                 },
               });
-              changedFields.push('applicant_created');
             }
           }
         }
@@ -949,7 +993,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
             where: { id: contractorId },
             data: contractorData,
           });
-          changedFields.push('contractor_updated');
         }
       } else if (input.contractor && !latestContractor) {
         // 契約者が存在しない場合は新規作成
@@ -972,7 +1015,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
           },
         });
         contractorId = newContractor.id;
-        changedFields.push('contractor_created');
       }
 
       // 4-4. UsageFee（使用料）のupsert
@@ -984,7 +1026,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               where: { id: existingPlot.UsageFee.id },
               data: { deleted_at: new Date() },
             });
-            changedFields.push('usageFee_deleted');
           }
         } else {
           const usageFeeData: any = {};
@@ -1019,7 +1060,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 where: { id: existingPlot.UsageFee.id },
                 data: usageFeeData,
               });
-              changedFields.push('usageFee_updated');
             } else {
               await tx.usageFee.create({
                 data: {
@@ -1027,7 +1067,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                   ...usageFeeData,
                 },
               });
-              changedFields.push('usageFee_created');
             }
           }
         }
@@ -1042,7 +1081,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               where: { id: existingPlot.ManagementFee.id },
               data: { deleted_at: new Date() },
             });
-            changedFields.push('managementFee_deleted');
           }
         } else {
           const managementFeeData: any = {};
@@ -1083,7 +1121,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 where: { id: existingPlot.ManagementFee.id },
                 data: managementFeeData,
               });
-              changedFields.push('managementFee_updated');
             } else {
               await tx.managementFee.create({
                 data: {
@@ -1091,7 +1128,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                   ...managementFeeData,
                 },
               });
-              changedFields.push('managementFee_created');
             }
           }
         }
@@ -1106,7 +1142,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               where: { id: existingPlot.GravestoneInfo.id },
               data: { deleted_at: new Date() },
             });
-            changedFields.push('gravestoneInfo_deleted');
           }
         } else {
           const gravestoneInfoData: any = {};
@@ -1142,7 +1177,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 where: { id: existingPlot.GravestoneInfo.id },
                 data: gravestoneInfoData,
               });
-              changedFields.push('gravestoneInfo_updated');
             } else {
               await tx.gravestoneInfo.create({
                 data: {
@@ -1150,7 +1184,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                   ...gravestoneInfoData,
                 },
               });
-              changedFields.push('gravestoneInfo_created');
             }
           }
         }
@@ -1165,7 +1198,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               where: { id: existingPlot.ConstructionInfo.id },
               data: { deleted_at: new Date() },
             });
-            changedFields.push('constructionInfo_deleted');
           }
         } else {
           const constructionInfoData: any = {};
@@ -1261,7 +1293,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 where: { id: existingPlot.ConstructionInfo.id },
                 data: constructionInfoData,
               });
-              changedFields.push('constructionInfo_updated');
             } else {
               await tx.constructionInfo.create({
                 data: {
@@ -1269,7 +1300,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                   ...constructionInfoData,
                 },
               });
-              changedFields.push('constructionInfo_created');
             }
           }
         }
@@ -1284,7 +1314,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               where: { id: existingPlot.EmergencyContact.id },
               data: { deleted_at: new Date() },
             });
-            changedFields.push('emergencyContact_deleted');
           }
         } else {
           const emergencyContactData: any = {};
@@ -1304,7 +1333,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 where: { id: existingPlot.EmergencyContact.id },
                 data: emergencyContactData,
               });
-              changedFields.push('emergencyContact_updated');
             } else {
               await tx.emergencyContact.create({
                 data: {
@@ -1312,7 +1340,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                   ...emergencyContactData,
                 },
               });
-              changedFields.push('emergencyContact_created');
             }
           }
         }
@@ -1327,7 +1354,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               where: { id: contact.id },
               data: { deleted_at: new Date() },
             });
-            changedFields.push('familyContact_deleted');
           } else if (contact.id) {
             // 既存データの更新
             const contactData: any = {};
@@ -1356,7 +1382,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 where: { id: contact.id },
                 data: contactData,
               });
-              changedFields.push('familyContact_updated');
             }
           } else {
             // 新規作成
@@ -1379,7 +1404,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 notes: contact.notes || null,
               },
             });
-            changedFields.push('familyContact_created');
           }
         }
       }
@@ -1393,7 +1417,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               where: { id: person.id },
               data: { deleted_at: new Date() },
             });
-            changedFields.push('buriedPerson_deleted');
           } else if (person.id) {
             // 既存データの更新
             const personData: any = {};
@@ -1412,7 +1435,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 where: { id: person.id },
                 data: personData,
               });
-              changedFields.push('buriedPerson_updated');
             }
           } else {
             // 新規作成
@@ -1429,7 +1451,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 memo: person.memo || null,
               },
             });
-            changedFields.push('buriedPerson_created');
           }
         }
       }
@@ -1445,7 +1466,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               where: { id: existingWorkInfo.id },
               data: { deleted_at: new Date() },
             });
-            changedFields.push('workInfo_deleted');
           }
         } else {
           const workInfoData: any = {};
@@ -1471,7 +1491,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 where: { id: existingWorkInfo.id },
                 data: workInfoData,
               });
-              changedFields.push('workInfo_updated');
             } else {
               await tx.workInfo.create({
                 data: {
@@ -1479,7 +1498,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                   ...workInfoData,
                 },
               });
-              changedFields.push('workInfo_created');
             }
           }
         }
@@ -1496,7 +1514,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               where: { id: existingBillingInfo.id },
               data: { deleted_at: new Date() },
             });
-            changedFields.push('billingInfo_deleted');
           }
         } else {
           const billingInfoData: any = {};
@@ -1519,7 +1536,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                 where: { id: existingBillingInfo.id },
                 data: billingInfoData,
               });
-              changedFields.push('billingInfo_updated');
             } else {
               await tx.billingInfo.create({
                 data: {
@@ -1527,31 +1543,52 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
                   ...billingInfoData,
                 },
               });
-              changedFields.push('billingInfo_created');
             }
           }
         }
       }
 
-      // 4-12. History作成（変更履歴）
-      if (changedFields.length > 0) {
+      // 更新後のデータを取得
+      const updatedPlot = await tx.plot.findUnique({
+        where: { id },
+      });
+
+      // 更新後のデータを構築（履歴用）
+      const afterData = {
+        plot: {
+          plot_number: updatedPlot!.plot_number,
+          section: updatedPlot!.section,
+          usage: updatedPlot!.usage,
+          size: updatedPlot!.size,
+          price: updatedPlot!.price,
+          contract_date: updatedPlot!.contract_date,
+          status: updatedPlot!.status,
+          notes: updatedPlot!.notes,
+        },
+      };
+
+      // 変更フィールドを検出
+      const changedFields = detectChangedFields(beforeData.plot, afterData.plot);
+
+      // 4-12. History作成（変更があった場合のみ）
+      if (hasChanges(changedFields)) {
+        const historyData = createHistoryRecord({
+          entityType: 'Plot',
+          entityId: id,
+          plotId: id,
+          actionType: 'UPDATE',
+          changedFields,
+          changedBy: req.user?.id.toString() || 'unknown',
+          changeReason: input.changeReason || null,
+          ipAddress: getIpAddress(req),
+        });
+
         await tx.history.create({
-          data: {
-            entity_type: 'Plot',
-            entity_id: id,
-            plot_id: id,
-            action_type: 'UPDATE',
-            changed_fields: changedFields,
-            changed_by: req.user?.name || 'システム',
-            change_reason: '区画情報更新',
-            ip_address: req.ip || req.connection.remoteAddress || null,
-          },
+          data: historyData,
         });
       }
 
-      return await tx.plot.findUnique({
-        where: { id },
-      });
+      return updatedPlot;
     });
 
     res.status(200).json({
