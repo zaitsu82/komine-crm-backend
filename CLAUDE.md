@@ -305,6 +305,9 @@ See `PRODUCTION_SETUP.md` for detailed production deployment configuration and `
 ### GitHub Actions Workflow
 - **Workflow file**: `.github/workflows/ci.yml`
 - **Triggers**: Push/PR to `main` or `develop` branches
+- **Permissions**:
+  - `contents: read` - Repository content access
+  - `security-events: write` - SARIF upload to GitHub Security
 - **Jobs**:
   - **Build**: TypeScript compilation check, Prisma client generation
   - **Lint & Format Check**: ESLint + Prettier validation
@@ -322,6 +325,9 @@ See `PRODUCTION_SETUP.md` for detailed production deployment configuration and `
   - Docker base images
 - **npm audit**: Runs on every push/PR (moderate+ level)
 - **Trivy**: Docker image vulnerability scanning with GitHub Security integration
+  - Uses CodeQL Action v4 for SARIF upload
+  - SARIF file existence check before upload
+  - Continues on error to prevent blocking other jobs
 - Results uploaded to GitHub Security tab for centralized management
 
 See `CI_CD_SETUP.md` for detailed setup instructions and `SECURITY.md` for security policy.

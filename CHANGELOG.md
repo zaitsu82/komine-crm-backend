@@ -24,6 +24,12 @@
     - js-yaml: Prototype pollution修正
     - validator: URL検証バイパス修正
   - npm audit結果: 0 vulnerabilities
+- **CI/CDワークフローの修正**
+  - CodeQL Action v3 → v4へのアップグレード（v3は2026年12月非推奨）
+  - GitHub Actions権限の追加（security-events: write）
+  - Trivy SARIF アップロードのエラーハンドリング改善
+    - SARIFファイル存在チェックの追加
+    - Trivyスキャンのエラー時の継続処理
 
 ### Changed
 - **依存関係の最適化**
