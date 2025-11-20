@@ -32,6 +32,8 @@
   - Trivy SARIF アップロードのエラーハンドリング改善
     - SARIFファイル存在チェックの追加
     - Trivyスキャンのエラー時の継続処理
+    - SARIFアップロードステップに`continue-on-error`追加
+    - Code Scanning未有効化時もワークフロー継続
 - **Docker本番ビルドの修正**
   - `npm ci --omit=dev`に`--ignore-scripts`フラグを追加
   - prepareスクリプト（husky）が本番環境で実行されないよう修正

@@ -54,7 +54,24 @@ codecov.yml             # Codecov設定
 
 **注意**: CodecovトークンがなくてもCIは動作します（`fail_ci_if_error: false`設定のため）。
 
-### ステップ3: ブランチ保護ルールの設定（推奨）
+### ステップ3: GitHub Code Scanning有効化（オプション・推奨）
+
+Trivyのセキュリティスキャン結果をGitHub Security タブで管理するために、Code Scanningを有効化します。
+
+#### Code Scanningの要件
+
+- **パブリックリポジトリ**: Code Scanning無料で利用可能 ✅
+- **プライベートリポジトリ**: GitHub Advanced Security（有料）が必要 ❌
+
+#### 有効化手順
+
+1. GitHubリポジトリページで「Settings」タブをクリック
+2. 左サイドバーの「Security」→「Code security and analysis」をクリック
+3. 「Code scanning」セクションで「Set up」または「Enable」をクリック
+
+**注意**: Code Scanningが有効化されていない場合でも、CI/CDワークフローは正常に動作します。Trivyスキャン結果はワークフローログに表示されます。
+
+### ステップ4: ブランチ保護ルールの設定（推奨）
 
 `main`ブランチを保護して、テストが成功したコードのみマージできるようにします。
 
@@ -87,9 +104,9 @@ codecov.yml             # Codecov設定
 
 5. 「Create」をクリック
 
-### ステップ4: 動作確認
+### ステップ5: 動作確認
 
-#### 4-1. テストPull Requestの作成
+#### 5-1. テストPull Requestの作成
 
 ```bash
 # 新しいブランチを作成
@@ -104,14 +121,14 @@ git commit -m "test: Verify CI/CD pipeline"
 git push origin test/ci-setup
 ```
 
-#### 4-2. Pull Requestの作成
+#### 5-2. Pull Requestの作成
 1. GitHubリポジトリページを開く
 2. 「Pull requests」タブをクリック
 3. 「New pull request」をクリック
 4. base: `main` ← compare: `test/ci-setup` を選択
 5. 「Create pull request」をクリック
 
-#### 4-3. CI実行の確認
+#### 5-3. CI実行の確認
 Pull Requestページで以下を確認:
 
 - ✅ Build - TypeScriptコンパイル成功
@@ -124,7 +141,7 @@ Pull Requestページで以下を確認:
 
 すべてのチェックが緑色になれば、CI/CDパイプラインが正常に動作しています。
 
-#### 4-4. カバレッジレポートの確認
+#### 5-4. カバレッジレポートの確認
 
 **Codecov（オンライン）**:
 1. Pull Requestページの下部に「codecov/project」のコメントが表示されます

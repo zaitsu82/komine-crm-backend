@@ -329,7 +329,11 @@ See `PRODUCTION_SETUP.md` for detailed production deployment configuration and `
   - Uses CodeQL Action v4 for SARIF upload
   - SARIF file existence check before upload
   - Continues on error to prevent blocking other jobs
-- Results uploaded to GitHub Security tab for centralized management
+  - **Note**: SARIF upload requires GitHub Code Scanning to be enabled
+    - Public repositories: Code Scanning available for free
+    - Private repositories: Requires GitHub Advanced Security (paid)
+    - If not enabled, workflow continues with warning (table output still available)
+- Results uploaded to GitHub Security tab for centralized management (when Code Scanning enabled)
 
 See `CI_CD_SETUP.md` for detailed setup instructions and `SECURITY.md` for security policy.
 
