@@ -308,6 +308,7 @@ See `PRODUCTION_SETUP.md` for detailed production deployment configuration and `
 - **Permissions**:
   - `contents: read` - Repository content access
   - `security-events: write` - SARIF upload to GitHub Security
+  - `actions: read` - Workflow run information access
 - **Jobs**:
   - **Build**: TypeScript compilation check, Prisma client generation
   - **Lint & Format Check**: ESLint + Prettier validation
