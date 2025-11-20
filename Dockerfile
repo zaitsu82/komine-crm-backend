@@ -12,7 +12,8 @@ COPY prisma ./prisma/
 
 # 本番用依存関係のみインストール
 # OpenSSL 3.0対応のため、Prisma binaryTargets に "linux-musl-openssl-3.0.x" が必要
-RUN npm ci --omit=dev && \
+# --ignore-scriptsでprepareスクリプト(husky)をスキップ（本番環境では不要）
+RUN npm ci --omit=dev --ignore-scripts && \
     npx prisma generate && \
     npm cache clean --force
 

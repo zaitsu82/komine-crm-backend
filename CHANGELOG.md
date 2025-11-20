@@ -30,6 +30,10 @@
   - Trivy SARIF アップロードのエラーハンドリング改善
     - SARIFファイル存在チェックの追加
     - Trivyスキャンのエラー時の継続処理
+- **Docker本番ビルドの修正**
+  - `npm ci --omit=dev`に`--ignore-scripts`フラグを追加
+  - prepareスクリプト（husky）が本番環境で実行されないよう修正
+  - huskyはdevDependenciesのため、本番ビルドでは不要
 
 ### Changed
 - **依存関係の最適化**
