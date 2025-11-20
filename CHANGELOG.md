@@ -34,6 +34,8 @@
   - `npm ci --omit=dev`に`--ignore-scripts`フラグを追加
   - prepareスクリプト（husky）が本番環境で実行されないよう修正
   - huskyはdevDependenciesのため、本番ビルドでは不要
+  - `.dockerignore`から`tsconfig.json`を削除
+  - TypeScriptビルド時に`tsconfig.json`が必要（誤って除外されていた）
 
 ### Changed
 - **依存関係の最適化**

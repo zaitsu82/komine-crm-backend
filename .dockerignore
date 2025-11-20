@@ -73,9 +73,6 @@ prettier.config.*
 # Jest
 jest.config.js
 
-# TypeScript config (ビルド時には不要)
-tsconfig.json
-
 # Playwright
 playwright-report
 test-results
