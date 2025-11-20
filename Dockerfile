@@ -26,9 +26,11 @@ WORKDIR /app
 
 # 依存関係のインストール（devDependenciesを含む）
 COPY package*.json ./
-RUN npm ci
+COPY prisma ./prisma/
+RUN npm ci && \
+    npx prisma generate
 
-# ソースコードとPrismaスキーマをコピー
+# ソースコードをコピー
 COPY . .
 
 # TypeScriptのビルド

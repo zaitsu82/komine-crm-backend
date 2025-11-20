@@ -36,6 +36,8 @@
   - huskyはdevDependenciesのため、本番ビルドでは不要
   - `.dockerignore`から`tsconfig.json`を削除
   - TypeScriptビルド時に`tsconfig.json`が必要（誤って除外されていた）
+  - builder stageに`npx prisma generate`を追加
+  - TypeScriptコンパイル時にPrisma Client型定義が必要
 
 ### Changed
 - **依存関係の最適化**
