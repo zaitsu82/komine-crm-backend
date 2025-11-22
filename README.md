@@ -289,7 +289,7 @@ npm test -- --testNamePattern="GET /api/v1/plots"
 
 ### カバレッジ目標
 
-現在のカバレッジ（428テスト）:
+現在のカバレッジ（445テスト）:
 - **Functions**: 100%
 - **Lines**: 99.16%
 - **Statements**: 97.87%

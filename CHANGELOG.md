@@ -9,8 +9,59 @@
 
 ### 計画中
 - AWS自動デプロイ（GitHub Actions → ECR → ECS/EC2）
-- Sentry導入（エラーモニタリング）
 - パフォーマンス最適化（Redis、Connection Pooling）
+
+---
+
+## [1.3.0] - 2025-11-22
+
+### Added
+- **Sentryエラートラッキング**
+  - @sentry/node (v10.26.0) 導入
+  - @sentry/profiling-node (v10.26.0) 導入
+  - リアルタイムエラー監視とスタックトレース収集
+  - パフォーマンスモニタリング（トレーシング、プロファイリング）
+  - ユーザーコンテキスト自動記録（認証済みユーザー情報）
+  - リクエスト情報自動記録（URL、メソッド、クエリ、ヘッダー）
+  - エラーレベル自動分類（error, warning, info）
+  - 機密情報自動フィルタリング（パスワードフィールド）
+  - 開発環境での送信無効化（ログのみ）
+- **Sentryユーティリティ** (`src/utils/sentry.ts`)
+  - `initializeSentry()` - Sentry初期化
+  - `setSentryUser()` - ユーザー情報設定
+  - `clearSentryUser()` - ユーザー情報クリア
+  - `setSentryTag()` - カスタムタグ追加
+  - `setSentryContext()` - カスタムコンテキスト追加
+  - `captureException()` - 手動エラーキャプチャ
+  - `captureMessage()` - 手動メッセージキャプチャ
+- **テスト追加**
+  - Sentryユーティリティテスト（15テスト）
+  - Sentry統合テスト（src/index.ts、errorHandler.ts）
+  - 全445テスト成功（428 + 17新規テスト）
+
+### Changed
+- src/index.ts更新
+  - Sentry初期化を最初に実行
+  - Express統合によるリクエスト/エラー自動トラッキング
+- src/middleware/errorHandler.ts更新
+  - 全エラーをSentryに自動送信
+  - ユーザー情報とリクエスト情報を含む詳細なコンテキスト
+  - エラータイプに応じたレベル分類
+- .env更新
+  - SENTRY_DSN追加（実際のDSN設定済み）
+  - SENTRY_ENVIRONMENT追加（development）
+  - SENTRY_TRACES_SAMPLE_RATE追加（1.0）
+- .env.example更新
+  - Sentry設定セクション追加
+  - DSN、環境、サンプリングレートの説明
+- package.json更新
+  - バージョン1.3.0に更新
+  - Sentry依存関係追加（2パッケージ）
+
+### Documentation
+- CHANGELOG.md - バージョン1.3.0リリース情報追加
+- README.md - Sentryエラートラッキング情報追加（予定）
+- TODO.md - Sentry導入完了マーク（予定）
 
 ---
 

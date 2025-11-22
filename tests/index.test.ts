@@ -4,6 +4,8 @@ describe('Server Index', () => {
   let mockCors: any;
   let mockDotenv: any;
   let mockSwaggerUi: any;
+  let mockSentry: any;
+  let mockInitializeSentry: jest.Mock;
   let mockRequestLogger: jest.Mock;
   let mockSecurityHeaders: jest.Mock;
   let mockErrorHandler: jest.Mock;
@@ -49,6 +51,12 @@ describe('Server Index', () => {
       setup: jest.fn(() => jest.fn((req: any, res: any, next: any) => next())),
     };
 
+    mockInitializeSentry = jest.fn();
+    mockSentry = {
+      setupExpressErrorHandler: jest.fn(),
+      expressIntegration: jest.fn(() => 'express-integration'),
+    };
+
     // helmet と hpp のモック
     const mockHelmet = jest.fn(() => jest.fn((req: any, res: any, next: any) => next()));
     const mockHpp = jest.fn(() => jest.fn((req: any, res: any, next: any) => next()));
@@ -70,6 +78,11 @@ describe('Server Index', () => {
       __esModule: true,
       default: { openapi: '3.0.0', info: { title: 'Test API', version: '1.0.0' } },
     }));
+    jest.doMock('../src/utils/sentry', () => ({
+      initializeSentry: mockInitializeSentry,
+      default: mockSentry,
+    }));
+    jest.doMock('@sentry/node', () => mockSentry);
 
     // ルートモジュールのモック
     jest.doMock('../src/auth/authRoutes', () => ({
@@ -189,10 +202,22 @@ describe('Server Index', () => {
 
     // セキュリティミドルウェア（helmet, cors, hpp, json, urlencoded, sanitizeInput, rateLimiter）
     // + ログミドルウェア（requestLogger, securityHeaders）
-    // + Swagger UI + 3 API routes + 2 error handlers = 15 use calls
+    // + Swagger UI + 3 API routes + notFoundHandler + errorHandler = 15 use calls
     expect(mockApp.use).toHaveBeenCalledTimes(15);
     // 1 health check endpoint
     expect(mockApp.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('should initialize Sentry', () => {
+    require('../src/index');
+
+    expect(mockInitializeSentry).toHaveBeenCalledTimes(1);
+  });
+
+  it('should setup Sentry Express error handler', () => {
+    require('../src/index');
+
+    expect(mockSentry.setupExpressErrorHandler).toHaveBeenCalledWith(mockApp);
   });
 
   it('should handle different port environments', () => {

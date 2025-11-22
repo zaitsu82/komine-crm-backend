@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
+import * as Sentry from '@sentry/node';
 
 /**
  * グローバルエラーハンドラー
@@ -11,6 +12,52 @@ export const errorHandler = (error: any, req: Request, res: Response, _next: Nex
     stack: error.stack,
     path: req.path,
     method: req.method,
+  });
+
+  // Sentryにエラーを送信（ユーザー情報とリクエスト情報を含む）
+  Sentry.withScope((scope) => {
+    // ユーザー情報の追加（認証済みの場合）
+    if (req.user) {
+      scope.setUser({
+        id: req.user.id.toString(),
+        email: req.user.email,
+        username: req.user.name,
+        role: req.user.role,
+      });
+    }
+
+    // リクエスト情報の追加
+    scope.setContext('request', {
+      method: req.method,
+      url: req.url,
+      path: req.path,
+      query: req.query,
+      headers: {
+        'user-agent': req.get('user-agent'),
+        'content-type': req.get('content-type'),
+      },
+    });
+
+    // エラータイプに応じたレベル設定
+    if (error.name === 'ValidationError' || error.name === 'NotFoundError') {
+      scope.setLevel('warning');
+    } else if (error.status && error.status < 500) {
+      scope.setLevel('info');
+    } else {
+      scope.setLevel('error');
+    }
+
+    // エラーコードのタグ追加
+    if (error.code) {
+      scope.setTag('error_code', error.code);
+    }
+
+    // Prismaエラーコードのタグ追加
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      scope.setTag('prisma_code', error.code);
+    }
+
+    Sentry.captureException(error);
   });
 
   // Prismaエラーの処理

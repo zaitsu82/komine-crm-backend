@@ -30,6 +30,20 @@ declare global {
 // Don't mock @prisma/client for this test file
 jest.unmock('@prisma/client');
 
+// Mock Sentry
+jest.mock('@sentry/node', () => ({
+  withScope: jest.fn((callback) => {
+    const mockScope = {
+      setUser: jest.fn(),
+      setContext: jest.fn(),
+      setLevel: jest.fn(),
+      setTag: jest.fn(),
+    };
+    callback(mockScope);
+  }),
+  captureException: jest.fn(),
+}));
+
 describe('Error Handler Middleware', () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
@@ -40,6 +54,14 @@ describe('Error Handler Middleware', () => {
     mockRequest = {
       path: '/test',
       method: 'GET',
+      url: '/test',
+      query: {},
+      get: jest.fn((header: string): string | string[] | undefined => {
+        if (header === 'user-agent') return 'test-agent';
+        if (header === 'content-type') return 'application/json';
+        if (header === 'set-cookie') return [];
+        return undefined;
+      }) as any,
     };
     mockResponse = {
       status: jest.fn().mockReturnThis(),

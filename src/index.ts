@@ -1,6 +1,14 @@
+// 環境変数の読み込み（最初に実行）
+import dotenv from 'dotenv';
+dotenv.config();
+
+// Sentry初期化（すべてのimportとミドルウェアより前）
+import { initializeSentry } from './utils/sentry';
+import * as Sentry from '@sentry/node';
+initializeSentry();
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import swaggerUi from 'swagger-ui-express';
 import swaggerDocument from '../swagger.json';
 import authRoutes from './auth/authRoutes';
@@ -15,9 +23,6 @@ import {
   hppProtection,
   sanitizeInput,
 } from './middleware/security';
-
-// 環境変数の読み込み
-dotenv.config();
 
 const app = express();
 const PORT = process.env['PORT'] || 4000;
@@ -71,6 +76,9 @@ app.use('/api/v1/masters', masterRoutes); // マスタデータルート
 
 // 404エラーハンドラー（すべてのルートの後に配置）
 app.use(notFoundHandler);
+
+// Sentryエラーハンドラー（notFoundHandlerの後、errorHandlerの前）
+Sentry.setupExpressErrorHandler(app);
 
 // グローバルエラーハンドラー（最後に配置）
 app.use(errorHandler);
