@@ -8,10 +8,46 @@
 ## [Unreleased]
 
 ### 計画中
-- Swagger UIホスティング (`/api-docs` エンドポイント)
 - AWS自動デプロイ（GitHub Actions → ECR → ECS/EC2）
 - Sentry導入（エラーモニタリング）
 - パフォーマンス最適化（Redis、Connection Pooling）
+
+---
+
+## [1.2.0] - 2025-11-22
+
+### Added
+- **Swagger UIホスティング**
+  - `/api-docs` エンドポイント実装
+  - swagger-ui-expressパッケージ導入
+  - インタラクティブなAPI仕様書をブラウザで閲覧可能
+  - Try it out機能によるブラウザからの直接APIテスト
+  - JWT認証を使用した保護されたエンドポイントのテスト対応
+  - カスタムCSS適用（Swagger UIトップバー非表示）
+  - カスタムサイトタイトル設定（墓石管理システム API Documentation）
+- **テスト追加**
+  - Swagger UIエンドポイントのテスト（4テスト追加）
+  - `/api-docs` マウント確認テスト
+  - Swagger UI設定確認テスト
+  - サーバー起動ログにAPI Docs URL表示確認テスト
+
+### Changed
+- README.md更新
+  - API仕様セクションにSwagger UI情報追加
+  - テスト数を424→428に更新
+- src/index.ts更新
+  - Swagger UIミドルウェア追加
+  - サーバー起動メッセージにAPI Docs URL追加
+- tests/index.test.ts更新
+  - Swagger UIモック追加
+  - app.use呼び出し回数更新（14→15）
+- package.json更新
+  - swagger-ui-express追加（dependencies）
+  - @types/swagger-ui-express追加（devDependencies）
+
+### Documentation
+- README.md - Swagger UI機能説明追加
+- CHANGELOG.md - バージョン1.2.0リリース情報追加
 
 ---
 

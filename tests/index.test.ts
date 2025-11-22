@@ -3,6 +3,7 @@ describe('Server Index', () => {
   let mockExpress: any;
   let mockCors: any;
   let mockDotenv: any;
+  let mockSwaggerUi: any;
   let mockRequestLogger: jest.Mock;
   let mockSecurityHeaders: jest.Mock;
   let mockErrorHandler: jest.Mock;
@@ -43,6 +44,11 @@ describe('Server Index', () => {
       config: jest.fn(),
     };
 
+    mockSwaggerUi = {
+      serve: jest.fn((req: any, res: any, next: any) => next()),
+      setup: jest.fn(() => jest.fn((req: any, res: any, next: any) => next())),
+    };
+
     // helmet と hpp のモック
     const mockHelmet = jest.fn(() => jest.fn((req: any, res: any, next: any) => next()));
     const mockHpp = jest.fn(() => jest.fn((req: any, res: any, next: any) => next()));
@@ -56,6 +62,14 @@ describe('Server Index', () => {
     jest.doMock('express', () => mockExpress);
     jest.doMock('cors', () => mockCors);
     jest.doMock('dotenv', () => mockDotenv);
+    jest.doMock('swagger-ui-express', () => ({
+      __esModule: true,
+      default: mockSwaggerUi,
+    }));
+    jest.doMock('../swagger.json', () => ({
+      __esModule: true,
+      default: { openapi: '3.0.0', info: { title: 'Test API', version: '1.0.0' } },
+    }));
 
     // ルートモジュールのモック
     jest.doMock('../src/auth/authRoutes', () => ({
@@ -175,8 +189,8 @@ describe('Server Index', () => {
 
     // セキュリティミドルウェア（helmet, cors, hpp, json, urlencoded, sanitizeInput, rateLimiter）
     // + ログミドルウェア（requestLogger, securityHeaders）
-    // + 3 API routes + 2 error handlers = 14 use calls
-    expect(mockApp.use).toHaveBeenCalledTimes(14);
+    // + Swagger UI + 3 API routes + 2 error handlers = 15 use calls
+    expect(mockApp.use).toHaveBeenCalledTimes(15);
     // 1 health check endpoint
     expect(mockApp.get).toHaveBeenCalledTimes(1);
   });
@@ -277,6 +291,39 @@ describe('Server Index', () => {
 
       expect(mockApp.get).toHaveBeenCalledWith('/health', expect.any(Function));
     });
+
+    it('should mount Swagger UI at /api-docs', () => {
+      require('../src/index');
+
+      expect(mockApp.use).toHaveBeenCalledWith(
+        '/api-docs',
+        expect.any(Function),
+        expect.any(Function)
+      );
+    });
+  });
+
+  describe('Swagger UI configuration', () => {
+    it('should configure Swagger UI middleware', () => {
+      require('../src/index');
+
+      expect(mockSwaggerUi.serve).toBeDefined();
+      expect(mockSwaggerUi.setup).toHaveBeenCalledTimes(1);
+    });
+
+    it('should configure Swagger UI with custom options', () => {
+      require('../src/index');
+
+      expect(mockSwaggerUi.setup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          openapi: '3.0.0',
+        }),
+        expect.objectContaining({
+          customCss: expect.stringContaining('topbar'),
+          customSiteTitle: '墓石管理システム API Documentation',
+        })
+      );
+    });
   });
 
   describe('Health check endpoint', () => {
@@ -356,6 +403,15 @@ describe('Server Index', () => {
       const logMessage = consoleSpy.mock.calls[0][0];
       expect(logMessage).toContain('http://localhost:5000');
       expect(logMessage).toContain('http://localhost:5000/health');
+      expect(logMessage).toContain('http://localhost:5000/api-docs');
+    });
+
+    it('should log API Docs URL on startup', () => {
+      require('../src/index');
+
+      const logMessage = consoleSpy.mock.calls[0][0];
+      expect(logMessage).toContain('API Docs:');
+      expect(logMessage).toContain('/api-docs');
     });
   });
 });

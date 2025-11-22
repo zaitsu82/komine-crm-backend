@@ -197,6 +197,18 @@ interface SuccessResponse<T> {
 ```
 
 ### API Documentation
+
+**Swagger UI** (Interactive API Documentation):
+- **Endpoint**: `GET /api-docs`
+- **URL**: `http://localhost:4000/api-docs` (when server is running)
+- **Features**:
+  - Interactive API specification viewer
+  - Try it out functionality to test APIs directly from browser
+  - JWT authentication support for protected endpoints
+  - Request/response sample code generation
+  - Custom styling with hidden topbar
+  - Custom site title: "墓石管理システム API Documentation"
+
 Complete OpenAPI 3.0 specification available:
 - **swagger.yaml** - YAML format specification
 - **swagger.json** - JSON format specification
@@ -315,7 +327,7 @@ See `PRODUCTION_SETUP.md` for detailed production deployment configuration and `
   - **Swagger Validation**: OpenAPI spec validation
   - **Security Audit**: npm audit (moderate+ vulnerabilities)
   - **Docker Security Scan**: Trivy vulnerability scanner (CRITICAL/HIGH)
-  - **Test**: Run all 424 tests on Node.js 18.x, 20.x, 22.x (parallel)
+  - **Test**: Run all 428 tests on Node.js 18.x, 20.x, 22.x (parallel)
   - **Coverage**: Generate and upload to Codecov (Node 20.x only)
   - **All Checks Passed**: Final validation gate
 
@@ -346,7 +358,8 @@ See `CI_CD_SETUP.md` for detailed setup instructions and `SECURITY.md` for secur
 ## Important Notes
 
 - **Health check endpoint**: `GET /health` returns server status, uptime, and environment
-- **Server startup**: Displays ASCII art banner with port, environment, and health check URL
+- **API documentation endpoint**: `GET /api-docs` provides interactive Swagger UI for API testing and documentation
+- **Server startup**: Displays ASCII art banner with port, environment, health check URL, and API Docs URL
 - **Request logging**: All requests logged with timestamp, method, path, status code, duration, and user info
 - **Security**:
   - Helmet security headers (CSP, HSTS, X-Frame-Options, etc.)
@@ -366,7 +379,7 @@ See `CI_CD_SETUP.md` for detailed setup instructions and `SECURITY.md` for secur
   - CI/CD setup: CI_CD_SETUP.md
   - Postman collection: postman-collection.json
 - **Language**: Japanese language content throughout (墓石管理システム = Cemetery Management System)
-- **Test suite**: 424 tests with high coverage thresholds (Functions 100%, Lines 99%, Statements 97%, Branches 80%)
+- **Test suite**: 428 tests with high coverage thresholds (Functions 100%, Lines 99%, Statements 97%, Branches 80%)
 - **Testing approach**: Mock Prisma client defined in `__mocks__/@prisma/client.ts`
 
 ## Troubleshooting

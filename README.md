@@ -289,7 +289,7 @@ npm test -- --testNamePattern="GET /api/v1/plots"
 
 ### カバレッジ目標
 
-現在のカバレッジ（424テスト）:
+現在のカバレッジ（428テスト）:
 - **Functions**: 100%
 - **Lines**: 99.16%
 - **Statements**: 97.87%
@@ -312,7 +312,21 @@ npm run test:e2e:debug
 
 ## 📚 API仕様
 
-### OpenAPI仕様書
+### Swagger UI（インタラクティブAPI仕様書）
+
+サーバー起動後、ブラウザで以下にアクセスすると、インタラクティブなAPI仕様書を閲覧できます：
+
+```
+http://localhost:4000/api-docs
+```
+
+**機能**：
+- 📖 全エンドポイントの詳細仕様を確認
+- 🔧 ブラウザから直接APIをテスト（Try it out機能）
+- 🔐 JWT認証を使用した保護されたエンドポイントのテスト
+- 📝 リクエスト/レスポンスのサンプルコード生成
+
+### OpenAPI仕様書ファイル
 
 - **swagger.yaml** - YAML形式のAPI仕様書
 - **swagger.json** - JSON形式のAPI仕様書

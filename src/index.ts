@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import swaggerUi from 'swagger-ui-express';
+import swaggerDocument from '../swagger.json';
 import authRoutes from './auth/authRoutes';
 import plotRoutes from './plots/plotRoutes';
 import masterRoutes from './masters/masterRoutes';
@@ -52,6 +54,16 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// Swagger UI（API仕様書）
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerDocument, {
+    customCss: '.swagger-ui .topbar { display: none }', // Swagger UIのトップバーを非表示
+    customSiteTitle: '墓石管理システム API Documentation',
+  })
+);
+
 // APIルート
 app.use('/api/v1/auth', authRoutes); // 認証ルート
 app.use('/api/v1/plots', plotRoutes); // 区画情報ルート
@@ -71,9 +83,10 @@ app.listen(PORT, () => {
 ╠════════════════════════════════════════════════════════╣
 ║   Status: Running                                      ║
 ║   Port: ${PORT}                                           ║
-║   Environment: ${process.env['NODE_ENV'] || 'development'}                               ║
+║   Environment: ${process.env['NODE_ENV'] || 'development'}                             ║
 ║   URL: http://localhost:${PORT}                           ║
 ║   Health Check: http://localhost:${PORT}/health           ║
+║   API Docs: http://localhost:${PORT}/api-docs             ║
 ╚════════════════════════════════════════════════════════╝
   `);
 });
