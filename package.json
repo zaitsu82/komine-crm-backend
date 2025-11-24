@@ -15,6 +15,7 @@
     "swagger:validate": "node scripts/swagger.js validate",
     "swagger:json": "node scripts/swagger.js json",
     "swagger:build": "node scripts/swagger.js build",
+    "billing:generate": "ts-node scripts/generate-collective-burial-invoices.ts",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
