@@ -188,6 +188,14 @@ export interface CreatePlotInput {
     accountNumber: string;
     accountHolder: string;
   };
+
+  // 合祀情報（任意）
+  collectiveBurial?: {
+    burialCapacity: number; // 埋葬上限人数 *必須
+    validityPeriodYears: number; // 有効期間（年単位） *必須
+    billingAmount?: number; // 請求金額
+    notes?: string; // 備考
+  };
 }
 
 // 区画情報インターフェース
@@ -374,6 +382,19 @@ export interface plotInfo {
     accountType: 'ordinary' | 'current' | 'savings'; // 口座科目
     accountNumber: string; // 記号番号
     accountHolder: string; // 口座名義
+  };
+
+  // 合祀情報
+  collectiveBurial?: {
+    id: string;
+    burialCapacity: number; // 埋葬上限人数
+    currentBurialCount: number; // 現在埋葬人数
+    capacityReachedDate: Date | null; // 上限到達日
+    validityPeriodYears: number; // 有効期間（年単位）
+    billingScheduledDate: Date | null; // 請求予定日
+    billingStatus: 'pending' | 'billed' | 'paid'; // 請求状況
+    billingAmount: number | null; // 請求金額
+    notes: string | null; // 備考
   };
 
   // システム情報
@@ -566,48 +587,28 @@ export interface UpdatePlotInput {
     accountNumber?: string;
     accountHolder?: string;
   } | null;
+
+  // 合祀情報（upsert）
+  collectiveBurial?: {
+    burialCapacity?: number; // 埋葬上限人数
+    validityPeriodYears?: number; // 有効期間（年単位）
+    billingAmount?: number; // 請求金額
+    notes?: string; // 備考
+  } | null;
 }
 
-// 合祀情報（複数の故人を一つの墓所に祀る管理）
-export interface collectiveBurial {
-  collectiveBurialInfo?: {
-    id: string;
-    type: 'family' | 'relative' | 'other'; // 合祀種別（家族・親族・その他）
-    ceremonies: {
-      id: string;
-      date: Date | null; // 合祀実施日
-      officiant: string; // 導師・執行者
-      religion: string; // 宗派
-      participants: number; // 参列者数
-      location: string; // 実施場所
-      memo?: string; // 備考
-    }[];
-    persons: {
-      id: string;
-      name: string; // 故人氏名
-      nameKana: string; // 故人氏名カナ
-      relationship: string; // 続柄
-      deathDate: Date | null; // 死亡日
-      age?: number; // 享年
-      gender: 'male' | 'female' | undefined; // 性別
-      originalPlotNumber?: string; // 元の墓所・区画番号
-      transferDate?: Date | null; // 移転日
-      certificateNumber?: string; // 改葬許可証番号
-      memo?: string; // 備考
-    }[];
-    mainRepresentative: string; // 主たる代表者（契約者との関係）
-    totalFee?: number; // 合祀料金総額
-    documents?: {
-      id: string;
-      type: 'permit' | 'certificate' | 'agreement' | 'other'; // 書類種別
-      name: string; // 書類名
-      issuedDate?: Date | null; // 発行日
-      expiryDate?: Date | null; // 有効期限
-      memo?: string; // 備考
-    }[];
-    specialRequests?: string; // 特別な要望・配慮事項（宗教的配慮含む）
-    status: 'planned' | 'completed' | 'cancelled'; // 実施状況
-    createdAt: Date;
-    updatedAt: Date;
-  }[];
+// 合祀情報（複数の故人を一つの区画に祀る管理）
+export interface CollectiveBurialInfo {
+  id: string; // 合祀情報ID
+  plotId: string; // 区画ID
+  burialCapacity: number; // 埋葬上限人数
+  currentBurialCount: number; // 現在埋葬人数（BuriedPersonsから自動集計）
+  capacityReachedDate: Date | null; // 上限到達日
+  validityPeriodYears: number; // 有効期間（年単位）
+  billingScheduledDate: Date | null; // 請求予定日（上限到達日 + 有効期間）
+  billingStatus: 'pending' | 'billed' | 'paid'; // 請求状況
+  billingAmount: number | null; // 請求金額
+  notes: string | null; // 備考
+  createdAt: Date; // 作成日時
+  updatedAt: Date; // 更新日時
 }

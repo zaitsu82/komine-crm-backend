@@ -2447,6 +2447,7 @@ describe('Plot Controller', () => {
           BuriedPersons: {
             where: { deleted_at: null },
           },
+          CollectiveBurial: true,
         },
       });
 

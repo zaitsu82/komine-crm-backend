@@ -105,7 +105,6 @@ prisma/generated/
 # Development notes and design documents
 *design*.md
 *notes*.md
-*TODO*.md
 *TESTING*.md
 
 # API testing (uncomment if you want to exclude Postman collections)

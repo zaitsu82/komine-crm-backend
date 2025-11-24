@@ -24,15 +24,16 @@ model Plot {
   deleted_at    DateTime?
 
   // Relations
-  Applicant        Applicant?
-  Contractors      Contractor[]
-  UsageFee         UsageFee?
-  ManagementFee    ManagementFee?
-  GravestoneInfo   GravestoneInfo?
-  ConstructionInfo ConstructionInfo?
-  FamilyContacts   FamilyContact[]
-  EmergencyContact EmergencyContact?
-  BuriedPersons    BuriedPerson[]
+  Applicant         Applicant?
+  Contractors       Contractor[]
+  UsageFee          UsageFee?
+  ManagementFee     ManagementFee?
+  GravestoneInfo    GravestoneInfo?
+  ConstructionInfo  ConstructionInfo?
+  FamilyContacts    FamilyContact[]
+  EmergencyContact  EmergencyContact?
+  BuriedPersons     BuriedPerson[]
+  CollectiveBurial  CollectiveBurial?
 
   @@index([plot_number])
   @@index([usage, section])
@@ -543,4 +544,29 @@ model PrefectureMaster {
   updated_at DateTime @updatedAt
 
   @@map("prefecture_master")
+}
+
+// 合祀情報（複数の故人を一つの区画に祀る管理）
+model CollectiveBurial {
+  id                     String    @id @default(uuid()) @map("collective_burial_id")
+  plot_id                String    @unique // 区画ID（1:1関係）
+  burial_capacity        Int // 埋葬上限人数
+  current_burial_count   Int       @default(0) // 現在埋葬人数（BuriedPersonsから自動集計）
+  capacity_reached_date  DateTime? @db.Date // 上限到達日
+  validity_period_years  Int // 有効期間（年単位）
+  billing_scheduled_date DateTime? @db.Date // 請求予定日（上限到達日 + 有効期間）
+  billing_status         String    @default("pending") @db.VarChar(20) // pending, billed, paid
+  billing_amount         Decimal?  @db.Decimal(15, 2) // 請求金額
+  notes                  String?   @db.Text // 備考
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+  deleted_at             DateTime?
+
+  // Relations
+  Plot Plot @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+
+  @@index([plot_id])
+  @@index([billing_status])
+  @@index([billing_scheduled_date])
+  @@map("collective_burials")
 }

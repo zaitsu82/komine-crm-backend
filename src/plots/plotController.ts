@@ -140,6 +140,7 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
         BuriedPersons: {
           where: { deleted_at: null },
         },
+        CollectiveBurial: true,
       },
     });
 
@@ -338,6 +339,21 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
               | 'savings',
             accountNumber: latestContractor.BillingInfo.account_number,
             accountHolder: latestContractor.BillingInfo.account_holder,
+          }
+        : undefined,
+      collectiveBurial: plot.CollectiveBurial
+        ? {
+            id: plot.CollectiveBurial.id,
+            burialCapacity: plot.CollectiveBurial.burial_capacity,
+            currentBurialCount: plot.CollectiveBurial.current_burial_count,
+            capacityReachedDate: plot.CollectiveBurial.capacity_reached_date,
+            validityPeriodYears: plot.CollectiveBurial.validity_period_years,
+            billingScheduledDate: plot.CollectiveBurial.billing_scheduled_date,
+            billingStatus: plot.CollectiveBurial.billing_status as 'pending' | 'billed' | 'paid',
+            billingAmount: plot.CollectiveBurial.billing_amount
+              ? Number(plot.CollectiveBurial.billing_amount)
+              : null,
+            notes: plot.CollectiveBurial.notes || null,
           }
         : undefined,
       createdAt: plot.created_at,
@@ -659,6 +675,20 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
         }
       }
 
+      // 9-2. CollectiveBurial作成（任意）
+      if (input.collectiveBurial) {
+        await tx.collectiveBurial.create({
+          data: {
+            plot_id: plot.id, // ★外部キー設定
+            burial_capacity: input.collectiveBurial.burialCapacity,
+            current_burial_count: 0, // 初期値は0
+            validity_period_years: input.collectiveBurial.validityPeriodYears,
+            billing_amount: input.collectiveBurial.billingAmount || null,
+            notes: input.collectiveBurial.notes || null,
+          },
+        });
+      }
+
       // 10. WorkInfo作成（任意、契約者に依存）
       if (input.workInfo && contractor) {
         await tx.workInfo.create({
@@ -788,6 +818,7 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
         BuriedPersons: {
           where: { deleted_at: null },
         },
+        CollectiveBurial: true,
       },
     });
 
@@ -1452,6 +1483,65 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               },
             });
           }
+        }
+      }
+
+      // 4-9-2. 埋葬者数が変更された場合、合祀情報の自動更新
+      if (input.buriedPersons !== undefined && existingPlot.CollectiveBurial) {
+        // 埋葬者数の自動カウントと上限到達判定
+        const { updateCollectiveBurialCount } = await import('../utils/collectiveBurialUtils');
+        await updateCollectiveBurialCount(tx, id);
+      }
+
+      // 4-9-3. CollectiveBurial（合祀情報）のupsert
+      if (input.collectiveBurial !== undefined) {
+        const existingCollectiveBurial = existingPlot.CollectiveBurial;
+
+        if (input.collectiveBurial === null) {
+          // 削除（論理削除）
+          if (existingCollectiveBurial) {
+            await tx.collectiveBurial.update({
+              where: { id: existingCollectiveBurial.id },
+              data: { deleted_at: new Date() },
+            });
+          }
+        } else {
+          const collectiveBurialData: any = {};
+          if (input.collectiveBurial.burialCapacity !== undefined) {
+            collectiveBurialData.burial_capacity = input.collectiveBurial.burialCapacity;
+          }
+          if (input.collectiveBurial.validityPeriodYears !== undefined) {
+            collectiveBurialData.validity_period_years = input.collectiveBurial.validityPeriodYears;
+          }
+          if (input.collectiveBurial.billingAmount !== undefined) {
+            collectiveBurialData.billing_amount = input.collectiveBurial.billingAmount;
+          }
+          if (input.collectiveBurial.notes !== undefined) {
+            collectiveBurialData.notes = input.collectiveBurial.notes;
+          }
+
+          if (Object.keys(collectiveBurialData).length > 0) {
+            if (existingCollectiveBurial) {
+              // 更新
+              await tx.collectiveBurial.update({
+                where: { id: existingCollectiveBurial.id },
+                data: collectiveBurialData,
+              });
+            } else {
+              // 新規作成
+              await tx.collectiveBurial.create({
+                data: {
+                  plot_id: id,
+                  current_burial_count: 0, // 初期値
+                  ...collectiveBurialData,
+                },
+              });
+            }
+          }
+
+          // 合祀情報作成後、埋葬人数を再計算
+          const { updateCollectiveBurialCount } = await import('../utils/collectiveBurialUtils');
+          await updateCollectiveBurialCount(tx, id);
         }
       }
 
