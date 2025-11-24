@@ -1044,6 +1044,9 @@
             "items": {
               "$ref": "#/components/schemas/HistoryRecord"
             }
+          },
+          "collectiveBurial": {
+            "$ref": "#/components/schemas/CollectiveBurial"
           }
         }
       },
@@ -1117,6 +1120,132 @@
             "type": "string",
             "format": "date-time",
             "description": "履歴作成日時"
+          }
+        }
+      },
+      "CollectiveBurial": {
+        "type": "object",
+        "nullable": true,
+        "description": "合祀情報（複数の故人を一つの区画に祀る管理）",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "123e4567-e89b-12d3-a456-426614174001",
+            "description": "合祀情報ID"
+          },
+          "burialCapacity": {
+            "type": "integer",
+            "example": 10,
+            "description": "埋葬上限人数"
+          },
+          "currentBurialCount": {
+            "type": "integer",
+            "example": 8,
+            "description": "現在埋葬人数（BuriedPersonsから自動集計）"
+          },
+          "capacityReachedDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "example": "2026-07-15",
+            "description": "上限到達日（自動設定）"
+          },
+          "validityPeriodYears": {
+            "type": "integer",
+            "example": 3,
+            "description": "有効期間（年単位）"
+          },
+          "billingScheduledDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "example": "2029-07-15",
+            "description": "請求予定日（上限到達日 + 有効期間、自動計算）"
+          },
+          "billingStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "billed",
+              "paid"
+            ],
+            "example": "pending",
+            "description": "請求状況（pending=未請求, billed=請求済み, paid=入金済み）"
+          },
+          "billingAmount": {
+            "type": "number",
+            "nullable": true,
+            "example": 500000,
+            "description": "請求金額"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "example": "家族墓としての利用",
+            "description": "備考"
+          }
+        }
+      },
+      "CollectiveBurialInput": {
+        "type": "object",
+        "nullable": true,
+        "description": "合祀情報の作成・更新用入力スキーマ",
+        "required": [
+          "burialCapacity",
+          "validityPeriodYears"
+        ],
+        "properties": {
+          "burialCapacity": {
+            "type": "integer",
+            "example": 10,
+            "description": "埋葬上限人数 *必須"
+          },
+          "validityPeriodYears": {
+            "type": "integer",
+            "example": 3,
+            "description": "有効期間（年単位） *必須"
+          },
+          "billingAmount": {
+            "type": "number",
+            "nullable": true,
+            "example": 500000,
+            "description": "請求金額（任意）"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "example": "家族墓としての利用",
+            "description": "備考（任意）"
+          }
+        }
+      },
+      "CollectiveBurialUpdateInput": {
+        "type": "object",
+        "nullable": true,
+        "description": "合祀情報の更新用入力スキーマ（null指定で削除）",
+        "properties": {
+          "burialCapacity": {
+            "type": "integer",
+            "example": 12,
+            "description": "埋葬上限人数（任意）"
+          },
+          "validityPeriodYears": {
+            "type": "integer",
+            "example": 5,
+            "description": "有効期間（年単位）（任意）"
+          },
+          "billingAmount": {
+            "type": "number",
+            "nullable": true,
+            "example": 600000,
+            "description": "請求金額（任意）"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "example": "上限人数を増加",
+            "description": "備考（任意）"
           }
         }
       },
@@ -1233,6 +1362,9 @@
                 "nullable": true
               }
             }
+          },
+          "collectiveBurial": {
+            "$ref": "#/components/schemas/CollectiveBurialInput"
           }
         }
       },
@@ -1338,6 +1470,9 @@
                 "nullable": true
               }
             }
+          },
+          "collectiveBurial": {
+            "$ref": "#/components/schemas/CollectiveBurialUpdateInput"
           }
         }
       },

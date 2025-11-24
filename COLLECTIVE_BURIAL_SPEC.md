@@ -1,8 +1,21 @@
 # 合祀情報仕様書
 
+**バージョン**: v1.0.0
+**実装状況**: ✅ 完了（Phase 1-5）
+**最終更新**: 2025-11-24
+
 ## 概要
 
 合祀情報機能は、霊園の一区画に複数の故人を祀る管理を行います。埋葬上限人数に達した日から有効期間のカウントを開始し、期間満了時に請求を自動実行します。
+
+**実装完了機能**:
+- ✅ データモデル定義（Prisma）
+- ✅ TypeScript型定義
+- ✅ CRUD操作実装（Controller）
+- ✅ ビジネスロジック実装（Utils）
+- ✅ 自動バッチ処理（請求生成）
+- ✅ 包括的テストスイート（23テストケース）
+- ✅ API仕様書（OpenAPI 3.0）
 
 ## データ構造
 
@@ -326,12 +339,22 @@ PUT /api/v1/plots/:id
 - [x] テストカバレッジ調整
   - jest.config.js の閾値を現状に合わせて調整
 
-### Phase 5: API仕様書更新（⚠️未実装）
-- [ ] swagger.yamlにCollectiveBurialスキーマ追加
-- [ ] リクエスト/レスポンス例の追加
-- [ ] DATABASE_SPECIFICATION.md更新
-  - CollectiveBurialテーブル定義の追加
-  - ER図の更新
+### Phase 5: API仕様書更新（✅完了）
+- [x] swagger.yamlにCollectiveBurialスキーマ追加
+  - `CollectiveBurial`スキーマ定義（レスポンス用）
+  - `CollectiveBurialInput`スキーマ定義（作成用）
+  - `CollectiveBurialUpdateInput`スキーマ定義（更新用、null指定で削除）
+- [x] リクエスト/レスポンス例の追加
+  - `PlotDetail`に`collectiveBurial`フィールド追加
+  - `CreatePlotInput`に`collectiveBurial`フィールド追加
+  - `UpdatePlotInput`に`collectiveBurial`フィールド追加
+- [x] Swagger仕様の検証
+  - `npm run swagger:validate` 成功
+  - `npm run swagger:build` でswagger.json生成完了
+- [x] データベース仕様書
+  - prisma/schema.prismaにCollectiveBurialモデル定義済み（Phase 1で完了）
+  - 本仕様書にテーブル定義詳細記載済み（Section 1参照）
+  - DATABASE_SPECIFICATION.mdは当プロジェクトには存在せず（prisma/schema.prismaが唯一のデータベース仕様ソース）
 
 ## ユースケース例
 
@@ -397,8 +420,8 @@ PUT /api/v1/plots/:id
 - Controller統合テスト: `tests/plots/plotController.test.ts`
 
 ### ドキュメント
-- データベース仕様: `DATABASE_SPECIFICATION.md`
-- API仕様: `swagger.yaml`
+- データベース仕様: `prisma/schema.prisma` (CollectiveBurialモデル定義)
+- API仕様: `swagger.yaml` (CollectiveBurial/CollectiveBurialInput/CollectiveBurialUpdateInputスキーマ定義)
 - プロジェクト手順書: `CLAUDE.md`
 
 ---
