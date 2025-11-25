@@ -600,7 +600,7 @@ export interface UpdatePlotInput {
 // 合祀情報（複数の故人を一つの区画に祀る管理）
 export interface CollectiveBurialInfo {
   id: string; // 合祀情報ID
-  plotId: string; // 区画ID
+  plotId: string; // 区画ID（旧: Plot、新: PhysicalPlot）
   burialCapacity: number; // 埋葬上限人数
   currentBurialCount: number; // 現在埋葬人数（BuriedPersonsから自動集計）
   capacityReachedDate: Date | null; // 上限到達日
@@ -611,4 +611,414 @@ export interface CollectiveBurialInfo {
   notes: string | null; // 備考
   createdAt: Date; // 作成日時
   updatedAt: Date; // 更新日時
+}
+
+// =============================================================================
+// 新しい区画管理システムの型定義
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 1. PhysicalPlot（物理区画マスタ）
+// -----------------------------------------------------------------------------
+
+export interface PhysicalPlotInfo {
+  id: string; // 物理区画ID
+  plotNumber: string; // 区画番号（例: A-56）
+  areaName: string; // 区域名（例: 第一区域、芝生区画）
+  areaSqm: number; // 区画の総面積（基本3.6㎡）
+  status: 'available' | 'partially_sold' | 'sold_out'; // 販売状況
+  notes: string | null; // 備考
+  createdAt: Date; // 作成日時
+  updatedAt: Date; // 更新日時
+  deletedAt: Date | null; // 削除日時
+}
+
+export interface CreatePhysicalPlotInput {
+  plotNumber: string; // 区画番号 *必須
+  areaName: string; // 区域名 *必須
+  areaSqm?: number; // 区画面積（デフォルト: 3.6）
+  status?: 'available' | 'partially_sold' | 'sold_out'; // 販売状況（デフォルト: available）
+  notes?: string | null; // 備考
+}
+
+export interface UpdatePhysicalPlotInput {
+  plotNumber?: string; // 区画番号
+  areaName?: string; // 区域名
+  areaSqm?: number; // 区画面積
+  status?: 'available' | 'partially_sold' | 'sold_out'; // 販売状況
+  notes?: string | null; // 備考
+}
+
+// -----------------------------------------------------------------------------
+// 2. ContractPlot（契約区画）
+// -----------------------------------------------------------------------------
+
+export interface ContractPlotInfo {
+  id: string; // 契約区画ID
+  physicalPlotId: string; // 物理区画ID
+  contractAreaSqm: number; // 契約された面積（例: 3.6, 1.8, 0.9）
+  saleStatus: 'available' | 'reserved' | 'contracted'; // 販売状態
+  locationDescription: string | null; // 物理区画内のどの位置か
+  createdAt: Date; // 作成日時
+  updatedAt: Date; // 更新日時
+  deletedAt: Date | null; // 削除日時
+}
+
+export interface CreateContractPlotInput {
+  physicalPlotId: string; // 物理区画ID *必須
+  contractAreaSqm: number; // 契約面積 *必須
+  saleStatus?: 'available' | 'reserved' | 'contracted'; // 販売状態（デフォルト: available）
+  locationDescription?: string | null; // 位置説明
+}
+
+export interface UpdateContractPlotInput {
+  contractAreaSqm?: number; // 契約面積
+  saleStatus?: 'available' | 'reserved' | 'contracted'; // 販売状態
+  locationDescription?: string | null; // 位置説明
+}
+
+// -----------------------------------------------------------------------------
+// 3. SaleContract（販売契約）
+// -----------------------------------------------------------------------------
+
+export interface SaleContractInfo {
+  id: string; // 販売契約ID
+  contractPlotId: string; // 契約区画ID
+  customerId: string; // 顧客ID
+  customerRole: 'applicant' | 'contractor' | 'heir'; // 顧客の役割
+  contractDate: Date; // 契約日
+  price: number; // 販売価格
+  paymentStatus: 'unpaid' | 'partial' | 'paid'; // 支払い状況
+  reservationDate: Date | null; // 予約日
+  acceptanceNumber: string | null; // 受付番号
+  permitDate: Date | null; // 許可日
+  startDate: Date | null; // 開始日
+  notes: string | null; // 契約に関する備考
+  createdAt: Date; // 作成日時
+  updatedAt: Date; // 更新日時
+  deletedAt: Date | null; // 削除日時
+}
+
+export interface CreateSaleContractInput {
+  contractPlotId: string; // 契約区画ID *必須
+  customerId: string; // 顧客ID *必須
+  customerRole: 'applicant' | 'contractor' | 'heir'; // 顧客の役割 *必須
+  contractDate: Date | string; // 契約日 *必須
+  price: number; // 販売価格 *必須
+  paymentStatus?: 'unpaid' | 'partial' | 'paid'; // 支払い状況（デフォルト: unpaid）
+  reservationDate?: Date | string | null; // 予約日
+  acceptanceNumber?: string | null; // 受付番号
+  permitDate?: Date | string | null; // 許可日
+  startDate?: Date | string | null; // 開始日
+  notes?: string | null; // 備考
+}
+
+export interface UpdateSaleContractInput {
+  customerId?: string; // 顧客ID
+  customerRole?: 'applicant' | 'contractor' | 'heir'; // 顧客の役割
+  contractDate?: Date | string; // 契約日
+  price?: number; // 販売価格
+  paymentStatus?: 'unpaid' | 'partial' | 'paid'; // 支払い状況
+  reservationDate?: Date | string | null; // 予約日
+  acceptanceNumber?: string | null; // 受付番号
+  permitDate?: Date | string | null; // 許可日
+  startDate?: Date | string | null; // 開始日
+  notes?: string | null; // 備考
+}
+
+// -----------------------------------------------------------------------------
+// 4. Customer（顧客マスタ）
+// -----------------------------------------------------------------------------
+
+export interface CustomerInfo {
+  id: string; // 顧客ID
+  name: string; // 氏名
+  nameKana: string; // 氏名カナ
+  birthDate: Date | null; // 生年月日
+  gender: string | null; // 性別
+  postalCode: string; // 郵便番号
+  address: string; // 住所
+  registeredAddress: string | null; // 本籍地
+  phoneNumber: string; // 電話番号
+  faxNumber: string | null; // FAX番号
+  email: string | null; // メールアドレス
+  notes: string | null; // 備考
+  createdAt: Date; // 作成日時
+  updatedAt: Date; // 更新日時
+  deletedAt: Date | null; // 削除日時
+}
+
+export interface CreateCustomerInput {
+  name: string; // 氏名 *必須
+  nameKana: string; // 氏名カナ *必須
+  birthDate?: Date | string | null; // 生年月日
+  gender?: string | null; // 性別
+  postalCode: string; // 郵便番号 *必須
+  address: string; // 住所 *必須
+  registeredAddress?: string | null; // 本籍地
+  phoneNumber: string; // 電話番号 *必須
+  faxNumber?: string | null; // FAX番号
+  email?: string | null; // メールアドレス
+  notes?: string | null; // 備考
+}
+
+export interface UpdateCustomerInput {
+  name?: string; // 氏名
+  nameKana?: string; // 氏名カナ
+  birthDate?: Date | string | null; // 生年月日
+  gender?: string | null; // 性別
+  postalCode?: string; // 郵便番号
+  address?: string; // 住所
+  registeredAddress?: string | null; // 本籍地
+  phoneNumber?: string; // 電話番号
+  faxNumber?: string | null; // FAX番号
+  email?: string | null; // メールアドレス
+  notes?: string | null; // 備考
+}
+
+// -----------------------------------------------------------------------------
+// 5. UsageFee（使用料） - ContractPlotに紐づけ
+// -----------------------------------------------------------------------------
+
+export interface UsageFeeInfo {
+  id: string; // 使用料ID
+  contractPlotId: string; // 契約区画ID
+  calculationType: string; // 計算方式
+  taxType: string; // 税区分
+  billingType: string; // 請求区分
+  billingYears: string; // 請求年数
+  area: string; // 面積
+  unitPrice: string; // 単価
+  usageFee: string; // 使用料
+  paymentMethod: string; // 支払方法
+  createdAt: Date; // 作成日時
+  updatedAt: Date; // 更新日時
+  deletedAt: Date | null; // 削除日時
+}
+
+export interface CreateUsageFeeInput {
+  contractPlotId: string; // 契約区画ID *必須
+  calculationType: string; // 計算方式 *必須
+  taxType: string; // 税区分 *必須
+  billingType: string; // 請求区分 *必須
+  billingYears: string; // 請求年数 *必須
+  area: string; // 面積 *必須
+  unitPrice: string; // 単価 *必須
+  usageFee: string; // 使用料 *必須
+  paymentMethod: string; // 支払方法 *必須
+}
+
+export interface UpdateUsageFeeInput {
+  calculationType?: string; // 計算方式
+  taxType?: string; // 税区分
+  billingType?: string; // 請求区分
+  billingYears?: string; // 請求年数
+  area?: string; // 面積
+  unitPrice?: string; // 単価
+  usageFee?: string; // 使用料
+  paymentMethod?: string; // 支払方法
+}
+
+// -----------------------------------------------------------------------------
+// 6. ManagementFee（管理料） - ContractPlotに紐づけ
+// -----------------------------------------------------------------------------
+
+export interface ManagementFeeInfo {
+  id: string; // 管理料ID
+  contractPlotId: string; // 契約区画ID
+  calculationType: string; // 計算方式
+  taxType: string; // 税区分
+  billingType: string; // 請求区分
+  billingYears: string; // 請求年数
+  area: string; // 面積
+  billingMonth: string; // 請求月
+  managementFee: string; // 管理料
+  unitPrice: string; // 単価
+  lastBillingMonth: string; // 最終請求月
+  paymentMethod: string; // 支払方法
+  createdAt: Date; // 作成日時
+  updatedAt: Date; // 更新日時
+  deletedAt: Date | null; // 削除日時
+}
+
+export interface CreateManagementFeeInput {
+  contractPlotId: string; // 契約区画ID *必須
+  calculationType: string; // 計算方式 *必須
+  taxType: string; // 税区分 *必須
+  billingType: string; // 請求区分 *必須
+  billingYears: string; // 請求年数 *必須
+  area: string; // 面積 *必須
+  billingMonth: string; // 請求月 *必須
+  managementFee: string; // 管理料 *必須
+  unitPrice: string; // 単価 *必須
+  lastBillingMonth: string; // 最終請求月 *必須
+  paymentMethod: string; // 支払方法 *必須
+}
+
+export interface UpdateManagementFeeInput {
+  calculationType?: string; // 計算方式
+  taxType?: string; // 税区分
+  billingType?: string; // 請求区分
+  billingYears?: string; // 請求年数
+  area?: string; // 面積
+  billingMonth?: string; // 請求月
+  managementFee?: string; // 管理料
+  unitPrice?: string; // 単価
+  lastBillingMonth?: string; // 最終請求月
+  paymentMethod?: string; // 支払方法
+}
+
+// -----------------------------------------------------------------------------
+// 7. GravestoneInfo（墓石情報） - PhysicalPlotに紐づけ
+// -----------------------------------------------------------------------------
+
+export interface GravestoneInfoDetail {
+  id: string; // 墓石情報ID
+  physicalPlotId: string; // 物理区画ID
+  gravestoneBase: string; // 墓石基礎
+  enclosurePosition: string; // 囲障位置
+  gravestoneDealer: string; // 石材店
+  gravestoneType: string; // 墓石種別
+  surroundingArea: string; // 周辺区画
+  establishmentDeadline: Date | null; // 設置期限
+  establishmentDate: Date | null; // 設置日
+  createdAt: Date; // 作成日時
+  updatedAt: Date; // 更新日時
+  deletedAt: Date | null; // 削除日時
+}
+
+export interface CreateGravestoneInfoInput {
+  physicalPlotId: string; // 物理区画ID *必須
+  gravestoneBase: string; // 墓石基礎 *必須
+  enclosurePosition: string; // 囲障位置 *必須
+  gravestoneDealer: string; // 石材店 *必須
+  gravestoneType: string; // 墓石種別 *必須
+  surroundingArea: string; // 周辺区画 *必須
+  establishmentDeadline?: Date | string | null; // 設置期限
+  establishmentDate?: Date | string | null; // 設置日
+}
+
+export interface UpdateGravestoneInfoInput {
+  gravestoneBase?: string; // 墓石基礎
+  enclosurePosition?: string; // 囲障位置
+  gravestoneDealer?: string; // 石材店
+  gravestoneType?: string; // 墓石種別
+  surroundingArea?: string; // 周辺区画
+  establishmentDeadline?: Date | string | null; // 設置期限
+  establishmentDate?: Date | string | null; // 設置日
+}
+
+// -----------------------------------------------------------------------------
+// 8. ConstructionInfo（工事情報） - PhysicalPlotに紐づけ
+// -----------------------------------------------------------------------------
+
+export interface ConstructionInfoDetail {
+  id: string; // 工事情報ID
+  physicalPlotId: string; // 物理区画ID
+  // 工事進捗状況
+  constructionType: string | null; // 工事区分
+  startDate: Date | null; // 着工予定日
+  completionDate: Date | null; // 完工予定日
+  contractor: string | null; // 工事業者名
+  supervisor: string | null; // 工事担当者名
+  progress: string | null; // 進捗状況
+  // 工事詳細
+  workItem1: string | null; // 工事項目1
+  workDate1: Date | null; // 実施日1
+  workAmount1: number | null; // 金額1
+  workStatus1: string | null; // 状況1
+  workItem2: string | null; // 工事項目2
+  workDate2: Date | null; // 予定日2
+  workAmount2: number | null; // 金額2
+  workStatus2: string | null; // 状況2
+  // 許可・申請状況
+  permitNumber: string | null; // 工事許可番号
+  applicationDate: Date | null; // 申請日
+  permitDate: Date | null; // 許可日
+  permitStatus: string | null; // 許可状況
+  // 工事代金支払状況
+  paymentType1: string | null; // 支払区分1
+  paymentAmount1: number | null; // 金額1
+  paymentDate1: Date | null; // 支払日1
+  paymentStatus1: string | null; // 状況1
+  paymentType2: string | null; // 支払区分2
+  paymentAmount2: number | null; // 金額2
+  paymentScheduledDate2: Date | null; // 支払予定日2
+  paymentStatus2: string | null; // 状況2
+  // 工事備考
+  constructionNotes: string | null; // 工事備考
+  createdAt: Date; // 作成日時
+  updatedAt: Date; // 更新日時
+  deletedAt: Date | null; // 削除日時
+}
+
+export interface CreateConstructionInfoInput {
+  physicalPlotId: string; // 物理区画ID *必須
+  // 工事進捗状況
+  constructionType?: string | null; // 工事区分
+  startDate?: Date | string | null; // 着工予定日
+  completionDate?: Date | string | null; // 完工予定日
+  contractor?: string | null; // 工事業者名
+  supervisor?: string | null; // 工事担当者名
+  progress?: string | null; // 進捗状況
+  // 工事詳細
+  workItem1?: string | null; // 工事項目1
+  workDate1?: Date | string | null; // 実施日1
+  workAmount1?: number | null; // 金額1
+  workStatus1?: string | null; // 状況1
+  workItem2?: string | null; // 工事項目2
+  workDate2?: Date | string | null; // 予定日2
+  workAmount2?: number | null; // 金額2
+  workStatus2?: string | null; // 状況2
+  // 許可・申請状況
+  permitNumber?: string | null; // 工事許可番号
+  applicationDate?: Date | string | null; // 申請日
+  permitDate?: Date | string | null; // 許可日
+  permitStatus?: string | null; // 許可状況
+  // 工事代金支払状況
+  paymentType1?: string | null; // 支払区分1
+  paymentAmount1?: number | null; // 金額1
+  paymentDate1?: Date | string | null; // 支払日1
+  paymentStatus1?: string | null; // 状況1
+  paymentType2?: string | null; // 支払区分2
+  paymentAmount2?: number | null; // 金額2
+  paymentScheduledDate2?: Date | string | null; // 支払予定日2
+  paymentStatus2?: string | null; // 状況2
+  // 工事備考
+  constructionNotes?: string | null; // 工事備考
+}
+
+export interface UpdateConstructionInfoInput {
+  // 工事進捗状況
+  constructionType?: string | null; // 工事区分
+  startDate?: Date | string | null; // 着工予定日
+  completionDate?: Date | string | null; // 完工予定日
+  contractor?: string | null; // 工事業者名
+  supervisor?: string | null; // 工事担当者名
+  progress?: string | null; // 進捗状況
+  // 工事詳細
+  workItem1?: string | null; // 工事項目1
+  workDate1?: Date | string | null; // 実施日1
+  workAmount1?: number | null; // 金額1
+  workStatus1?: string | null; // 状況1
+  workItem2?: string | null; // 工事項目2
+  workDate2?: Date | string | null; // 予定日2
+  workAmount2?: number | null; // 金額2
+  workStatus2?: string | null; // 状況2
+  // 許可・申請状況
+  permitNumber?: string | null; // 工事許可番号
+  applicationDate?: Date | string | null; // 申請日
+  permitDate?: Date | string | null; // 許可日
+  permitStatus?: string | null; // 許可状況
+  // 工事代金支払状況
+  paymentType1?: string | null; // 支払区分1
+  paymentAmount1?: number | null; // 金額1
+  paymentDate1?: Date | string | null; // 支払日1
+  paymentStatus1?: string | null; // 状況1
+  paymentType2?: string | null; // 支払区分2
+  paymentAmount2?: number | null; // 金額2
+  paymentScheduledDate2?: Date | string | null; // 支払予定日2
+  paymentStatus2?: string | null; // 状況2
+  // 工事備考
+  constructionNotes?: string | null; // 工事備考
 }
