@@ -1,59 +1,53 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { PlotListItem, plotInfo, CreatePlotInput, UpdatePlotInput } from '../type';
-import {
-  detectChangedFields,
-  getIpAddress,
-  createHistoryRecord,
-  hasChanges,
-} from '../utils/historyUtils';
+import { PrismaClient, Prisma } from '@prisma/client';
+import { CreateContractPlotInput, UpdateContractPlotInput } from '../type';
+import { validateContractArea, updatePhysicalPlotStatus } from '../utils/inventoryUtils';
 
 const prisma = new PrismaClient();
 
 /**
- * 日付文字列をDateオブジェクトに変換するヘルパー関数
- */
-const parseDate = (date: Date | string | null | undefined): Date | null => {
-  if (!date) return null;
-  if (date instanceof Date) return date;
-  return new Date(date);
-};
-
-/**
- * 区画情報一覧取得
+ * 契約区画一覧取得（ContractPlot中心）
  * GET /api/v1/plots
  */
 export const getPlots = async (_req: Request, res: Response) => {
   try {
-    const plots = await prisma.plot.findMany({
+    const contractPlots = await prisma.contractPlot.findMany({
       where: {
-        deleted_at: null, // 論理削除されていない区画のみ
+        deleted_at: null, // 論理削除されていない契約のみ
       },
       include: {
-        Applicant: true,
-        Contractors: {
-          where: { deleted_at: null },
-          orderBy: { created_at: 'desc' },
-          take: 1, // 最新の契約者のみ
+        PhysicalPlot: {
+          select: {
+            plot_number: true,
+            area_name: true,
+            area_sqm: true,
+            status: true,
+          },
         },
-        BuriedPersons: {
-          where: { deleted_at: null },
+        SaleContract: {
+          include: {
+            Customer: {
+              select: {
+                name: true,
+                name_kana: true,
+                phone_number: true,
+                address: true,
+              },
+            },
+          },
         },
         ManagementFee: true,
       },
       orderBy: {
-        plot_number: 'asc',
+        created_at: 'desc',
       },
     });
 
-    const plotList: PlotListItem[] = plots.map((plot) => {
-      const latestContractor = plot.Contractors[0];
-      const buriedPersonCount = plot.BuriedPersons.length;
-
+    const plotList = contractPlots.map((contractPlot) => {
       // 次回請求日の計算（last_billing_monthから1ヶ月後を計算）
       let nextBillingDate: Date | null = null;
-      if (plot.ManagementFee?.last_billing_month) {
-        const match = plot.ManagementFee.last_billing_month.match(/(\d{4})年(\d{1,2})月/);
+      if (contractPlot.ManagementFee?.last_billing_month) {
+        const match = contractPlot.ManagementFee.last_billing_month.match(/(\d{4})年(\d{1,2})月/);
         if (match && match[1] && match[2]) {
           const year = parseInt(match[1]);
           const month = parseInt(match[2]);
@@ -63,15 +57,37 @@ export const getPlots = async (_req: Request, res: Response) => {
       }
 
       return {
-        id: plot.id,
-        plotNumber: plot.plot_number,
-        contractorName: latestContractor?.name || null,
-        contractorAddress: latestContractor?.address || null,
-        applicantName: plot.Applicant?.name || null,
-        buriedPersonCount,
-        contractorPhoneNumber: latestContractor?.phone_number || null,
+        // 契約区画情報
+        id: contractPlot.id,
+        contractAreaSqm: contractPlot.contract_area_sqm.toNumber(),
+        saleStatus: contractPlot.sale_status,
+        locationDescription: contractPlot.location_description,
+
+        // 物理区画情報（表示用）
+        plotNumber: contractPlot.PhysicalPlot.plot_number,
+        areaName: contractPlot.PhysicalPlot.area_name,
+        physicalPlotAreaSqm: contractPlot.PhysicalPlot.area_sqm.toNumber(),
+        physicalPlotStatus: contractPlot.PhysicalPlot.status,
+
+        // 顧客情報（販売契約経由）
+        customerName: contractPlot.SaleContract?.Customer.name || null,
+        customerNameKana: contractPlot.SaleContract?.Customer.name_kana || null,
+        customerPhoneNumber: contractPlot.SaleContract?.Customer.phone_number || null,
+        customerAddress: contractPlot.SaleContract?.Customer.address || null,
+        customerRole: contractPlot.SaleContract?.customer_role || null,
+
+        // 契約情報
+        contractDate: contractPlot.SaleContract?.contract_date || null,
+        price: contractPlot.SaleContract?.price.toNumber() || null,
+        paymentStatus: contractPlot.SaleContract?.payment_status || null,
+
+        // 料金情報
         nextBillingDate,
-        notes: plot.notes || null,
+        managementFee: contractPlot.ManagementFee?.management_fee || null,
+
+        // メタ情報
+        createdAt: contractPlot.created_at,
+        updatedAt: contractPlot.updated_at,
       };
     });
 
@@ -80,624 +96,423 @@ export const getPlots = async (_req: Request, res: Response) => {
       data: plotList,
     });
   } catch (error) {
-    console.error('Error fetching plots:', error);
+    console.error('Error fetching contract plots:', error);
     res.status(500).json({
       success: false,
       error: {
         code: 'INTERNAL_SERVER_ERROR',
-        message: '区画情報の取得に失敗しました',
+        message: '契約区画情報の取得に失敗しました',
       },
     });
   }
 };
 
 /**
- * 区画情報詳細取得
+ * 契約区画詳細取得（ContractPlot中心）
  * GET /api/v1/plots/:id?includeHistory=true&historyLimit=50
  */
 export const getPlotById = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
-    const { includeHistory, historyLimit } = req.query;
+    const includeHistory = req.query['includeHistory'] === 'true';
+    const historyLimit = parseInt((req.query['historyLimit'] as string) || '50');
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'IDが指定されていません',
-          details: [],
-        },
-      });
-    }
-
-    // historyLimitのバリデーション（デフォルト: 50、最大: 200）
-    const limit = historyLimit
-      ? Math.min(Math.max(parseInt(historyLimit as string, 10), 1), 200)
-      : 50;
-
-    const plot = await prisma.plot.findUnique({
+    const contractPlot = await prisma.contractPlot.findUnique({
       where: { id },
       include: {
-        Applicant: true,
-        Contractors: {
-          where: { deleted_at: null },
+        PhysicalPlot: {
           include: {
-            WorkInfo: true,
-            BillingInfo: true,
+            BuriedPersons: {
+              where: { deleted_at: null },
+              orderBy: { created_at: 'desc' },
+            },
+            FamilyContacts: {
+              where: { deleted_at: null },
+              orderBy: { created_at: 'desc' },
+            },
+            EmergencyContact: true,
+            GravestoneInfo: true,
+            ConstructionInfo: true,
+            CollectiveBurial: true,
           },
-          orderBy: { created_at: 'desc' },
-          take: 1, // 最新の契約者のみ
+        },
+        SaleContract: {
+          include: {
+            Customer: {
+              include: {
+                WorkInfo: true,
+                BillingInfo: true,
+              },
+            },
+          },
         },
         UsageFee: true,
         ManagementFee: true,
-        GravestoneInfo: true,
-        ConstructionInfo: true,
-        FamilyContacts: {
-          where: { deleted_at: null },
-        },
-        EmergencyContact: true,
-        BuriedPersons: {
-          where: { deleted_at: null },
-        },
-        CollectiveBurial: true,
       },
     });
 
-    if (!plot || plot.deleted_at) {
+    if (!contractPlot || contractPlot.deleted_at) {
       return res.status(404).json({
         success: false,
         error: {
           code: 'NOT_FOUND',
-          message: '指定された区画が見つかりません',
+          message: '契約区画が見つかりません',
         },
       });
     }
 
-    const latestContractor = plot.Contractors[0];
-
-    // plotInfo型に変換
-    const plotData: plotInfo = {
-      id: plot.id,
-      plotNumber: plot.plot_number,
-      section: plot.section,
-      usage: plot.usage as 'in_use' | 'available' | 'reserved',
-      size: plot.size,
-      price: plot.price,
-      contractDate: plot.contract_date,
-      applicantInfo: plot.Applicant
-        ? {
-            id: plot.Applicant.id,
-            applicationDate: plot.Applicant.application_date,
-            staffName: plot.Applicant.staff_name,
-            name: plot.Applicant.name,
-            nameKana: plot.Applicant.name_kana,
-            postalCode: plot.Applicant.postal_code,
-            phoneNumber: plot.Applicant.phone_number,
-            address: plot.Applicant.address,
-          }
-        : undefined,
-      contractInfo: latestContractor
-        ? {
-            id: latestContractor.id,
-            reservationDate: latestContractor.reservation_date,
-            acceptanceNumber: latestContractor.acceptance_number || undefined,
-            permitDate: latestContractor.permit_date,
-            startDate: latestContractor.start_date,
-            name: latestContractor.name,
-            nameKana: latestContractor.name_kana,
-            birthDate: latestContractor.birth_date,
-            gender: latestContractor.gender as 'male' | 'female' | undefined,
-            phoneNumber: latestContractor.phone_number,
-            faxNumber: latestContractor.fax_number || undefined,
-            email: latestContractor.email || undefined,
-            address: latestContractor.address,
-            registeredAddress: latestContractor.registered_address || undefined,
-          }
-        : undefined,
-      usageFee: plot.UsageFee
-        ? {
-            id: plot.UsageFee.id,
-            calculationType: plot.UsageFee.calculation_type,
-            taxType: plot.UsageFee.tax_type,
-            billingType: plot.UsageFee.billing_type,
-            billingYears: plot.UsageFee.billing_years,
-            area: plot.UsageFee.area,
-            unitPrice: plot.UsageFee.unit_price,
-            usageFee: plot.UsageFee.usage_fee,
-            paymentMethod: plot.UsageFee.payment_method,
-          }
-        : undefined,
-      managementFee: plot.ManagementFee
-        ? {
-            id: plot.ManagementFee.id,
-            calculationType: plot.ManagementFee.calculation_type,
-            taxType: plot.ManagementFee.tax_type,
-            billingType: plot.ManagementFee.billing_type,
-            billingYears: plot.ManagementFee.billing_years,
-            area: plot.ManagementFee.area,
-            billingMonth: plot.ManagementFee.billing_month,
-            managementFee: plot.ManagementFee.management_fee,
-            unitPrice: plot.ManagementFee.unit_price,
-            lastBillingMonth: plot.ManagementFee.last_billing_month,
-            paymentMethod: plot.ManagementFee.payment_method,
-          }
-        : undefined,
-      gravestoneInfo: plot.GravestoneInfo
-        ? {
-            id: plot.GravestoneInfo.id,
-            gravestoneBase: plot.GravestoneInfo.gravestone_base,
-            enclosurePosition: plot.GravestoneInfo.enclosure_position,
-            gravestoneDealer: plot.GravestoneInfo.gravestone_dealer,
-            gravestoneType: plot.GravestoneInfo.gravestone_type,
-            surroundingArea: plot.GravestoneInfo.surrounding_area,
-            establishmentDeadline: plot.GravestoneInfo.establishment_deadline,
-            establishmentDate: plot.GravestoneInfo.establishment_date,
-          }
-        : undefined,
-      constructionInfo: plot.ConstructionInfo
-        ? {
-            id: plot.ConstructionInfo.id,
-            constructionType: plot.ConstructionInfo.construction_type || undefined,
-            startDate: plot.ConstructionInfo.start_date,
-            completionDate: plot.ConstructionInfo.completion_date,
-            contractor: plot.ConstructionInfo.contractor || undefined,
-            supervisor: plot.ConstructionInfo.supervisor || undefined,
-            progress: plot.ConstructionInfo.progress || undefined,
-            workItem1: plot.ConstructionInfo.work_item_1 || undefined,
-            workDate1: plot.ConstructionInfo.work_date_1,
-            workAmount1: plot.ConstructionInfo.work_amount_1
-              ? Number(plot.ConstructionInfo.work_amount_1)
-              : undefined,
-            workStatus1: plot.ConstructionInfo.work_status_1 || undefined,
-            workItem2: plot.ConstructionInfo.work_item_2 || undefined,
-            workDate2: plot.ConstructionInfo.work_date_2,
-            workAmount2: plot.ConstructionInfo.work_amount_2
-              ? Number(plot.ConstructionInfo.work_amount_2)
-              : undefined,
-            workStatus2: plot.ConstructionInfo.work_status_2 || undefined,
-            permitNumber: plot.ConstructionInfo.permit_number || undefined,
-            applicationDate: plot.ConstructionInfo.application_date,
-            permitDate: plot.ConstructionInfo.permit_date,
-            permitStatus: plot.ConstructionInfo.permit_status || undefined,
-            paymentType1: plot.ConstructionInfo.payment_type_1 || undefined,
-            paymentAmount1: plot.ConstructionInfo.payment_amount_1
-              ? Number(plot.ConstructionInfo.payment_amount_1)
-              : undefined,
-            paymentDate1: plot.ConstructionInfo.payment_date_1,
-            paymentStatus1: plot.ConstructionInfo.payment_status_1 || undefined,
-            paymentType2: plot.ConstructionInfo.payment_type_2 || undefined,
-            paymentAmount2: plot.ConstructionInfo.payment_amount_2
-              ? Number(plot.ConstructionInfo.payment_amount_2)
-              : undefined,
-            paymentScheduledDate2: plot.ConstructionInfo.payment_scheduled_date_2,
-            paymentStatus2: plot.ConstructionInfo.payment_status_2 || undefined,
-            constructionNotes: plot.ConstructionInfo.construction_notes || undefined,
-          }
-        : undefined,
-      familyContacts: plot.FamilyContacts.map((fc) => ({
-        id: fc.id,
-        name: fc.name,
-        birthDate: fc.birth_date,
-        relationship: fc.relationship,
-        address: fc.address,
-        phoneNumber: fc.phone_number,
-        faxNumber: fc.fax_number || undefined,
-        email: fc.email || undefined,
-        registeredAddress: fc.registered_address || undefined,
-        mailingType: fc.mailing_type as 'home' | 'work' | 'other' | undefined,
-        companyName: fc.company_name || undefined,
-        companyNameKana: fc.company_name_kana || undefined,
-        companyAddress: fc.company_address || undefined,
-        companyPhone: fc.company_phone || undefined,
-        notes: fc.notes || undefined,
-      })),
-      emergencyContact: plot.EmergencyContact
-        ? {
-            id: plot.EmergencyContact.id,
-            name: plot.EmergencyContact.name,
-            relationship: plot.EmergencyContact.relationship,
-            phoneNumber: plot.EmergencyContact.phone_number,
-          }
-        : null,
-      buriedPersons: plot.BuriedPersons.map((bp) => ({
-        id: bp.id,
-        name: bp.name,
-        nameKana: bp.name_kana || undefined,
-        relationship: bp.relationship || undefined,
-        deathDate: bp.death_date,
-        age: bp.age || undefined,
-        gender: bp.gender as 'male' | 'female' | undefined,
-        burialDate: bp.burial_date,
-        memo: bp.memo || undefined,
-      })),
-      workInfo: latestContractor?.WorkInfo
-        ? {
-            id: latestContractor.WorkInfo.id,
-            companyName: latestContractor.WorkInfo.company_name,
-            companyNameKana: latestContractor.WorkInfo.company_name_kana,
-            workAddress: latestContractor.WorkInfo.work_address,
-            workPostalCode: latestContractor.WorkInfo.work_postal_code,
-            workPhoneNumber: latestContractor.WorkInfo.work_phone_number,
-            dmSetting: latestContractor.WorkInfo.dm_setting as 'allow' | 'deny' | 'limited',
-            addressType: latestContractor.WorkInfo.address_type as 'home' | 'work' | 'other',
-            notes: latestContractor.WorkInfo.notes || '',
-          }
-        : undefined,
-      billingInfo: latestContractor?.BillingInfo
-        ? {
-            id: latestContractor.BillingInfo.id,
-            billingType: latestContractor.BillingInfo.billing_type as
-              | 'individual'
-              | 'corporate'
-              | 'bank_transfer',
-            bankName: latestContractor.BillingInfo.bank_name,
-            branchName: latestContractor.BillingInfo.branch_name,
-            accountType: latestContractor.BillingInfo.account_type as
-              | 'ordinary'
-              | 'current'
-              | 'savings',
-            accountNumber: latestContractor.BillingInfo.account_number,
-            accountHolder: latestContractor.BillingInfo.account_holder,
-          }
-        : undefined,
-      collectiveBurial: plot.CollectiveBurial
-        ? {
-            id: plot.CollectiveBurial.id,
-            burialCapacity: plot.CollectiveBurial.burial_capacity,
-            currentBurialCount: plot.CollectiveBurial.current_burial_count,
-            capacityReachedDate: plot.CollectiveBurial.capacity_reached_date,
-            validityPeriodYears: plot.CollectiveBurial.validity_period_years,
-            billingScheduledDate: plot.CollectiveBurial.billing_scheduled_date,
-            billingStatus: plot.CollectiveBurial.billing_status as 'pending' | 'billed' | 'paid',
-            billingAmount: plot.CollectiveBurial.billing_amount
-              ? Number(plot.CollectiveBurial.billing_amount)
-              : null,
-            notes: plot.CollectiveBurial.notes || null,
-          }
-        : undefined,
-      createdAt: plot.created_at,
-      updatedAt: plot.updated_at,
-      status: plot.status as 'active' | 'inactive',
-    };
-
-    // 履歴データの取得（includeHistory=trueの場合のみ）
-    if (includeHistory === 'true') {
-      const histories = await prisma.history.findMany({
+    // 履歴情報取得（オプション）
+    let histories: any[] = [];
+    if (includeHistory) {
+      histories = await prisma.history.findMany({
         where: {
-          plot_id: id,
+          entity_type: 'ContractPlot',
+          entity_id: id,
         },
         orderBy: {
           created_at: 'desc',
         },
-        take: limit,
+        take: historyLimit,
       });
-
-      // 履歴データを整形してレスポンスに追加
-      const formattedHistories = histories.map((h) => ({
-        id: h.id,
-        entity_type: h.entity_type,
-        entity_id: h.entity_id,
-        plot_id: h.plot_id,
-        action_type: h.action_type,
-        changed_fields: h.changed_fields,
-        changed_by: h.changed_by,
-        change_reason: h.change_reason,
-        ip_address: h.ip_address,
-        created_at: h.created_at,
-      }));
-
-      // plotDataに履歴を追加
-      (plotData as any).history = formattedHistories;
     }
+
+    const response: any = {
+      // 契約区画基本情報
+      id: contractPlot.id,
+      contractAreaSqm: contractPlot.contract_area_sqm.toNumber(),
+      saleStatus: contractPlot.sale_status,
+      locationDescription: contractPlot.location_description,
+      createdAt: contractPlot.created_at,
+      updatedAt: contractPlot.updated_at,
+
+      // 物理区画情報
+      physicalPlot: {
+        id: contractPlot.PhysicalPlot.id,
+        plotNumber: contractPlot.PhysicalPlot.plot_number,
+        areaName: contractPlot.PhysicalPlot.area_name,
+        areaSqm: contractPlot.PhysicalPlot.area_sqm.toNumber(),
+        status: contractPlot.PhysicalPlot.status,
+        notes: contractPlot.PhysicalPlot.notes,
+      },
+
+      // 販売契約情報
+      saleContract: contractPlot.SaleContract
+        ? {
+            id: contractPlot.SaleContract.id,
+            contractDate: contractPlot.SaleContract.contract_date,
+            price: contractPlot.SaleContract.price.toNumber(),
+            paymentStatus: contractPlot.SaleContract.payment_status,
+            customerRole: contractPlot.SaleContract.customer_role,
+            reservationDate: contractPlot.SaleContract.reservation_date,
+            acceptanceNumber: contractPlot.SaleContract.acceptance_number,
+            permitDate: contractPlot.SaleContract.permit_date,
+            startDate: contractPlot.SaleContract.start_date,
+            notes: contractPlot.SaleContract.notes,
+
+            // 顧客情報
+            customer: {
+              id: contractPlot.SaleContract.Customer.id,
+              name: contractPlot.SaleContract.Customer.name,
+              nameKana: contractPlot.SaleContract.Customer.name_kana,
+              gender: contractPlot.SaleContract.Customer.gender,
+              birthDate: contractPlot.SaleContract.Customer.birth_date,
+              phoneNumber: contractPlot.SaleContract.Customer.phone_number,
+              faxNumber: contractPlot.SaleContract.Customer.fax_number,
+              email: contractPlot.SaleContract.Customer.email,
+              postalCode: contractPlot.SaleContract.Customer.postal_code,
+              address: contractPlot.SaleContract.Customer.address,
+              registeredAddress: contractPlot.SaleContract.Customer.registered_address,
+              notes: contractPlot.SaleContract.Customer.notes,
+
+              // 勤務先情報
+              workInfo: contractPlot.SaleContract.Customer.WorkInfo
+                ? {
+                    companyName: contractPlot.SaleContract.Customer.WorkInfo.company_name,
+                    companyNameKana: contractPlot.SaleContract.Customer.WorkInfo.company_name_kana,
+                    workAddress: contractPlot.SaleContract.Customer.WorkInfo.work_address,
+                    workPostalCode: contractPlot.SaleContract.Customer.WorkInfo.work_postal_code,
+                    workPhoneNumber: contractPlot.SaleContract.Customer.WorkInfo.work_phone_number,
+                    dmSetting: contractPlot.SaleContract.Customer.WorkInfo.dm_setting,
+                    addressType: contractPlot.SaleContract.Customer.WorkInfo.address_type,
+                    notes: contractPlot.SaleContract.Customer.WorkInfo.notes,
+                  }
+                : null,
+
+              // 請求先情報
+              billingInfo: contractPlot.SaleContract.Customer.BillingInfo
+                ? {
+                    billingType: contractPlot.SaleContract.Customer.BillingInfo.billing_type,
+                    bankName: contractPlot.SaleContract.Customer.BillingInfo.bank_name,
+                    branchName: contractPlot.SaleContract.Customer.BillingInfo.branch_name,
+                    accountType: contractPlot.SaleContract.Customer.BillingInfo.account_type,
+                    accountNumber: contractPlot.SaleContract.Customer.BillingInfo.account_number,
+                    accountHolder: contractPlot.SaleContract.Customer.BillingInfo.account_holder,
+                  }
+                : null,
+            },
+          }
+        : null,
+
+      // 使用料情報
+      usageFee: contractPlot.UsageFee
+        ? {
+            calculationType: contractPlot.UsageFee.calculation_type,
+            taxType: contractPlot.UsageFee.tax_type,
+            usageFee: contractPlot.UsageFee.usage_fee,
+            area: contractPlot.UsageFee.area,
+            unitPrice: contractPlot.UsageFee.unit_price,
+            paymentMethod: contractPlot.UsageFee.payment_method,
+          }
+        : null,
+
+      // 管理料情報
+      managementFee: contractPlot.ManagementFee
+        ? {
+            calculationType: contractPlot.ManagementFee.calculation_type,
+            taxType: contractPlot.ManagementFee.tax_type,
+            billingType: contractPlot.ManagementFee.billing_type,
+            billingYears: contractPlot.ManagementFee.billing_years,
+            area: contractPlot.ManagementFee.area,
+            billingMonth: contractPlot.ManagementFee.billing_month,
+            managementFee: contractPlot.ManagementFee.management_fee,
+            unitPrice: contractPlot.ManagementFee.unit_price,
+            lastBillingMonth: contractPlot.ManagementFee.last_billing_month,
+            paymentMethod: contractPlot.ManagementFee.payment_method,
+          }
+        : null,
+
+      // 埋葬者情報
+      buriedPersons: contractPlot.PhysicalPlot.BuriedPersons.map((person) => ({
+        id: person.id,
+        name: person.name,
+        nameKana: person.name_kana,
+        relationship: person.relationship,
+        deathDate: person.death_date,
+        age: person.age,
+        gender: person.gender,
+        burialDate: person.burial_date,
+        memo: person.memo,
+      })),
+
+      // 家族連絡先情報
+      familyContacts: contractPlot.PhysicalPlot.FamilyContacts.map((contact) => ({
+        id: contact.id,
+        name: contact.name,
+        birthDate: contact.birth_date,
+        relationship: contact.relationship,
+        address: contact.address,
+        phoneNumber: contact.phone_number,
+        faxNumber: contact.fax_number,
+        email: contact.email,
+        registeredAddress: contact.registered_address,
+        mailingType: contact.mailing_type,
+        companyName: contact.company_name,
+        companyNameKana: contact.company_name_kana,
+        companyAddress: contact.company_address,
+        companyPhone: contact.company_phone,
+        notes: contact.notes,
+      })),
+
+      // 緊急連絡先
+      emergencyContact: contractPlot.PhysicalPlot.EmergencyContact
+        ? {
+            id: contractPlot.PhysicalPlot.EmergencyContact.id,
+            name: contractPlot.PhysicalPlot.EmergencyContact.name,
+            relationship: contractPlot.PhysicalPlot.EmergencyContact.relationship,
+            phoneNumber: contractPlot.PhysicalPlot.EmergencyContact.phone_number,
+          }
+        : null,
+
+      // 墓石情報
+      gravestoneInfo: contractPlot.PhysicalPlot.GravestoneInfo
+        ? {
+            gravestoneBase: contractPlot.PhysicalPlot.GravestoneInfo.gravestone_base,
+            enclosurePosition: contractPlot.PhysicalPlot.GravestoneInfo.enclosure_position,
+            gravestoneDealer: contractPlot.PhysicalPlot.GravestoneInfo.gravestone_dealer,
+            gravestoneType: contractPlot.PhysicalPlot.GravestoneInfo.gravestone_type,
+            surroundingArea: contractPlot.PhysicalPlot.GravestoneInfo.surrounding_area,
+            establishmentDeadline: contractPlot.PhysicalPlot.GravestoneInfo.establishment_deadline,
+            establishmentDate: contractPlot.PhysicalPlot.GravestoneInfo.establishment_date,
+          }
+        : null,
+
+      // 工事情報
+      constructionInfo: contractPlot.PhysicalPlot.ConstructionInfo
+        ? {
+            id: contractPlot.PhysicalPlot.ConstructionInfo.id,
+            constructionType: contractPlot.PhysicalPlot.ConstructionInfo.construction_type,
+            startDate: contractPlot.PhysicalPlot.ConstructionInfo.start_date,
+            completionDate: contractPlot.PhysicalPlot.ConstructionInfo.completion_date,
+            contractor: contractPlot.PhysicalPlot.ConstructionInfo.contractor,
+            supervisor: contractPlot.PhysicalPlot.ConstructionInfo.supervisor,
+            progress: contractPlot.PhysicalPlot.ConstructionInfo.progress,
+            workItem1: contractPlot.PhysicalPlot.ConstructionInfo.work_item_1,
+            workDate1: contractPlot.PhysicalPlot.ConstructionInfo.work_date_1,
+            workAmount1: contractPlot.PhysicalPlot.ConstructionInfo.work_amount_1
+              ? Number(contractPlot.PhysicalPlot.ConstructionInfo.work_amount_1)
+              : null,
+            workStatus1: contractPlot.PhysicalPlot.ConstructionInfo.work_status_1,
+            workItem2: contractPlot.PhysicalPlot.ConstructionInfo.work_item_2,
+            workDate2: contractPlot.PhysicalPlot.ConstructionInfo.work_date_2,
+            workAmount2: contractPlot.PhysicalPlot.ConstructionInfo.work_amount_2
+              ? Number(contractPlot.PhysicalPlot.ConstructionInfo.work_amount_2)
+              : null,
+            workStatus2: contractPlot.PhysicalPlot.ConstructionInfo.work_status_2,
+            permitNumber: contractPlot.PhysicalPlot.ConstructionInfo.permit_number,
+            applicationDate: contractPlot.PhysicalPlot.ConstructionInfo.application_date,
+            permitDate: contractPlot.PhysicalPlot.ConstructionInfo.permit_date,
+            permitStatus: contractPlot.PhysicalPlot.ConstructionInfo.permit_status,
+            paymentType1: contractPlot.PhysicalPlot.ConstructionInfo.payment_type_1,
+            paymentAmount1: contractPlot.PhysicalPlot.ConstructionInfo.payment_amount_1
+              ? Number(contractPlot.PhysicalPlot.ConstructionInfo.payment_amount_1)
+              : null,
+            paymentDate1: contractPlot.PhysicalPlot.ConstructionInfo.payment_date_1,
+            paymentStatus1: contractPlot.PhysicalPlot.ConstructionInfo.payment_status_1,
+            paymentType2: contractPlot.PhysicalPlot.ConstructionInfo.payment_type_2,
+            paymentAmount2: contractPlot.PhysicalPlot.ConstructionInfo.payment_amount_2
+              ? Number(contractPlot.PhysicalPlot.ConstructionInfo.payment_amount_2)
+              : null,
+            paymentScheduledDate2:
+              contractPlot.PhysicalPlot.ConstructionInfo.payment_scheduled_date_2,
+            paymentStatus2: contractPlot.PhysicalPlot.ConstructionInfo.payment_status_2,
+            constructionNotes: contractPlot.PhysicalPlot.ConstructionInfo.construction_notes,
+          }
+        : null,
+
+      // 合祀情報
+      collectiveBurial: contractPlot.PhysicalPlot.CollectiveBurial
+        ? {
+            id: contractPlot.PhysicalPlot.CollectiveBurial.id,
+            burialCapacity: contractPlot.PhysicalPlot.CollectiveBurial.burial_capacity,
+            currentBurialCount: contractPlot.PhysicalPlot.CollectiveBurial.current_burial_count,
+            capacityReachedDate: contractPlot.PhysicalPlot.CollectiveBurial.capacity_reached_date,
+            validityPeriodYears: contractPlot.PhysicalPlot.CollectiveBurial.validity_period_years,
+            billingScheduledDate: contractPlot.PhysicalPlot.CollectiveBurial.billing_scheduled_date,
+            billingStatus: contractPlot.PhysicalPlot.CollectiveBurial.billing_status,
+            billingAmount: contractPlot.PhysicalPlot.CollectiveBurial.billing_amount
+              ? Number(contractPlot.PhysicalPlot.CollectiveBurial.billing_amount)
+              : null,
+            notes: contractPlot.PhysicalPlot.CollectiveBurial.notes,
+          }
+        : null,
+
+      // 履歴情報
+      histories: includeHistory ? histories : undefined,
+    };
 
     res.status(200).json({
       success: true,
-      data: plotData,
+      data: response,
     });
   } catch (error) {
-    console.error('Error fetching plot by id:', error);
+    console.error('Error fetching contract plot by id:', error);
     res.status(500).json({
       success: false,
       error: {
         code: 'INTERNAL_SERVER_ERROR',
-        message: '区画情報の取得に失敗しました',
+        message: '契約区画詳細の取得に失敗しました',
       },
     });
   }
 };
 
 /**
- * 区画情報登録
+ * 新規契約作成（ContractPlot + SaleContract + Customer）
  * POST /api/v1/plots
  */
 export const createPlot = async (req: Request, res: Response): Promise<any> => {
   try {
-    const input: CreatePlotInput = req.body;
+    const input: CreateContractPlotInput = req.body;
 
-    // 必須項目のバリデーション
-    if (!input.plot) {
+    // 入力バリデーション
+    if (!input.contractPlot || !input.saleContract || !input.customer) {
       return res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: '区画基本情報は必須です',
-          details: [{ field: 'plot', message: '区画基本情報を入力してください' }],
+          message: 'contractPlot, saleContract, customerは必須です',
         },
       });
     }
 
-    const { plotNumber, section, usage, size, price } = input.plot;
-
-    if (!plotNumber || !section || !usage || !size || !price) {
+    // 契約面積のバリデーション
+    if (!input.contractPlot.contractAreaSqm || input.contractPlot.contractAreaSqm <= 0) {
       return res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: '区画基本情報の必須項目が不足しています',
-          details: [
-            { field: 'plotNumber', message: '区画番号は必須です' },
-            { field: 'section', message: '区域は必須です' },
-            { field: 'usage', message: '利用状況は必須です' },
-            { field: 'size', message: '面積は必須です' },
-            { field: 'price', message: '金額は必須です' },
-          ],
+          message: '契約面積は0より大きい値を指定してください',
         },
       });
     }
 
-    // 区画番号の重複チェック
-    const existingPlot = await prisma.plot.findUnique({
-      where: { plot_number: plotNumber },
-    });
-
-    if (existingPlot) {
-      return res.status(409).json({
-        success: false,
-        error: {
-          code: 'DUPLICATE_PLOT_NUMBER',
-          message: '区画番号が既に存在します',
-          details: [
-            { field: 'plotNumber', message: `区画番号 ${plotNumber} は既に使用されています` },
-          ],
-        },
-      });
-    }
-
-    // 契約者に依存するデータのバリデーション
-    if ((input.workInfo || input.billingInfo) && !input.contractor) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: '契約者情報がない場合、勤務先・請求情報は登録できません',
-          details: [],
-        },
-      });
-    }
-
-    // トランザクション処理で一括登録
+    // トランザクション処理
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Plot作成（必須）
-      const plot = await tx.plot.create({
+      // 1. PhysicalPlotの取得または作成
+      let physicalPlot;
+      if (input.physicalPlot.id) {
+        // 既存の物理区画を取得
+        physicalPlot = await tx.physicalPlot.findUnique({
+          where: { id: input.physicalPlot.id, deleted_at: null },
+        });
+
+        if (!physicalPlot) {
+          throw new Error('指定された物理区画が見つかりません');
+        }
+      } else {
+        // 新規物理区画を作成
+        if (!input.physicalPlot.plotNumber || !input.physicalPlot.areaName) {
+          throw new Error('新規物理区画作成時は plotNumber と areaName が必須です');
+        }
+
+        physicalPlot = await tx.physicalPlot.create({
+          data: {
+            plot_number: input.physicalPlot.plotNumber,
+            area_name: input.physicalPlot.areaName,
+            area_sqm: new Prisma.Decimal(input.physicalPlot.areaSqm || 3.6),
+            status: 'available', // 初期ステータス
+            notes: input.physicalPlot.notes || null,
+          },
+        });
+      }
+
+      // 2. 契約面積の妥当性検証
+      const validationResult = await validateContractArea(
+        tx as any,
+        physicalPlot.id,
+        input.contractPlot.contractAreaSqm
+      );
+
+      if (!validationResult.isValid) {
+        throw new Error(validationResult.message || '契約面積の検証に失敗しました');
+      }
+
+      // 3. 顧客情報の作成
+      const customer = await tx.customer.create({
         data: {
-          plot_number: plotNumber,
-          section,
-          usage,
-          size,
-          price,
-          contract_date: parseDate(input.plot.contractDate),
-          status: input.plot.status || 'active',
-          notes: input.plot.notes || null,
+          name: input.customer.name,
+          name_kana: input.customer.nameKana,
+          birth_date: input.customer.birthDate ? new Date(input.customer.birthDate) : null,
+          gender: input.customer.gender || null,
+          postal_code: input.customer.postalCode,
+          address: input.customer.address,
+          registered_address: input.customer.registeredAddress || null,
+          phone_number: input.customer.phoneNumber,
+          fax_number: input.customer.faxNumber || null,
+          email: input.customer.email || null,
+          notes: input.customer.notes || null,
         },
       });
 
-      // 2. Applicant作成（任意）
-      if (input.applicant) {
-        await tx.applicant.create({
-          data: {
-            plot_id: plot.id, // ★外部キー設定
-            application_date: parseDate(input.applicant.applicationDate),
-            staff_name: input.applicant.staffName,
-            name: input.applicant.name,
-            name_kana: input.applicant.nameKana,
-            postal_code: input.applicant.postalCode,
-            phone_number: input.applicant.phoneNumber,
-            address: input.applicant.address,
-          },
-        });
-      }
-
-      // 3. Contractor作成（任意）
-      let contractor = null;
-      if (input.contractor) {
-        contractor = await tx.contractor.create({
-          data: {
-            plot_id: plot.id, // ★外部キー設定
-            reservation_date: parseDate(input.contractor.reservationDate),
-            acceptance_number: input.contractor.acceptanceNumber || null,
-            permit_date: parseDate(input.contractor.permitDate),
-            start_date: parseDate(input.contractor.startDate),
-            name: input.contractor.name,
-            name_kana: input.contractor.nameKana,
-            birth_date: parseDate(input.contractor.birthDate),
-            gender: input.contractor.gender || null,
-            phone_number: input.contractor.phoneNumber,
-            fax_number: input.contractor.faxNumber || null,
-            email: input.contractor.email || null,
-            address: input.contractor.address,
-            registered_address: input.contractor.registeredAddress || null,
-          },
-        });
-      }
-
-      // 4. UsageFee作成（任意）
-      if (input.usageFee) {
-        await tx.usageFee.create({
-          data: {
-            plot_id: plot.id, // ★外部キー設定
-            calculation_type: input.usageFee.calculationType,
-            tax_type: input.usageFee.taxType,
-            billing_type: input.usageFee.billingType,
-            billing_years: input.usageFee.billingYears,
-            area: input.usageFee.area,
-            unit_price: input.usageFee.unitPrice,
-            usage_fee: input.usageFee.usageFee,
-            payment_method: input.usageFee.paymentMethod,
-          },
-        });
-      }
-
-      // 5. ManagementFee作成（任意）
-      if (input.managementFee) {
-        await tx.managementFee.create({
-          data: {
-            plot_id: plot.id, // ★外部キー設定
-            calculation_type: input.managementFee.calculationType,
-            tax_type: input.managementFee.taxType,
-            billing_type: input.managementFee.billingType,
-            billing_years: input.managementFee.billingYears,
-            area: input.managementFee.area,
-            billing_month: input.managementFee.billingMonth,
-            management_fee: input.managementFee.managementFee,
-            unit_price: input.managementFee.unitPrice,
-            last_billing_month: input.managementFee.lastBillingMonth,
-            payment_method: input.managementFee.paymentMethod,
-          },
-        });
-      }
-
-      // 6. GravestoneInfo作成（任意）
-      if (input.gravestoneInfo) {
-        await tx.gravestoneInfo.create({
-          data: {
-            plot_id: plot.id, // ★外部キー設定
-            gravestone_base: input.gravestoneInfo.gravestoneBase,
-            enclosure_position: input.gravestoneInfo.enclosurePosition,
-            gravestone_dealer: input.gravestoneInfo.gravestoneDealer,
-            gravestone_type: input.gravestoneInfo.gravestoneType,
-            surrounding_area: input.gravestoneInfo.surroundingArea,
-            establishment_deadline: parseDate(input.gravestoneInfo.establishmentDeadline),
-            establishment_date: parseDate(input.gravestoneInfo.establishmentDate),
-          },
-        });
-      }
-
-      // 6-2. ConstructionInfo作成（任意）
-      if (input.constructionInfo) {
-        await tx.constructionInfo.create({
-          data: {
-            plot_id: plot.id, // ★外部キー設定
-            construction_type: input.constructionInfo.constructionType || null,
-            start_date: parseDate(input.constructionInfo.startDate),
-            completion_date: parseDate(input.constructionInfo.completionDate),
-            contractor: input.constructionInfo.contractor || null,
-            supervisor: input.constructionInfo.supervisor || null,
-            progress: input.constructionInfo.progress || null,
-            work_item_1: input.constructionInfo.workItem1 || null,
-            work_date_1: parseDate(input.constructionInfo.workDate1),
-            work_amount_1: input.constructionInfo.workAmount1 || null,
-            work_status_1: input.constructionInfo.workStatus1 || null,
-            work_item_2: input.constructionInfo.workItem2 || null,
-            work_date_2: parseDate(input.constructionInfo.workDate2),
-            work_amount_2: input.constructionInfo.workAmount2 || null,
-            work_status_2: input.constructionInfo.workStatus2 || null,
-            permit_number: input.constructionInfo.permitNumber || null,
-            application_date: parseDate(input.constructionInfo.applicationDate),
-            permit_date: parseDate(input.constructionInfo.permitDate),
-            permit_status: input.constructionInfo.permitStatus || null,
-            payment_type_1: input.constructionInfo.paymentType1 || null,
-            payment_amount_1: input.constructionInfo.paymentAmount1 || null,
-            payment_date_1: parseDate(input.constructionInfo.paymentDate1),
-            payment_status_1: input.constructionInfo.paymentStatus1 || null,
-            payment_type_2: input.constructionInfo.paymentType2 || null,
-            payment_amount_2: input.constructionInfo.paymentAmount2 || null,
-            payment_scheduled_date_2: parseDate(input.constructionInfo.paymentScheduledDate2),
-            payment_status_2: input.constructionInfo.paymentStatus2 || null,
-            construction_notes: input.constructionInfo.constructionNotes || null,
-          },
-        });
-      }
-
-      // 7. FamilyContact作成（配列・任意）
-      if (input.familyContacts && input.familyContacts.length > 0) {
-        for (const fc of input.familyContacts) {
-          await tx.familyContact.create({
-            data: {
-              plot_id: plot.id, // ★外部キー設定
-              name: fc.name,
-              birth_date: parseDate(fc.birthDate),
-              relationship: fc.relationship,
-              address: fc.address,
-              phone_number: fc.phoneNumber,
-              fax_number: fc.faxNumber || null,
-              email: fc.email || null,
-              registered_address: fc.registeredAddress || null,
-              mailing_type: fc.mailingType || null,
-              company_name: fc.companyName || null,
-              company_name_kana: fc.companyNameKana || null,
-              company_address: fc.companyAddress || null,
-              company_phone: fc.companyPhone || null,
-              notes: fc.notes || null,
-            },
-          });
-        }
-      }
-
-      // 8. EmergencyContact作成（任意）
-      if (input.emergencyContact) {
-        await tx.emergencyContact.create({
-          data: {
-            plot_id: plot.id, // ★外部キー設定
-            name: input.emergencyContact.name,
-            relationship: input.emergencyContact.relationship,
-            phone_number: input.emergencyContact.phoneNumber,
-          },
-        });
-      }
-
-      // 9. BuriedPerson作成（配列・任意）
-      if (input.buriedPersons && input.buriedPersons.length > 0) {
-        for (const bp of input.buriedPersons) {
-          await tx.buriedPerson.create({
-            data: {
-              plot_id: plot.id, // ★外部キー設定
-              name: bp.name,
-              name_kana: bp.nameKana || null,
-              relationship: bp.relationship || null,
-              death_date: parseDate(bp.deathDate),
-              age: bp.age || null,
-              gender: bp.gender || null,
-              burial_date: parseDate(bp.burialDate),
-              memo: bp.memo || null,
-            },
-          });
-        }
-      }
-
-      // 9-2. CollectiveBurial作成（任意）
-      if (input.collectiveBurial) {
-        await tx.collectiveBurial.create({
-          data: {
-            plot_id: plot.id, // ★外部キー設定
-            burial_capacity: input.collectiveBurial.burialCapacity,
-            current_burial_count: 0, // 初期値は0
-            validity_period_years: input.collectiveBurial.validityPeriodYears,
-            billing_amount: input.collectiveBurial.billingAmount || null,
-            notes: input.collectiveBurial.notes || null,
-          },
-        });
-      }
-
-      // 10. WorkInfo作成（任意、契約者に依存）
-      if (input.workInfo && contractor) {
+      // 4. 勤務先情報の作成（オプション）
+      if (input.workInfo) {
         await tx.workInfo.create({
           data: {
-            contractor_id: contractor.id, // ★外部キー設定（contractor_id）
+            customer_id: customer.id,
             company_name: input.workInfo.companyName,
             company_name_kana: input.workInfo.companyNameKana,
-            work_address: input.workInfo.workAddress,
             work_postal_code: input.workInfo.workPostalCode,
+            work_address: input.workInfo.workAddress,
             work_phone_number: input.workInfo.workPhoneNumber,
             dm_setting: input.workInfo.dmSetting,
             address_type: input.workInfo.addressType,
@@ -706,11 +521,11 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
         });
       }
 
-      // 11. BillingInfo作成（任意、契約者に依存）
-      if (input.billingInfo && contractor) {
+      // 5. 請求情報の作成（オプション）
+      if (input.billingInfo) {
         await tx.billingInfo.create({
           data: {
-            contractor_id: contractor.id, // ★外部キー設定（contractor_id）
+            customer_id: customer.id,
             billing_type: input.billingInfo.billingType,
             bank_name: input.billingInfo.bankName,
             branch_name: input.billingInfo.branchName,
@@ -721,44 +536,145 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
         });
       }
 
-      // 12. History作成（履歴記録）
-      const historyData = createHistoryRecord({
-        entityType: 'Plot',
-        entityId: plot.id,
-        plotId: plot.id,
-        actionType: 'CREATE',
-        changedFields: null, // CREATEの場合はnull
-        changedBy: req.user?.id.toString() || 'unknown',
-        changeReason: null, // CREATEの場合は変更理由なし
-        ipAddress: getIpAddress(req),
+      // 6. 契約区画の作成
+      const contractPlot = await tx.contractPlot.create({
+        data: {
+          physical_plot_id: physicalPlot.id,
+          contract_area_sqm: new Prisma.Decimal(input.contractPlot.contractAreaSqm),
+          sale_status: input.contractPlot.saleStatus || 'contracted',
+          location_description: input.contractPlot.locationDescription || null,
+        },
       });
 
-      await tx.history.create({
-        data: historyData,
+      // 7. 販売契約の作成
+      const saleContract = await tx.saleContract.create({
+        data: {
+          contract_plot_id: contractPlot.id,
+          customer_id: customer.id,
+          customer_role: input.saleContract.customerRole || 'contractor',
+          contract_date: new Date(input.saleContract.contractDate),
+          price: new Prisma.Decimal(input.saleContract.price),
+          payment_status: input.saleContract.paymentStatus || 'unpaid',
+          reservation_date: input.saleContract.reservationDate
+            ? new Date(input.saleContract.reservationDate)
+            : null,
+          acceptance_number: input.saleContract.acceptanceNumber || null,
+          permit_date: input.saleContract.permitDate
+            ? new Date(input.saleContract.permitDate)
+            : null,
+          start_date: input.saleContract.startDate ? new Date(input.saleContract.startDate) : null,
+          notes: input.saleContract.notes || null,
+        },
       });
 
-      return plot;
+      // 8. 使用料情報の作成（オプション）
+      if (input.usageFee) {
+        await tx.usageFee.create({
+          data: {
+            contract_plot_id: contractPlot.id,
+            calculation_type: input.usageFee.calculationType,
+            tax_type: input.usageFee.taxType,
+            billing_type: 'onetime', // デフォルト値
+            billing_years: '1', // デフォルト値
+            usage_fee: input.usageFee.usageFee.toString(),
+            area: input.usageFee.area.toString(),
+            unit_price: input.usageFee.unitPrice.toString(),
+            payment_method: input.usageFee.paymentMethod,
+          },
+        });
+      }
+
+      // 9. 管理料情報の作成（オプション）
+      if (input.managementFee) {
+        await tx.managementFee.create({
+          data: {
+            contract_plot_id: contractPlot.id,
+            calculation_type: input.managementFee.calculationType,
+            tax_type: input.managementFee.taxType,
+            billing_type: input.managementFee.billingType,
+            billing_years: input.managementFee.billingYears.toString(),
+            area: input.managementFee.area.toString(),
+            billing_month: input.managementFee.billingMonth,
+            management_fee: input.managementFee.managementFee.toString(),
+            unit_price: input.managementFee.unitPrice.toString(),
+            last_billing_month: input.managementFee.lastBillingMonth,
+            payment_method: input.managementFee.paymentMethod,
+          },
+        });
+      }
+
+      // 10. 物理区画のステータス更新
+      await updatePhysicalPlotStatus(tx as any, physicalPlot.id);
+
+      return {
+        contractPlot,
+        saleContract,
+        customer,
+        physicalPlot,
+      };
+    });
+
+    // 作成完了後、詳細情報を取得して返却
+    const createdContractPlot = await prisma.contractPlot.findUnique({
+      where: { id: result.contractPlot.id },
+      include: {
+        PhysicalPlot: true,
+        SaleContract: {
+          include: {
+            Customer: {
+              include: {
+                WorkInfo: true,
+                BillingInfo: true,
+              },
+            },
+          },
+        },
+        UsageFee: true,
+        ManagementFee: true,
+      },
     });
 
     res.status(201).json({
       success: true,
       data: {
-        id: result.id,
-        plotNumber: result.plot_number,
-        message: '区画情報を登録しました',
+        id: createdContractPlot?.id,
+        contractAreaSqm: createdContractPlot?.contract_area_sqm.toNumber(),
+        saleStatus: createdContractPlot?.sale_status,
+        locationDescription: createdContractPlot?.location_description,
+        physicalPlot: {
+          id: createdContractPlot?.PhysicalPlot.id,
+          plotNumber: createdContractPlot?.PhysicalPlot.plot_number,
+          areaName: createdContractPlot?.PhysicalPlot.area_name,
+          areaSqm: createdContractPlot?.PhysicalPlot.area_sqm.toNumber(),
+          status: createdContractPlot?.PhysicalPlot.status,
+        },
+        saleContract: {
+          id: createdContractPlot?.SaleContract?.id,
+          contractDate: createdContractPlot?.SaleContract?.contract_date,
+          price: createdContractPlot?.SaleContract?.price.toNumber(),
+          paymentStatus: createdContractPlot?.SaleContract?.payment_status,
+          customerRole: createdContractPlot?.SaleContract?.customer_role,
+          customer: {
+            id: createdContractPlot?.SaleContract?.Customer.id,
+            name: createdContractPlot?.SaleContract?.Customer.name,
+            nameKana: createdContractPlot?.SaleContract?.Customer.name_kana,
+            phoneNumber: createdContractPlot?.SaleContract?.Customer.phone_number,
+            address: createdContractPlot?.SaleContract?.Customer.address,
+          },
+        },
+        createdAt: createdContractPlot?.created_at,
+        updatedAt: createdContractPlot?.updated_at,
       },
     });
-  } catch (error: any) {
-    console.error('Error creating plot:', error);
+  } catch (error) {
+    console.error('Error creating contract plot:', error);
 
-    // Prismaの一意制約違反エラー
-    if (error.code === 'P2002') {
-      return res.status(409).json({
+    if (error instanceof Error && error.message) {
+      return res.status(400).json({
         success: false,
         error: {
-          code: 'DUPLICATE_ERROR',
-          message: '重複するデータが存在します',
-          details: [],
+          code: 'VALIDATION_ERROR',
+          message: error.message,
         },
       });
     }
@@ -767,334 +683,307 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
       success: false,
       error: {
         code: 'INTERNAL_SERVER_ERROR',
-        message: '区画情報の登録に失敗しました',
-        details: [],
+        message: '契約区画の作成に失敗しました',
       },
     });
   }
 };
 
 /**
- * 区画情報更新
+ * 契約区画更新
  * PUT /api/v1/plots/:id
  */
 export const updatePlot = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'IDが指定されていません',
-          details: [],
-        },
-      });
-    }
-    const input: UpdatePlotInput = req.body;
+    const input: UpdateContractPlotInput = req.body;
 
-    // 1. 区画の存在確認
-    const existingPlot = await prisma.plot.findUnique({
-      where: { id },
-      include: {
-        Applicant: true,
-        Contractors: {
-          where: { deleted_at: null },
-          include: {
-            WorkInfo: true,
-            BillingInfo: true,
-          },
-          orderBy: { created_at: 'desc' },
-          take: 1,
-        },
-        UsageFee: true,
-        ManagementFee: true,
-        GravestoneInfo: true,
-        ConstructionInfo: true,
-        EmergencyContact: true,
-        FamilyContacts: {
-          where: { deleted_at: null },
-        },
-        BuriedPersons: {
-          where: { deleted_at: null },
-        },
-        CollectiveBurial: true,
-      },
-    });
-
-    if (!existingPlot || existingPlot.deleted_at) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'NOT_FOUND',
-          message: '指定された区画が見つかりません',
-        },
-      });
-    }
-
-    // 2. 区画番号の重複チェック（自分以外）
-    if (input.plot?.plotNumber && input.plot.plotNumber !== existingPlot.plot_number) {
-      const duplicatePlot = await prisma.plot.findUnique({
-        where: { plot_number: input.plot.plotNumber },
-      });
-
-      if (duplicatePlot) {
-        return res.status(409).json({
-          success: false,
-          error: {
-            code: 'DUPLICATE_PLOT_NUMBER',
-            message: '区画番号が既に存在します',
-            details: [
-              {
-                field: 'plotNumber',
-                message: `区画番号 ${input.plot.plotNumber} は既に使用されています`,
+    // トランザクション処理
+    await prisma.$transaction(async (tx) => {
+      // 1. 既存のContractPlotを取得
+      const existingContractPlot = await tx.contractPlot.findUnique({
+        where: { id, deleted_at: null },
+        include: {
+          PhysicalPlot: true,
+          SaleContract: {
+            include: {
+              Customer: {
+                include: {
+                  WorkInfo: true,
+                  BillingInfo: true,
+                },
               },
-            ],
+            },
           },
-        });
-      }
-    }
-
-    // 3. 契約者に依存するデータのバリデーション
-    const hasContractor = existingPlot.Contractors.length > 0;
-    if ((input.workInfo || input.billingInfo) && !hasContractor && !input.contractor) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: '契約者情報がない場合、勤務先・請求情報は登録できません',
-          details: [],
+          UsageFee: true,
+          ManagementFee: true,
         },
       });
-    }
 
-    // 4. トランザクション処理で一括更新
-    const result = await prisma.$transaction(async (tx) => {
-      // 更新前のデータ全体を取得（履歴用）
-      const beforeData = {
-        plot: {
-          plot_number: existingPlot.plot_number,
-          section: existingPlot.section,
-          usage: existingPlot.usage,
-          size: existingPlot.size,
-          price: existingPlot.price,
-          contract_date: existingPlot.contract_date,
-          status: existingPlot.status,
-          notes: existingPlot.notes,
-        },
-      };
-      // 4-1. Plot基本情報の更新
-      if (input.plot) {
+      if (!existingContractPlot) {
+        throw new Error('指定された契約区画が見つかりません');
+      }
+
+      const physicalPlotId = existingContractPlot.physical_plot_id;
+      const oldContractArea = existingContractPlot.contract_area_sqm.toNumber();
+
+      // 2. ContractPlotの更新
+      if (input.contractPlot) {
         const updateData: any = {};
-        if (input.plot.plotNumber !== undefined) {
-          updateData.plot_number = input.plot.plotNumber;
+
+        if (input.contractPlot.contractAreaSqm !== undefined) {
+          // 契約面積が変更された場合は妥当性検証
+          const newAreaSqm = input.contractPlot.contractAreaSqm;
+
+          // 他の契約の合計面積を計算（現在の契約を除く）
+          const otherContracts = await tx.contractPlot.findMany({
+            where: {
+              physical_plot_id: physicalPlotId,
+              id: { not: id },
+              deleted_at: null,
+            },
+          });
+
+          const otherContractsTotal = otherContracts.reduce(
+            (sum, contract) => sum + contract.contract_area_sqm.toNumber(),
+            0
+          );
+
+          const totalAfterUpdate = otherContractsTotal + newAreaSqm;
+          const physicalPlotArea = existingContractPlot.PhysicalPlot.area_sqm.toNumber();
+
+          if (totalAfterUpdate > physicalPlotArea) {
+            throw new Error(
+              `契約面積の合計が物理区画の面積を超えています（物理区画: ${physicalPlotArea}㎡、合計: ${totalAfterUpdate}㎡）`
+            );
+          }
+
+          updateData.contract_area_sqm = new Prisma.Decimal(newAreaSqm);
         }
-        if (input.plot.section !== undefined) {
-          updateData.section = input.plot.section;
+
+        if (input.contractPlot.saleStatus !== undefined) {
+          updateData.sale_status = input.contractPlot.saleStatus;
         }
-        if (input.plot.usage !== undefined) {
-          updateData.usage = input.plot.usage;
-        }
-        if (input.plot.size !== undefined) {
-          updateData.size = input.plot.size;
-        }
-        if (input.plot.price !== undefined) {
-          updateData.price = input.plot.price;
-        }
-        if (input.plot.contractDate !== undefined) {
-          updateData.contract_date = parseDate(input.plot.contractDate);
-        }
-        if (input.plot.status !== undefined) {
-          updateData.status = input.plot.status;
-        }
-        if (input.plot.notes !== undefined) {
-          updateData.notes = input.plot.notes;
+
+        if (input.contractPlot.locationDescription !== undefined) {
+          updateData.location_description = input.contractPlot.locationDescription;
         }
 
         if (Object.keys(updateData).length > 0) {
-          await tx.plot.update({
+          await tx.contractPlot.update({
             where: { id },
             data: updateData,
           });
         }
       }
 
-      // 4-2. Applicant（申込者）の更新・作成・削除
-      if (input.applicant !== undefined) {
-        if (input.applicant === null) {
-          // 削除（論理削除）
-          if (existingPlot.Applicant) {
-            await tx.applicant.update({
-              where: { id: existingPlot.Applicant.id },
-              data: { deleted_at: new Date() },
-            });
-          }
-        } else {
-          const applicantData: any = {};
-          if (input.applicant.applicationDate !== undefined) {
-            applicantData.application_date = parseDate(input.applicant.applicationDate);
-          }
-          if (input.applicant.staffName !== undefined) {
-            applicantData.staff_name = input.applicant.staffName;
-          }
-          if (input.applicant.name !== undefined) {
-            applicantData.name = input.applicant.name;
-          }
-          if (input.applicant.nameKana !== undefined) {
-            applicantData.name_kana = input.applicant.nameKana;
-          }
-          if (input.applicant.postalCode !== undefined) {
-            applicantData.postal_code = input.applicant.postalCode;
-          }
-          if (input.applicant.phoneNumber !== undefined) {
-            applicantData.phone_number = input.applicant.phoneNumber;
-          }
-          if (input.applicant.address !== undefined) {
-            applicantData.address = input.applicant.address;
-          }
+      // 3. SaleContractの更新
+      if (input.saleContract && existingContractPlot.SaleContract) {
+        const updateData: any = {};
 
-          if (Object.keys(applicantData).length > 0) {
-            if (existingPlot.Applicant) {
-              // 更新
-              await tx.applicant.update({
-                where: { id: existingPlot.Applicant.id },
-                data: applicantData,
+        if (input.saleContract.contractDate !== undefined) {
+          updateData.contract_date = new Date(input.saleContract.contractDate);
+        }
+        if (input.saleContract.price !== undefined) {
+          updateData.price = new Prisma.Decimal(input.saleContract.price);
+        }
+        if (input.saleContract.paymentStatus !== undefined) {
+          updateData.payment_status = input.saleContract.paymentStatus;
+        }
+        if (input.saleContract.customerRole !== undefined) {
+          updateData.customer_role = input.saleContract.customerRole;
+        }
+        if (input.saleContract.reservationDate !== undefined) {
+          updateData.reservation_date = input.saleContract.reservationDate
+            ? new Date(input.saleContract.reservationDate)
+            : null;
+        }
+        if (input.saleContract.acceptanceNumber !== undefined) {
+          updateData.acceptance_number = input.saleContract.acceptanceNumber;
+        }
+        if (input.saleContract.permitDate !== undefined) {
+          updateData.permit_date = input.saleContract.permitDate
+            ? new Date(input.saleContract.permitDate)
+            : null;
+        }
+        if (input.saleContract.startDate !== undefined) {
+          updateData.start_date = input.saleContract.startDate
+            ? new Date(input.saleContract.startDate)
+            : null;
+        }
+        if (input.saleContract.notes !== undefined) {
+          updateData.notes = input.saleContract.notes;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await tx.saleContract.update({
+            where: { id: existingContractPlot.SaleContract.id },
+            data: updateData,
+          });
+        }
+      }
+
+      // 4. Customerの更新
+      if (input.customer && existingContractPlot.SaleContract) {
+        const customerId = existingContractPlot.SaleContract.customer_id;
+        const updateData: any = {};
+
+        if (input.customer.name !== undefined) updateData.name = input.customer.name;
+        if (input.customer.nameKana !== undefined) updateData.name_kana = input.customer.nameKana;
+        if (input.customer.birthDate !== undefined) {
+          updateData.birth_date = input.customer.birthDate
+            ? new Date(input.customer.birthDate)
+            : null;
+        }
+        if (input.customer.gender !== undefined) updateData.gender = input.customer.gender;
+        if (input.customer.postalCode !== undefined)
+          updateData.postal_code = input.customer.postalCode;
+        if (input.customer.address !== undefined) updateData.address = input.customer.address;
+        if (input.customer.registeredAddress !== undefined)
+          updateData.registered_address = input.customer.registeredAddress;
+        if (input.customer.phoneNumber !== undefined)
+          updateData.phone_number = input.customer.phoneNumber;
+        if (input.customer.faxNumber !== undefined)
+          updateData.fax_number = input.customer.faxNumber;
+        if (input.customer.email !== undefined) updateData.email = input.customer.email;
+        if (input.customer.notes !== undefined) updateData.notes = input.customer.notes;
+
+        if (Object.keys(updateData).length > 0) {
+          await tx.customer.update({
+            where: { id: customerId },
+            data: updateData,
+          });
+        }
+
+        // 5. WorkInfoの更新/作成/削除
+        if (input.workInfo !== undefined) {
+          const existingWorkInfo = existingContractPlot.SaleContract.Customer.WorkInfo;
+
+          if (input.workInfo === null) {
+            // 削除
+            if (existingWorkInfo) {
+              await tx.workInfo.delete({
+                where: { id: existingWorkInfo.id },
               });
-            } else {
-              // 新規作成
-              await tx.applicant.create({
-                data: {
-                  plot_id: id,
-                  ...applicantData,
-                },
+            }
+          } else {
+            // 更新または作成
+            const workInfoData: any = {};
+            if (input.workInfo.companyName !== undefined)
+              workInfoData.company_name = input.workInfo.companyName;
+            if (input.workInfo.companyNameKana !== undefined)
+              workInfoData.company_name_kana = input.workInfo.companyNameKana;
+            if (input.workInfo.workPostalCode !== undefined)
+              workInfoData.work_postal_code = input.workInfo.workPostalCode;
+            if (input.workInfo.workAddress !== undefined)
+              workInfoData.work_address = input.workInfo.workAddress;
+            if (input.workInfo.workPhoneNumber !== undefined)
+              workInfoData.work_phone_number = input.workInfo.workPhoneNumber;
+            if (input.workInfo.dmSetting !== undefined)
+              workInfoData.dm_setting = input.workInfo.dmSetting;
+            if (input.workInfo.addressType !== undefined)
+              workInfoData.address_type = input.workInfo.addressType;
+            if (input.workInfo.notes !== undefined) workInfoData.notes = input.workInfo.notes;
+
+            if (Object.keys(workInfoData).length > 0) {
+              if (existingWorkInfo) {
+                await tx.workInfo.update({
+                  where: { id: existingWorkInfo.id },
+                  data: workInfoData,
+                });
+              } else {
+                await tx.workInfo.create({
+                  data: {
+                    customer_id: customerId,
+                    ...workInfoData,
+                  },
+                });
+              }
+            }
+          }
+        }
+
+        // 6. BillingInfoの更新/作成/削除
+        if (input.billingInfo !== undefined) {
+          const existingBillingInfo = existingContractPlot.SaleContract.Customer.BillingInfo;
+
+          if (input.billingInfo === null) {
+            // 削除
+            if (existingBillingInfo) {
+              await tx.billingInfo.delete({
+                where: { id: existingBillingInfo.id },
               });
+            }
+          } else {
+            // 更新または作成
+            const billingInfoData: any = {};
+            if (input.billingInfo.billingType !== undefined)
+              billingInfoData.billing_type = input.billingInfo.billingType;
+            if (input.billingInfo.bankName !== undefined)
+              billingInfoData.bank_name = input.billingInfo.bankName;
+            if (input.billingInfo.branchName !== undefined)
+              billingInfoData.branch_name = input.billingInfo.branchName;
+            if (input.billingInfo.accountType !== undefined)
+              billingInfoData.account_type = input.billingInfo.accountType;
+            if (input.billingInfo.accountNumber !== undefined)
+              billingInfoData.account_number = input.billingInfo.accountNumber;
+            if (input.billingInfo.accountHolder !== undefined)
+              billingInfoData.account_holder = input.billingInfo.accountHolder;
+
+            if (Object.keys(billingInfoData).length > 0) {
+              if (existingBillingInfo) {
+                await tx.billingInfo.update({
+                  where: { id: existingBillingInfo.id },
+                  data: billingInfoData,
+                });
+              } else {
+                await tx.billingInfo.create({
+                  data: {
+                    customer_id: customerId,
+                    ...billingInfoData,
+                  },
+                });
+              }
             }
           }
         }
       }
 
-      // 4-3. Contractor（契約者）の更新
-      const latestContractor = existingPlot.Contractors[0];
-      let contractorId = latestContractor?.id;
-
-      if (input.contractor && latestContractor) {
-        const contractorData: any = {};
-        if (input.contractor.reservationDate !== undefined) {
-          contractorData.reservation_date = parseDate(input.contractor.reservationDate);
-        }
-        if (input.contractor.acceptanceNumber !== undefined) {
-          contractorData.acceptance_number = input.contractor.acceptanceNumber;
-        }
-        if (input.contractor.permitDate !== undefined) {
-          contractorData.permit_date = parseDate(input.contractor.permitDate);
-        }
-        if (input.contractor.startDate !== undefined) {
-          contractorData.start_date = parseDate(input.contractor.startDate);
-        }
-        if (input.contractor.name !== undefined) {
-          contractorData.name = input.contractor.name;
-        }
-        if (input.contractor.nameKana !== undefined) {
-          contractorData.name_kana = input.contractor.nameKana;
-        }
-        if (input.contractor.birthDate !== undefined) {
-          contractorData.birth_date = parseDate(input.contractor.birthDate);
-        }
-        if (input.contractor.gender !== undefined) {
-          contractorData.gender = input.contractor.gender;
-        }
-        if (input.contractor.phoneNumber !== undefined) {
-          contractorData.phone_number = input.contractor.phoneNumber;
-        }
-        if (input.contractor.faxNumber !== undefined) {
-          contractorData.fax_number = input.contractor.faxNumber;
-        }
-        if (input.contractor.email !== undefined) {
-          contractorData.email = input.contractor.email;
-        }
-        if (input.contractor.address !== undefined) {
-          contractorData.address = input.contractor.address;
-        }
-        if (input.contractor.registeredAddress !== undefined) {
-          contractorData.registered_address = input.contractor.registeredAddress;
-        }
-
-        if (Object.keys(contractorData).length > 0) {
-          await tx.contractor.update({
-            where: { id: contractorId },
-            data: contractorData,
-          });
-        }
-      } else if (input.contractor && !latestContractor) {
-        // 契約者が存在しない場合は新規作成
-        const newContractor = await tx.contractor.create({
-          data: {
-            plot_id: id,
-            reservation_date: parseDate(input.contractor.reservationDate),
-            acceptance_number: input.contractor.acceptanceNumber || null,
-            permit_date: parseDate(input.contractor.permitDate),
-            start_date: parseDate(input.contractor.startDate),
-            name: input.contractor.name || '',
-            name_kana: input.contractor.nameKana || '',
-            birth_date: parseDate(input.contractor.birthDate),
-            gender: input.contractor.gender || null,
-            phone_number: input.contractor.phoneNumber || '',
-            fax_number: input.contractor.faxNumber || null,
-            email: input.contractor.email || null,
-            address: input.contractor.address || '',
-            registered_address: input.contractor.registeredAddress || null,
-          },
-        });
-        contractorId = newContractor.id;
-      }
-
-      // 4-4. UsageFee（使用料）のupsert
+      // 7. UsageFeeの更新/作成/削除
       if (input.usageFee !== undefined) {
         if (input.usageFee === null) {
           // 削除
-          if (existingPlot.UsageFee) {
-            await tx.usageFee.update({
-              where: { id: existingPlot.UsageFee.id },
-              data: { deleted_at: new Date() },
+          if (existingContractPlot.UsageFee) {
+            await tx.usageFee.delete({
+              where: { id: existingContractPlot.UsageFee.id },
             });
           }
         } else {
+          // 更新または作成
           const usageFeeData: any = {};
-          if (input.usageFee.calculationType !== undefined) {
+          if (input.usageFee.calculationType !== undefined)
             usageFeeData.calculation_type = input.usageFee.calculationType;
-          }
-          if (input.usageFee.taxType !== undefined) {
-            usageFeeData.tax_type = input.usageFee.taxType;
-          }
-          if (input.usageFee.billingType !== undefined) {
-            usageFeeData.billing_type = input.usageFee.billingType;
-          }
-          if (input.usageFee.billingYears !== undefined) {
-            usageFeeData.billing_years = input.usageFee.billingYears;
-          }
-          if (input.usageFee.area !== undefined) {
-            usageFeeData.area = input.usageFee.area;
-          }
-          if (input.usageFee.unitPrice !== undefined) {
-            usageFeeData.unit_price = input.usageFee.unitPrice;
-          }
-          if (input.usageFee.usageFee !== undefined) {
-            usageFeeData.usage_fee = input.usageFee.usageFee;
-          }
-          if (input.usageFee.paymentMethod !== undefined) {
+          if (input.usageFee.taxType !== undefined) usageFeeData.tax_type = input.usageFee.taxType;
+          if (input.usageFee.usageFee !== undefined)
+            usageFeeData.usage_fee = input.usageFee.usageFee.toString();
+          if (input.usageFee.area !== undefined) usageFeeData.area = input.usageFee.area.toString();
+          if (input.usageFee.unitPrice !== undefined)
+            usageFeeData.unit_price = input.usageFee.unitPrice.toString();
+          if (input.usageFee.paymentMethod !== undefined)
             usageFeeData.payment_method = input.usageFee.paymentMethod;
-          }
 
           if (Object.keys(usageFeeData).length > 0) {
-            if (existingPlot.UsageFee) {
+            if (existingContractPlot.UsageFee) {
               await tx.usageFee.update({
-                where: { id: existingPlot.UsageFee.id },
+                where: { id: existingContractPlot.UsageFee.id },
                 data: usageFeeData,
               });
             } else {
               await tx.usageFee.create({
                 data: {
-                  plot_id: id,
+                  contract_plot_id: id,
+                  billing_type: 'onetime',
+                  billing_years: '1',
                   ...usageFeeData,
                 },
               });
@@ -1103,59 +992,49 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
         }
       }
 
-      // 4-5. ManagementFee（管理料）のupsert
+      // 8. ManagementFeeの更新/作成/削除
       if (input.managementFee !== undefined) {
         if (input.managementFee === null) {
           // 削除
-          if (existingPlot.ManagementFee) {
-            await tx.managementFee.update({
-              where: { id: existingPlot.ManagementFee.id },
-              data: { deleted_at: new Date() },
+          if (existingContractPlot.ManagementFee) {
+            await tx.managementFee.delete({
+              where: { id: existingContractPlot.ManagementFee.id },
             });
           }
         } else {
+          // 更新または作成
           const managementFeeData: any = {};
-          if (input.managementFee.calculationType !== undefined) {
+          if (input.managementFee.calculationType !== undefined)
             managementFeeData.calculation_type = input.managementFee.calculationType;
-          }
-          if (input.managementFee.taxType !== undefined) {
+          if (input.managementFee.taxType !== undefined)
             managementFeeData.tax_type = input.managementFee.taxType;
-          }
-          if (input.managementFee.billingType !== undefined) {
+          if (input.managementFee.billingType !== undefined)
             managementFeeData.billing_type = input.managementFee.billingType;
-          }
-          if (input.managementFee.billingYears !== undefined) {
-            managementFeeData.billing_years = input.managementFee.billingYears;
-          }
-          if (input.managementFee.area !== undefined) {
-            managementFeeData.area = input.managementFee.area;
-          }
-          if (input.managementFee.billingMonth !== undefined) {
+          if (input.managementFee.billingYears !== undefined)
+            managementFeeData.billing_years = input.managementFee.billingYears.toString();
+          if (input.managementFee.area !== undefined)
+            managementFeeData.area = input.managementFee.area.toString();
+          if (input.managementFee.billingMonth !== undefined)
             managementFeeData.billing_month = input.managementFee.billingMonth;
-          }
-          if (input.managementFee.managementFee !== undefined) {
-            managementFeeData.management_fee = input.managementFee.managementFee;
-          }
-          if (input.managementFee.unitPrice !== undefined) {
-            managementFeeData.unit_price = input.managementFee.unitPrice;
-          }
-          if (input.managementFee.lastBillingMonth !== undefined) {
+          if (input.managementFee.managementFee !== undefined)
+            managementFeeData.management_fee = input.managementFee.managementFee.toString();
+          if (input.managementFee.unitPrice !== undefined)
+            managementFeeData.unit_price = input.managementFee.unitPrice.toString();
+          if (input.managementFee.lastBillingMonth !== undefined)
             managementFeeData.last_billing_month = input.managementFee.lastBillingMonth;
-          }
-          if (input.managementFee.paymentMethod !== undefined) {
+          if (input.managementFee.paymentMethod !== undefined)
             managementFeeData.payment_method = input.managementFee.paymentMethod;
-          }
 
           if (Object.keys(managementFeeData).length > 0) {
-            if (existingPlot.ManagementFee) {
+            if (existingContractPlot.ManagementFee) {
               await tx.managementFee.update({
-                where: { id: existingPlot.ManagementFee.id },
+                where: { id: existingContractPlot.ManagementFee.id },
                 data: managementFeeData,
               });
             } else {
               await tx.managementFee.create({
                 data: {
-                  plot_id: id,
+                  contract_plot_id: id,
                   ...managementFeeData,
                 },
               });
@@ -1164,542 +1043,77 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
         }
       }
 
-      // 4-6. GravestoneInfo（墓石情報）のupsert
-      if (input.gravestoneInfo !== undefined) {
-        if (input.gravestoneInfo === null) {
-          // 削除
-          if (existingPlot.GravestoneInfo) {
-            await tx.gravestoneInfo.update({
-              where: { id: existingPlot.GravestoneInfo.id },
-              data: { deleted_at: new Date() },
-            });
-          }
-        } else {
-          const gravestoneInfoData: any = {};
-          if (input.gravestoneInfo.gravestoneBase !== undefined) {
-            gravestoneInfoData.gravestone_base = input.gravestoneInfo.gravestoneBase;
-          }
-          if (input.gravestoneInfo.enclosurePosition !== undefined) {
-            gravestoneInfoData.enclosure_position = input.gravestoneInfo.enclosurePosition;
-          }
-          if (input.gravestoneInfo.gravestoneDealer !== undefined) {
-            gravestoneInfoData.gravestone_dealer = input.gravestoneInfo.gravestoneDealer;
-          }
-          if (input.gravestoneInfo.gravestoneType !== undefined) {
-            gravestoneInfoData.gravestone_type = input.gravestoneInfo.gravestoneType;
-          }
-          if (input.gravestoneInfo.surroundingArea !== undefined) {
-            gravestoneInfoData.surrounding_area = input.gravestoneInfo.surroundingArea;
-          }
-          if (input.gravestoneInfo.establishmentDeadline !== undefined) {
-            gravestoneInfoData.establishment_deadline = parseDate(
-              input.gravestoneInfo.establishmentDeadline
-            );
-          }
-          if (input.gravestoneInfo.establishmentDate !== undefined) {
-            gravestoneInfoData.establishment_date = parseDate(
-              input.gravestoneInfo.establishmentDate
-            );
-          }
-
-          if (Object.keys(gravestoneInfoData).length > 0) {
-            if (existingPlot.GravestoneInfo) {
-              await tx.gravestoneInfo.update({
-                where: { id: existingPlot.GravestoneInfo.id },
-                data: gravestoneInfoData,
-              });
-            } else {
-              await tx.gravestoneInfo.create({
-                data: {
-                  plot_id: id,
-                  ...gravestoneInfoData,
-                },
-              });
-            }
-          }
-        }
+      // 9. 契約面積が変更された場合、物理区画のステータス更新
+      if (
+        input.contractPlot?.contractAreaSqm !== undefined &&
+        input.contractPlot.contractAreaSqm !== oldContractArea
+      ) {
+        await updatePhysicalPlotStatus(tx as any, physicalPlotId);
       }
+    });
 
-      // 4-6-2. ConstructionInfo（工事情報）のupsert
-      if (input.constructionInfo !== undefined) {
-        if (input.constructionInfo === null) {
-          // 削除
-          if (existingPlot.ConstructionInfo) {
-            await tx.constructionInfo.update({
-              where: { id: existingPlot.ConstructionInfo.id },
-              data: { deleted_at: new Date() },
-            });
-          }
-        } else {
-          const constructionInfoData: any = {};
-          if (input.constructionInfo.constructionType !== undefined) {
-            constructionInfoData.construction_type = input.constructionInfo.constructionType;
-          }
-          if (input.constructionInfo.startDate !== undefined) {
-            constructionInfoData.start_date = parseDate(input.constructionInfo.startDate);
-          }
-          if (input.constructionInfo.completionDate !== undefined) {
-            constructionInfoData.completion_date = parseDate(input.constructionInfo.completionDate);
-          }
-          if (input.constructionInfo.contractor !== undefined) {
-            constructionInfoData.contractor = input.constructionInfo.contractor;
-          }
-          if (input.constructionInfo.supervisor !== undefined) {
-            constructionInfoData.supervisor = input.constructionInfo.supervisor;
-          }
-          if (input.constructionInfo.progress !== undefined) {
-            constructionInfoData.progress = input.constructionInfo.progress;
-          }
-          if (input.constructionInfo.workItem1 !== undefined) {
-            constructionInfoData.work_item_1 = input.constructionInfo.workItem1;
-          }
-          if (input.constructionInfo.workDate1 !== undefined) {
-            constructionInfoData.work_date_1 = parseDate(input.constructionInfo.workDate1);
-          }
-          if (input.constructionInfo.workAmount1 !== undefined) {
-            constructionInfoData.work_amount_1 = input.constructionInfo.workAmount1;
-          }
-          if (input.constructionInfo.workStatus1 !== undefined) {
-            constructionInfoData.work_status_1 = input.constructionInfo.workStatus1;
-          }
-          if (input.constructionInfo.workItem2 !== undefined) {
-            constructionInfoData.work_item_2 = input.constructionInfo.workItem2;
-          }
-          if (input.constructionInfo.workDate2 !== undefined) {
-            constructionInfoData.work_date_2 = parseDate(input.constructionInfo.workDate2);
-          }
-          if (input.constructionInfo.workAmount2 !== undefined) {
-            constructionInfoData.work_amount_2 = input.constructionInfo.workAmount2;
-          }
-          if (input.constructionInfo.workStatus2 !== undefined) {
-            constructionInfoData.work_status_2 = input.constructionInfo.workStatus2;
-          }
-          if (input.constructionInfo.permitNumber !== undefined) {
-            constructionInfoData.permit_number = input.constructionInfo.permitNumber;
-          }
-          if (input.constructionInfo.applicationDate !== undefined) {
-            constructionInfoData.application_date = parseDate(
-              input.constructionInfo.applicationDate
-            );
-          }
-          if (input.constructionInfo.permitDate !== undefined) {
-            constructionInfoData.permit_date = parseDate(input.constructionInfo.permitDate);
-          }
-          if (input.constructionInfo.permitStatus !== undefined) {
-            constructionInfoData.permit_status = input.constructionInfo.permitStatus;
-          }
-          if (input.constructionInfo.paymentType1 !== undefined) {
-            constructionInfoData.payment_type_1 = input.constructionInfo.paymentType1;
-          }
-          if (input.constructionInfo.paymentAmount1 !== undefined) {
-            constructionInfoData.payment_amount_1 = input.constructionInfo.paymentAmount1;
-          }
-          if (input.constructionInfo.paymentDate1 !== undefined) {
-            constructionInfoData.payment_date_1 = parseDate(input.constructionInfo.paymentDate1);
-          }
-          if (input.constructionInfo.paymentStatus1 !== undefined) {
-            constructionInfoData.payment_status_1 = input.constructionInfo.paymentStatus1;
-          }
-          if (input.constructionInfo.paymentType2 !== undefined) {
-            constructionInfoData.payment_type_2 = input.constructionInfo.paymentType2;
-          }
-          if (input.constructionInfo.paymentAmount2 !== undefined) {
-            constructionInfoData.payment_amount_2 = input.constructionInfo.paymentAmount2;
-          }
-          if (input.constructionInfo.paymentScheduledDate2 !== undefined) {
-            constructionInfoData.payment_scheduled_date_2 = parseDate(
-              input.constructionInfo.paymentScheduledDate2
-            );
-          }
-          if (input.constructionInfo.paymentStatus2 !== undefined) {
-            constructionInfoData.payment_status_2 = input.constructionInfo.paymentStatus2;
-          }
-          if (input.constructionInfo.constructionNotes !== undefined) {
-            constructionInfoData.construction_notes = input.constructionInfo.constructionNotes;
-          }
-
-          if (Object.keys(constructionInfoData).length > 0) {
-            if (existingPlot.ConstructionInfo) {
-              await tx.constructionInfo.update({
-                where: { id: existingPlot.ConstructionInfo.id },
-                data: constructionInfoData,
-              });
-            } else {
-              await tx.constructionInfo.create({
-                data: {
-                  plot_id: id,
-                  ...constructionInfoData,
-                },
-              });
-            }
-          }
-        }
-      }
-
-      // 4-7. EmergencyContact（緊急連絡先）のupsert
-      if (input.emergencyContact !== undefined) {
-        if (input.emergencyContact === null) {
-          // 削除
-          if (existingPlot.EmergencyContact) {
-            await tx.emergencyContact.update({
-              where: { id: existingPlot.EmergencyContact.id },
-              data: { deleted_at: new Date() },
-            });
-          }
-        } else {
-          const emergencyContactData: any = {};
-          if (input.emergencyContact.name !== undefined) {
-            emergencyContactData.name = input.emergencyContact.name;
-          }
-          if (input.emergencyContact.relationship !== undefined) {
-            emergencyContactData.relationship = input.emergencyContact.relationship;
-          }
-          if (input.emergencyContact.phoneNumber !== undefined) {
-            emergencyContactData.phone_number = input.emergencyContact.phoneNumber;
-          }
-
-          if (Object.keys(emergencyContactData).length > 0) {
-            if (existingPlot.EmergencyContact) {
-              await tx.emergencyContact.update({
-                where: { id: existingPlot.EmergencyContact.id },
-                data: emergencyContactData,
-              });
-            } else {
-              await tx.emergencyContact.create({
-                data: {
-                  plot_id: id,
-                  ...emergencyContactData,
-                },
-              });
-            }
-          }
-        }
-      }
-
-      // 4-8. FamilyContacts（家族連絡先）の差分更新
-      if (input.familyContacts !== undefined) {
-        for (const contact of input.familyContacts) {
-          if (contact._delete && contact.id) {
-            // 削除フラグが立っている場合は論理削除
-            await tx.familyContact.update({
-              where: { id: contact.id },
-              data: { deleted_at: new Date() },
-            });
-          } else if (contact.id) {
-            // 既存データの更新
-            const contactData: any = {};
-            if (contact.name !== undefined) contactData.name = contact.name;
-            if (contact.birthDate !== undefined)
-              contactData.birth_date = parseDate(contact.birthDate);
-            if (contact.relationship !== undefined) contactData.relationship = contact.relationship;
-            if (contact.address !== undefined) contactData.address = contact.address;
-            if (contact.phoneNumber !== undefined) contactData.phone_number = contact.phoneNumber;
-            if (contact.faxNumber !== undefined) contactData.fax_number = contact.faxNumber;
-            if (contact.email !== undefined) contactData.email = contact.email;
-            if (contact.registeredAddress !== undefined)
-              contactData.registered_address = contact.registeredAddress;
-            if (contact.mailingType !== undefined) contactData.mailing_type = contact.mailingType;
-            if (contact.companyName !== undefined) contactData.company_name = contact.companyName;
-            if (contact.companyNameKana !== undefined)
-              contactData.company_name_kana = contact.companyNameKana;
-            if (contact.companyAddress !== undefined)
-              contactData.company_address = contact.companyAddress;
-            if (contact.companyPhone !== undefined)
-              contactData.company_phone = contact.companyPhone;
-            if (contact.notes !== undefined) contactData.notes = contact.notes;
-
-            if (Object.keys(contactData).length > 0) {
-              await tx.familyContact.update({
-                where: { id: contact.id },
-                data: contactData,
-              });
-            }
-          } else {
-            // 新規作成
-            await tx.familyContact.create({
-              data: {
-                plot_id: id,
-                name: contact.name || '',
-                birth_date: parseDate(contact.birthDate),
-                relationship: contact.relationship || '',
-                address: contact.address || '',
-                phone_number: contact.phoneNumber || '',
-                fax_number: contact.faxNumber || null,
-                email: contact.email || null,
-                registered_address: contact.registeredAddress || null,
-                mailing_type: contact.mailingType || null,
-                company_name: contact.companyName || null,
-                company_name_kana: contact.companyNameKana || null,
-                company_address: contact.companyAddress || null,
-                company_phone: contact.companyPhone || null,
-                notes: contact.notes || null,
+    // 更新後のデータを取得して返却
+    const updatedContractPlot = await prisma.contractPlot.findUnique({
+      where: { id },
+      include: {
+        PhysicalPlot: true,
+        SaleContract: {
+          include: {
+            Customer: {
+              include: {
+                WorkInfo: true,
+                BillingInfo: true,
               },
-            });
-          }
-        }
-      }
-
-      // 4-9. BuriedPersons（埋葬者）の差分更新
-      if (input.buriedPersons !== undefined) {
-        for (const person of input.buriedPersons) {
-          if (person._delete && person.id) {
-            // 削除フラグが立っている場合は論理削除
-            await tx.buriedPerson.update({
-              where: { id: person.id },
-              data: { deleted_at: new Date() },
-            });
-          } else if (person.id) {
-            // 既存データの更新
-            const personData: any = {};
-            if (person.name !== undefined) personData.name = person.name;
-            if (person.nameKana !== undefined) personData.name_kana = person.nameKana;
-            if (person.relationship !== undefined) personData.relationship = person.relationship;
-            if (person.deathDate !== undefined) personData.death_date = parseDate(person.deathDate);
-            if (person.age !== undefined) personData.age = person.age;
-            if (person.gender !== undefined) personData.gender = person.gender;
-            if (person.burialDate !== undefined)
-              personData.burial_date = parseDate(person.burialDate);
-            if (person.memo !== undefined) personData.memo = person.memo;
-
-            if (Object.keys(personData).length > 0) {
-              await tx.buriedPerson.update({
-                where: { id: person.id },
-                data: personData,
-              });
-            }
-          } else {
-            // 新規作成
-            await tx.buriedPerson.create({
-              data: {
-                plot_id: id,
-                name: person.name || '',
-                name_kana: person.nameKana || null,
-                relationship: person.relationship || null,
-                death_date: parseDate(person.deathDate),
-                age: person.age || null,
-                gender: person.gender || null,
-                burial_date: parseDate(person.burialDate),
-                memo: person.memo || null,
-              },
-            });
-          }
-        }
-      }
-
-      // 4-9-2. 埋葬者数が変更された場合、合祀情報の自動更新
-      if (input.buriedPersons !== undefined && existingPlot.CollectiveBurial) {
-        // 埋葬者数の自動カウントと上限到達判定
-        const { updateCollectiveBurialCount } = await import('../utils/collectiveBurialUtils');
-        await updateCollectiveBurialCount(tx, id);
-      }
-
-      // 4-9-3. CollectiveBurial（合祀情報）のupsert
-      if (input.collectiveBurial !== undefined) {
-        const existingCollectiveBurial = existingPlot.CollectiveBurial;
-
-        if (input.collectiveBurial === null) {
-          // 削除（論理削除）
-          if (existingCollectiveBurial) {
-            await tx.collectiveBurial.update({
-              where: { id: existingCollectiveBurial.id },
-              data: { deleted_at: new Date() },
-            });
-          }
-        } else {
-          const collectiveBurialData: any = {};
-          if (input.collectiveBurial.burialCapacity !== undefined) {
-            collectiveBurialData.burial_capacity = input.collectiveBurial.burialCapacity;
-          }
-          if (input.collectiveBurial.validityPeriodYears !== undefined) {
-            collectiveBurialData.validity_period_years = input.collectiveBurial.validityPeriodYears;
-          }
-          if (input.collectiveBurial.billingAmount !== undefined) {
-            collectiveBurialData.billing_amount = input.collectiveBurial.billingAmount;
-          }
-          if (input.collectiveBurial.notes !== undefined) {
-            collectiveBurialData.notes = input.collectiveBurial.notes;
-          }
-
-          if (Object.keys(collectiveBurialData).length > 0) {
-            if (existingCollectiveBurial) {
-              // 更新
-              await tx.collectiveBurial.update({
-                where: { id: existingCollectiveBurial.id },
-                data: collectiveBurialData,
-              });
-            } else {
-              // 新規作成
-              await tx.collectiveBurial.create({
-                data: {
-                  plot_id: id,
-                  current_burial_count: 0, // 初期値
-                  ...collectiveBurialData,
-                },
-              });
-            }
-          }
-
-          // 合祀情報作成後、埋葬人数を再計算
-          const { updateCollectiveBurialCount } = await import('../utils/collectiveBurialUtils');
-          await updateCollectiveBurialCount(tx, id);
-        }
-      }
-
-      // 4-10. WorkInfo（勤務先情報）のupsert（契約者に依存）
-      if (input.workInfo !== undefined && contractorId) {
-        const existingWorkInfo = latestContractor?.WorkInfo;
-
-        if (input.workInfo === null) {
-          // 削除
-          if (existingWorkInfo) {
-            await tx.workInfo.update({
-              where: { id: existingWorkInfo.id },
-              data: { deleted_at: new Date() },
-            });
-          }
-        } else {
-          const workInfoData: any = {};
-          if (input.workInfo.companyName !== undefined)
-            workInfoData.company_name = input.workInfo.companyName;
-          if (input.workInfo.companyNameKana !== undefined)
-            workInfoData.company_name_kana = input.workInfo.companyNameKana;
-          if (input.workInfo.workAddress !== undefined)
-            workInfoData.work_address = input.workInfo.workAddress;
-          if (input.workInfo.workPostalCode !== undefined)
-            workInfoData.work_postal_code = input.workInfo.workPostalCode;
-          if (input.workInfo.workPhoneNumber !== undefined)
-            workInfoData.work_phone_number = input.workInfo.workPhoneNumber;
-          if (input.workInfo.dmSetting !== undefined)
-            workInfoData.dm_setting = input.workInfo.dmSetting;
-          if (input.workInfo.addressType !== undefined)
-            workInfoData.address_type = input.workInfo.addressType;
-          if (input.workInfo.notes !== undefined) workInfoData.notes = input.workInfo.notes;
-
-          if (Object.keys(workInfoData).length > 0) {
-            if (existingWorkInfo) {
-              await tx.workInfo.update({
-                where: { id: existingWorkInfo.id },
-                data: workInfoData,
-              });
-            } else {
-              await tx.workInfo.create({
-                data: {
-                  contractor_id: contractorId,
-                  ...workInfoData,
-                },
-              });
-            }
-          }
-        }
-      }
-
-      // 4-11. BillingInfo（請求情報）のupsert（契約者に依存）
-      if (input.billingInfo !== undefined && contractorId) {
-        const existingBillingInfo = latestContractor?.BillingInfo;
-
-        if (input.billingInfo === null) {
-          // 削除
-          if (existingBillingInfo) {
-            await tx.billingInfo.update({
-              where: { id: existingBillingInfo.id },
-              data: { deleted_at: new Date() },
-            });
-          }
-        } else {
-          const billingInfoData: any = {};
-          if (input.billingInfo.billingType !== undefined)
-            billingInfoData.billing_type = input.billingInfo.billingType;
-          if (input.billingInfo.bankName !== undefined)
-            billingInfoData.bank_name = input.billingInfo.bankName;
-          if (input.billingInfo.branchName !== undefined)
-            billingInfoData.branch_name = input.billingInfo.branchName;
-          if (input.billingInfo.accountType !== undefined)
-            billingInfoData.account_type = input.billingInfo.accountType;
-          if (input.billingInfo.accountNumber !== undefined)
-            billingInfoData.account_number = input.billingInfo.accountNumber;
-          if (input.billingInfo.accountHolder !== undefined)
-            billingInfoData.account_holder = input.billingInfo.accountHolder;
-
-          if (Object.keys(billingInfoData).length > 0) {
-            if (existingBillingInfo) {
-              await tx.billingInfo.update({
-                where: { id: existingBillingInfo.id },
-                data: billingInfoData,
-              });
-            } else {
-              await tx.billingInfo.create({
-                data: {
-                  contractor_id: contractorId,
-                  ...billingInfoData,
-                },
-              });
-            }
-          }
-        }
-      }
-
-      // 更新後のデータを取得
-      const updatedPlot = await tx.plot.findUnique({
-        where: { id },
-      });
-
-      // 更新後のデータを構築（履歴用）
-      const afterData = {
-        plot: {
-          plot_number: updatedPlot!.plot_number,
-          section: updatedPlot!.section,
-          usage: updatedPlot!.usage,
-          size: updatedPlot!.size,
-          price: updatedPlot!.price,
-          contract_date: updatedPlot!.contract_date,
-          status: updatedPlot!.status,
-          notes: updatedPlot!.notes,
+            },
+          },
         },
-      };
-
-      // 変更フィールドを検出
-      const changedFields = detectChangedFields(beforeData.plot, afterData.plot);
-
-      // 4-12. History作成（変更があった場合のみ）
-      if (hasChanges(changedFields)) {
-        const historyData = createHistoryRecord({
-          entityType: 'Plot',
-          entityId: id,
-          plotId: id,
-          actionType: 'UPDATE',
-          changedFields,
-          changedBy: req.user?.id.toString() || 'unknown',
-          changeReason: input.changeReason || null,
-          ipAddress: getIpAddress(req),
-        });
-
-        await tx.history.create({
-          data: historyData,
-        });
-      }
-
-      return updatedPlot;
+        UsageFee: true,
+        ManagementFee: true,
+      },
     });
 
     res.status(200).json({
       success: true,
       data: {
-        id: result!.id,
-        plotNumber: result!.plot_number,
-        message: '区画情報を更新しました',
+        id: updatedContractPlot?.id,
+        contractAreaSqm: updatedContractPlot?.contract_area_sqm.toNumber(),
+        saleStatus: updatedContractPlot?.sale_status,
+        locationDescription: updatedContractPlot?.location_description,
+        physicalPlot: {
+          id: updatedContractPlot?.PhysicalPlot.id,
+          plotNumber: updatedContractPlot?.PhysicalPlot.plot_number,
+          areaName: updatedContractPlot?.PhysicalPlot.area_name,
+          areaSqm: updatedContractPlot?.PhysicalPlot.area_sqm.toNumber(),
+          status: updatedContractPlot?.PhysicalPlot.status,
+        },
+        saleContract: updatedContractPlot?.SaleContract
+          ? {
+              id: updatedContractPlot.SaleContract.id,
+              contractDate: updatedContractPlot.SaleContract.contract_date,
+              price: updatedContractPlot.SaleContract.price.toNumber(),
+              paymentStatus: updatedContractPlot.SaleContract.payment_status,
+              customerRole: updatedContractPlot.SaleContract.customer_role,
+              customer: {
+                id: updatedContractPlot.SaleContract.Customer.id,
+                name: updatedContractPlot.SaleContract.Customer.name,
+                nameKana: updatedContractPlot.SaleContract.Customer.name_kana,
+                phoneNumber: updatedContractPlot.SaleContract.Customer.phone_number,
+                address: updatedContractPlot.SaleContract.Customer.address,
+              },
+            }
+          : null,
+        updatedAt: updatedContractPlot?.updated_at,
       },
     });
-  } catch (error: any) {
-    console.error('Error updating plot:', error);
+  } catch (error) {
+    console.error('Error updating contract plot:', error);
 
-    // Prismaの一意制約違反エラー
-    if (error.code === 'P2002') {
-      return res.status(409).json({
+    if (error instanceof Error && error.message) {
+      return res.status(400).json({
         success: false,
         error: {
-          code: 'DUPLICATE_ERROR',
-          message: '重複するデータが存在します',
-          details: [],
+          code: 'VALIDATION_ERROR',
+          message: error.message,
         },
       });
     }
@@ -1708,8 +1122,7 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
       success: false,
       error: {
         code: 'INTERNAL_SERVER_ERROR',
-        message: '区画情報の更新に失敗しました',
-        details: [],
+        message: '契約区画の更新に失敗しました',
       },
     });
   }
