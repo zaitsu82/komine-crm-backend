@@ -1127,3 +1127,529 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
     });
   }
 };
+
+/**
+ * ContractPlot削除（論理削除）
+ * 契約をキャンセルし、関連データも論理削除します。
+ */
+export const deletePlot = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+
+    // ContractPlotの存在確認
+    const contractPlot = await prisma.contractPlot.findUnique({
+      where: { id, deleted_at: null },
+      include: {
+        PhysicalPlot: true,
+        SaleContract: {
+          include: {
+            Customer: {
+              include: {
+                WorkInfo: true,
+                BillingInfo: true,
+              },
+            },
+          },
+        },
+        UsageFee: true,
+        ManagementFee: true,
+      },
+    });
+
+    if (!contractPlot) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: '指定された契約区画が見つかりません',
+        },
+      });
+    }
+
+    const now = new Date();
+    const physicalPlotId = contractPlot.physical_plot_id;
+
+    // トランザクション内で論理削除
+    await prisma.$transaction(async (tx) => {
+      // 1. ContractPlotを論理削除
+      await tx.contractPlot.update({
+        where: { id },
+        data: { deleted_at: now },
+      });
+
+      // 2. SaleContractを論理削除
+      if (contractPlot.SaleContract) {
+        await tx.saleContract.update({
+          where: { id: contractPlot.SaleContract.id },
+          data: { deleted_at: now },
+        });
+      }
+
+      // 3. UsageFeeを論理削除
+      if (contractPlot.UsageFee) {
+        await tx.usageFee.update({
+          where: { id: contractPlot.UsageFee.id },
+          data: { deleted_at: now },
+        });
+      }
+
+      // 4. ManagementFeeを論理削除
+      if (contractPlot.ManagementFee) {
+        await tx.managementFee.update({
+          where: { id: contractPlot.ManagementFee.id },
+          data: { deleted_at: now },
+        });
+      }
+
+      // 5. WorkInfoを論理削除（存在する場合）
+      if (contractPlot.SaleContract?.Customer?.WorkInfo) {
+        await tx.workInfo.update({
+          where: { id: contractPlot.SaleContract.Customer.WorkInfo.id },
+          data: { deleted_at: now },
+        });
+      }
+
+      // 6. BillingInfoを論理削除（存在する場合）
+      if (contractPlot.SaleContract?.Customer?.BillingInfo) {
+        await tx.billingInfo.update({
+          where: { id: contractPlot.SaleContract.Customer.BillingInfo.id },
+          data: { deleted_at: now },
+        });
+      }
+
+      // 7. Customerを論理削除
+      // 注: 他の契約で使用されていないか確認
+      if (contractPlot.SaleContract?.Customer) {
+        const customerId = contractPlot.SaleContract.Customer.id;
+        const otherContracts = await tx.saleContract.findMany({
+          where: {
+            customer_id: customerId,
+            id: { not: contractPlot.SaleContract.id },
+            deleted_at: null,
+          },
+        });
+
+        // 他の契約がない場合のみCustomerを論理削除
+        if (otherContracts.length === 0) {
+          await tx.customer.update({
+            where: { id: customerId },
+            data: { deleted_at: now },
+          });
+        }
+      }
+
+      // 8. PhysicalPlotのステータスを更新
+      await updatePhysicalPlotStatus(tx as any, physicalPlotId);
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        message: '契約区画を削除しました',
+        id,
+      },
+    });
+  } catch (error) {
+    console.error('Error deleting contract plot:', error);
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: '契約区画の削除に失敗しました',
+      },
+    });
+  }
+};
+
+/**
+ * 物理区画の契約一覧取得
+ * GET /plots/:id/contracts
+ */
+export const getPlotContracts = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+
+    // PhysicalPlotの存在確認
+    const physicalPlot = await prisma.physicalPlot.findUnique({
+      where: { id, deleted_at: null },
+      include: {
+        ContractPlots: {
+          where: { deleted_at: null },
+          include: {
+            SaleContract: {
+              include: {
+                Customer: true,
+              },
+            },
+            UsageFee: true,
+            ManagementFee: true,
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+        },
+      },
+    });
+
+    if (!physicalPlot) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: '指定された物理区画が見つかりません',
+        },
+      });
+    }
+
+    // 契約一覧を整形
+    const contracts = physicalPlot.ContractPlots.map((contract) => ({
+      id: contract.id,
+      contractAreaSqm: contract.contract_area_sqm.toNumber(),
+      saleStatus: contract.sale_status,
+      locationDescription: contract.location_description,
+      customer: contract.SaleContract?.Customer
+        ? {
+            id: contract.SaleContract.Customer.id,
+            name: contract.SaleContract.Customer.name,
+            nameKana: contract.SaleContract.Customer.name_kana,
+            phoneNumber: contract.SaleContract.Customer.phone_number,
+          }
+        : null,
+      saleContract: contract.SaleContract
+        ? {
+            id: contract.SaleContract.id,
+            contractDate: contract.SaleContract.contract_date,
+            price: contract.SaleContract.price.toNumber(),
+            paymentStatus: contract.SaleContract.payment_status,
+          }
+        : null,
+      createdAt: contract.created_at,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        physicalPlot: {
+          id: physicalPlot.id,
+          plotNumber: physicalPlot.plot_number,
+          areaName: physicalPlot.area_name,
+          areaSqm: physicalPlot.area_sqm.toNumber(),
+          status: physicalPlot.status,
+        },
+        contracts,
+        summary: {
+          totalContracts: contracts.length,
+          totalAllocatedArea: contracts.reduce((sum, c) => sum + c.contractAreaSqm, 0),
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error getting plot contracts:', error);
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: '契約一覧の取得に失敗しました',
+      },
+    });
+  }
+};
+
+/**
+ * 物理区画に新規契約追加
+ * POST /plots/:id/contracts
+ */
+export const createPlotContract = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const physicalPlotId = req.params['id'] as string;
+    const input = req.body;
+
+    // PhysicalPlotの存在確認
+    const physicalPlot = await prisma.physicalPlot.findUnique({
+      where: { id: physicalPlotId, deleted_at: null },
+    });
+
+    if (!physicalPlot) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: '指定された物理区画が見つかりません',
+        },
+      });
+    }
+
+    // 契約面積の検証
+    const validationResult = await validateContractArea(
+      prisma as any,
+      physicalPlotId,
+      input.contractPlot.contractAreaSqm
+    );
+
+    if (!validationResult.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: validationResult.message || '契約面積の検証に失敗しました',
+        },
+      });
+    }
+
+    // トランザクション内で契約作成
+    const result = await prisma.$transaction(async (tx) => {
+      // Customer作成
+      const customer = await tx.customer.create({
+        data: {
+          name: input.customer.name,
+          name_kana: input.customer.nameKana,
+          birth_date: input.customer.birthDate ? new Date(input.customer.birthDate) : null,
+          gender: input.customer.gender || null,
+          postal_code: input.customer.postalCode,
+          address: input.customer.address,
+          registered_address: input.customer.registeredAddress || null,
+          phone_number: input.customer.phoneNumber,
+          fax_number: input.customer.faxNumber || null,
+          email: input.customer.email || null,
+          notes: input.customer.notes || null,
+        },
+      });
+
+      // WorkInfo作成（オプション）
+      if (input.workInfo) {
+        await tx.workInfo.create({
+          data: {
+            customer_id: customer.id,
+            company_name: input.workInfo.companyName || '',
+            company_name_kana: input.workInfo.companyNameKana || '',
+            work_postal_code: input.workInfo.workPostalCode || '',
+            work_address: input.workInfo.workAddress || '',
+            work_phone_number: input.workInfo.workPhoneNumber || '',
+            dm_setting: input.workInfo.dmSetting || 'allow',
+            address_type: input.workInfo.addressType || 'work',
+            notes: input.workInfo.notes || null,
+          },
+        });
+      }
+
+      // BillingInfo作成（オプション）
+      if (input.billingInfo) {
+        await tx.billingInfo.create({
+          data: {
+            customer_id: customer.id,
+            billing_type: input.billingInfo.billingType || 'individual',
+            bank_name: input.billingInfo.bankName || '',
+            branch_name: input.billingInfo.branchName || '',
+            account_type: input.billingInfo.accountType || 'ordinary',
+            account_number: input.billingInfo.accountNumber || '',
+            account_holder: input.billingInfo.accountHolder || '',
+          },
+        });
+      }
+
+      // ContractPlot作成
+      const contractPlot = await tx.contractPlot.create({
+        data: {
+          physical_plot_id: physicalPlotId,
+          contract_area_sqm: new Prisma.Decimal(input.contractPlot.contractAreaSqm),
+          sale_status: input.contractPlot.saleStatus || 'contracted',
+          location_description: input.contractPlot.locationDescription || null,
+        },
+      });
+
+      // SaleContract作成
+      const saleContract = await tx.saleContract.create({
+        data: {
+          contract_plot_id: contractPlot.id,
+          customer_id: customer.id,
+          contract_date: new Date(input.saleContract.contractDate),
+          price: new Prisma.Decimal(input.saleContract.price),
+          payment_status: input.saleContract.paymentStatus || null,
+          customer_role: input.saleContract.customerRole || null,
+          reservation_date: input.saleContract.reservationDate
+            ? new Date(input.saleContract.reservationDate)
+            : null,
+          acceptance_number: input.saleContract.acceptanceNumber || null,
+          permit_date: input.saleContract.permitDate
+            ? new Date(input.saleContract.permitDate)
+            : null,
+          start_date: input.saleContract.startDate ? new Date(input.saleContract.startDate) : null,
+          notes: input.saleContract.notes || null,
+        },
+      });
+
+      // UsageFee作成（オプション）
+      if (input.usageFee) {
+        await tx.usageFee.create({
+          data: {
+            contract_plot_id: contractPlot.id,
+            calculation_type: input.usageFee.calculationType || null,
+            tax_type: input.usageFee.taxType || null,
+            billing_type: input.usageFee.billingType || 'onetime',
+            billing_years: input.usageFee.billingYears || '1',
+            area: input.usageFee.area ? input.usageFee.area.toString() : null,
+            unit_price: input.usageFee.unitPrice ? input.usageFee.unitPrice.toString() : null,
+            usage_fee: input.usageFee.usageFee ? input.usageFee.usageFee.toString() : null,
+            payment_method: input.usageFee.paymentMethod || null,
+          },
+        });
+      }
+
+      // ManagementFee作成（オプション）
+      if (input.managementFee) {
+        await tx.managementFee.create({
+          data: {
+            contract_plot_id: contractPlot.id,
+            calculation_type: input.managementFee.calculationType || null,
+            tax_type: input.managementFee.taxType || null,
+            billing_type: input.managementFee.billingType || 'yearly',
+            billing_years: input.managementFee.billingYears || '1',
+            area: input.managementFee.area ? input.managementFee.area.toString() : null,
+            billing_month: input.managementFee.billingMonth || null,
+            management_fee: input.managementFee.managementFee
+              ? input.managementFee.managementFee.toString()
+              : null,
+            unit_price: input.managementFee.unitPrice
+              ? input.managementFee.unitPrice.toString()
+              : null,
+            last_billing_month: input.managementFee.lastBillingMonth || null,
+            payment_method: input.managementFee.paymentMethod || null,
+          },
+        });
+      }
+
+      // PhysicalPlotのステータス更新
+      await updatePhysicalPlotStatus(tx as any, physicalPlotId);
+
+      return { contractPlot, saleContract, customer };
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: result.contractPlot.id,
+        message: '契約を作成しました',
+      },
+    });
+  } catch (error) {
+    console.error('Error creating plot contract:', error);
+
+    if (error instanceof Error && error.message) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: error.message,
+        },
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: '契約の作成に失敗しました',
+      },
+    });
+  }
+};
+
+/**
+ * 物理区画の在庫状況取得
+ * GET /plots/:id/inventory
+ */
+export const getPlotInventory = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+
+    // PhysicalPlotの存在確認
+    const physicalPlot = await prisma.physicalPlot.findUnique({
+      where: { id, deleted_at: null },
+      include: {
+        ContractPlots: {
+          where: { deleted_at: null },
+          select: {
+            id: true,
+            contract_area_sqm: true,
+            sale_status: true,
+            SaleContract: {
+              select: {
+                Customer: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!physicalPlot) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: '指定された物理区画が見つかりません',
+        },
+      });
+    }
+
+    // 在庫計算
+    const totalArea = physicalPlot.area_sqm.toNumber();
+    const allocatedArea = physicalPlot.ContractPlots.reduce(
+      (sum, contract) => sum + contract.contract_area_sqm.toNumber(),
+      0
+    );
+    const availableArea = totalArea - allocatedArea;
+    const utilizationRate = totalArea > 0 ? (allocatedArea / totalArea) * 100 : 0;
+
+    // ステータス判定
+    let inventoryStatus: 'available' | 'partial' | 'sold_out';
+    if (allocatedArea === 0) {
+      inventoryStatus = 'available';
+    } else if (availableArea > 0) {
+      inventoryStatus = 'partial';
+    } else {
+      inventoryStatus = 'sold_out';
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        physicalPlot: {
+          id: physicalPlot.id,
+          plotNumber: physicalPlot.plot_number,
+          areaName: physicalPlot.area_name,
+          status: physicalPlot.status,
+        },
+        inventory: {
+          totalArea,
+          allocatedArea,
+          availableArea,
+          utilizationRate: Math.round(utilizationRate * 100) / 100,
+          status: inventoryStatus,
+        },
+        contracts: physicalPlot.ContractPlots.map((contract) => ({
+          id: contract.id,
+          contractAreaSqm: contract.contract_area_sqm.toNumber(),
+          saleStatus: contract.sale_status,
+          customerName: contract.SaleContract?.Customer?.name || null,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Error getting plot inventory:', error);
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: '在庫状況の取得に失敗しました',
+      },
+    });
+  }
+};
