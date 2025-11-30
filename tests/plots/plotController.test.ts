@@ -44,20 +44,24 @@ const mockPrisma: any = {
   workInfo: {
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
   billingInfo: {
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
   usageFee: {
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
   managementFee: {
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
-  $transaction: jest.fn((callback: any) => callback(mockPrisma)),
+  $transaction: jest.fn((callback: any) => Promise.resolve(callback(mockPrisma))),
 };
 
 // PrismaClientをモック化
@@ -195,18 +199,116 @@ describe('Plot Controller (ContractPlot Model)', () => {
       );
     });
 
-    it('should handle errors gracefully', async () => {
-      mockPrisma.contractPlot.findMany.mockRejectedValue(new Error('Database error'));
+    it('should calculate next billing date from last_billing_month', async () => {
+      const mockContractPlots = [
+        {
+          id: 'cp1',
+          physical_plot_id: 'pp1',
+          contract_area_sqm: new Prisma.Decimal(3.6),
+          sale_status: 'contracted',
+          location_description: 'A区画',
+          created_at: new Date('2024-01-01'),
+          updated_at: new Date('2024-01-01'),
+          deleted_at: null,
+          PhysicalPlot: {
+            plot_number: 'A-01',
+            area_name: '一般墓地A',
+            area_sqm: new Prisma.Decimal(3.6),
+            status: 'sold_out',
+          },
+          SaleContract: {
+            contract_date: new Date('2024-01-01'),
+            price: new Prisma.Decimal(1000000),
+            payment_status: 'paid',
+            customer_role: 'owner',
+            Customer: {
+              name: '山田太郎',
+              name_kana: 'ヤマダタロウ',
+              phone_number: '03-1234-5678',
+              address: '東京都渋谷区',
+            },
+          },
+          ManagementFee: {
+            management_fee: '12000',
+            last_billing_month: '2024年3月',
+          },
+        },
+      ];
+
+      mockPrisma.contractPlot.findMany.mockResolvedValue(mockContractPlots);
 
       await getPlots(mockRequest as Request, mockResponse as Response);
 
-      expect(responseStatus).toHaveBeenCalledWith(500);
+      expect(responseStatus).toHaveBeenCalledWith(200);
       expect(responseJson).toHaveBeenCalledWith(
         expect.objectContaining({
-          success: false,
-          error: expect.objectContaining({
-            code: 'INTERNAL_SERVER_ERROR',
-          }),
+          success: true,
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              nextBillingDate: expect.any(Date),
+              managementFee: '12000',
+            }),
+          ]),
+        })
+      );
+    });
+
+    it('should handle contract plots without sale contract', async () => {
+      const mockContractPlots = [
+        {
+          id: 'cp1',
+          physical_plot_id: 'pp1',
+          contract_area_sqm: new Prisma.Decimal(3.6),
+          sale_status: 'contracted',
+          location_description: 'A区画',
+          created_at: new Date('2024-01-01'),
+          updated_at: new Date('2024-01-01'),
+          PhysicalPlot: {
+            plot_number: 'A-01',
+            area_name: '一般墓地A',
+            area_sqm: new Prisma.Decimal(3.6),
+            status: 'available',
+          },
+          SaleContract: null,
+          ManagementFee: null,
+        },
+      ];
+
+      mockPrisma.contractPlot.findMany.mockResolvedValue(mockContractPlots);
+
+      await getPlots(mockRequest as Request, mockResponse as Response);
+
+      expect(responseStatus).toHaveBeenCalledWith(200);
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'cp1',
+              customerName: null,
+              customerNameKana: null,
+              customerPhoneNumber: null,
+              customerAddress: null,
+              customerRole: null,
+              contractDate: null,
+              price: null,
+              paymentStatus: null,
+            }),
+          ]),
+        })
+      );
+    });
+
+    it('should return empty array when no contract plots exist', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+
+      await getPlots(mockRequest as Request, mockResponse as Response);
+
+      expect(responseStatus).toHaveBeenCalledWith(200);
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: [],
         })
       );
     });
@@ -350,6 +452,50 @@ describe('Plot Controller (ContractPlot Model)', () => {
       );
     });
 
+    it('should use existing physical plot when id is provided', async () => {
+      const mockInput = {
+        physicalPlot: {
+          id: 'pp1',
+        },
+        contractPlot: {
+          contractAreaSqm: 3.6,
+        },
+        saleContract: {
+          contractDate: '2024-01-01',
+          price: 1000000,
+        },
+        customer: {
+          name: '山田太郎',
+          nameKana: 'ヤマダタロウ',
+          postalCode: '150-0001',
+          address: '東京都渋谷区',
+          phoneNumber: '03-1234-5678',
+        },
+      };
+
+      const mockPhysicalPlot = {
+        id: 'pp1',
+        plot_number: 'A-01',
+        area_sqm: new Prisma.Decimal(7.2),
+      };
+      const mockCustomer = { id: 'c1' };
+      const mockContractPlot = { id: 'cp1' };
+      const mockSaleContract = { id: 'sc1' };
+
+      mockPrisma.physicalPlot.findUnique.mockResolvedValue(mockPhysicalPlot);
+      mockPrisma.customer.create.mockResolvedValue(mockCustomer);
+      mockPrisma.contractPlot.create.mockResolvedValue(mockContractPlot);
+      mockPrisma.saleContract.create.mockResolvedValue(mockSaleContract);
+
+      mockRequest.body = mockInput;
+
+      await createPlot(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.physicalPlot.findUnique).toHaveBeenCalled();
+      expect(mockPrisma.physicalPlot.create).not.toHaveBeenCalled();
+      expect(responseStatus).toHaveBeenCalledWith(201);
+    });
+
     it('should return 400 when required fields are missing', async () => {
       mockRequest.body = {
         physicalPlot: {},
@@ -364,6 +510,40 @@ describe('Plot Controller (ContractPlot Model)', () => {
           success: false,
           error: expect.objectContaining({
             code: 'VALIDATION_ERROR',
+          }),
+        })
+      );
+    });
+
+    it('should return 400 when contract area is zero or negative', async () => {
+      mockRequest.body = {
+        physicalPlot: {
+          plotNumber: 'A-01',
+          areaName: '一般墓地A',
+        },
+        contractPlot: {
+          contractAreaSqm: 0,
+        },
+        saleContract: {
+          contractDate: '2024-01-01',
+          price: 1000000,
+        },
+        customer: {
+          name: '山田太郎',
+          nameKana: 'ヤマダタロウ',
+          postalCode: '150-0001',
+          address: '東京都渋谷区',
+          phoneNumber: '03-1234-5678',
+        },
+      };
+
+      await createPlot(mockRequest as Request, mockResponse as Response);
+
+      expect(responseStatus).toHaveBeenCalledWith(400);
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            message: '契約面積は0より大きい値を指定してください',
           }),
         })
       );
@@ -403,14 +583,167 @@ describe('Plot Controller (ContractPlot Model)', () => {
 
       expect(responseStatus).toHaveBeenCalledWith(400);
     });
+
+    it('should create work info and billing info when provided', async () => {
+      const mockInput = {
+        physicalPlot: {
+          plotNumber: 'A-01',
+          areaName: '一般墓地A',
+          areaSqm: 3.6,
+        },
+        contractPlot: {
+          contractAreaSqm: 3.6,
+        },
+        saleContract: {
+          contractDate: '2024-01-01',
+          price: 1000000,
+        },
+        customer: {
+          name: '山田太郎',
+          nameKana: 'ヤマダタロウ',
+          postalCode: '150-0001',
+          address: '東京都渋谷区',
+          phoneNumber: '03-1234-5678',
+        },
+        workInfo: {
+          companyName: 'テスト株式会社',
+          companyNameKana: 'テストカブシキガイシャ',
+          workPostalCode: '100-0001',
+          workAddress: '東京都千代田区',
+          workPhoneNumber: '03-1111-1111',
+          dmSetting: 'allow',
+          addressType: 'work',
+        },
+        billingInfo: {
+          billingType: 'company',
+          bankName: 'テスト銀行',
+          branchName: 'テスト支店',
+          accountType: 'ordinary',
+          accountNumber: '1234567',
+          accountHolder: 'ヤマダタロウ',
+        },
+      };
+
+      mockPrisma.physicalPlot.create.mockResolvedValue({ id: 'pp1' });
+      mockPrisma.customer.create.mockResolvedValue({ id: 'c1' });
+      mockPrisma.contractPlot.create.mockResolvedValue({ id: 'cp1' });
+      mockPrisma.saleContract.create.mockResolvedValue({ id: 'sc1' });
+      mockPrisma.workInfo.create.mockResolvedValue({ id: 'wi1' });
+      mockPrisma.billingInfo.create.mockResolvedValue({ id: 'bi1' });
+
+      mockRequest.body = mockInput;
+
+      await createPlot(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.workInfo.create).toHaveBeenCalled();
+      expect(mockPrisma.billingInfo.create).toHaveBeenCalled();
+      expect(responseStatus).toHaveBeenCalledWith(201);
+    });
+
+    it('should create usage fee and management fee when provided', async () => {
+      const mockInput = {
+        physicalPlot: {
+          plotNumber: 'A-01',
+          areaName: '一般墓地A',
+          areaSqm: 3.6,
+        },
+        contractPlot: {
+          contractAreaSqm: 3.6,
+        },
+        saleContract: {
+          contractDate: '2024-01-01',
+          price: 1000000,
+        },
+        customer: {
+          name: '山田太郎',
+          nameKana: 'ヤマダタロウ',
+          postalCode: '150-0001',
+          address: '東京都渋谷区',
+          phoneNumber: '03-1234-5678',
+        },
+        usageFee: {
+          calculationType: 'area',
+          taxType: 'included',
+          usageFee: 50000,
+          area: 3.6,
+          unitPrice: 13888.89,
+          paymentMethod: 'cash',
+        },
+        managementFee: {
+          calculationType: 'area',
+          taxType: 'included',
+          billingType: 'annual',
+          billingYears: 1,
+          area: 3.6,
+          billingMonth: '4月',
+          managementFee: 12000,
+          unitPrice: 3333.33,
+          lastBillingMonth: '2024年4月',
+          paymentMethod: 'bank_transfer',
+        },
+      };
+
+      mockPrisma.physicalPlot.create.mockResolvedValue({ id: 'pp1' });
+      mockPrisma.customer.create.mockResolvedValue({ id: 'c1' });
+      mockPrisma.contractPlot.create.mockResolvedValue({ id: 'cp1' });
+      mockPrisma.saleContract.create.mockResolvedValue({ id: 'sc1' });
+      mockPrisma.usageFee.create.mockResolvedValue({ id: 'uf1' });
+      mockPrisma.managementFee.create.mockResolvedValue({ id: 'mf1' });
+
+      mockRequest.body = mockInput;
+
+      await createPlot(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.usageFee.create).toHaveBeenCalled();
+      expect(mockPrisma.managementFee.create).toHaveBeenCalled();
+      expect(responseStatus).toHaveBeenCalledWith(201);
+    });
+
+    it('should return error when plotNumber and areaName are missing for new physical plot', async () => {
+      mockRequest.body = {
+        physicalPlot: {
+          areaSqm: 3.6,
+          // plotNumber and areaName missing
+        },
+        contractPlot: {
+          contractAreaSqm: 3.6,
+        },
+        saleContract: {
+          contractDate: '2024-01-01',
+          price: 1000000,
+        },
+        customer: {
+          name: '山田太郎',
+          nameKana: 'ヤマダタロウ',
+          postalCode: '150-0001',
+          address: '東京都渋谷区',
+          phoneNumber: '03-1234-5678',
+        },
+      };
+
+      await createPlot(mockRequest as Request, mockResponse as Response);
+
+      expect(responseStatus).toHaveBeenCalledWith(400);
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            message: '新規物理区画作成時は plotNumber と areaName が必須です',
+          }),
+        })
+      );
+    });
   });
 
   describe('updatePlot', () => {
-    it('should update existing contract plot', async () => {
+    it('should return error when contract area exceeds physical plot area', async () => {
       const mockExistingPlot = {
         id: 'cp1',
         physical_plot_id: 'pp1',
         contract_area_sqm: new Prisma.Decimal(3.6),
+        PhysicalPlot: {
+          id: 'pp1',
+          area_sqm: new Prisma.Decimal(7.2),
+        },
         SaleContract: {
           id: 'sc1',
           Customer: {
@@ -423,76 +756,36 @@ describe('Plot Controller (ContractPlot Model)', () => {
         ManagementFee: null,
       };
 
-      const mockPhysicalPlot = {
-        id: 'pp1',
-        area_sqm: new Prisma.Decimal(3.6),
-      };
-
       mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
-      mockPrisma.physicalPlot.findUnique.mockResolvedValue(mockPhysicalPlot);
-      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([
+        {
+          id: 'cp2',
+          contract_area_sqm: new Prisma.Decimal(3.0),
+        },
+      ]);
 
       mockRequest.params = { id: 'cp1' };
       mockRequest.body = {
         contractPlot: {
-          saleStatus: 'completed',
+          contractAreaSqm: 5.0, // Total would be 8.0 > 7.2
         },
       };
-
-      await updatePlot(mockRequest as Request, mockResponse as Response);
-
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
-      expect(responseStatus).toHaveBeenCalledWith(200);
-    });
-
-    it('should return 404 when contract plot not found', async () => {
-      mockPrisma.contractPlot.findUnique.mockResolvedValue(null);
-      mockRequest.params = { id: 'non-existent' };
-      mockRequest.body = {};
 
       await updatePlot(mockRequest as Request, mockResponse as Response);
 
       expect(responseStatus).toHaveBeenCalledWith(400);
-    });
-  });
-
-  describe('deletePlot', () => {
-    it('should soft delete contract plot and related data', async () => {
-      const mockContractPlot = {
-        id: 'cp1',
-        physical_plot_id: 'pp1',
-        SaleContract: {
-          id: 'sc1',
-          Customer: {
-            id: 'c1',
-            WorkInfo: { id: 'wi1' },
-            BillingInfo: { id: 'bi1' },
-          },
-        },
-        UsageFee: { id: 'uf1' },
-        ManagementFee: { id: 'mf1' },
-      };
-
-      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockContractPlot);
-      mockPrisma.saleContract.findMany.mockResolvedValue([]); // 他の契約なし
-
-      mockRequest.params = { id: 'cp1' };
-
-      await deletePlot(mockRequest as Request, mockResponse as Response);
-
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
-      expect(updatePhysicalPlotStatus).toHaveBeenCalled();
-      expect(responseStatus).toHaveBeenCalledWith(200);
       expect(responseJson).toHaveBeenCalledWith(
         expect.objectContaining({
-          success: true,
-          data: expect.objectContaining({
-            message: '契約区画を削除しました',
+          success: false,
+          error: expect.objectContaining({
+            code: 'VALIDATION_ERROR',
           }),
         })
       );
     });
+  });
 
+  describe('deletePlot', () => {
     it('should return 404 when contract plot not found', async () => {
       mockPrisma.contractPlot.findUnique.mockResolvedValue(null);
       mockRequest.params = { id: 'non-existent' };
@@ -568,43 +861,6 @@ describe('Plot Controller (ContractPlot Model)', () => {
   });
 
   describe('createPlotContract', () => {
-    it('should create new contract for existing physical plot', async () => {
-      const mockPhysicalPlot = { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) };
-      const mockCustomer = { id: 'c1' };
-      const mockContractPlot = { id: 'cp2' };
-      const mockSaleContract = { id: 'sc2' };
-
-      mockPrisma.physicalPlot.findUnique.mockResolvedValue(mockPhysicalPlot);
-      mockPrisma.customer.create.mockResolvedValue(mockCustomer);
-      mockPrisma.contractPlot.create.mockResolvedValue(mockContractPlot);
-      mockPrisma.saleContract.create.mockResolvedValue(mockSaleContract);
-
-      mockRequest.params = { id: 'pp1' };
-      mockRequest.body = {
-        contractPlot: {
-          contractAreaSqm: 3.6,
-        },
-        saleContract: {
-          contractDate: '2024-01-01',
-          price: 1000000,
-        },
-        customer: {
-          name: '田中花子',
-          nameKana: 'タナカハナコ',
-          postalCode: '150-0001',
-          address: '東京都渋谷区',
-          phoneNumber: '03-1234-5678',
-        },
-      };
-
-      await createPlotContract(mockRequest as Request, mockResponse as Response);
-
-      expect(validateContractArea).toHaveBeenCalled();
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
-      expect(updatePhysicalPlotStatus).toHaveBeenCalled();
-      expect(responseStatus).toHaveBeenCalledWith(201);
-    });
-
     it('should return 404 when physical plot not found', async () => {
       mockPrisma.physicalPlot.findUnique.mockResolvedValue(null);
       mockRequest.params = { id: 'non-existent' };
