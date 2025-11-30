@@ -278,19 +278,24 @@ describe('collectiveBurialUtils', () => {
 
       const result = await getBillingTargets(mockPrisma as any);
 
-      expect(mockPrisma.collectiveBurial.findMany).toHaveBeenCalledWith({
-        where: {
-          billing_status: 'pending',
-          billing_scheduled_date: {
-            lte: expect.any(Date),
-          },
-          deleted_at: null,
-        },
+      expect(mockPrisma.collectiveBurial.findMany).toHaveBeenCalled();
+      const callArgs = mockPrisma.collectiveBurial.findMany.mock.calls[0][0];
+      expect(callArgs.where.billing_status).toBe('pending');
+      expect(callArgs.where.billing_scheduled_date.lte).toBeInstanceOf(Date);
+      expect(callArgs.where.deleted_at).toBeNull();
+      expect(callArgs).toMatchObject({
         include: {
-          Plot: {
+          PhysicalPlot: {
             include: {
-              Contractors: {
+              ContractPlots: {
                 where: { deleted_at: null },
+                include: {
+                  SaleContract: {
+                    include: {
+                      Customer: true,
+                    },
+                  },
+                },
                 orderBy: { created_at: 'desc' },
                 take: 1,
               },

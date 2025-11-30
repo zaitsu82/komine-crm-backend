@@ -99,22 +99,35 @@ src/
 ```
 
 ### Currently Implemented Modules
-- **Plots** - Cemetery plot/gravestone management (`/api/v1/plots`)
-  - Full CRUD operations
-  - Complex nested data handling (applicant, contractor, billing info, family contacts, etc.)
-  - Transaction-based updates with history tracking
+- **Plots** - Cemetery plot/contract management (`/api/v1/plots`)
+  - **New ContractPlot-centric architecture** (v2.0 - migrated from Gravestone model)
+  - **Data model**: PhysicalPlot (1) → ContractPlot (N) → SaleContract (1:1) → Customer (1:1)
+  - **Core endpoints**:
+    - `GET /plots` - List all contract plots with pagination and search
+    - `POST /plots` - Create new physical plot + contract plot + sale contract + customer
+    - `GET /plots/:id` - Get contract plot details with all related data
+    - `PUT /plots/:id` - Update contract plot (supports partial updates)
+    - `DELETE /plots/:id` - Soft delete contract plot and related entities
+  - **Additional endpoints**:
+    - `GET /plots/:id/contracts` - Get all contracts for a physical plot (for split sales)
+    - `POST /plots/:id/contracts` - Add new contract to existing physical plot
+    - `GET /plots/:id/inventory` - Get physical plot inventory status (total/allocated/available area)
+  - **Features**:
+    - Split sales support (multiple contracts per physical plot)
+    - Automatic inventory management and status updates
+    - Contract area validation
+    - Transaction-based atomic operations
+    - Optional related data: WorkInfo, BillingInfo, UsageFee, ManagementFee
+    - Integration with CollectiveBurial, FamilyContact, BuriedPerson
 - **Auth** - Authentication system (`/api/v1/auth`)
   - Supabase-based JWT authentication
   - Login, logout, current user info, password change
 
 ### Planned Business Entities
 The following entities are defined in the database schema but routes not yet implemented:
-- **Applicants** - People who apply for gravestone usage (1:1 with Gravestone)
-- **Contractors** - People who contract gravestone usage (1:N with Gravestone)
-- **Usage Fees & Management Fees** - Financial information
-- **Billing Info** - Payment and bank account details
-- **Family Contacts** - Emergency and family contact information
-- **Burials** - Information about people buried at gravestones
+- **Family Contacts** - Emergency and family contact information (linked to PhysicalPlot)
+- **Buried Persons** - Information about people buried at physical plots
+- **Collective Burials** - Mass burial management (integrated with PhysicalPlot via `physical_plot_id`)
 - **Constructions** - Construction and maintenance work records
 - **Histories** - Audit trail for all changes
 
@@ -144,10 +157,17 @@ Comprehensive master data tables for:
 - **Audit Trail**: History table tracks all changes with before/after record IDs
 - **Master Data**: Centralized code/name pairs for dropdown values
 
-### Critical Relationships
-- **Gravestone → Applicant**: 1:1 (unique gravestone_id in applicants)
-- **Gravestone → Contractor**: 1:N (multiple contractors per gravestone over time)
-- **Complex Many-to-Many**: BillingInfo, FamilyContact, Burial, History link both Gravestone and Contractor
+### Critical Relationships (v2.0 - ContractPlot Model)
+- **PhysicalPlot → ContractPlot**: 1:N (supports split sales - multiple contracts per physical plot)
+- **ContractPlot → SaleContract**: 1:1 (each contract has one sale contract)
+- **SaleContract → Customer**: 1:1 (each sale contract has one customer)
+- **Customer → WorkInfo**: 1:1 (optional work/company information)
+- **Customer → BillingInfo**: 1:1 (optional billing/bank information)
+- **ContractPlot → UsageFee**: 1:1 (optional usage fee details)
+- **ContractPlot → ManagementFee**: 1:1 (optional management fee details)
+- **PhysicalPlot → FamilyContact**: 1:N (family contacts linked to physical plot)
+- **PhysicalPlot → BuriedPerson**: 1:N (burial records linked to physical plot)
+- **PhysicalPlot → CollectiveBurial**: 1:N (collective burial requests linked to physical plot)
 
 ### Performance Considerations
 - Indexed on frequently searched fields (gravestone_code, usage_status, names, phones)

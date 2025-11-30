@@ -13,6 +13,98 @@
 
 ---
 
+## [2.0.0] - 2025-11-29
+
+### BREAKING CHANGES
+- **データモデル大規模変更**: GravestoneモデルからContractPlot中心アーキテクチャへ移行
+- **API構造変更**: すべての区画関連エンドポイントのリクエスト/レスポンス構造を刷新
+
+### Added
+- **新データモデル実装**
+  - `PhysicalPlot` - 物理区画エンティティ（面積、区画番号、ステータス管理）
+  - `ContractPlot` - 契約区画エンティティ（分割販売サポート）
+  - `SaleContract` - 販売契約エンティティ（契約日、価格、支払いステータス）
+  - `Customer` - 顧客エンティティ（名前、住所、連絡先）
+  - `WorkInfo` - 勤務先情報エンティティ（オプション）
+  - `BillingInfo` - 請求情報エンティティ（オプション）
+  - `UsageFee` - 使用料情報エンティティ（オプション）
+  - `ManagementFee` - 管理料情報エンティティ（オプション）
+
+- **新API実装** (`/api/v1/plots`)
+  - `GET /plots` - 契約区画一覧取得（検索・ページネーション対応）
+  - `POST /plots` - 新規契約区画作成（物理区画+契約+顧客同時作成）
+  - `GET /plots/:id` - 契約区画詳細取得（全関連データ含む）
+  - `PUT /plots/:id` - 契約区画更新（部分更新サポート）
+  - `DELETE /plots/:id` - 契約区画削除（論理削除、関連データ自動削除）
+  - `GET /plots/:id/contracts` - 物理区画の契約一覧取得（分割販売対応）
+  - `POST /plots/:id/contracts` - 既存物理区画への新規契約追加
+  - `GET /plots/:id/inventory` - 物理区画在庫状況取得（利用率計算）
+
+- **新機能実装**
+  - **分割販売サポート**: 1つの物理区画に複数の契約を作成可能
+  - **自動在庫管理**: 契約面積の自動計算と物理区画ステータス更新
+  - **契約面積バリデーション**: 物理区画の面積を超える契約を防止
+  - **トランザクション処理**: 全操作をアトミックに実行
+  - **CollectiveBurial統合**: `plot_id` → `physical_plot_id` への参照変更
+
+- **ユーティリティ関数** (`src/utils/`)
+  - `inventoryUtils.ts` - 在庫計算、面積検証、ステータス更新
+  - `plotValidations.ts` - 契約面積検証、整合性チェック
+  - 包括的なユニットテスト（36テスト）
+
+- **バリデーションスキーマ** (`src/validations/plotValidation.ts`)
+  - `createPlotSchema` - 新規作成用（physicalPlot, contractPlot, saleContract, customer + オプション）
+  - `updatePlotSchema` - 更新用（全フィールドオプション）
+  - `createPlotContractSchema` - 契約追加用（physicalPlot不要）
+
+- **包括的テストスイート**
+  - `tests/plots/plotController.test.ts` - 18コントローラーテスト
+  - `tests/plots/plotRoutes.test.ts` - 8ルートテスト
+  - `tests/validations/plotValidation.test.ts` - 44バリデーションテスト
+  - `tests/utils/inventoryUtils.test.ts` - 16在庫管理テスト
+  - `tests/utils/plotValidations.test.ts` - 20検証テスト
+  - **合計106新規テスト、全テスト成功**
+
+- **API仕様書更新**
+  - `swagger.yaml` - 新データモデル対応の完全なOpenAPI 3.0仕様
+  - 8エンドポイント、17レスポンススキーマ、3リクエストスキーマ
+  - バリデーションパターン、詳細な説明を含む完全なドキュメント
+
+### Changed
+- **データベース構造変更**
+  - `CollectiveBurial.plot_id` → `CollectiveBurial.physical_plot_id` に変更
+  - `FamilyContact` を `physical_plot_id` で PhysicalPlot に関連付け
+  - `BuriedPerson` を `physical_plot_id` で PhysicalPlot に関連付け
+
+- **APIレスポンス構造変更**
+  - 全区画エンドポイントが新しいネスト構造を返す
+  - ContractPlot → SaleContract → Customer の階層構造
+  - PhysicalPlot情報を含む詳細レスポンス
+
+- **ドキュメント更新**
+  - `CLAUDE.md` - 新データモデル、エンドポイント、関係性を反映
+  - `PLOT_MANAGEMENT_SPEC.md` - 詳細な仕様書作成
+  - `MIGRATION_PLAN.md` - 段階的移行計画の文書化
+
+### Removed
+- **旧Gravestoneモデル関連** (データベースには残存、APIからは削除)
+  - Gravestone テーブルベースのAPI実装
+  - Applicant, Contractor テーブルベースのAPI実装
+
+### Technical Details
+- **データモデル**: PhysicalPlot (1) → ContractPlot (N) → SaleContract (1:1) → Customer (1:1)
+- **トランザクション**: 全作成・更新・削除操作で Prisma トランザクション使用
+- **ソフトデリート**: `deleted_at` カラムによる論理削除パターン
+- **自動ステータス更新**: 契約追加・削除時に物理区画のステータスを自動計算
+- **バリデーション**: Zod スキーマによる厳密な型検証
+
+### Migration Notes
+- このバージョンはデータモデルの破壊的変更を含みます
+- 既存のGravestoneデータの移行が必要な場合は、移行スクリプトの実行が必要です
+- API仕様が大幅に変更されているため、フロントエンドの更新が必須です
+
+---
+
 ## [1.3.0] - 2025-11-22
 
 ### Added
