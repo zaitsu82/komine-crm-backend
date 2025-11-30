@@ -88,7 +88,7 @@ import {
   getPlotContracts,
   createPlotContract,
   getPlotInventory,
-} from '../../src/plots/plotController';
+} from '../../src/plots/controllers';
 import { validateContractArea, updatePhysicalPlotStatus } from '../../src/utils/inventoryUtils';
 
 describe('Plot Controller (ContractPlot Model)', () => {

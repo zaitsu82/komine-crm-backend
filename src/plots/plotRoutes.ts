@@ -8,7 +8,7 @@ import {
   getPlotContracts,
   createPlotContract,
   getPlotInventory,
-} from './plotController';
+} from './controllers';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission';
 import { validate } from '../middleware/validation';

@@ -37,7 +37,7 @@ jest.mock('../../src/middleware/validation', () => ({
 }));
 
 // モックコントローラー
-jest.mock('../../src/plots/plotController', () => ({
+jest.mock('../../src/plots/controllers', () => ({
   getPlots: jest.fn((req, res) => res.status(200).json({ success: true, data: [] })),
   getPlotById: jest.fn((req, res) => res.status(200).json({ success: true, data: {} })),
   createPlot: jest.fn((req, res) => res.status(201).json({ success: true, data: {} })),
@@ -57,7 +57,7 @@ import {
   getPlotContracts,
   createPlotContract,
   getPlotInventory,
-} from '../../src/plots/plotController';
+} from '../../src/plots/controllers';
 
 describe('Plot Routes', () => {
   let app: Express;
