@@ -274,7 +274,7 @@
           "Plots"
         ],
         "summary": "契約区画詳細取得",
-        "description": "指定した契約区画の詳細情報を取得。物理区画、顧客、販売契約、オプション情報を含む。",
+        "description": "指定した契約区画の詳細情報を取得。物理区画、顧客、販売契約、埋葬者、家族連絡先、緊急連絡先、墓石情報、工事情報、合祀情報、履歴などの全情報を含む。",
         "security": [
           {
             "bearerAuth": []
@@ -289,6 +289,26 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "includeHistory",
+            "in": "query",
+            "description": "履歴情報を含めるかどうか（デフォルト: false）",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "historyLimit",
+            "in": "query",
+            "description": "履歴情報の取得件数上限（デフォルト: 50）",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 50
             }
           }
         ],
@@ -749,7 +769,7 @@
       },
       "ContractPlotDetail": {
         "type": "object",
-        "description": "契約区画の詳細情報",
+        "description": "契約区画の詳細情報（全関連情報を含む）",
         "properties": {
           "id": {
             "type": "string",
@@ -771,19 +791,91 @@
             "description": "位置説明",
             "nullable": true
           },
-          "PhysicalPlot": {
-            "$ref": "#/components/schemas/PhysicalPlotInfo"
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "作成日時"
           },
-          "SaleContract": {
-            "$ref": "#/components/schemas/SaleContractInfo"
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新日時"
           },
-          "UsageFee": {
+          "physicalPlot": {
+            "type": "object",
+            "description": "物理区画情報（簡略版）",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "plotNumber": {
+                "type": "string"
+              },
+              "areaName": {
+                "type": "string"
+              },
+              "areaSqm": {
+                "type": "number",
+                "format": "float"
+              },
+              "status": {
+                "type": "string"
+              },
+              "notes": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "saleContract": {
+            "$ref": "#/components/schemas/SaleContractInfo",
+            "nullable": true
+          },
+          "usageFee": {
             "$ref": "#/components/schemas/UsageFeeInfo",
             "nullable": true
           },
-          "ManagementFee": {
+          "managementFee": {
             "$ref": "#/components/schemas/ManagementFeeInfo",
             "nullable": true
+          },
+          "buriedPersons": {
+            "type": "array",
+            "description": "埋葬者情報",
+            "items": {
+              "$ref": "#/components/schemas/BuriedPersonInfo"
+            }
+          },
+          "familyContacts": {
+            "type": "array",
+            "description": "家族連絡先情報",
+            "items": {
+              "$ref": "#/components/schemas/FamilyContactDetailInfo"
+            }
+          },
+          "emergencyContact": {
+            "$ref": "#/components/schemas/EmergencyContactInfo",
+            "nullable": true
+          },
+          "gravestoneInfo": {
+            "$ref": "#/components/schemas/GravestoneInfo",
+            "nullable": true
+          },
+          "constructionInfo": {
+            "$ref": "#/components/schemas/ConstructionInfo",
+            "nullable": true
+          },
+          "collectiveBurial": {
+            "$ref": "#/components/schemas/CollectiveBurialDetailInfo",
+            "nullable": true
+          },
+          "histories": {
+            "type": "array",
+            "description": "履歴情報（includeHistory=trueの場合のみ）",
+            "items": {
+              "$ref": "#/components/schemas/HistoryInfo"
+            }
           }
         }
       },
@@ -1175,12 +1267,9 @@
             "format": "date",
             "nullable": true
           },
-          "graveNumber": {
+          "memo": {
             "type": "string",
-            "nullable": true
-          },
-          "notes": {
-            "type": "string",
+            "description": "メモ",
             "nullable": true
           }
         }
