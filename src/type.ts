@@ -91,6 +91,16 @@ export interface SaleContractInfo {
   deletedAt: Date | null; // 削除日時
 }
 
+// 販売契約における役割情報
+export interface SaleContractRoleInput {
+  customerId?: string; // 顧客ID（指定しない場合は作成された顧客を使用）
+  role: 'applicant' | 'contractor' | 'heir'; // 顧客の役割 *必須
+  isPrimary?: boolean; // 主契約者かどうか（デフォルト: false）
+  roleStartDate?: Date | string | null; // 役割開始日
+  roleEndDate?: Date | string | null; // 役割終了日
+  notes?: string | null; // 備考
+}
+
 export interface CreateSaleContractInput {
   contractPlotId: string; // 契約区画ID *必須
   customerId: string; // 顧客ID *必須
@@ -444,12 +454,13 @@ export interface CreateContractPlotInput {
     contractDate: Date | string; // 契約日 *必須
     price: number; // 販売価格 *必須
     paymentStatus?: string; // 支払状況（デフォルト: 'unpaid'）
-    customerRole?: string; // 顧客の役割（デフォルト: 'contractor'）
+    customerRole?: string; // 顧客の役割（デフォルト: 'contractor'）- 旧方式（後方互換性）
     reservationDate?: Date | string | null; // 予約日
     acceptanceNumber?: string; // 受付番号
     permitDate?: Date | string | null; // 許可日
     startDate?: Date | string | null; // 開始日
     notes?: string; // 契約に関する備考
+    roles?: SaleContractRoleInput[]; // 新方式: 複数の役割を指定可能
   };
 
   // 顧客情報（必須）
@@ -530,12 +541,13 @@ export interface UpdateContractPlotInput {
     contractDate?: Date | string; // 契約日
     price?: number; // 販売価格
     paymentStatus?: string; // 支払状況
-    customerRole?: string; // 顧客の役割
+    customerRole?: string; // 顧客の役割 - 旧方式（後方互換性）
     reservationDate?: Date | string | null; // 予約日
     acceptanceNumber?: string; // 受付番号
     permitDate?: Date | string | null; // 許可日
     startDate?: Date | string | null; // 開始日
     notes?: string; // 契約に関する備考
+    roles?: SaleContractRoleInput[]; // 新方式: 複数の役割を指定可能（既存役割は削除され、新しい役割が作成される）
   };
 
   // 顧客情報（オプション）

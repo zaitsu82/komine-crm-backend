@@ -95,7 +95,7 @@ describe('Plot Validation (ContractPlot Model)', () => {
         postalCode: '150-0001',
         address: '東京都渋谷区',
         registeredAddress: '東京都渋谷区',
-        phoneNumber: '03-1234-5678',
+        phoneNumber: '0312345678',
         faxNumber: '',
         email: 'test@example.com',
         notes: '',
@@ -321,7 +321,7 @@ describe('Plot Validation (ContractPlot Model)', () => {
         workInfo: {
           workPostalCode: '150-0001',
           workAddress: '東京都渋谷区',
-          workPhoneNumber: '03-1234-5678',
+          workPhoneNumber: '0312345678',
           workFaxNumber: '',
         },
       };
@@ -427,7 +427,7 @@ describe('Plot Validation (ContractPlot Model)', () => {
     it('customerのみ更新可能であること', () => {
       const validData = {
         customer: {
-          phoneNumber: '090-1234-5678',
+          phoneNumber: '09012345678',
           email: 'updated@example.com',
         },
       };
@@ -454,7 +454,7 @@ describe('Plot Validation (ContractPlot Model)', () => {
     it('部分的なcustomer情報更新が可能であること', () => {
       const partialCustomer = {
         customer: {
-          phoneNumber: '090-9999-8888',
+          phoneNumber: '09099998888',
         },
       };
 
@@ -465,7 +465,7 @@ describe('Plot Validation (ContractPlot Model)', () => {
       const validData = {
         workInfo: {
           workAddress: '東京都千代田区',
-          workPhoneNumber: '03-9999-8888',
+          workPhoneNumber: '0399998888',
         },
       };
 
@@ -522,7 +522,7 @@ describe('Plot Validation (ContractPlot Model)', () => {
         nameKana: 'タナカハナコ',
         postalCode: '150-0002',
         address: '東京都渋谷区',
-        phoneNumber: '090-1234-5678',
+        phoneNumber: '09012345678',
         faxNumber: '',
       },
     };
@@ -556,7 +556,7 @@ describe('Plot Validation (ContractPlot Model)', () => {
         ...validContractData,
         workInfo: {
           workAddress: '東京都港区',
-          workPhoneNumber: '03-5555-6666',
+          workPhoneNumber: '0355556666',
         },
         billingInfo: {
           accountType: 'checking',

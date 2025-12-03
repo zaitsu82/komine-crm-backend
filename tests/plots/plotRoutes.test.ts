@@ -112,7 +112,7 @@ describe('Plot Routes', () => {
           nameKana: 'ヤマダタロウ',
           postalCode: '150-0001',
           address: '東京都渋谷区',
-          phoneNumber: '03-1234-5678',
+          phoneNumber: '0312345678',
         },
       };
 
@@ -175,7 +175,7 @@ describe('Plot Routes', () => {
           nameKana: 'タナカハナコ',
           postalCode: '150-0001',
           address: '東京都渋谷区',
-          phoneNumber: '03-1234-5678',
+          phoneNumber: '0312345678',
         },
       };
 

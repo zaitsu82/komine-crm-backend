@@ -27,7 +27,12 @@ export const getPlotContracts = async (req: Request, res: Response): Promise<any
           include: {
             SaleContract: {
               include: {
-                Customer: true,
+                SaleContractRoles: {
+                  where: { deleted_at: null, is_primary: true },
+                  include: {
+                    Customer: true,
+                  },
+                },
               },
             },
             UsageFee: true,
@@ -51,29 +56,35 @@ export const getPlotContracts = async (req: Request, res: Response): Promise<any
     }
 
     // 契約一覧を整形
-    const contracts = physicalPlot.ContractPlots.map((contract) => ({
-      id: contract.id,
-      contractAreaSqm: contract.contract_area_sqm.toNumber(),
-      saleStatus: contract.sale_status,
-      locationDescription: contract.location_description,
-      customer: contract.SaleContract?.Customer
-        ? {
-            id: contract.SaleContract.Customer.id,
-            name: contract.SaleContract.Customer.name,
-            nameKana: contract.SaleContract.Customer.name_kana,
-            phoneNumber: contract.SaleContract.Customer.phone_number,
-          }
-        : null,
-      saleContract: contract.SaleContract
-        ? {
-            id: contract.SaleContract.id,
-            contractDate: contract.SaleContract.contract_date,
-            price: contract.SaleContract.price.toNumber(),
-            paymentStatus: contract.SaleContract.payment_status,
-          }
-        : null,
-      createdAt: contract.created_at,
-    }));
+    const contracts = physicalPlot.ContractPlots.map((contract) => {
+      // 主契約者を取得（is_primary=true）
+      const primaryRole = contract.SaleContract?.SaleContractRoles?.[0];
+      const primaryCustomer = primaryRole?.Customer;
+
+      return {
+        id: contract.id,
+        contractAreaSqm: contract.contract_area_sqm.toNumber(),
+        saleStatus: contract.sale_status,
+        locationDescription: contract.location_description,
+        customer: primaryCustomer
+          ? {
+              id: primaryCustomer.id,
+              name: primaryCustomer.name,
+              nameKana: primaryCustomer.name_kana,
+              phoneNumber: primaryCustomer.phone_number,
+            }
+          : null,
+        saleContract: contract.SaleContract
+          ? {
+              id: contract.SaleContract.id,
+              contractDate: contract.SaleContract.contract_date,
+              price: contract.SaleContract.price.toNumber(),
+              paymentStatus: contract.SaleContract.payment_status,
+            }
+          : null,
+        createdAt: contract.created_at,
+      };
+    });
 
     res.status(200).json({
       success: true,

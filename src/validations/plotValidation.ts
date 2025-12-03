@@ -4,6 +4,7 @@ import {
   dateSchema,
   emailSchema,
   phoneSchema,
+  requiredPhoneSchema,
   paginationSchema,
   katakanaSchema,
   yearMonthSchema,
@@ -36,7 +37,7 @@ export const familyContactSchema = z.object({
   birthDate: dateSchema.optional().or(z.literal('')),
   relationship: z.string().max(50).optional().or(z.literal('')),
   address: z.string().max(200).optional().or(z.literal('')),
-  phoneNumber: phoneSchema,
+  phoneNumber: requiredPhoneSchema,
   faxNumber: phoneSchema,
   email: emailSchema.optional().or(z.literal('')),
   registeredAddress: z.string().max(200).optional().or(z.literal('')),
@@ -155,13 +156,26 @@ const contractPlotSchema = z.object({
 });
 
 /**
+ * 顧客役割情報における役割のバリデーションスキーマ
+ */
+const saleContractRoleSchema = z.object({
+  customerId: uuidSchema.optional(), // 既存顧客を参照する場合（新規顧客の場合は不要）
+  role: z.string().max(20, '役割は20文字以内で入力してください'), // applicant, contractor, heir, co_contractor など
+  isPrimary: z.boolean().optional(), // 主たる役割かどうか
+  roleStartDate: dateSchema.optional().or(z.literal('')).or(z.null()),
+  roleEndDate: dateSchema.optional().or(z.literal('')).or(z.null()),
+  notes: z.string().max(500).optional().or(z.literal('')),
+});
+
+/**
  * 販売契約情報のバリデーションスキーマ
  */
 const saleContractSchema = z.object({
   contractDate: dateSchema,
   price: z.number().nonnegative('価格は0以上の数値で入力してください'),
   paymentStatus: z.string().max(50).optional().or(z.literal('')),
-  customerRole: z.string().max(50).optional().or(z.literal('')),
+  customerRole: z.string().max(50).optional().or(z.literal('')), // 後方互換性のため残す（deprecated）
+  roles: z.array(saleContractRoleSchema).optional(), // 複数役割サポート（新方式）
   reservationDate: dateSchema.optional().or(z.literal('')).or(z.null()),
   acceptanceNumber: z.string().max(50).optional().or(z.literal('')),
   permitDate: dateSchema.optional().or(z.literal('')).or(z.null()),
@@ -190,7 +204,7 @@ const customerSchema = z.object({
     .max(200, '本籍地は200文字以内で入力してください')
     .optional()
     .or(z.literal('')),
-  phoneNumber: phoneSchema,
+  phoneNumber: requiredPhoneSchema,
   faxNumber: phoneSchema,
   email: emailSchema.optional().or(z.literal('')),
   notes: z.string().max(1000).optional().or(z.literal('')),

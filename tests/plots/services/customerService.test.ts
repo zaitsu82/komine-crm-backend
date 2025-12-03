@@ -39,6 +39,11 @@ describe('customerService', () => {
       saleContract: {
         findMany: jest.fn(),
       },
+      saleContractRole: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
+      },
     };
   });
 
@@ -53,7 +58,7 @@ describe('customerService', () => {
         nameKana: 'ヤマダタロウ',
         postalCode: '150-0001',
         address: '東京都渋谷区',
-        phoneNumber: '03-1234-5678',
+        phoneNumber: '0312345678',
       };
 
       const mockCustomer = {
@@ -74,7 +79,7 @@ describe('customerService', () => {
           postal_code: '150-0001',
           address: '東京都渋谷区',
           registered_address: undefined,
-          phone_number: '03-1234-5678',
+          phone_number: '0312345678',
           fax_number: undefined,
           email: undefined,
           notes: undefined,
@@ -91,7 +96,7 @@ describe('customerService', () => {
         nameKana: 'ヤマダタロウ',
         postalCode: '150-0001',
         address: '東京都渋谷区',
-        phoneNumber: '03-1234-5678',
+        phoneNumber: '0312345678',
       };
 
       const workInfoData = {
@@ -99,7 +104,7 @@ describe('customerService', () => {
         companyNameKana: 'カブシキガイシャテスト',
         workPostalCode: '100-0001',
         workAddress: '東京都千代田区',
-        workPhoneNumber: '03-9876-5432',
+        workPhoneNumber: '0398765432',
       };
 
       const mockCustomer = { id: 'customer-1' };
@@ -115,7 +120,7 @@ describe('customerService', () => {
           company_name_kana: 'カブシキガイシャテスト',
           work_postal_code: '100-0001',
           work_address: '東京都千代田区',
-          work_phone_number: '03-9876-5432',
+          work_phone_number: '0398765432',
           dm_setting: undefined,
           address_type: undefined,
           notes: undefined,
@@ -129,7 +134,7 @@ describe('customerService', () => {
         nameKana: 'ヤマダタロウ',
         postalCode: '150-0001',
         address: '東京都渋谷区',
-        phoneNumber: '03-1234-5678',
+        phoneNumber: '0312345678',
       };
 
       const workInfoData = {
@@ -173,7 +178,7 @@ describe('customerService', () => {
     it('顧客情報のみ更新できること', async () => {
       const customerData = {
         name: '山田花子',
-        phoneNumber: '03-9999-9999',
+        phoneNumber: '0399999999',
       };
 
       mockPrisma.customer.update.mockResolvedValue({});
@@ -190,7 +195,7 @@ describe('customerService', () => {
           postal_code: undefined,
           address: undefined,
           registered_address: undefined,
-          phone_number: '03-9999-9999',
+          phone_number: '0399999999',
           fax_number: undefined,
           email: undefined,
           notes: undefined,
@@ -293,14 +298,14 @@ describe('customerService', () => {
 
   describe('deleteCustomerIfUnused', () => {
     it('他に契約がない場合、顧客を削除すること', async () => {
-      mockPrisma.saleContract.findMany.mockResolvedValue([]);
+      mockPrisma.saleContractRole.findMany.mockResolvedValue([]);
       mockPrisma.workInfo.deleteMany.mockResolvedValue({});
       mockPrisma.billingInfo.deleteMany.mockResolvedValue({});
       mockPrisma.customer.update.mockResolvedValue({});
 
       await deleteCustomerIfUnused(mockPrisma, 'customer-1');
 
-      expect(mockPrisma.saleContract.findMany).toHaveBeenCalledWith({
+      expect(mockPrisma.saleContractRole.findMany).toHaveBeenCalledWith({
         where: {
           customer_id: 'customer-1',
           deleted_at: null,
@@ -319,7 +324,7 @@ describe('customerService', () => {
     });
 
     it('他に契約がある場合、顧客を削除しないこと', async () => {
-      mockPrisma.saleContract.findMany.mockResolvedValue([{ id: 'other-contract-1' }]);
+      mockPrisma.saleContractRole.findMany.mockResolvedValue([{ id: 'role-1' }]);
 
       await deleteCustomerIfUnused(mockPrisma, 'customer-1');
 
@@ -329,18 +334,18 @@ describe('customerService', () => {
     });
 
     it('除外する契約IDを指定した場合、その契約を除いて検索すること', async () => {
-      mockPrisma.saleContract.findMany.mockResolvedValue([]);
+      mockPrisma.saleContractRole.findMany.mockResolvedValue([]);
       mockPrisma.workInfo.deleteMany.mockResolvedValue({});
       mockPrisma.billingInfo.deleteMany.mockResolvedValue({});
       mockPrisma.customer.update.mockResolvedValue({});
 
       await deleteCustomerIfUnused(mockPrisma, 'customer-1', 'exclude-contract-1');
 
-      expect(mockPrisma.saleContract.findMany).toHaveBeenCalledWith({
+      expect(mockPrisma.saleContractRole.findMany).toHaveBeenCalledWith({
         where: {
           customer_id: 'customer-1',
           deleted_at: null,
-          id: { not: 'exclude-contract-1' },
+          sale_contract_id: { not: 'exclude-contract-1' },
         },
       });
     });

@@ -37,6 +37,11 @@ const mockPrisma: any = {
     create: jest.fn(),
     update: jest.fn(),
   },
+  saleContractRole: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+  },
   customer: {
     create: jest.fn(),
     update: jest.fn(),
@@ -158,14 +163,20 @@ describe('Plot Controller (ContractPlot Model)', () => {
             contract_date: new Date('2024-01-01'),
             price: new Prisma.Decimal(1000000),
             payment_status: 'paid',
-            customer_role: null,
-            Customer: {
-              id: 'c1',
-              name: '山田太郎',
-              name_kana: 'ヤマダタロウ',
-              phone_number: '03-1234-5678',
-              address: '東京都渋谷区',
-            },
+            SaleContractRoles: [
+              {
+                id: 'scr1',
+                role: 'contractor',
+                is_primary: true,
+                Customer: {
+                  id: 'c1',
+                  name: '山田太郎',
+                  name_kana: 'ヤマダタロウ',
+                  phone_number: '0312345678',
+                  address: '東京都渋谷区',
+                },
+              },
+            ],
           },
           ManagementFee: null,
         },
@@ -193,6 +204,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
               id: 'cp1',
               plotNumber: 'A-01',
               customerName: '山田太郎',
+              customerRole: 'contractor',
             }),
           ]),
         })
@@ -220,13 +232,19 @@ describe('Plot Controller (ContractPlot Model)', () => {
             contract_date: new Date('2024-01-01'),
             price: new Prisma.Decimal(1000000),
             payment_status: 'paid',
-            customer_role: 'owner',
-            Customer: {
-              name: '山田太郎',
-              name_kana: 'ヤマダタロウ',
-              phone_number: '03-1234-5678',
-              address: '東京都渋谷区',
-            },
+            SaleContractRoles: [
+              {
+                id: 'scr1',
+                role: 'owner',
+                is_primary: true,
+                Customer: {
+                  name: '山田太郎',
+                  name_kana: 'ヤマダタロウ',
+                  phone_number: '0312345678',
+                  address: '東京都渋谷区',
+                },
+              },
+            ],
           },
           ManagementFee: {
             management_fee: '12000',
@@ -338,28 +356,37 @@ describe('Plot Controller (ContractPlot Model)', () => {
           contract_date: new Date('2024-01-01'),
           price: new Prisma.Decimal(1000000),
           payment_status: 'paid',
-          customer_role: null,
           reservation_date: null,
           acceptance_number: null,
           permit_date: null,
           start_date: null,
           notes: null,
-          Customer: {
-            id: 'c1',
-            name: '山田太郎',
-            name_kana: 'ヤマダタロウ',
-            birth_date: null,
-            gender: null,
-            postal_code: '150-0001',
-            address: '東京都渋谷区',
-            registered_address: null,
-            phone_number: '03-1234-5678',
-            fax_number: null,
-            email: null,
-            notes: null,
-            WorkInfo: null,
-            BillingInfo: null,
-          },
+          SaleContractRoles: [
+            {
+              id: 'scr1',
+              role: 'contractor',
+              is_primary: true,
+              role_start_date: null,
+              role_end_date: null,
+              notes: null,
+              Customer: {
+                id: 'c1',
+                name: '山田太郎',
+                name_kana: 'ヤマダタロウ',
+                birth_date: null,
+                gender: null,
+                postal_code: '150-0001',
+                address: '東京都渋谷区',
+                registered_address: null,
+                phone_number: '0312345678',
+                fax_number: null,
+                email: null,
+                notes: null,
+                WorkInfo: null,
+                BillingInfo: null,
+              },
+            },
+          ],
         },
         UsageFee: null,
         ManagementFee: null,
@@ -423,7 +450,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           nameKana: 'ヤマダタロウ',
           postalCode: '150-0001',
           address: '東京都渋谷区',
-          phoneNumber: '03-1234-5678',
+          phoneNumber: '0312345678',
         },
       };
 
@@ -469,7 +496,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           nameKana: 'ヤマダタロウ',
           postalCode: '150-0001',
           address: '東京都渋谷区',
-          phoneNumber: '03-1234-5678',
+          phoneNumber: '0312345678',
         },
       };
 
@@ -533,7 +560,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           nameKana: 'ヤマダタロウ',
           postalCode: '150-0001',
           address: '東京都渋谷区',
-          phoneNumber: '03-1234-5678',
+          phoneNumber: '0312345678',
         },
       };
 
@@ -575,7 +602,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           nameKana: 'ヤマダタロウ',
           postalCode: '150-0001',
           address: '東京都渋谷区',
-          phoneNumber: '03-1234-5678',
+          phoneNumber: '0312345678',
         },
       };
 
@@ -603,14 +630,14 @@ describe('Plot Controller (ContractPlot Model)', () => {
           nameKana: 'ヤマダタロウ',
           postalCode: '150-0001',
           address: '東京都渋谷区',
-          phoneNumber: '03-1234-5678',
+          phoneNumber: '0312345678',
         },
         workInfo: {
           companyName: 'テスト株式会社',
           companyNameKana: 'テストカブシキガイシャ',
           workPostalCode: '100-0001',
           workAddress: '東京都千代田区',
-          workPhoneNumber: '03-1111-1111',
+          workPhoneNumber: '0311111111',
           dmSetting: 'allow',
           addressType: 'work',
         },
@@ -659,7 +686,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           nameKana: 'ヤマダタロウ',
           postalCode: '150-0001',
           address: '東京都渋谷区',
-          phoneNumber: '03-1234-5678',
+          phoneNumber: '0312345678',
         },
         usageFee: {
           calculationType: 'area',
@@ -717,7 +744,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           nameKana: 'ヤマダタロウ',
           postalCode: '150-0001',
           address: '東京都渋谷区',
-          phoneNumber: '03-1234-5678',
+          phoneNumber: '0312345678',
         },
       };
 
@@ -816,12 +843,19 @@ describe('Plot Controller (ContractPlot Model)', () => {
               contract_date: new Date('2024-01-01'),
               price: new Prisma.Decimal(1000000),
               payment_status: 'paid',
-              Customer: {
-                id: 'c1',
-                name: '山田太郎',
-                name_kana: 'ヤマダタロウ',
-                phone_number: '03-1234-5678',
-              },
+              SaleContractRoles: [
+                {
+                  id: 'scr1',
+                  role: 'contractor',
+                  is_primary: true,
+                  Customer: {
+                    id: 'c1',
+                    name: '山田太郎',
+                    name_kana: 'ヤマダタロウ',
+                    phone_number: '0312345678',
+                  },
+                },
+              ],
             },
             UsageFee: null,
             ManagementFee: null,
@@ -907,9 +941,16 @@ describe('Plot Controller (ContractPlot Model)', () => {
             contract_area_sqm: new Prisma.Decimal(3.6),
             sale_status: 'contracted',
             SaleContract: {
-              Customer: {
-                name: '山田太郎',
-              },
+              SaleContractRoles: [
+                {
+                  id: 'scr1',
+                  role: 'contractor',
+                  is_primary: true,
+                  Customer: {
+                    name: '山田太郎',
+                  },
+                },
+              ],
             },
           },
         ],

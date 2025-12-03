@@ -90,12 +90,17 @@ describe('plotService', () => {
             include: {
               SaleContract: {
                 include: {
-                  Customer: {
-                    select: {
-                      id: true,
-                      name: true,
-                      name_kana: true,
-                      phone_number: true,
+                  SaleContractRoles: {
+                    where: { deleted_at: null, is_primary: true },
+                    include: {
+                      Customer: {
+                        select: {
+                          id: true,
+                          name: true,
+                          name_kana: true,
+                          phone_number: true,
+                        },
+                      },
                     },
                   },
                 },

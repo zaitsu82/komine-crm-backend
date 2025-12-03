@@ -28,12 +28,18 @@ export const getPlots = async (_req: Request, res: Response) => {
         },
         SaleContract: {
           include: {
-            Customer: {
-              select: {
-                name: true,
-                name_kana: true,
-                phone_number: true,
-                address: true,
+            SaleContractRoles: {
+              where: { deleted_at: null },
+              include: {
+                Customer: {
+                  select: {
+                    id: true,
+                    name: true,
+                    name_kana: true,
+                    phone_number: true,
+                    address: true,
+                  },
+                },
               },
             },
           },
@@ -58,6 +64,12 @@ export const getPlots = async (_req: Request, res: Response) => {
         }
       }
 
+      // 主契約者（is_primary=true）を取得（後方互換性のため）
+      const primaryRole = contractPlot.SaleContract?.SaleContractRoles?.find(
+        (role) => role.is_primary
+      );
+      const primaryCustomer = primaryRole?.Customer;
+
       return {
         // 契約区画情報
         id: contractPlot.id,
@@ -71,17 +83,28 @@ export const getPlots = async (_req: Request, res: Response) => {
         physicalPlotAreaSqm: contractPlot.PhysicalPlot.area_sqm.toNumber(),
         physicalPlotStatus: contractPlot.PhysicalPlot.status,
 
-        // 顧客情報（販売契約経由）
-        customerName: contractPlot.SaleContract?.Customer.name || null,
-        customerNameKana: contractPlot.SaleContract?.Customer.name_kana || null,
-        customerPhoneNumber: contractPlot.SaleContract?.Customer.phone_number || null,
-        customerAddress: contractPlot.SaleContract?.Customer.address || null,
-        customerRole: contractPlot.SaleContract?.customer_role || null,
+        // 顧客情報（販売契約経由、主契約者のみ - 後方互換性）
+        customerName: primaryCustomer?.name || null,
+        customerNameKana: primaryCustomer?.name_kana || null,
+        customerPhoneNumber: primaryCustomer?.phone_number || null,
+        customerAddress: primaryCustomer?.address || null,
+        customerRole: primaryRole?.role || null,
 
         // 契約情報
         contractDate: contractPlot.SaleContract?.contract_date || null,
         price: contractPlot.SaleContract?.price.toNumber() || null,
         paymentStatus: contractPlot.SaleContract?.payment_status || null,
+
+        // 新方式: 全ての役割情報（リスト表示用の最小限情報）
+        roles:
+          contractPlot.SaleContract?.SaleContractRoles?.map((role) => ({
+            role: role.role,
+            isPrimary: role.is_primary,
+            customer: {
+              id: role.Customer.id,
+              name: role.Customer.name,
+            },
+          })) || [],
 
         // 料金情報
         nextBillingDate,

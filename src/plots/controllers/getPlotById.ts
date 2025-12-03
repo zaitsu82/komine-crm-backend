@@ -39,10 +39,15 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
         },
         SaleContract: {
           include: {
-            Customer: {
+            SaleContractRoles: {
+              where: { deleted_at: null },
               include: {
-                WorkInfo: true,
-                BillingInfo: true,
+                Customer: {
+                  include: {
+                    WorkInfo: true,
+                    BillingInfo: true,
+                  },
+                },
               },
             },
           },
@@ -103,54 +108,15 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
             contractDate: contractPlot.SaleContract.contract_date,
             price: contractPlot.SaleContract.price.toNumber(),
             paymentStatus: contractPlot.SaleContract.payment_status,
-            customerRole: contractPlot.SaleContract.customer_role,
             reservationDate: contractPlot.SaleContract.reservation_date,
             acceptanceNumber: contractPlot.SaleContract.acceptance_number,
             permitDate: contractPlot.SaleContract.permit_date,
             startDate: contractPlot.SaleContract.start_date,
             notes: contractPlot.SaleContract.notes,
-
-            // 顧客情報
-            customer: {
-              id: contractPlot.SaleContract.Customer.id,
-              name: contractPlot.SaleContract.Customer.name,
-              nameKana: contractPlot.SaleContract.Customer.name_kana,
-              gender: contractPlot.SaleContract.Customer.gender,
-              birthDate: contractPlot.SaleContract.Customer.birth_date,
-              phoneNumber: contractPlot.SaleContract.Customer.phone_number,
-              faxNumber: contractPlot.SaleContract.Customer.fax_number,
-              email: contractPlot.SaleContract.Customer.email,
-              postalCode: contractPlot.SaleContract.Customer.postal_code,
-              address: contractPlot.SaleContract.Customer.address,
-              registeredAddress: contractPlot.SaleContract.Customer.registered_address,
-              notes: contractPlot.SaleContract.Customer.notes,
-
-              // 勤務先情報
-              workInfo: contractPlot.SaleContract.Customer.WorkInfo
-                ? {
-                    companyName: contractPlot.SaleContract.Customer.WorkInfo.company_name,
-                    companyNameKana: contractPlot.SaleContract.Customer.WorkInfo.company_name_kana,
-                    workAddress: contractPlot.SaleContract.Customer.WorkInfo.work_address,
-                    workPostalCode: contractPlot.SaleContract.Customer.WorkInfo.work_postal_code,
-                    workPhoneNumber: contractPlot.SaleContract.Customer.WorkInfo.work_phone_number,
-                    dmSetting: contractPlot.SaleContract.Customer.WorkInfo.dm_setting,
-                    addressType: contractPlot.SaleContract.Customer.WorkInfo.address_type,
-                    notes: contractPlot.SaleContract.Customer.WorkInfo.notes,
-                  }
-                : null,
-
-              // 請求先情報
-              billingInfo: contractPlot.SaleContract.Customer.BillingInfo
-                ? {
-                    billingType: contractPlot.SaleContract.Customer.BillingInfo.billing_type,
-                    bankName: contractPlot.SaleContract.Customer.BillingInfo.bank_name,
-                    branchName: contractPlot.SaleContract.Customer.BillingInfo.branch_name,
-                    accountType: contractPlot.SaleContract.Customer.BillingInfo.account_type,
-                    accountNumber: contractPlot.SaleContract.Customer.BillingInfo.account_number,
-                    accountHolder: contractPlot.SaleContract.Customer.BillingInfo.account_holder,
-                  }
-                : null,
-            },
+            // customerRole と customer は後で主契約者のデータで上書きされる
+            customerRole: null,
+            customer: null,
+            roles: [], // 後で全役割データで上書きされる
           }
         : null,
 
@@ -300,6 +266,101 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
       // 履歴情報
       histories: includeHistory ? histories : undefined,
     };
+
+    // 主契約者（is_primary=true）を取得（後方互換性のため）
+    const primaryRole = contractPlot.SaleContract?.SaleContractRoles?.find(
+      (role: any) => role.is_primary
+    );
+    const primaryCustomer = primaryRole?.Customer;
+
+    // 後方互換性のため、saleContract内のcustomerRoleとcustomerを主契約者のものに更新
+    if (response.saleContract && primaryRole && primaryCustomer) {
+      response.saleContract.customerRole = primaryRole.role;
+      response.saleContract.customer = {
+        id: primaryCustomer.id,
+        name: primaryCustomer.name,
+        nameKana: primaryCustomer.name_kana,
+        gender: primaryCustomer.gender,
+        birthDate: primaryCustomer.birth_date,
+        phoneNumber: primaryCustomer.phone_number,
+        faxNumber: primaryCustomer.fax_number,
+        email: primaryCustomer.email,
+        postalCode: primaryCustomer.postal_code,
+        address: primaryCustomer.address,
+        registeredAddress: primaryCustomer.registered_address,
+        notes: primaryCustomer.notes,
+        workInfo: primaryCustomer.WorkInfo
+          ? {
+              companyName: primaryCustomer.WorkInfo.company_name,
+              companyNameKana: primaryCustomer.WorkInfo.company_name_kana,
+              workAddress: primaryCustomer.WorkInfo.work_address,
+              workPostalCode: primaryCustomer.WorkInfo.work_postal_code,
+              workPhoneNumber: primaryCustomer.WorkInfo.work_phone_number,
+              dmSetting: primaryCustomer.WorkInfo.dm_setting,
+              addressType: primaryCustomer.WorkInfo.address_type,
+              notes: primaryCustomer.WorkInfo.notes,
+            }
+          : null,
+        billingInfo: primaryCustomer.BillingInfo
+          ? {
+              billingType: primaryCustomer.BillingInfo.billing_type,
+              bankName: primaryCustomer.BillingInfo.bank_name,
+              branchName: primaryCustomer.BillingInfo.branch_name,
+              accountType: primaryCustomer.BillingInfo.account_type,
+              accountNumber: primaryCustomer.BillingInfo.account_number,
+              accountHolder: primaryCustomer.BillingInfo.account_holder,
+            }
+          : null,
+      };
+
+      // 新方式: 全ての役割と顧客情報を追加
+      response.saleContract.roles = contractPlot.SaleContract?.SaleContractRoles?.map(
+        (role: any) => ({
+          id: role.id,
+          role: role.role,
+          isPrimary: role.is_primary,
+          roleStartDate: role.role_start_date,
+          roleEndDate: role.role_end_date,
+          notes: role.notes,
+          customer: {
+            id: role.Customer.id,
+            name: role.Customer.name,
+            nameKana: role.Customer.name_kana,
+            gender: role.Customer.gender,
+            birthDate: role.Customer.birth_date,
+            phoneNumber: role.Customer.phone_number,
+            faxNumber: role.Customer.fax_number,
+            email: role.Customer.email,
+            postalCode: role.Customer.postal_code,
+            address: role.Customer.address,
+            registeredAddress: role.Customer.registered_address,
+            notes: role.Customer.notes,
+            workInfo: role.Customer.WorkInfo
+              ? {
+                  companyName: role.Customer.WorkInfo.company_name,
+                  companyNameKana: role.Customer.WorkInfo.company_name_kana,
+                  workAddress: role.Customer.WorkInfo.work_address,
+                  workPostalCode: role.Customer.WorkInfo.work_postal_code,
+                  workPhoneNumber: role.Customer.WorkInfo.work_phone_number,
+                  dmSetting: role.Customer.WorkInfo.dm_setting,
+                  addressType: role.Customer.WorkInfo.address_type,
+                  notes: role.Customer.WorkInfo.notes,
+                }
+              : null,
+            billingInfo: role.Customer.BillingInfo
+              ? {
+                  billingType: role.Customer.BillingInfo.billing_type,
+                  bankName: role.Customer.BillingInfo.bank_name,
+                  branchName: role.Customer.BillingInfo.branch_name,
+                  accountType: role.Customer.BillingInfo.account_type,
+                  accountNumber: role.Customer.BillingInfo.account_number,
+                  accountHolder: role.Customer.BillingInfo.account_holder,
+                }
+              : null,
+          },
+        })
+      );
+    }
 
     res.status(200).json({
       success: true,

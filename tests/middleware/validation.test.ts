@@ -247,9 +247,9 @@ describe('Validation Middleware', () => {
 
     describe('phoneSchema', () => {
       it('有効な電話番号でバリデーションが成功すること', () => {
-        expect(() => phoneSchema.parse('03-1234-5678')).not.toThrow();
         expect(() => phoneSchema.parse('0312345678')).not.toThrow();
-        expect(() => phoneSchema.parse('090-1234-5678')).not.toThrow();
+        expect(() => phoneSchema.parse('0312345678')).not.toThrow();
+        expect(() => phoneSchema.parse('09012345678')).not.toThrow();
         expect(() => phoneSchema.parse('09012345678')).not.toThrow();
         expect(() => phoneSchema.parse('')).not.toThrow();
       });

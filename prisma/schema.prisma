@@ -67,8 +67,6 @@ model ContractPlot {
 model SaleContract {
   id                String    @id @default(uuid()) @map("sale_contract_id")
   contract_plot_id  String    @unique // 契約区画ID（1:1関係）
-  customer_id       String // 顧客ID
-  customer_role     String    @db.VarChar(20) // 顧客の役割: applicant（申込者）, contractor（契約者）, heir（相続人）など
   contract_date     DateTime  @db.Date // 契約日
   price             Decimal   @db.Decimal(15, 2) // 販売価格
   payment_status    String    @default("unpaid") @db.VarChar(20) // unpaid, partial, paid
@@ -82,19 +80,46 @@ model SaleContract {
   deleted_at        DateTime?
 
   // Relations
-  ContractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
-  Customer     Customer     @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  ContractPlot      ContractPlot         @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
+  SaleContractRoles SaleContractRole[] // 顧客との役割関係（1:N）
 
   @@index([contract_plot_id])
-  @@index([customer_id])
-  @@index([customer_role]) // 役割で検索できるようにインデックス追加
   @@index([contract_date])
   @@index([payment_status])
   @@index([deleted_at])
   @@map("sale_contracts")
 }
 
-// 顧客マスタ: 人物情報を一元管理（役割はSaleContractで管理）
+// 販売契約における顧客の役割: 1つの契約に複数の顧客が異なる役割で関わることができる
+model SaleContractRole {
+  id                String    @id @default(uuid()) @map("sale_contract_role_id")
+  sale_contract_id  String // 販売契約ID
+  customer_id       String // 顧客ID
+  role              String    @db.VarChar(20) // 役割: applicant（申込者）, contractor（契約者）, heir（相続人）, co_contractor（共同契約者）など
+  is_primary        Boolean   @default(false) // 主たる役割かどうか（主契約者など）
+  role_start_date   DateTime? @db.Date // 役割開始日（相続などで役割が変わる場合）
+  role_end_date     DateTime? @db.Date // 役割終了日
+  notes             String?   @db.Text // この役割に関する備考
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  deleted_at        DateTime?
+
+  // Relations
+  SaleContract SaleContract @relation(fields: [sale_contract_id], references: [id], onDelete: Cascade)
+  Customer     Customer     @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+
+  // 複合ユニーク制約：同じ契約で同じ顧客が同じ役割を重複して持たない（削除されていない場合のみ）
+  @@unique([sale_contract_id, customer_id, role, deleted_at])
+
+  @@index([sale_contract_id])
+  @@index([customer_id])
+  @@index([role])
+  @@index([is_primary])
+  @@index([deleted_at])
+  @@map("sale_contract_roles")
+}
+
+// 顧客マスタ: 人物情報を一元管理（役割はSaleContractRoleで管理）
 model Customer {
   id                 String    @id @default(uuid()) @map("customer_id")
   name               String    @db.VarChar(100) // 氏名
@@ -113,9 +138,9 @@ model Customer {
   deleted_at         DateTime?
 
   // Relations
-  SaleContracts SaleContract[] // 販売契約（1:N）
-  WorkInfo      WorkInfo? // 勤務先情報（1:1）
-  BillingInfo   BillingInfo? // 請求情報（1:1）
+  SaleContractRoles SaleContractRole[] // 販売契約における役割（1:N）
+  WorkInfo          WorkInfo? // 勤務先情報（1:1）
+  BillingInfo       BillingInfo? // 請求情報（1:1）
 
   @@index([name, name_kana])
   @@index([phone_number])
@@ -123,93 +148,6 @@ model Customer {
   @@index([deleted_at])
   @@map("customers")
 }
-
-// =============================================================================
-// 旧モデル（コメントアウト - データ移行後に削除予定）
-// =============================================================================
-
-// model Plot {
-//   id            String    @id @default(uuid()) @map("plot_id")
-//   plot_number   String    @unique @db.VarChar(20)
-//   section       String    @db.VarChar(50)
-//   usage         String    @db.VarChar(20) // in_use, available, reserved
-//   size          String    @db.VarChar(50)
-//   price         String    @db.VarChar(50)
-//   contract_date DateTime? @db.Date
-//   status        String    @default("active") @db.VarChar(20) // active, inactive
-//   notes         String?   @db.Text // 備考/注意
-//   created_at    DateTime  @default(now())
-//   updated_at    DateTime  @updatedAt
-//   deleted_at    DateTime?
-//
-//   // Relations
-//   Applicant         Applicant?
-//   Contractors       Contractor[]
-//   UsageFee          UsageFee?
-//   ManagementFee     ManagementFee?
-//   GravestoneInfo    GravestoneInfo?
-//   ConstructionInfo  ConstructionInfo?
-//   FamilyContacts    FamilyContact[]
-//   EmergencyContact  EmergencyContact?
-//   BuriedPersons     BuriedPerson[]
-//   CollectiveBurial  CollectiveBurial?
-//
-//   @@index([plot_number])
-//   @@index([usage, section])
-//   @@index([deleted_at])
-//   @@map("plots")
-// }
-
-// model Applicant {
-//   id               String    @id @default(uuid()) @map("applicant_id")
-//   plot_id          String    @unique
-//   application_date DateTime? @db.Date
-//   staff_name       String    @db.VarChar(100)
-//   name             String    @db.VarChar(100)
-//   name_kana        String    @db.VarChar(100)
-//   postal_code      String    @db.VarChar(8)
-//   phone_number     String    @db.VarChar(15)
-//   address          String    @db.VarChar(200)
-//   created_at       DateTime  @default(now())
-//   updated_at       DateTime  @updatedAt
-//   deleted_at       DateTime?
-//
-//   // Relations
-//   Plot Plot @relation(fields: [plot_id], references: [id], onDelete: Cascade)
-//
-//   @@index([plot_id])
-//   @@map("applicants")
-// }
-
-// model Contractor {
-//   id                 String    @id @default(uuid()) @map("contractor_id")
-//   plot_id            String
-//   reservation_date   DateTime? @db.Date
-//   acceptance_number  String?   @db.VarChar(50)
-//   permit_date        DateTime? @db.Date
-//   start_date         DateTime? @db.Date
-//   name               String    @db.VarChar(100)
-//   name_kana          String    @db.VarChar(100)
-//   birth_date         DateTime? @db.Date
-//   gender             String?   @db.VarChar(10)
-//   phone_number       String    @db.VarChar(15)
-//   fax_number         String?   @db.VarChar(15)
-//   email              String?   @db.VarChar(100)
-//   address            String    @db.VarChar(200)
-//   registered_address String?   @db.VarChar(200)
-//   created_at         DateTime  @default(now())
-//   updated_at         DateTime  @updatedAt
-//   deleted_at         DateTime?
-//
-//   // Relations
-//   Plot        Plot         @relation(fields: [plot_id], references: [id], onDelete: Cascade)
-//   WorkInfo    WorkInfo?
-//   BillingInfo BillingInfo?
-//
-//   @@index([plot_id])
-//   @@index([name, name_kana])
-//   @@map("contractors")
-// }
 
 // 使用料: 契約区画ごとの使用料
 model UsageFee {

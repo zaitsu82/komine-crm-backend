@@ -30,10 +30,15 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
           PhysicalPlot: true,
           SaleContract: {
             include: {
-              Customer: {
+              SaleContractRoles: {
+                where: { deleted_at: null },
                 include: {
-                  WorkInfo: true,
-                  BillingInfo: true,
+                  Customer: {
+                    include: {
+                      WorkInfo: true,
+                      BillingInfo: true,
+                    },
+                  },
                 },
               },
             },
@@ -113,9 +118,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
         if (input.saleContract.paymentStatus !== undefined) {
           updateData.payment_status = input.saleContract.paymentStatus;
         }
-        if (input.saleContract.customerRole !== undefined) {
-          updateData.customer_role = input.saleContract.customerRole;
-        }
         if (input.saleContract.reservationDate !== undefined) {
           updateData.reservation_date = input.saleContract.reservationDate
             ? new Date(input.saleContract.reservationDate)
@@ -144,128 +146,169 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
             data: updateData,
           });
         }
+
+        // 3.5. 販売契約における役割の更新
+        if (input.saleContract.roles !== undefined) {
+          // 既存の役割を論理削除
+          await tx.saleContractRole.updateMany({
+            where: {
+              sale_contract_id: existingContractPlot.SaleContract.id,
+              deleted_at: null,
+            },
+            data: {
+              deleted_at: new Date(),
+            },
+          });
+
+          // 新しい役割を作成
+          for (const roleData of input.saleContract.roles) {
+            // customerId が指定されていない場合はエラー
+            if (!roleData.customerId) {
+              throw new Error('役割更新時は customerId が必須です');
+            }
+
+            await tx.saleContractRole.create({
+              data: {
+                sale_contract_id: existingContractPlot.SaleContract.id,
+                customer_id: roleData.customerId,
+                role: roleData.role,
+                is_primary: roleData.isPrimary ?? false,
+                role_start_date: roleData.roleStartDate ? new Date(roleData.roleStartDate) : null,
+                role_end_date: roleData.roleEndDate ? new Date(roleData.roleEndDate) : null,
+                notes: roleData.notes || null,
+              },
+            });
+          }
+        }
       }
 
-      // 4. Customerの更新
+      // 4. Customerの更新（主契約者を対象）
       if (input.customer && existingContractPlot.SaleContract) {
-        const customerId = existingContractPlot.SaleContract.customer_id;
-        const updateData: any = {};
+        // 主契約者を取得
+        const primaryRole = existingContractPlot.SaleContract.SaleContractRoles?.find(
+          (role: any) => role.is_primary
+        );
+        const customerId = primaryRole?.Customer.id;
 
-        if (input.customer.name !== undefined) updateData.name = input.customer.name;
-        if (input.customer.nameKana !== undefined) updateData.name_kana = input.customer.nameKana;
-        if (input.customer.birthDate !== undefined) {
-          updateData.birth_date = input.customer.birthDate
-            ? new Date(input.customer.birthDate)
-            : null;
-        }
-        if (input.customer.gender !== undefined) updateData.gender = input.customer.gender;
-        if (input.customer.postalCode !== undefined)
-          updateData.postal_code = input.customer.postalCode;
-        if (input.customer.address !== undefined) updateData.address = input.customer.address;
-        if (input.customer.registeredAddress !== undefined)
-          updateData.registered_address = input.customer.registeredAddress;
-        if (input.customer.phoneNumber !== undefined)
-          updateData.phone_number = input.customer.phoneNumber;
-        if (input.customer.faxNumber !== undefined)
-          updateData.fax_number = input.customer.faxNumber;
-        if (input.customer.email !== undefined) updateData.email = input.customer.email;
-        if (input.customer.notes !== undefined) updateData.notes = input.customer.notes;
+        if (customerId) {
+          const updateData: any = {};
 
-        if (Object.keys(updateData).length > 0) {
-          await tx.customer.update({
-            where: { id: customerId },
-            data: updateData,
-          });
-        }
+          if (input.customer.name !== undefined) updateData.name = input.customer.name;
+          if (input.customer.nameKana !== undefined) updateData.name_kana = input.customer.nameKana;
+          if (input.customer.birthDate !== undefined) {
+            updateData.birth_date = input.customer.birthDate
+              ? new Date(input.customer.birthDate)
+              : null;
+          }
+          if (input.customer.gender !== undefined) updateData.gender = input.customer.gender;
+          if (input.customer.postalCode !== undefined)
+            updateData.postal_code = input.customer.postalCode;
+          if (input.customer.address !== undefined) updateData.address = input.customer.address;
+          if (input.customer.registeredAddress !== undefined)
+            updateData.registered_address = input.customer.registeredAddress;
+          if (input.customer.phoneNumber !== undefined)
+            updateData.phone_number = input.customer.phoneNumber;
+          if (input.customer.faxNumber !== undefined)
+            updateData.fax_number = input.customer.faxNumber;
+          if (input.customer.email !== undefined) updateData.email = input.customer.email;
+          if (input.customer.notes !== undefined) updateData.notes = input.customer.notes;
 
-        // 5. WorkInfoの更新/作成/削除
-        if (input.workInfo !== undefined) {
-          const existingWorkInfo = existingContractPlot.SaleContract.Customer.WorkInfo;
+          if (Object.keys(updateData).length > 0) {
+            await tx.customer.update({
+              where: { id: customerId },
+              data: updateData,
+            });
+          }
 
-          if (input.workInfo === null) {
-            // 削除
-            if (existingWorkInfo) {
-              await tx.workInfo.delete({
-                where: { id: existingWorkInfo.id },
-              });
-            }
-          } else {
-            // 更新または作成
-            const workInfoData: any = {};
-            if (input.workInfo.companyName !== undefined)
-              workInfoData.company_name = input.workInfo.companyName;
-            if (input.workInfo.companyNameKana !== undefined)
-              workInfoData.company_name_kana = input.workInfo.companyNameKana;
-            if (input.workInfo.workPostalCode !== undefined)
-              workInfoData.work_postal_code = input.workInfo.workPostalCode;
-            if (input.workInfo.workAddress !== undefined)
-              workInfoData.work_address = input.workInfo.workAddress;
-            if (input.workInfo.workPhoneNumber !== undefined)
-              workInfoData.work_phone_number = input.workInfo.workPhoneNumber;
-            if (input.workInfo.dmSetting !== undefined)
-              workInfoData.dm_setting = input.workInfo.dmSetting;
-            if (input.workInfo.addressType !== undefined)
-              workInfoData.address_type = input.workInfo.addressType;
-            if (input.workInfo.notes !== undefined) workInfoData.notes = input.workInfo.notes;
+          // 5. WorkInfoの更新/作成/削除
+          if (input.workInfo !== undefined) {
+            const existingWorkInfo = primaryRole?.Customer.WorkInfo;
 
-            if (Object.keys(workInfoData).length > 0) {
+            if (input.workInfo === null) {
+              // 削除
               if (existingWorkInfo) {
-                await tx.workInfo.update({
+                await tx.workInfo.delete({
                   where: { id: existingWorkInfo.id },
-                  data: workInfoData,
                 });
-              } else {
-                await tx.workInfo.create({
-                  data: {
-                    customer_id: customerId,
-                    ...workInfoData,
-                  },
-                });
+              }
+            } else {
+              // 更新または作成
+              const workInfoData: any = {};
+              if (input.workInfo.companyName !== undefined)
+                workInfoData.company_name = input.workInfo.companyName;
+              if (input.workInfo.companyNameKana !== undefined)
+                workInfoData.company_name_kana = input.workInfo.companyNameKana;
+              if (input.workInfo.workPostalCode !== undefined)
+                workInfoData.work_postal_code = input.workInfo.workPostalCode;
+              if (input.workInfo.workAddress !== undefined)
+                workInfoData.work_address = input.workInfo.workAddress;
+              if (input.workInfo.workPhoneNumber !== undefined)
+                workInfoData.work_phone_number = input.workInfo.workPhoneNumber;
+              if (input.workInfo.dmSetting !== undefined)
+                workInfoData.dm_setting = input.workInfo.dmSetting;
+              if (input.workInfo.addressType !== undefined)
+                workInfoData.address_type = input.workInfo.addressType;
+              if (input.workInfo.notes !== undefined) workInfoData.notes = input.workInfo.notes;
+
+              if (Object.keys(workInfoData).length > 0) {
+                if (existingWorkInfo) {
+                  await tx.workInfo.update({
+                    where: { id: existingWorkInfo.id },
+                    data: workInfoData,
+                  });
+                } else {
+                  await tx.workInfo.create({
+                    data: {
+                      customer_id: customerId,
+                      ...workInfoData,
+                    },
+                  });
+                }
               }
             }
           }
-        }
 
-        // 6. BillingInfoの更新/作成/削除
-        if (input.billingInfo !== undefined) {
-          const existingBillingInfo = existingContractPlot.SaleContract.Customer.BillingInfo;
+          // 6. BillingInfoの更新/作成/削除
+          if (input.billingInfo !== undefined) {
+            const existingBillingInfo = primaryRole?.Customer.BillingInfo;
 
-          if (input.billingInfo === null) {
-            // 削除
-            if (existingBillingInfo) {
-              await tx.billingInfo.delete({
-                where: { id: existingBillingInfo.id },
-              });
-            }
-          } else {
-            // 更新または作成
-            const billingInfoData: any = {};
-            if (input.billingInfo.billingType !== undefined)
-              billingInfoData.billing_type = input.billingInfo.billingType;
-            if (input.billingInfo.bankName !== undefined)
-              billingInfoData.bank_name = input.billingInfo.bankName;
-            if (input.billingInfo.branchName !== undefined)
-              billingInfoData.branch_name = input.billingInfo.branchName;
-            if (input.billingInfo.accountType !== undefined)
-              billingInfoData.account_type = input.billingInfo.accountType;
-            if (input.billingInfo.accountNumber !== undefined)
-              billingInfoData.account_number = input.billingInfo.accountNumber;
-            if (input.billingInfo.accountHolder !== undefined)
-              billingInfoData.account_holder = input.billingInfo.accountHolder;
-
-            if (Object.keys(billingInfoData).length > 0) {
+            if (input.billingInfo === null) {
+              // 削除
               if (existingBillingInfo) {
-                await tx.billingInfo.update({
+                await tx.billingInfo.delete({
                   where: { id: existingBillingInfo.id },
-                  data: billingInfoData,
                 });
-              } else {
-                await tx.billingInfo.create({
-                  data: {
-                    customer_id: customerId,
-                    ...billingInfoData,
-                  },
-                });
+              }
+            } else {
+              // 更新または作成
+              const billingInfoData: any = {};
+              if (input.billingInfo.billingType !== undefined)
+                billingInfoData.billing_type = input.billingInfo.billingType;
+              if (input.billingInfo.bankName !== undefined)
+                billingInfoData.bank_name = input.billingInfo.bankName;
+              if (input.billingInfo.branchName !== undefined)
+                billingInfoData.branch_name = input.billingInfo.branchName;
+              if (input.billingInfo.accountType !== undefined)
+                billingInfoData.account_type = input.billingInfo.accountType;
+              if (input.billingInfo.accountNumber !== undefined)
+                billingInfoData.account_number = input.billingInfo.accountNumber;
+              if (input.billingInfo.accountHolder !== undefined)
+                billingInfoData.account_holder = input.billingInfo.accountHolder;
+
+              if (Object.keys(billingInfoData).length > 0) {
+                if (existingBillingInfo) {
+                  await tx.billingInfo.update({
+                    where: { id: existingBillingInfo.id },
+                    data: billingInfoData,
+                  });
+                } else {
+                  await tx.billingInfo.create({
+                    data: {
+                      customer_id: customerId,
+                      ...billingInfoData,
+                    },
+                  });
+                }
               }
             }
           }
@@ -382,10 +425,15 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
         PhysicalPlot: true,
         SaleContract: {
           include: {
-            Customer: {
+            SaleContractRoles: {
+              where: { deleted_at: null },
               include: {
-                WorkInfo: true,
-                BillingInfo: true,
+                Customer: {
+                  include: {
+                    WorkInfo: true,
+                    BillingInfo: true,
+                  },
+                },
               },
             },
           },
@@ -394,6 +442,12 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
         ManagementFee: true,
       },
     });
+
+    // 主契約者（is_primary=true）を取得（後方互換性のため）
+    const primaryRole = updatedContractPlot?.SaleContract?.SaleContractRoles?.find(
+      (role) => role.is_primary
+    );
+    const primaryCustomer = primaryRole?.Customer;
 
     res.status(200).json({
       success: true,
@@ -415,14 +469,33 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               contractDate: updatedContractPlot.SaleContract.contract_date,
               price: updatedContractPlot.SaleContract.price.toNumber(),
               paymentStatus: updatedContractPlot.SaleContract.payment_status,
-              customerRole: updatedContractPlot.SaleContract.customer_role,
-              customer: {
-                id: updatedContractPlot.SaleContract.Customer.id,
-                name: updatedContractPlot.SaleContract.Customer.name,
-                nameKana: updatedContractPlot.SaleContract.Customer.name_kana,
-                phoneNumber: updatedContractPlot.SaleContract.Customer.phone_number,
-                address: updatedContractPlot.SaleContract.Customer.address,
-              },
+              // 後方互換性: 主契約者の役割と顧客情報
+              customerRole: primaryRole?.role,
+              customer: primaryCustomer
+                ? {
+                    id: primaryCustomer.id,
+                    name: primaryCustomer.name,
+                    nameKana: primaryCustomer.name_kana,
+                    phoneNumber: primaryCustomer.phone_number,
+                    address: primaryCustomer.address,
+                  }
+                : null,
+              // 新方式: 全ての役割と顧客情報
+              roles: updatedContractPlot.SaleContract.SaleContractRoles?.map((role) => ({
+                id: role.id,
+                role: role.role,
+                isPrimary: role.is_primary,
+                roleStartDate: role.role_start_date,
+                roleEndDate: role.role_end_date,
+                notes: role.notes,
+                customer: {
+                  id: role.Customer.id,
+                  name: role.Customer.name,
+                  nameKana: role.Customer.name_kana,
+                  phoneNumber: role.Customer.phone_number,
+                  address: role.Customer.address,
+                },
+              })),
             }
           : null,
         updatedAt: updatedContractPlot?.updated_at,

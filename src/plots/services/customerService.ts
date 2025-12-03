@@ -188,17 +188,17 @@ export async function deleteCustomerIfUnused(
   customerId: string,
   excludeContractId?: string
 ) {
-  // この顧客を参照している他の契約を検索
-  const otherContracts = await prisma.saleContract.findMany({
+  // この顧客を参照している他の契約役割を検索
+  const otherRoles = await prisma.saleContractRole.findMany({
     where: {
       customer_id: customerId,
       deleted_at: null,
-      ...(excludeContractId && { id: { not: excludeContractId } }),
+      ...(excludeContractId && { sale_contract_id: { not: excludeContractId } }),
     },
   });
 
   // 他の契約がない場合のみ削除
-  if (otherContracts.length === 0) {
+  if (otherRoles.length === 0) {
     // 勤務先情報を削除
     await prisma.workInfo.deleteMany({
       where: { customer_id: customerId },

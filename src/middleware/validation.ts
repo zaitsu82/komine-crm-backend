@@ -65,12 +65,20 @@ export const dateSchema = z
 // メールアドレスのバリデーション
 export const emailSchema = z.string().email('有効なメールアドレスを入力してください');
 
-// 電話番号のバリデーション（日本の電話番号形式）
+// 電話番号のバリデーション（日本の電話番号形式: 10桁または11桁、ハイフンなし）
+// 例: 09012345678 (携帯), 0312345678 (固定)
+// 任意項目用（FAX番号など）
 export const phoneSchema = z
   .string()
-  .regex(/^0\d{1,4}-?\d{1,4}-?\d{4}$/, '有効な電話番号を入力してください')
+  .regex(/^0\d{9,10}$/, '電話番号は10桁または11桁の数字で入力してください（ハイフンなし）')
   .optional()
   .or(z.literal(''));
+
+// 必須の電話番号バリデーション
+export const requiredPhoneSchema = z
+  .string()
+  .min(1, '電話番号は必須です')
+  .regex(/^0\d{9,10}$/, '電話番号は10桁または11桁の数字で入力してください（ハイフンなし）');
 
 // 郵便番号のバリデーション（日本の郵便番号形式）
 export const postalCodeSchema = z

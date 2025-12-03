@@ -292,7 +292,12 @@ describe('collectiveBurialUtils', () => {
                 include: {
                   SaleContract: {
                     include: {
-                      Customer: true,
+                      SaleContractRoles: {
+                        where: { deleted_at: null, is_primary: true },
+                        include: {
+                          Customer: true,
+                        },
+                      },
                     },
                   },
                 },
