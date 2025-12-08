@@ -15,7 +15,7 @@ import {
  */
 export const plotSearchQuerySchema = paginationSchema.extend({
   search: z.string().optional(),
-  usageStatus: z.string().optional(),
+  status: z.enum(['available', 'partially_sold', 'sold_out']).optional(), // PhysicalPlotStatus ENUM
   cemeteryType: z.string().optional(),
 });
 
@@ -27,12 +27,28 @@ export const plotIdParamsSchema = z.object({
 });
 
 /**
+ * 物理区画情報のバリデーションスキーマ
+ */
+const physicalPlotSchema = z.object({
+  id: uuidSchema.optional(),
+  plotNumber: z
+    .string()
+    .max(50, '区画番号は50文字以内で入力してください')
+    .regex(/^[A-Z0-9-]+$/, '区画番号は大文字英数字とハイフンのみ使用できます')
+    .optional(),
+  areaName: z.string().max(100, '区域名は100文字以内で入力してください').optional(),
+  areaSqm: z.number().positive('面積は正の数値で入力してください').optional(),
+  notes: z.string().max(1000).optional().or(z.literal('')),
+});
+
+/**
  * 家族連絡先のバリデーションスキーマ
  * 将来的に家族連絡先管理エンドポイントで使用予定
  */
 export const familyContactSchema = z.object({
   id: uuidSchema.optional(),
   _delete: z.boolean().optional(),
+  customerId: uuidSchema.optional(),
   name: z.string().max(100).optional().or(z.literal('')),
   birthDate: dateSchema.optional().or(z.literal('')),
   relationship: z.string().max(50).optional().or(z.literal('')),
@@ -42,10 +58,8 @@ export const familyContactSchema = z.object({
   email: emailSchema.optional().or(z.literal('')),
   registeredAddress: z.string().max(200).optional().or(z.literal('')),
   mailingType: z.string().max(50).optional().or(z.literal('')),
-  companyName: z.string().max(100).optional().or(z.literal('')),
-  companyNameKana: z.string().max(100).optional().or(z.literal('')),
-  companyAddress: z.string().max(200).optional().or(z.literal('')),
-  companyPhone: phoneSchema,
+  useWorkContact: z.boolean().optional(),
+  workContactNotes: z.string().max(200).optional().or(z.literal('')),
   notes: z.string().max(500).optional().or(z.literal('')),
 });
 
@@ -132,26 +146,11 @@ export const constructionInfoSchema = z
   .optional();
 
 /**
- * 物理区画情報のバリデーションスキーマ
- */
-const physicalPlotSchema = z.object({
-  id: uuidSchema.optional(),
-  plotNumber: z
-    .string()
-    .max(50, '区画番号は50文字以内で入力してください')
-    .regex(/^[A-Z0-9-]+$/, '区画番号は大文字英数字とハイフンのみ使用できます')
-    .optional(),
-  areaName: z.string().max(100, '区域名は100文字以内で入力してください').optional(),
-  areaSqm: z.number().positive('面積は正の数値で入力してください').optional(),
-  notes: z.string().max(1000).optional().or(z.literal('')),
-});
-
-/**
  * 契約区画情報のバリデーションスキーマ
+ * 販売契約情報がContractPlotに統合されたため、saleStatusフィールドは削除
  */
 const contractPlotSchema = z.object({
   contractAreaSqm: z.number().positive('契約面積は正の数値で入力してください'),
-  saleStatus: z.string().max(50).optional().or(z.literal('')),
   locationDescription: z.string().max(200).optional().or(z.literal('')),
 });
 
@@ -218,7 +217,6 @@ const workInfoSchema = z
     workPostalCode: z.string().max(10).optional().or(z.literal('')),
     workAddress: z.string().max(200).optional().or(z.literal('')),
     workPhoneNumber: phoneSchema,
-    workFaxNumber: phoneSchema,
   })
   .optional()
   .or(z.null());
@@ -234,8 +232,6 @@ const contractPlotBillingInfoSchema = z
     branchName: z.string().max(100).optional().or(z.literal('')),
     accountNumber: z.string().max(20).optional().or(z.literal('')),
     accountHolder: z.string().max(100).optional().or(z.literal('')),
-    recipientType: z.string().max(50).optional().or(z.literal('')),
-    recipientName: z.string().max(100).optional().or(z.literal('')),
   })
   .optional()
   .or(z.null());
@@ -245,14 +241,14 @@ const contractPlotBillingInfoSchema = z
  */
 const contractPlotUsageFeeSchema = z
   .object({
-    calculationType: z.string().max(50).optional().or(z.literal('')),
-    taxType: z.string().max(50).optional().or(z.literal('')),
-    billingType: z.string().max(50).optional().or(z.literal('')),
-    billingYears: z.string().max(50).optional().or(z.literal('')),
+    calculationType: z.string().max(20).optional().or(z.literal('')),
+    taxType: z.string().max(20).optional().or(z.literal('')),
+    billingType: z.string().max(20).optional().or(z.literal('')),
+    billingYears: z.string().max(20).optional().or(z.literal('')),
     area: z.string().max(50).optional().or(z.literal('')),
     unitPrice: z.string().max(50).optional().or(z.literal('')),
     usageFee: z.string().max(50).optional().or(z.literal('')),
-    paymentMethod: z.string().max(50).optional().or(z.literal('')),
+    paymentMethod: z.string().max(20).optional().or(z.literal('')),
   })
   .optional()
   .or(z.null());
@@ -262,16 +258,16 @@ const contractPlotUsageFeeSchema = z
  */
 const contractPlotManagementFeeSchema = z
   .object({
-    calculationType: z.string().max(50).optional().or(z.literal('')),
-    taxType: z.string().max(50).optional().or(z.literal('')),
-    billingType: z.string().max(50).optional().or(z.literal('')),
-    billingYears: z.string().max(50).optional().or(z.literal('')),
+    calculationType: z.string().max(20).optional().or(z.literal('')),
+    taxType: z.string().max(20).optional().or(z.literal('')),
+    billingType: z.string().max(20).optional().or(z.literal('')),
+    billingYears: z.string().max(20).optional().or(z.literal('')),
     area: z.string().max(50).optional().or(z.literal('')),
-    billingMonth: z.string().max(50).optional().or(z.literal('')),
+    billingMonth: z.string().max(20).optional().or(z.literal('')),
     managementFee: z.string().max(50).optional().or(z.literal('')),
     unitPrice: z.string().max(50).optional().or(z.literal('')),
     lastBillingMonth: yearMonthSchema,
-    paymentMethod: z.string().max(50).optional().or(z.literal('')),
+    paymentMethod: z.string().max(20).optional().or(z.literal('')),
   })
   .optional()
   .or(z.null());

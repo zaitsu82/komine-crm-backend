@@ -36,19 +36,15 @@ export async function findPhysicalPlotWithContracts(
       ContractPlots: {
         where: { deleted_at: null },
         include: {
-          SaleContract: {
+          SaleContractRoles: {
+            where: { deleted_at: null, is_primary: true },
             include: {
-              SaleContractRoles: {
-                where: { deleted_at: null, is_primary: true },
-                include: {
-                  Customer: {
-                    select: {
-                      id: true,
-                      name: true,
-                      name_kana: true,
-                      phone_number: true,
-                    },
-                  },
+              Customer: {
+                select: {
+                  id: true,
+                  name: true,
+                  name_kana: true,
+                  phone_number: true,
                 },
               },
             },

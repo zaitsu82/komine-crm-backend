@@ -25,17 +25,13 @@ export const deletePlot = async (req: Request, res: Response): Promise<any> => {
       where: { id, deleted_at: null },
       include: {
         PhysicalPlot: true,
-        SaleContract: {
+        SaleContractRoles: {
+          where: { deleted_at: null },
           include: {
-            SaleContractRoles: {
-              where: { deleted_at: null },
+            Customer: {
               include: {
-                Customer: {
-                  include: {
-                    WorkInfo: true,
-                    BillingInfo: true,
-                  },
-                },
+                WorkInfo: true,
+                BillingInfo: true,
               },
             },
           },
@@ -66,15 +62,7 @@ export const deletePlot = async (req: Request, res: Response): Promise<any> => {
         data: { deleted_at: now },
       });
 
-      // 2. SaleContractを論理削除
-      if (contractPlot.SaleContract) {
-        await tx.saleContract.update({
-          where: { id: contractPlot.SaleContract.id },
-          data: { deleted_at: now },
-        });
-      }
-
-      // 3. UsageFeeを論理削除
+      // 2. UsageFeeを論理削除
       if (contractPlot.UsageFee) {
         await tx.usageFee.update({
           where: { id: contractPlot.UsageFee.id },
@@ -82,7 +70,7 @@ export const deletePlot = async (req: Request, res: Response): Promise<any> => {
         });
       }
 
-      // 4. ManagementFeeを論理削除
+      // 3. ManagementFeeを論理削除
       if (contractPlot.ManagementFee) {
         await tx.managementFee.update({
           where: { id: contractPlot.ManagementFee.id },
@@ -90,10 +78,10 @@ export const deletePlot = async (req: Request, res: Response): Promise<any> => {
         });
       }
 
-      // 5-7. 各顧客のWorkInfo、BillingInfo、Customerを論理削除
+      // 4-6. 各顧客のWorkInfo、BillingInfo、Customerを論理削除
       // 注: SaleContractRolesを通じて顧客にアクセス
-      if (contractPlot.SaleContract?.SaleContractRoles) {
-        for (const role of contractPlot.SaleContract.SaleContractRoles) {
+      if (contractPlot.SaleContractRoles) {
+        for (const role of contractPlot.SaleContractRoles) {
           const customer = role.Customer;
 
           // WorkInfoを論理削除（存在する場合）
@@ -116,7 +104,7 @@ export const deletePlot = async (req: Request, res: Response): Promise<any> => {
           const otherRoles = await tx.saleContractRole.findMany({
             where: {
               customer_id: customer.id,
-              sale_contract_id: { not: contractPlot.SaleContract.id },
+              contract_plot_id: { not: id },
               deleted_at: null,
             },
           });
@@ -131,7 +119,7 @@ export const deletePlot = async (req: Request, res: Response): Promise<any> => {
         }
       }
 
-      // 8. PhysicalPlotのステータスを更新
+      // 7. PhysicalPlotのステータスを更新
       await updatePhysicalPlotStatus(tx as any, physicalPlotId);
     });
 

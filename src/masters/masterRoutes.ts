@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import {
-  getUsageStatusMaster,
   getCemeteryTypeMaster,
   getDenominationMaster,
   getGenderMaster,
@@ -23,9 +22,6 @@ const router = Router();
 
 // 全マスタデータ一括取得
 router.get('/all', authenticate, checkApiPermission(), getAllMasters);
-
-// 使用状況マスタ
-router.get('/usage-status', authenticate, checkApiPermission(), getUsageStatusMaster);
 
 // 墓地タイプマスタ
 router.get('/cemetery-type', authenticate, checkApiPermission(), getCemeteryTypeMaster);

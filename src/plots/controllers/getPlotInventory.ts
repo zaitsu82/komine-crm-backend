@@ -27,17 +27,12 @@ export const getPlotInventory = async (req: Request, res: Response): Promise<any
           select: {
             id: true,
             contract_area_sqm: true,
-            sale_status: true,
-            SaleContract: {
+            SaleContractRoles: {
+              where: { deleted_at: null, is_primary: true },
               select: {
-                SaleContractRoles: {
-                  where: { deleted_at: null, is_primary: true },
+                Customer: {
                   select: {
-                    Customer: {
-                      select: {
-                        name: true,
-                      },
-                    },
+                    name: true,
                   },
                 },
               },
@@ -94,13 +89,12 @@ export const getPlotInventory = async (req: Request, res: Response): Promise<any
         },
         contracts: physicalPlot.ContractPlots.map((contract) => {
           // 主契約者を取得（is_primary=true）
-          const primaryRole = contract.SaleContract?.SaleContractRoles?.[0];
+          const primaryRole = contract.SaleContractRoles?.[0];
           const primaryCustomer = primaryRole?.Customer;
 
           return {
             id: contract.id,
             contractAreaSqm: contract.contract_area_sqm.toNumber(),
-            saleStatus: contract.sale_status,
             customerName: primaryCustomer?.name || null,
           };
         }),

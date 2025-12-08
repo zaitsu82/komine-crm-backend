@@ -24,42 +24,6 @@ interface PrefectureMasterData extends MasterData {
 }
 
 /**
- * 使用状況マスタ取得
- * GET /api/v1/masters/usage-status
- */
-export const getUsageStatusMaster = async (_req: Request, res: Response) => {
-  try {
-    const data = await prisma.usageStatusMaster.findMany({
-      where: { is_active: true },
-      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-    });
-
-    const formatted: MasterData[] = data.map((item) => ({
-      id: item.id,
-      code: item.code,
-      name: item.name,
-      description: item.description,
-      sortOrder: item.sort_order,
-      isActive: item.is_active,
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: formatted,
-    });
-  } catch (error) {
-    console.error('Error fetching usage status master:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '使用状況マスタの取得に失敗しました',
-      },
-    });
-  }
-};
-
-/**
  * 墓地タイプマスタ取得
  * GET /api/v1/masters/cemetery-type
  */
@@ -536,7 +500,6 @@ export const getPrefectureMaster = async (_req: Request, res: Response) => {
 export const getAllMasters = async (_req: Request, res: Response) => {
   try {
     const [
-      usageStatus,
       cemeteryType,
       denomination,
       gender,
@@ -551,10 +514,6 @@ export const getAllMasters = async (_req: Request, res: Response) => {
       updateType,
       prefecture,
     ] = await Promise.all([
-      prisma.usageStatusMaster.findMany({
-        where: { is_active: true },
-        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-      }),
       prisma.cemeteryTypeMaster.findMany({
         where: { is_active: true },
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
@@ -612,14 +571,6 @@ export const getAllMasters = async (_req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       data: {
-        usageStatus: usageStatus.map((item) => ({
-          id: item.id,
-          code: item.code,
-          name: item.name,
-          description: item.description,
-          sortOrder: item.sort_order,
-          isActive: item.is_active,
-        })),
         cemeteryType: cemeteryType.map((item) => ({
           id: item.id,
           code: item.code,

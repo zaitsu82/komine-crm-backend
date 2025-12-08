@@ -116,14 +116,10 @@ export const getBillingTargets = async (prisma: PrismaClient): Promise<any[]> =>
             orderBy: { created_at: 'desc' },
             take: 1, // 最新の契約
             include: {
-              SaleContract: {
+              SaleContractRoles: {
+                where: { deleted_at: null, is_primary: true },
                 include: {
-                  SaleContractRoles: {
-                    where: { deleted_at: null, is_primary: true },
-                    include: {
-                      Customer: true,
-                    },
-                  },
+                  Customer: true,
                 },
               },
             },

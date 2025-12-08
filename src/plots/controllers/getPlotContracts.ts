@@ -25,14 +25,10 @@ export const getPlotContracts = async (req: Request, res: Response): Promise<any
         ContractPlots: {
           where: { deleted_at: null },
           include: {
-            SaleContract: {
+            SaleContractRoles: {
+              where: { deleted_at: null, is_primary: true },
               include: {
-                SaleContractRoles: {
-                  where: { deleted_at: null, is_primary: true },
-                  include: {
-                    Customer: true,
-                  },
-                },
+                Customer: true,
               },
             },
             UsageFee: true,
@@ -58,13 +54,12 @@ export const getPlotContracts = async (req: Request, res: Response): Promise<any
     // 契約一覧を整形
     const contracts = physicalPlot.ContractPlots.map((contract) => {
       // 主契約者を取得（is_primary=true）
-      const primaryRole = contract.SaleContract?.SaleContractRoles?.[0];
+      const primaryRole = contract.SaleContractRoles?.[0];
       const primaryCustomer = primaryRole?.Customer;
 
       return {
         id: contract.id,
         contractAreaSqm: contract.contract_area_sqm.toNumber(),
-        saleStatus: contract.sale_status,
         locationDescription: contract.location_description,
         customer: primaryCustomer
           ? {
@@ -74,14 +69,10 @@ export const getPlotContracts = async (req: Request, res: Response): Promise<any
               phoneNumber: primaryCustomer.phone_number,
             }
           : null,
-        saleContract: contract.SaleContract
-          ? {
-              id: contract.SaleContract.id,
-              contractDate: contract.SaleContract.contract_date,
-              price: contract.SaleContract.price.toNumber(),
-              paymentStatus: contract.SaleContract.payment_status,
-            }
-          : null,
+        // 販売契約情報（ContractPlotに統合済み）
+        contractDate: contract.contract_date,
+        price: contract.price.toNumber(),
+        paymentStatus: contract.payment_status,
         createdAt: contract.created_at,
       };
     });
