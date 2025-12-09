@@ -230,8 +230,8 @@ export async function findCustomerById(
   return prisma.customer.findUnique({
     where: { id, deleted_at: null },
     include: {
-      WorkInfo: true,
-      BillingInfo: true,
+      workInfo: true,
+      billingInfo: true,
     },
   });
 }

@@ -18,7 +18,7 @@ export const getPlots = async (_req: Request, res: Response) => {
         deleted_at: null, // 論理削除されていない契約のみ
       },
       include: {
-        PhysicalPlot: {
+        physicalPlot: {
           select: {
             plot_number: true,
             area_name: true,
@@ -26,10 +26,10 @@ export const getPlots = async (_req: Request, res: Response) => {
             status: true,
           },
         },
-        SaleContractRoles: {
+        saleContractRoles: {
           where: { deleted_at: null },
           include: {
-            Customer: {
+            customer: {
               select: {
                 id: true,
                 name: true,
@@ -40,7 +40,7 @@ export const getPlots = async (_req: Request, res: Response) => {
             },
           },
         },
-        ManagementFee: true,
+        managementFee: true,
       },
       orderBy: {
         created_at: 'desc',
@@ -50,8 +50,8 @@ export const getPlots = async (_req: Request, res: Response) => {
     const plotList = contractPlots.map((contractPlot) => {
       // 次回請求日の計算（last_billing_monthから1ヶ月後を計算）
       let nextBillingDate: Date | null = null;
-      if (contractPlot.ManagementFee?.last_billing_month) {
-        const match = contractPlot.ManagementFee.last_billing_month.match(/(\d{4})年(\d{1,2})月/);
+      if (contractPlot.managementFee?.last_billing_month) {
+        const match = contractPlot.managementFee.last_billing_month.match(/(\d{4})年(\d{1,2})月/);
         if (match && match[1] && match[2]) {
           const year = parseInt(match[1]);
           const month = parseInt(match[2]);
@@ -60,9 +60,11 @@ export const getPlots = async (_req: Request, res: Response) => {
         }
       }
 
-      // 主契約者（is_primary=true）を取得（後方互換性のため）
-      const primaryRole = contractPlot.SaleContractRoles?.find((role) => role.is_primary);
-      const primaryCustomer = primaryRole?.Customer;
+      // 主契約者（role='contractor'）を取得（後方互換性のため）
+      const primaryRole = contractPlot.saleContractRoles?.find(
+        (role) => role.role === 'contractor'
+      );
+      const primaryCustomer = primaryRole?.customer;
 
       return {
         // 契約区画情報
@@ -71,10 +73,10 @@ export const getPlots = async (_req: Request, res: Response) => {
         locationDescription: contractPlot.location_description,
 
         // 物理区画情報（表示用）
-        plotNumber: contractPlot.PhysicalPlot.plot_number,
-        areaName: contractPlot.PhysicalPlot.area_name,
-        physicalPlotAreaSqm: contractPlot.PhysicalPlot.area_sqm.toNumber(),
-        physicalPlotStatus: contractPlot.PhysicalPlot.status,
+        plotNumber: contractPlot.physicalPlot.plot_number,
+        areaName: contractPlot.physicalPlot.area_name,
+        physicalPlotAreaSqm: contractPlot.physicalPlot.area_sqm.toNumber(),
+        physicalPlotStatus: contractPlot.physicalPlot.status,
 
         // 販売契約情報（ContractPlotに統合済み）
         contractDate: contractPlot.contract_date,
@@ -90,18 +92,17 @@ export const getPlots = async (_req: Request, res: Response) => {
 
         // 全ての役割情報（リスト表示用の最小限情報）
         roles:
-          contractPlot.SaleContractRoles?.map((role) => ({
+          contractPlot.saleContractRoles?.map((role) => ({
             role: role.role,
-            isPrimary: role.is_primary,
             customer: {
-              id: role.Customer.id,
-              name: role.Customer.name,
+              id: role.customer.id,
+              name: role.customer.name,
             },
           })) || [],
 
         // 料金情報
         nextBillingDate,
-        managementFee: contractPlot.ManagementFee?.management_fee || null,
+        managementFee: contractPlot.managementFee?.management_fee || null,
 
         // メタ情報
         createdAt: contractPlot.created_at,

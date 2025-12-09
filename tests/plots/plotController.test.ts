@@ -142,12 +142,14 @@ describe('Plot Controller (ContractPlot Model)', () => {
           id: 'cp1',
           physical_plot_id: 'pp1',
           contract_area_sqm: new Prisma.Decimal(3.6),
-          sale_status: 'contracted',
           location_description: 'A区画',
           created_at: new Date('2024-01-01'),
           updated_at: new Date('2024-01-01'),
           deleted_at: null,
-          PhysicalPlot: {
+          contract_date: new Date('2024-01-01'),
+          price: new Prisma.Decimal(1000000),
+          payment_status: 'paid',
+          physicalPlot: {
             id: 'pp1',
             plot_number: 'A-01',
             area_name: '一般墓地A',
@@ -158,27 +160,20 @@ describe('Plot Controller (ContractPlot Model)', () => {
             updated_at: new Date('2024-01-01'),
             deleted_at: null,
           },
-          SaleContract: {
-            id: 'sc1',
-            contract_date: new Date('2024-01-01'),
-            price: new Prisma.Decimal(1000000),
-            payment_status: 'paid',
-            SaleContractRoles: [
-              {
-                id: 'scr1',
-                role: 'contractor',
-                is_primary: true,
-                Customer: {
-                  id: 'c1',
-                  name: '山田太郎',
-                  name_kana: 'ヤマダタロウ',
-                  phone_number: '0312345678',
-                  address: '東京都渋谷区',
-                },
+          saleContractRoles: [
+            {
+              id: 'scr1',
+              role: 'contractor',
+              customer: {
+                id: 'c1',
+                name: '山田太郎',
+                name_kana: 'ヤマダタロウ',
+                phone_number: '0312345678',
+                address: '東京都渋谷区',
               },
-            ],
-          },
-          ManagementFee: null,
+            },
+          ],
+          managementFee: null,
         },
       ];
 
@@ -217,36 +212,32 @@ describe('Plot Controller (ContractPlot Model)', () => {
           id: 'cp1',
           physical_plot_id: 'pp1',
           contract_area_sqm: new Prisma.Decimal(3.6),
-          sale_status: 'contracted',
           location_description: 'A区画',
           created_at: new Date('2024-01-01'),
           updated_at: new Date('2024-01-01'),
           deleted_at: null,
-          PhysicalPlot: {
+          contract_date: new Date('2024-01-01'),
+          price: new Prisma.Decimal(1000000),
+          payment_status: 'paid',
+          physicalPlot: {
             plot_number: 'A-01',
             area_name: '一般墓地A',
             area_sqm: new Prisma.Decimal(3.6),
             status: 'sold_out',
           },
-          SaleContract: {
-            contract_date: new Date('2024-01-01'),
-            price: new Prisma.Decimal(1000000),
-            payment_status: 'paid',
-            SaleContractRoles: [
-              {
-                id: 'scr1',
-                role: 'owner',
-                is_primary: true,
-                Customer: {
-                  name: '山田太郎',
-                  name_kana: 'ヤマダタロウ',
-                  phone_number: '0312345678',
-                  address: '東京都渋谷区',
-                },
+          saleContractRoles: [
+            {
+              id: 'scr1',
+              role: 'contractor',
+              customer: {
+                name: '山田太郎',
+                name_kana: 'ヤマダタロウ',
+                phone_number: '0312345678',
+                address: '東京都渋谷区',
               },
-            ],
-          },
-          ManagementFee: {
+            },
+          ],
+          managementFee: {
             management_fee: '12000',
             last_billing_month: '2024年3月',
           },
@@ -277,18 +268,20 @@ describe('Plot Controller (ContractPlot Model)', () => {
           id: 'cp1',
           physical_plot_id: 'pp1',
           contract_area_sqm: new Prisma.Decimal(3.6),
-          sale_status: 'contracted',
           location_description: 'A区画',
           created_at: new Date('2024-01-01'),
           updated_at: new Date('2024-01-01'),
-          PhysicalPlot: {
+          contract_date: null,
+          price: null,
+          payment_status: null,
+          physicalPlot: {
             plot_number: 'A-01',
             area_name: '一般墓地A',
             area_sqm: new Prisma.Decimal(3.6),
             status: 'available',
           },
-          SaleContract: null,
-          ManagementFee: null,
+          saleContractRoles: [],
+          managementFee: null,
         },
       ];
 
@@ -338,58 +331,58 @@ describe('Plot Controller (ContractPlot Model)', () => {
         id: 'cp1',
         physical_plot_id: 'pp1',
         contract_area_sqm: new Prisma.Decimal(3.6),
-        sale_status: 'contracted',
         location_description: 'A区画',
-        PhysicalPlot: {
+        created_at: new Date('2024-01-01'),
+        updated_at: new Date('2024-01-01'),
+        deleted_at: null,
+        contract_date: new Date('2024-01-01'),
+        price: new Prisma.Decimal(1000000),
+        payment_status: 'paid',
+        reservation_date: null,
+        acceptance_number: null,
+        permit_date: null,
+        start_date: null,
+        notes: null,
+        physicalPlot: {
           id: 'pp1',
           plot_number: 'A-01',
           area_name: '一般墓地A',
           area_sqm: new Prisma.Decimal(3.6),
           status: 'sold_out',
           notes: null,
-          BuriedPersons: [],
-          CollectiveBurials: [],
-          FamilyContacts: [],
         },
-        SaleContract: {
-          id: 'sc1',
-          contract_date: new Date('2024-01-01'),
-          price: new Prisma.Decimal(1000000),
-          payment_status: 'paid',
-          reservation_date: null,
-          acceptance_number: null,
-          permit_date: null,
-          start_date: null,
-          notes: null,
-          SaleContractRoles: [
-            {
-              id: 'scr1',
-              role: 'contractor',
-              is_primary: true,
-              role_start_date: null,
-              role_end_date: null,
+        buriedPersons: [],
+        familyContacts: [],
+        gravestoneInfo: null,
+        constructionInfos: [],
+        collectiveBurial: null,
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            role_start_date: null,
+            role_end_date: null,
+            notes: null,
+            customer: {
+              id: 'c1',
+              name: '山田太郎',
+              name_kana: 'ヤマダタロウ',
+              birth_date: null,
+              gender: null,
+              postal_code: '150-0001',
+              address: '東京都渋谷区',
+              registered_address: null,
+              phone_number: '0312345678',
+              fax_number: null,
+              email: null,
               notes: null,
-              Customer: {
-                id: 'c1',
-                name: '山田太郎',
-                name_kana: 'ヤマダタロウ',
-                birth_date: null,
-                gender: null,
-                postal_code: '150-0001',
-                address: '東京都渋谷区',
-                registered_address: null,
-                phone_number: '0312345678',
-                fax_number: null,
-                email: null,
-                notes: null,
-                WorkInfo: null,
-                BillingInfo: null,
-              },
+              workInfo: null,
+              billingInfo: null,
             },
-          ],
-        },
-        UsageFee: null,
-        ManagementFee: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
       };
 
       mockPrisma.contractPlot.findUnique.mockResolvedValue(mockContractPlot);
@@ -767,20 +760,22 @@ describe('Plot Controller (ContractPlot Model)', () => {
         id: 'cp1',
         physical_plot_id: 'pp1',
         contract_area_sqm: new Prisma.Decimal(3.6),
-        PhysicalPlot: {
+        physicalPlot: {
           id: 'pp1',
           area_sqm: new Prisma.Decimal(7.2),
         },
-        SaleContract: {
-          id: 'sc1',
-          Customer: {
-            id: 'c1',
-            WorkInfo: null,
-            BillingInfo: null,
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            customer: {
+              id: 'c1',
+              workInfo: null,
+              billingInfo: null,
+            },
           },
-        },
-        UsageFee: null,
-        ManagementFee: null,
+        ],
+        usageFee: null,
+        managementFee: null,
       };
 
       mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
@@ -831,34 +826,29 @@ describe('Plot Controller (ContractPlot Model)', () => {
         area_name: '一般墓地A',
         area_sqm: new Prisma.Decimal(7.2),
         status: 'partial',
-        ContractPlots: [
+        contractPlots: [
           {
             id: 'cp1',
             contract_area_sqm: new Prisma.Decimal(3.6),
-            sale_status: 'contracted',
             location_description: 'A区画-1',
             created_at: new Date('2024-01-01'),
-            SaleContract: {
-              id: 'sc1',
-              contract_date: new Date('2024-01-01'),
-              price: new Prisma.Decimal(1000000),
-              payment_status: 'paid',
-              SaleContractRoles: [
-                {
-                  id: 'scr1',
-                  role: 'contractor',
-                  is_primary: true,
-                  Customer: {
-                    id: 'c1',
-                    name: '山田太郎',
-                    name_kana: 'ヤマダタロウ',
-                    phone_number: '0312345678',
-                  },
+            contract_date: new Date('2024-01-01'),
+            price: new Prisma.Decimal(1000000),
+            payment_status: 'paid',
+            saleContractRoles: [
+              {
+                id: 'scr1',
+                role: 'contractor',
+                customer: {
+                  id: 'c1',
+                  name: '山田太郎',
+                  name_kana: 'ヤマダタロウ',
+                  phone_number: '0312345678',
                 },
-              ],
-            },
-            UsageFee: null,
-            ManagementFee: null,
+              },
+            ],
+            usageFee: null,
+            managementFee: null,
           },
         ],
       };
@@ -935,23 +925,19 @@ describe('Plot Controller (ContractPlot Model)', () => {
         area_name: '一般墓地A',
         area_sqm: new Prisma.Decimal(7.2),
         status: 'partial',
-        ContractPlots: [
+        contractPlots: [
           {
             id: 'cp1',
             contract_area_sqm: new Prisma.Decimal(3.6),
-            sale_status: 'contracted',
-            SaleContract: {
-              SaleContractRoles: [
-                {
-                  id: 'scr1',
-                  role: 'contractor',
-                  is_primary: true,
-                  Customer: {
-                    name: '山田太郎',
-                  },
+            saleContractRoles: [
+              {
+                id: 'scr1',
+                role: 'contractor',
+                customer: {
+                  name: '山田太郎',
                 },
-              ],
-            },
+              },
+            ],
           },
         ],
       };

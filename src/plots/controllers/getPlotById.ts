@@ -21,35 +21,34 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
     const contractPlot = await prisma.contractPlot.findUnique({
       where: { id },
       include: {
-        PhysicalPlot: {
-          include: {
-            BuriedPersons: {
-              where: { deleted_at: null },
-              orderBy: { created_at: 'desc' },
-            },
-            FamilyContacts: {
-              where: { deleted_at: null },
-              orderBy: { created_at: 'desc' },
-            },
-            EmergencyContact: true,
-            GravestoneInfo: true,
-            ConstructionInfo: true,
-            CollectiveBurial: true,
-          },
+        physicalPlot: true,
+        buriedPersons: {
+          where: { deleted_at: null },
+          orderBy: { created_at: 'desc' },
         },
-        SaleContractRoles: {
+        familyContacts: {
+          where: { deleted_at: null },
+          orderBy: { created_at: 'desc' },
+        },
+        gravestoneInfo: true,
+        constructionInfos: {
+          where: { deleted_at: null },
+          orderBy: { created_at: 'desc' },
+        },
+        collectiveBurial: true,
+        saleContractRoles: {
           where: { deleted_at: null },
           include: {
-            Customer: {
+            customer: {
               include: {
-                WorkInfo: true,
-                BillingInfo: true,
+                workInfo: true,
+                billingInfo: true,
               },
             },
           },
         },
-        UsageFee: true,
-        ManagementFee: true,
+        usageFee: true,
+        managementFee: true,
       },
     });
 
@@ -88,12 +87,12 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
 
       // 物理区画情報
       physicalPlot: {
-        id: contractPlot.PhysicalPlot.id,
-        plotNumber: contractPlot.PhysicalPlot.plot_number,
-        areaName: contractPlot.PhysicalPlot.area_name,
-        areaSqm: contractPlot.PhysicalPlot.area_sqm.toNumber(),
-        status: contractPlot.PhysicalPlot.status,
-        notes: contractPlot.PhysicalPlot.notes,
+        id: contractPlot.physicalPlot.id,
+        plotNumber: contractPlot.physicalPlot.plot_number,
+        areaName: contractPlot.physicalPlot.area_name,
+        areaSqm: contractPlot.physicalPlot.area_sqm.toNumber(),
+        status: contractPlot.physicalPlot.status,
+        notes: contractPlot.physicalPlot.notes,
       },
 
       // 販売契約情報（ContractPlotに統合済み）
@@ -107,35 +106,35 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
       contractNotes: contractPlot.notes,
 
       // 使用料情報
-      usageFee: contractPlot.UsageFee
+      usageFee: contractPlot.usageFee
         ? {
-            calculationType: contractPlot.UsageFee.calculation_type,
-            taxType: contractPlot.UsageFee.tax_type,
-            usageFee: contractPlot.UsageFee.usage_fee,
-            area: contractPlot.UsageFee.area,
-            unitPrice: contractPlot.UsageFee.unit_price,
-            paymentMethod: contractPlot.UsageFee.payment_method,
+            calculationType: contractPlot.usageFee.calculation_type,
+            taxType: contractPlot.usageFee.tax_type,
+            usageFee: contractPlot.usageFee.usage_fee,
+            area: contractPlot.usageFee.area,
+            unitPrice: contractPlot.usageFee.unit_price,
+            paymentMethod: contractPlot.usageFee.payment_method,
           }
         : null,
 
       // 管理料情報
-      managementFee: contractPlot.ManagementFee
+      managementFee: contractPlot.managementFee
         ? {
-            calculationType: contractPlot.ManagementFee.calculation_type,
-            taxType: contractPlot.ManagementFee.tax_type,
-            billingType: contractPlot.ManagementFee.billing_type,
-            billingYears: contractPlot.ManagementFee.billing_years,
-            area: contractPlot.ManagementFee.area,
-            billingMonth: contractPlot.ManagementFee.billing_month,
-            managementFee: contractPlot.ManagementFee.management_fee,
-            unitPrice: contractPlot.ManagementFee.unit_price,
-            lastBillingMonth: contractPlot.ManagementFee.last_billing_month,
-            paymentMethod: contractPlot.ManagementFee.payment_method,
+            calculationType: contractPlot.managementFee.calculation_type,
+            taxType: contractPlot.managementFee.tax_type,
+            billingType: contractPlot.managementFee.billing_type,
+            billingYears: contractPlot.managementFee.billing_years,
+            area: contractPlot.managementFee.area,
+            billingMonth: contractPlot.managementFee.billing_month,
+            managementFee: contractPlot.managementFee.management_fee,
+            unitPrice: contractPlot.managementFee.unit_price,
+            lastBillingMonth: contractPlot.managementFee.last_billing_month,
+            paymentMethod: contractPlot.managementFee.payment_method,
           }
         : null,
 
       // 埋葬者情報
-      buriedPersons: contractPlot.PhysicalPlot.BuriedPersons.map((person: any) => ({
+      buriedPersons: contractPlot.buriedPersons.map((person: any) => ({
         id: person.id,
         name: person.name,
         nameKana: person.name_kana,
@@ -144,11 +143,11 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
         age: person.age,
         gender: person.gender,
         burialDate: person.burial_date,
-        memo: person.memo,
+        notes: person.notes,
       })),
 
       // 家族連絡先情報
-      familyContacts: contractPlot.PhysicalPlot.FamilyContacts.map((contact: any) => ({
+      familyContacts: contractPlot.familyContacts.map((contact: any) => ({
         id: contact.id,
         name: contact.name,
         birthDate: contact.birth_date,
@@ -166,86 +165,69 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
         notes: contact.notes,
       })),
 
-      // 緊急連絡先
-      emergencyContact: contractPlot.PhysicalPlot.EmergencyContact
-        ? {
-            id: contractPlot.PhysicalPlot.EmergencyContact.id,
-            name: contractPlot.PhysicalPlot.EmergencyContact.name,
-            relationship: contractPlot.PhysicalPlot.EmergencyContact.relationship,
-            phoneNumber: contractPlot.PhysicalPlot.EmergencyContact.phone_number,
-          }
-        : null,
-
       // 墓石情報
-      gravestoneInfo: contractPlot.PhysicalPlot.GravestoneInfo
+      gravestoneInfo: contractPlot.gravestoneInfo
         ? {
-            gravestoneBase: contractPlot.PhysicalPlot.GravestoneInfo.gravestone_base,
-            enclosurePosition: contractPlot.PhysicalPlot.GravestoneInfo.enclosure_position,
-            gravestoneDealer: contractPlot.PhysicalPlot.GravestoneInfo.gravestone_dealer,
-            gravestoneType: contractPlot.PhysicalPlot.GravestoneInfo.gravestone_type,
-            surroundingArea: contractPlot.PhysicalPlot.GravestoneInfo.surrounding_area,
-            establishmentDeadline: contractPlot.PhysicalPlot.GravestoneInfo.establishment_deadline,
-            establishmentDate: contractPlot.PhysicalPlot.GravestoneInfo.establishment_date,
+            gravestoneBase: contractPlot.gravestoneInfo.gravestone_base,
+            enclosurePosition: contractPlot.gravestoneInfo.enclosure_position,
+            gravestoneDealer: contractPlot.gravestoneInfo.gravestone_dealer,
+            gravestoneType: contractPlot.gravestoneInfo.gravestone_type,
+            surroundingArea: contractPlot.gravestoneInfo.surrounding_area,
+            establishmentDeadline: contractPlot.gravestoneInfo.establishment_deadline,
+            establishmentDate: contractPlot.gravestoneInfo.establishment_date,
           }
         : null,
 
       // 工事情報
-      constructionInfo: contractPlot.PhysicalPlot.ConstructionInfo
-        ? {
-            id: contractPlot.PhysicalPlot.ConstructionInfo.id,
-            constructionType: contractPlot.PhysicalPlot.ConstructionInfo.construction_type,
-            startDate: contractPlot.PhysicalPlot.ConstructionInfo.start_date,
-            completionDate: contractPlot.PhysicalPlot.ConstructionInfo.completion_date,
-            contractor: contractPlot.PhysicalPlot.ConstructionInfo.contractor,
-            supervisor: contractPlot.PhysicalPlot.ConstructionInfo.supervisor,
-            progress: contractPlot.PhysicalPlot.ConstructionInfo.progress,
-            workItem1: contractPlot.PhysicalPlot.ConstructionInfo.work_item_1,
-            workDate1: contractPlot.PhysicalPlot.ConstructionInfo.work_date_1,
-            workAmount1: contractPlot.PhysicalPlot.ConstructionInfo.work_amount_1
-              ? Number(contractPlot.PhysicalPlot.ConstructionInfo.work_amount_1)
-              : null,
-            workStatus1: contractPlot.PhysicalPlot.ConstructionInfo.work_status_1,
-            workItem2: contractPlot.PhysicalPlot.ConstructionInfo.work_item_2,
-            workDate2: contractPlot.PhysicalPlot.ConstructionInfo.work_date_2,
-            workAmount2: contractPlot.PhysicalPlot.ConstructionInfo.work_amount_2
-              ? Number(contractPlot.PhysicalPlot.ConstructionInfo.work_amount_2)
-              : null,
-            workStatus2: contractPlot.PhysicalPlot.ConstructionInfo.work_status_2,
-            permitNumber: contractPlot.PhysicalPlot.ConstructionInfo.permit_number,
-            applicationDate: contractPlot.PhysicalPlot.ConstructionInfo.application_date,
-            permitDate: contractPlot.PhysicalPlot.ConstructionInfo.permit_date,
-            permitStatus: contractPlot.PhysicalPlot.ConstructionInfo.permit_status,
-            paymentType1: contractPlot.PhysicalPlot.ConstructionInfo.payment_type_1,
-            paymentAmount1: contractPlot.PhysicalPlot.ConstructionInfo.payment_amount_1
-              ? Number(contractPlot.PhysicalPlot.ConstructionInfo.payment_amount_1)
-              : null,
-            paymentDate1: contractPlot.PhysicalPlot.ConstructionInfo.payment_date_1,
-            paymentStatus1: contractPlot.PhysicalPlot.ConstructionInfo.payment_status_1,
-            paymentType2: contractPlot.PhysicalPlot.ConstructionInfo.payment_type_2,
-            paymentAmount2: contractPlot.PhysicalPlot.ConstructionInfo.payment_amount_2
-              ? Number(contractPlot.PhysicalPlot.ConstructionInfo.payment_amount_2)
-              : null,
-            paymentScheduledDate2:
-              contractPlot.PhysicalPlot.ConstructionInfo.payment_scheduled_date_2,
-            paymentStatus2: contractPlot.PhysicalPlot.ConstructionInfo.payment_status_2,
-            constructionNotes: contractPlot.PhysicalPlot.ConstructionInfo.construction_notes,
-          }
-        : null,
+      constructionInfos: contractPlot.constructionInfos.map((construction: any) => ({
+        id: construction.id,
+        constructionType: construction.construction_type,
+        startDate: construction.start_date,
+        completionDate: construction.completion_date,
+        contractor: construction.contractor,
+        supervisor: construction.supervisor,
+        progress: construction.progress,
+        workItem1: construction.work_item_1,
+        workDate1: construction.work_date_1,
+        workAmount1: construction.work_amount_1 ? Number(construction.work_amount_1) : null,
+        workStatus1: construction.work_status_1,
+        workItem2: construction.work_item_2,
+        workDate2: construction.work_date_2,
+        workAmount2: construction.work_amount_2 ? Number(construction.work_amount_2) : null,
+        workStatus2: construction.work_status_2,
+        permitNumber: construction.permit_number,
+        applicationDate: construction.application_date,
+        permitDate: construction.permit_date,
+        permitStatus: construction.permit_status,
+        paymentType1: construction.payment_type_1,
+        paymentAmount1: construction.payment_amount_1
+          ? Number(construction.payment_amount_1)
+          : null,
+        paymentDate1: construction.payment_date_1,
+        paymentStatus1: construction.payment_status_1,
+        paymentType2: construction.payment_type_2,
+        paymentAmount2: construction.payment_amount_2
+          ? Number(construction.payment_amount_2)
+          : null,
+        paymentScheduledDate2: construction.payment_scheduled_date_2,
+        paymentStatus2: construction.payment_status_2,
+        constructionNotes: construction.construction_notes,
+      })),
 
       // 合祀情報
-      collectiveBurial: contractPlot.PhysicalPlot.CollectiveBurial
+      collectiveBurial: contractPlot.collectiveBurial
         ? {
-            id: contractPlot.PhysicalPlot.CollectiveBurial.id,
-            burialCapacity: contractPlot.PhysicalPlot.CollectiveBurial.burial_capacity,
-            currentBurialCount: contractPlot.PhysicalPlot.CollectiveBurial.current_burial_count,
-            capacityReachedDate: contractPlot.PhysicalPlot.CollectiveBurial.capacity_reached_date,
-            validityPeriodYears: contractPlot.PhysicalPlot.CollectiveBurial.validity_period_years,
-            billingScheduledDate: contractPlot.PhysicalPlot.CollectiveBurial.billing_scheduled_date,
-            billingStatus: contractPlot.PhysicalPlot.CollectiveBurial.billing_status,
-            billingAmount: contractPlot.PhysicalPlot.CollectiveBurial.billing_amount
-              ? Number(contractPlot.PhysicalPlot.CollectiveBurial.billing_amount)
+            id: contractPlot.collectiveBurial.id,
+            burialCapacity: contractPlot.collectiveBurial.burial_capacity,
+            currentBurialCount: contractPlot.collectiveBurial.current_burial_count,
+            capacityReachedDate: contractPlot.collectiveBurial.capacity_reached_date,
+            validityPeriodYears: contractPlot.collectiveBurial.validity_period_years,
+            billingScheduledDate: contractPlot.collectiveBurial.billing_scheduled_date,
+            billingStatus: contractPlot.collectiveBurial.billing_status,
+            billingAmount: contractPlot.collectiveBurial.billing_amount
+              ? Number(contractPlot.collectiveBurial.billing_amount)
               : null,
-            notes: contractPlot.PhysicalPlot.CollectiveBurial.notes,
+            notes: contractPlot.collectiveBurial.notes,
           }
         : null,
 
@@ -253,9 +235,11 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
       histories: includeHistory ? histories : undefined,
     };
 
-    // 主契約者（is_primary=true）を取得（後方互換性のため）
-    const primaryRole = contractPlot.SaleContractRoles?.find((role: any) => role.is_primary);
-    const primaryCustomer = primaryRole?.Customer;
+    // 主契約者（role='contractor'）を取得（後方互換性のため）
+    const primaryRole = contractPlot.saleContractRoles?.find(
+      (role: any) => role.role === 'contractor'
+    );
+    const primaryCustomer = primaryRole?.customer;
 
     // 後方互換性のため、主契約者の情報を設定
     if (primaryRole && primaryCustomer) {
@@ -273,26 +257,26 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
         registeredAddress: primaryCustomer.registered_address,
         notes: primaryCustomer.notes,
         role: primaryRole.role,
-        workInfo: primaryCustomer.WorkInfo
+        workInfo: primaryCustomer.workInfo
           ? {
-              companyName: primaryCustomer.WorkInfo.company_name,
-              companyNameKana: primaryCustomer.WorkInfo.company_name_kana,
-              workAddress: primaryCustomer.WorkInfo.work_address,
-              workPostalCode: primaryCustomer.WorkInfo.work_postal_code,
-              workPhoneNumber: primaryCustomer.WorkInfo.work_phone_number,
-              dmSetting: primaryCustomer.WorkInfo.dm_setting,
-              addressType: primaryCustomer.WorkInfo.address_type,
-              notes: primaryCustomer.WorkInfo.notes,
+              companyName: primaryCustomer.workInfo.company_name,
+              companyNameKana: primaryCustomer.workInfo.company_name_kana,
+              workAddress: primaryCustomer.workInfo.work_address,
+              workPostalCode: primaryCustomer.workInfo.work_postal_code,
+              workPhoneNumber: primaryCustomer.workInfo.work_phone_number,
+              dmSetting: primaryCustomer.workInfo.dm_setting,
+              addressType: primaryCustomer.workInfo.address_type,
+              notes: primaryCustomer.workInfo.notes,
             }
           : null,
-        billingInfo: primaryCustomer.BillingInfo
+        billingInfo: primaryCustomer.billingInfo
           ? {
-              billingType: primaryCustomer.BillingInfo.billing_type,
-              bankName: primaryCustomer.BillingInfo.bank_name,
-              branchName: primaryCustomer.BillingInfo.branch_name,
-              accountType: primaryCustomer.BillingInfo.account_type,
-              accountNumber: primaryCustomer.BillingInfo.account_number,
-              accountHolder: primaryCustomer.BillingInfo.account_holder,
+              billingType: primaryCustomer.billingInfo.billing_type,
+              bankName: primaryCustomer.billingInfo.bank_name,
+              branchName: primaryCustomer.billingInfo.branch_name,
+              accountType: primaryCustomer.billingInfo.account_type,
+              accountNumber: primaryCustomer.billingInfo.account_number,
+              accountHolder: primaryCustomer.billingInfo.account_holder,
             }
           : null,
       };
@@ -300,46 +284,45 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
 
     // 全ての役割と顧客情報を追加
     response.roles =
-      contractPlot.SaleContractRoles?.map((role: any) => ({
+      contractPlot.saleContractRoles?.map((role: any) => ({
         id: role.id,
         role: role.role,
-        isPrimary: role.is_primary,
         roleStartDate: role.role_start_date,
         roleEndDate: role.role_end_date,
         notes: role.notes,
         customer: {
-          id: role.Customer.id,
-          name: role.Customer.name,
-          nameKana: role.Customer.name_kana,
-          gender: role.Customer.gender,
-          birthDate: role.Customer.birth_date,
-          phoneNumber: role.Customer.phone_number,
-          faxNumber: role.Customer.fax_number,
-          email: role.Customer.email,
-          postalCode: role.Customer.postal_code,
-          address: role.Customer.address,
-          registeredAddress: role.Customer.registered_address,
-          notes: role.Customer.notes,
-          workInfo: role.Customer.WorkInfo
+          id: role.customer.id,
+          name: role.customer.name,
+          nameKana: role.customer.name_kana,
+          gender: role.customer.gender,
+          birthDate: role.customer.birth_date,
+          phoneNumber: role.customer.phone_number,
+          faxNumber: role.customer.fax_number,
+          email: role.customer.email,
+          postalCode: role.customer.postal_code,
+          address: role.customer.address,
+          registeredAddress: role.customer.registered_address,
+          notes: role.customer.notes,
+          workInfo: role.customer.workInfo
             ? {
-                companyName: role.Customer.WorkInfo.company_name,
-                companyNameKana: role.Customer.WorkInfo.company_name_kana,
-                workAddress: role.Customer.WorkInfo.work_address,
-                workPostalCode: role.Customer.WorkInfo.work_postal_code,
-                workPhoneNumber: role.Customer.WorkInfo.work_phone_number,
-                dmSetting: role.Customer.WorkInfo.dm_setting,
-                addressType: role.Customer.WorkInfo.address_type,
-                notes: role.Customer.WorkInfo.notes,
+                companyName: role.customer.workInfo.company_name,
+                companyNameKana: role.customer.workInfo.company_name_kana,
+                workAddress: role.customer.workInfo.work_address,
+                workPostalCode: role.customer.workInfo.work_postal_code,
+                workPhoneNumber: role.customer.workInfo.work_phone_number,
+                dmSetting: role.customer.workInfo.dm_setting,
+                addressType: role.customer.workInfo.address_type,
+                notes: role.customer.workInfo.notes,
               }
             : null,
-          billingInfo: role.Customer.BillingInfo
+          billingInfo: role.customer.billingInfo
             ? {
-                billingType: role.Customer.BillingInfo.billing_type,
-                bankName: role.Customer.BillingInfo.bank_name,
-                branchName: role.Customer.BillingInfo.branch_name,
-                accountType: role.Customer.BillingInfo.account_type,
-                accountNumber: role.Customer.BillingInfo.account_number,
-                accountHolder: role.Customer.BillingInfo.account_holder,
+                billingType: role.customer.billingInfo.billing_type,
+                bankName: role.customer.billingInfo.bank_name,
+                branchName: role.customer.billingInfo.branch_name,
+                accountType: role.customer.billingInfo.account_type,
+                accountNumber: role.customer.billingInfo.account_number,
+                accountHolder: role.customer.billingInfo.account_holder,
               }
             : null,
         },

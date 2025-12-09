@@ -357,8 +357,8 @@ describe('customerService', () => {
         id: 'customer-1',
         name: '山田太郎',
         deleted_at: null,
-        WorkInfo: null,
-        BillingInfo: null,
+        workInfo: null,
+        billingInfo: null,
       };
 
       mockPrisma.customer.findUnique.mockResolvedValue(mockCustomer);
@@ -368,8 +368,8 @@ describe('customerService', () => {
       expect(mockPrisma.customer.findUnique).toHaveBeenCalledWith({
         where: { id: 'customer-1', deleted_at: null },
         include: {
-          WorkInfo: true,
-          BillingInfo: true,
+          workInfo: true,
+          billingInfo: true,
         },
       });
       expect(result).toEqual(mockCustomer);

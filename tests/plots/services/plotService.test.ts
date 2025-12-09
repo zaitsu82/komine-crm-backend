@@ -64,16 +64,18 @@ describe('plotService', () => {
       const mockPlotWithContracts = {
         id: 'plot-1',
         plot_number: 'A-01',
-        ContractPlots: [
+        contractPlots: [
           {
             id: 'contract-1',
             contract_area_sqm: 1.8,
-            SaleContract: {
-              Customer: {
-                id: 'customer-1',
-                name: '山田太郎',
+            saleContractRoles: [
+              {
+                customer: {
+                  id: 'customer-1',
+                  name: '山田太郎',
+                },
               },
-            },
+            ],
           },
         ],
       };
@@ -85,28 +87,24 @@ describe('plotService', () => {
       expect(mockPrisma.physicalPlot.findUnique).toHaveBeenCalledWith({
         where: { id: 'plot-1', deleted_at: null },
         include: {
-          ContractPlots: {
+          contractPlots: {
             where: { deleted_at: null },
             include: {
-              SaleContract: {
+              saleContractRoles: {
+                where: { deleted_at: null },
                 include: {
-                  SaleContractRoles: {
-                    where: { deleted_at: null, is_primary: true },
-                    include: {
-                      Customer: {
-                        select: {
-                          id: true,
-                          name: true,
-                          name_kana: true,
-                          phone_number: true,
-                        },
-                      },
+                  customer: {
+                    select: {
+                      id: true,
+                      name: true,
+                      name_kana: true,
+                      phone_number: true,
                     },
                   },
                 },
               },
-              UsageFee: true,
-              ManagementFee: true,
+              usageFee: true,
+              managementFee: true,
             },
             orderBy: { created_at: 'desc' },
           },

@@ -285,24 +285,14 @@ describe('collectiveBurialUtils', () => {
       expect(callArgs.where.deleted_at).toBeNull();
       expect(callArgs).toMatchObject({
         include: {
-          PhysicalPlot: {
+          contractPlot: {
             include: {
-              ContractPlots: {
+              physicalPlot: true,
+              saleContractRoles: {
                 where: { deleted_at: null },
                 include: {
-                  SaleContract: {
-                    include: {
-                      SaleContractRoles: {
-                        where: { deleted_at: null, is_primary: true },
-                        include: {
-                          Customer: true,
-                        },
-                      },
-                    },
-                  },
+                  customer: true,
                 },
-                orderBy: { created_at: 'desc' },
-                take: 1,
               },
             },
           },

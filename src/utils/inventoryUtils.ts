@@ -19,7 +19,7 @@ export async function calculateAvailableArea(
   const physicalPlot = await prisma.physicalPlot.findUnique({
     where: { id: physicalPlotId },
     include: {
-      ContractPlots: {
+      contractPlots: {
         where: {
           deleted_at: null,
         },
@@ -38,7 +38,7 @@ export async function calculateAvailableArea(
   const totalArea = physicalPlot.area_sqm.toNumber();
 
   // 契約済み面積の合計
-  const contractedArea = (physicalPlot.ContractPlots || []).reduce(
+  const contractedArea = (physicalPlot.contractPlots || []).reduce(
     (sum: number, contract: any) => sum + contract.contract_area_sqm.toNumber(),
     0
   );
@@ -70,7 +70,7 @@ export async function validateContractArea(
   const physicalPlot = await prisma.physicalPlot.findUnique({
     where: { id: physicalPlotId },
     include: {
-      ContractPlots: {
+      contractPlots: {
         where: {
           deleted_at: null,
           ...(excludeContractPlotId && { id: { not: excludeContractPlotId } }),
@@ -91,7 +91,7 @@ export async function validateContractArea(
   }
 
   const totalArea = physicalPlot.area_sqm.toNumber();
-  const contractedArea = (physicalPlot.ContractPlots || []).reduce(
+  const contractedArea = (physicalPlot.contractPlots || []).reduce(
     (sum: number, contract: any) => sum + contract.contract_area_sqm.toNumber(),
     0
   );
@@ -174,7 +174,7 @@ export async function isFullyAvailable(
   const physicalPlot = await prisma.physicalPlot.findUnique({
     where: { id: physicalPlotId },
     include: {
-      ContractPlots: {
+      contractPlots: {
         where: { deleted_at: null },
       },
     },
@@ -184,7 +184,7 @@ export async function isFullyAvailable(
     return false;
   }
 
-  return physicalPlot.ContractPlots.length === 0;
+  return physicalPlot.contractPlots.length === 0;
 }
 
 /**

@@ -1,13 +1,13 @@
 # TODO - Cemetery CRM Backend
 
-最終更新: 2025-11-30
+最終更新: 2025-12-09
 
 ## 📊 現在の状況
 
 - **バージョン**: v1.3.0
 - **テスト**: 521テスト、全て成功
 - **カバレッジ**: Functions 80%, Lines 65%, Statements 65%, Branches 40%（デプロイ優先のため一時的に引き下げ）
-- **TypeScript**: 厳格モード有効、コンパイルエラー0件
+- **TypeScript**: ⚠️ **ビルドエラー有り** - スキーマ修正に伴うリレーション名の修正が必要
 - **コード品質**: ESLint + Prettier + Husky設定完了
 - **API仕様**: OpenAPI 3.0 (swagger.yaml, swagger.json) + Swagger UI (/api-docs)
 - **エラー監視**: Sentry統合（リアルタイムエラートラッキング）
@@ -15,11 +15,93 @@
 
 ⚠️ **注意**: 区画管理リファクタリング（ContractPlot Model）に伴い、テストカバレッジを一時的に引き下げています。下記「テストカバレッジ改善」タスクで段階的に回復予定。
 
+⚠️ **注意**: DBスキーマ修正（ENUM追加、is_primary削除、CollectiveBurial 1:1化）に伴い、TypeScriptビルドエラーが発生しています。下記「スキーマ修正に伴うコード修正」で対応予定。
+
 ---
 
 ## 🔴 優先度: 高
 
-現在、優先度が高い未完了タスクはありません。
+### スキーマ修正に伴うコード修正
+
+2025-12-09にDBスキーマの以下の変更を実施しました。これに伴い、TypeScriptビルドエラーが発生しており、早急な修正が必要です。
+
+#### 実施済みのスキーマ変更
+- ✅ `ContractRole` ENUMを追加（`applicant`, `contractor`）
+- ✅ `SaleContractRole.role`をString型からContractRole型に変更
+- ✅ `SaleContractRole.is_primary`フィールドを削除
+- ✅ `CollectiveBurial`を1対多から1対1リレーションに変更（`contract_plot_id`に`@unique`追加）
+- ✅ `ContractPlot.collectiveBurials[]` → `ContractPlot.collectiveBurial?`に変更
+- ✅ リレーションを1対多に修正（`constructionInfos`, `familyContacts`, `buriedPersons`を配列型に）
+- ✅ `BuriedPerson`, `CollectiveBurial`の`contract_plot_id`から`@unique`を削除
+- ✅ **型安全性向上のためENUM化を実施**（2025-12-09追加）:
+  - `AddressType` ENUM追加（`home`, `work`, `other`）
+  - `DmSetting` ENUM追加（`allow`, `deny`, `limited`）
+  - `BillingType` ENUM追加（`individual`, `corporate`, `bank_transfer`）
+  - `AccountType` ENUM追加（`ordinary`, `current`, `savings`）
+  - `BillingStatus` ENUM追加（`pending`, `billed`, `paid`）
+  - `ActionType` ENUM追加（`CREATE`, `UPDATE`, `DELETE`）
+  - `StaffRole` ENUM追加（`viewer`, `operator`, `manager`, `admin`）
+  - `FamilyContact.mailing_type`をString型からAddressType型に変更
+  - `WorkInfo.dm_setting`をString型からDmSetting型に変更
+  - `WorkInfo.address_type`をString型からAddressType型に変更
+  - `BillingInfo.billing_type`をString型からBillingType型に変更
+  - `BillingInfo.account_type`をString型からAccountType型に変更
+  - `CollectiveBurial.billing_status`をString型からBillingStatus型に変更
+  - `History.action_type`をString型からActionType型に変更
+  - `Staff.role`をString型からStaffRole型に変更
+  - `src/type.ts`に新しいENUM型をインポート追加
+
+#### 必要な修正作業
+
+##### 1. リレーション名の大文字小文字を修正（最優先）
+Prismaは小文字キャメルケースでリレーション名を生成するため、以下の置換が必要です：
+
+**対象ファイル**: `src/plots/controllers/*.ts`, `src/plots/services/*.ts`, `src/utils/collectiveBurialUtils.ts`
+
+**置換が必要なリレーション名**:
+- [ ] `SaleContractRoles` → `saleContractRoles`（全ファイル）
+- [ ] `PhysicalPlot` → `physicalPlot`（全ファイル）
+- [ ] `UsageFee` → `usageFee`（全ファイル）
+- [ ] `ManagementFee` → `managementFee`（全ファイル）
+- [ ] `BuriedPersons` → `buriedPersons`（getPlotById.ts, contractService.ts）
+- [ ] `Customer` → `customer`（リレーション参照箇所）
+
+##### 2. is_primary参照の削除（高優先度）
+以下のファイルから`is_primary`フィールドの参照を全て削除する必要があります：
+
+**削除が必要なファイル**:
+- [ ] `src/plots/controllers/getPlotById.ts`
+  - `role.is_primary`の参照を削除
+  - 主契約者検索ロジックを最初の役割取得に変更
+- [ ] `src/plots/controllers/getPlots.ts`
+  - `role.is_primary`の参照を削除
+  - レスポンスの`isPrimary`フィールドを削除
+- [ ] `src/plots/controllers/getPlotContracts.ts`
+  - `where: { deleted_at: null, is_primary: true }`を削除
+- [ ] `src/plots/controllers/getPlotInventory.ts`
+  - `where: { deleted_at: null, is_primary: true }`を削除
+- [ ] `src/plots/controllers/updatePlot.ts`
+  - `is_primary: roleData.isPrimary ?? false`を削除
+  - `role.is_primary`の参照を削除
+- [ ] `src/plots/services/plotService.ts`
+  - `where: { deleted_at: null, is_primary: true }`を削除
+- [ ] `src/plots/services/contractService.ts`
+  - `role.is_primary`の参照を削除（2箇所）
+  - レスポンスの`isPrimary`フィールドを削除
+- [ ] `src/utils/collectiveBurialUtils.ts`
+  - `where: { deleted_at: null, is_primary: true }`を削除
+
+##### 3. CollectiveBurial参照の修正
+- [ ] 配列アクセス（`collectiveBurials[0]`）を単数形アクセス（`collectiveBurial`）に変更
+
+##### 4. 動作確認
+- [ ] `npm run build`でビルドエラーが無いことを確認
+- [ ] 既存のテストが全て通ることを確認（`npm test`）
+- [ ] API動作確認（Postmanコレクション実行）
+
+#### 参考情報
+- スキーマファイル: `prisma/schema.prisma`
+- 既に修正済み: `createPlot.ts`, `createPlotContract.ts`, `type.ts`
 
 ---
 

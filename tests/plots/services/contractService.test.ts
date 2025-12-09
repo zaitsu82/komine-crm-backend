@@ -33,7 +33,6 @@ describe('contractService', () => {
       const mockContractPlot = {
         id: 'contract-1',
         contract_area_sqm: 3.6,
-        sale_status: 'sold',
         deleted_at: null,
         PhysicalPlot: {
           id: 'plot-1',
@@ -42,15 +41,17 @@ describe('contractService', () => {
           CollectiveBurial: null,
           FamilyContacts: [],
         },
-        SaleContract: {
-          id: 'sale-1',
-          Customer: {
-            id: 'customer-1',
-            name: '山田太郎',
-            WorkInfo: null,
-            BillingInfo: null,
+        SaleContractRoles: [
+          {
+            id: 'role-1',
+            Customer: {
+              id: 'customer-1',
+              name: '山田太郎',
+              WorkInfo: null,
+              BillingInfo: null,
+            },
           },
-        },
+        ],
         UsageFee: null,
         ManagementFee: null,
       };
@@ -62,36 +63,29 @@ describe('contractService', () => {
       expect(mockPrisma.contractPlot.findUnique).toHaveBeenCalledWith({
         where: { id: 'contract-1', deleted_at: null },
         include: {
-          PhysicalPlot: {
-            include: {
-              BuriedPersons: {
-                where: { deleted_at: null },
-                orderBy: { created_at: 'desc' },
-              },
-              CollectiveBurial: true,
-              FamilyContacts: {
-                where: { deleted_at: null },
-                orderBy: { created_at: 'desc' },
-              },
-            },
+          physicalPlot: true,
+          buriedPersons: {
+            where: { deleted_at: null },
+            orderBy: { created_at: 'desc' },
           },
-          SaleContract: {
+          collectiveBurial: true,
+          familyContacts: {
+            where: { deleted_at: null },
+            orderBy: { created_at: 'desc' },
+          },
+          saleContractRoles: {
+            where: { deleted_at: null },
             include: {
-              SaleContractRoles: {
-                where: { deleted_at: null },
+              customer: {
                 include: {
-                  Customer: {
-                    include: {
-                      WorkInfo: true,
-                      BillingInfo: true,
-                    },
-                  },
+                  workInfo: true,
+                  billingInfo: true,
                 },
               },
             },
           },
-          UsageFee: true,
-          ManagementFee: true,
+          usageFee: true,
+          managementFee: true,
         },
       });
       expect(result).toEqual(mockContractPlot);
@@ -136,60 +130,56 @@ describe('contractService', () => {
       const mockContractPlot = {
         id: 'contract-1',
         contract_area_sqm: { toNumber: () => 3.6 },
-        sale_status: 'sold',
         location_description: '南側',
+        // 販売契約情報（ContractPlotに統合済み）
+        contract_date: new Date('2024-01-01'),
+        price: { toNumber: () => 1000000 },
+        payment_status: 'paid',
+        reservation_date: null,
+        acceptance_number: null,
+        permit_date: null,
+        start_date: null,
+        notes: null,
         created_at: new Date('2024-01-01'),
         updated_at: new Date('2024-01-02'),
-        PhysicalPlot: {
+        physicalPlot: {
           id: 'plot-1',
           plot_number: 'A-01',
           area_name: '一般墓地A',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           notes: '備考',
-          BuriedPersons: [],
-          CollectiveBurial: null,
-          FamilyContacts: [],
         },
-        SaleContract: {
-          id: 'sale-1',
-          contract_date: new Date('2024-01-01'),
-          price: { toNumber: () => 1000000 },
-          payment_status: 'paid',
-          reservation_date: null,
-          acceptance_number: null,
-          permit_date: null,
-          start_date: null,
-          notes: null,
-          SaleContractRoles: [
-            {
-              id: 'role-1',
-              role: 'owner',
-              is_primary: true,
-              role_start_date: null,
-              role_end_date: null,
+        buriedPersons: [],
+        collectiveBurial: null,
+        familyContacts: [],
+        saleContractRoles: [
+          {
+            id: 'role-1',
+            role: 'contractor',
+            role_start_date: null,
+            role_end_date: null,
+            notes: null,
+            customer: {
+              id: 'customer-1',
+              name: '山田太郎',
+              name_kana: 'ヤマダタロウ',
+              birth_date: null,
+              gender: null,
+              postal_code: '150-0001',
+              address: '東京都渋谷区',
+              registered_address: null,
+              phone_number: '0312345678',
+              fax_number: null,
+              email: null,
               notes: null,
-              Customer: {
-                id: 'customer-1',
-                name: '山田太郎',
-                name_kana: 'ヤマダタロウ',
-                birth_date: null,
-                gender: null,
-                postal_code: '150-0001',
-                address: '東京都渋谷区',
-                registered_address: null,
-                phone_number: '0312345678',
-                fax_number: null,
-                email: null,
-                notes: null,
-                WorkInfo: null,
-                BillingInfo: null,
-              },
+              workInfo: null,
+              billingInfo: null,
             },
-          ],
-        },
-        UsageFee: null,
-        ManagementFee: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
       };
 
       const result = buildContractPlotDetailResponse(mockContractPlot);
@@ -197,77 +187,75 @@ describe('contractService', () => {
       expect(result).toEqual({
         id: 'contract-1',
         contractAreaSqm: 3.6,
-        saleStatus: 'sold',
         locationDescription: '南側',
+        // 販売契約情報（ContractPlotに統合済み）
+        contractDate: new Date('2024-01-01'),
+        price: 1000000,
+        paymentStatus: 'paid',
+        reservationDate: null,
+        acceptanceNumber: null,
+        permitDate: null,
+        startDate: null,
+        notes: null,
         createdAt: new Date('2024-01-01'),
         updatedAt: new Date('2024-01-02'),
-        PhysicalPlot: {
+        physicalPlot: {
           id: 'plot-1',
           plotNumber: 'A-01',
           areaName: '一般墓地A',
           areaSqm: 3.6,
           status: 'sold_out',
           notes: '備考',
-          BuriedPersons: [],
-          CollectiveBurial: null,
-          FamilyContacts: [],
+          buriedPersons: [],
+          collectiveBurial: null,
+          familyContacts: [],
         },
-        SaleContract: {
-          id: 'sale-1',
-          contractDate: new Date('2024-01-01'),
-          price: 1000000,
-          paymentStatus: 'paid',
-          customerRole: 'owner',
-          reservationDate: null,
-          acceptanceNumber: null,
-          permitDate: null,
-          startDate: null,
+        // 後方互換性: 主契約者の情報
+        primaryCustomer: {
+          id: 'customer-1',
+          name: '山田太郎',
+          nameKana: 'ヤマダタロウ',
+          birthDate: null,
+          gender: null,
+          postalCode: '150-0001',
+          address: '東京都渋谷区',
+          registeredAddress: null,
+          phoneNumber: '0312345678',
+          faxNumber: null,
+          email: null,
           notes: null,
-          Customer: {
-            id: 'customer-1',
-            name: '山田太郎',
-            nameKana: 'ヤマダタロウ',
-            birthDate: null,
-            gender: null,
-            postalCode: '150-0001',
-            address: '東京都渋谷区',
-            registeredAddress: null,
-            phoneNumber: '0312345678',
-            faxNumber: null,
-            email: null,
-            notes: null,
-            WorkInfo: null,
-            BillingInfo: null,
-          },
-          roles: [
-            {
-              id: 'role-1',
-              role: 'owner',
-              isPrimary: true,
-              roleStartDate: null,
-              roleEndDate: null,
-              notes: null,
-              customer: {
-                id: 'customer-1',
-                name: '山田太郎',
-                nameKana: 'ヤマダタロウ',
-                gender: null,
-                birthDate: null,
-                phoneNumber: '0312345678',
-                faxNumber: null,
-                email: null,
-                postalCode: '150-0001',
-                address: '東京都渋谷区',
-                registeredAddress: null,
-                notes: null,
-                workInfo: null,
-                billingInfo: null,
-              },
-            },
-          ],
+          role: 'contractor',
+          workInfo: null,
+          billingInfo: null,
         },
-        UsageFee: null,
-        ManagementFee: null,
+        // 全ての役割と顧客情報
+        roles: [
+          {
+            id: 'role-1',
+            role: 'contractor',
+            roleStartDate: null,
+            roleEndDate: null,
+            notes: null,
+            customer: {
+              id: 'customer-1',
+              name: '山田太郎',
+              nameKana: 'ヤマダタロウ',
+              gender: null,
+              birthDate: null,
+              phoneNumber: '0312345678',
+              faxNumber: null,
+              email: null,
+              postalCode: '150-0001',
+              address: '東京都渋谷区',
+              registeredAddress: null,
+              notes: null,
+              workInfo: null,
+              billingInfo: null,
+            },
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
       });
     });
 
@@ -275,59 +263,55 @@ describe('contractService', () => {
       const mockContractPlot = {
         id: 'contract-1',
         contract_area_sqm: { toNumber: () => 3.6 },
-        sale_status: 'sold',
         location_description: '南側',
+        // 販売契約情報（ContractPlotに統合済み）
+        contract_date: new Date('2024-01-01'),
+        price: { toNumber: () => 1000000 },
+        payment_status: 'paid',
+        reservation_date: null,
+        acceptance_number: null,
+        permit_date: null,
+        start_date: null,
+        notes: null,
         created_at: new Date('2024-01-01'),
         updated_at: new Date('2024-01-02'),
-        PhysicalPlot: {
+        physicalPlot: {
           id: 'plot-1',
           plot_number: 'A-01',
           area_name: '一般墓地A',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           notes: null,
-          BuriedPersons: [],
-          CollectiveBurial: null,
-          FamilyContacts: [],
         },
-        SaleContract: {
-          id: 'sale-1',
-          contract_date: new Date('2024-01-01'),
-          price: { toNumber: () => 1000000 },
-          payment_status: 'paid',
-          reservation_date: null,
-          acceptance_number: null,
-          permit_date: null,
-          start_date: null,
-          notes: null,
-          SaleContractRoles: [
-            {
-              id: 'role-1',
-              role: 'owner',
-              is_primary: true,
-              role_start_date: null,
-              role_end_date: null,
+        buriedPersons: [],
+        collectiveBurial: null,
+        familyContacts: [],
+        saleContractRoles: [
+          {
+            id: 'role-1',
+            role: 'contractor',
+            role_start_date: null,
+            role_end_date: null,
+            notes: null,
+            customer: {
+              id: 'customer-1',
+              name: '山田太郎',
+              name_kana: 'ヤマダタロウ',
+              birth_date: null,
+              gender: null,
+              postal_code: '150-0001',
+              address: '東京都渋谷区',
+              registered_address: null,
+              phone_number: '0312345678',
+              fax_number: null,
+              email: null,
               notes: null,
-              Customer: {
-                id: 'customer-1',
-                name: '山田太郎',
-                name_kana: 'ヤマダタロウ',
-                birth_date: null,
-                gender: null,
-                postal_code: '150-0001',
-                address: '東京都渋谷区',
-                registered_address: null,
-                phone_number: '0312345678',
-                fax_number: null,
-                email: null,
-                notes: null,
-                WorkInfo: null,
-                BillingInfo: null,
-              },
+              workInfo: null,
+              billingInfo: null,
             },
-          ],
-        },
-        UsageFee: {
+          },
+        ],
+        usageFee: {
           id: 'usage-1',
           calculation_type: 'area',
           tax_type: 'included',
@@ -338,7 +322,7 @@ describe('contractService', () => {
           usage_fee: null,
           payment_method: 'cash',
         },
-        ManagementFee: {
+        managementFee: {
           id: 'management-1',
           calculation_type: 'area',
           tax_type: 'included',
@@ -355,7 +339,7 @@ describe('contractService', () => {
 
       const result = buildContractPlotDetailResponse(mockContractPlot);
 
-      expect(result.UsageFee).toEqual({
+      expect(result.usageFee).toEqual({
         id: 'usage-1',
         calculationType: 'area',
         taxType: 'included',
@@ -367,7 +351,7 @@ describe('contractService', () => {
         paymentMethod: 'cash',
       });
 
-      expect(result.ManagementFee).toEqual({
+      expect(result.managementFee).toEqual({
         id: 'management-1',
         calculationType: 'area',
         taxType: 'included',
@@ -388,35 +372,31 @@ describe('contractService', () => {
       const mockContractPlot = {
         id: 'contract-1',
         contract_area_sqm: { toNumber: () => 3.6 },
-        sale_status: 'sold',
         location_description: '南側',
         created_at: new Date('2024-01-01'),
         updated_at: new Date('2024-01-02'),
-        PhysicalPlot: {
+        contract_date: new Date('2024-01-01'),
+        price: { toNumber: () => 1000000 },
+        payment_status: 'paid',
+        physicalPlot: {
           plot_number: 'A-01',
           area_name: '一般墓地A',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
         },
-        SaleContract: {
-          contract_date: new Date('2024-01-01'),
-          price: { toNumber: () => 1000000 },
-          payment_status: 'paid',
-          SaleContractRoles: [
-            {
-              id: 'role-1',
-              role: 'owner',
-              is_primary: true,
-              Customer: {
-                id: 'c1',
-                name: '山田太郎',
-                name_kana: 'ヤマダタロウ',
-                phone_number: '0312345678',
-                address: '東京都渋谷区',
-              },
+        saleContractRoles: [
+          {
+            id: 'role-1',
+            role: 'contractor',
+            customer: {
+              id: 'c1',
+              name: '山田太郎',
+              name_kana: 'ヤマダタロウ',
+              phone_number: '0312345678',
+              address: '東京都渋谷区',
             },
-          ],
-        },
+          },
+        ],
       };
 
       const result = buildContractPlotSummaryResponse(mockContractPlot);
@@ -424,7 +404,6 @@ describe('contractService', () => {
       expect(result).toEqual({
         id: 'contract-1',
         contractAreaSqm: 3.6,
-        saleStatus: 'sold',
         locationDescription: '南側',
         plotNumber: 'A-01',
         areaName: '一般墓地A',
@@ -434,7 +413,7 @@ describe('contractService', () => {
         customerNameKana: 'ヤマダタロウ',
         customerPhoneNumber: '0312345678',
         customerAddress: '東京都渋谷区',
-        customerRole: 'owner',
+        customerRole: 'contractor',
         contractDate: new Date('2024-01-01'),
         price: 1000000,
         paymentStatus: 'paid',
@@ -442,8 +421,7 @@ describe('contractService', () => {
         updatedAt: new Date('2024-01-02'),
         roles: [
           {
-            role: 'owner',
-            isPrimary: true,
+            role: 'contractor',
             customer: {
               id: 'c1',
               name: '山田太郎',

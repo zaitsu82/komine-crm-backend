@@ -33,13 +33,13 @@ export async function findPhysicalPlotWithContracts(
   return prisma.physicalPlot.findUnique({
     where: { id, deleted_at: null },
     include: {
-      ContractPlots: {
+      contractPlots: {
         where: { deleted_at: null },
         include: {
-          SaleContractRoles: {
-            where: { deleted_at: null, is_primary: true },
+          saleContractRoles: {
+            where: { deleted_at: null },
             include: {
-              Customer: {
+              customer: {
                 select: {
                   id: true,
                   name: true,
@@ -49,8 +49,8 @@ export async function findPhysicalPlotWithContracts(
               },
             },
           },
-          UsageFee: true,
-          ManagementFee: true,
+          usageFee: true,
+          managementFee: true,
         },
         orderBy: { created_at: 'desc' },
       },

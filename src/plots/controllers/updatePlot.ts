@@ -27,20 +27,20 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
       const existingContractPlot = await tx.contractPlot.findUnique({
         where: { id, deleted_at: null },
         include: {
-          PhysicalPlot: true,
-          SaleContractRoles: {
+          physicalPlot: true,
+          saleContractRoles: {
             where: { deleted_at: null },
             include: {
-              Customer: {
+              customer: {
                 include: {
-                  WorkInfo: true,
-                  BillingInfo: true,
+                  workInfo: true,
+                  billingInfo: true,
                 },
               },
             },
           },
-          UsageFee: true,
-          ManagementFee: true,
+          usageFee: true,
+          managementFee: true,
         },
       });
 
@@ -75,7 +75,7 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
           );
 
           const totalAfterUpdate = otherContractsTotal + newAreaSqm;
-          const physicalPlotArea = existingContractPlot.PhysicalPlot.area_sqm.toNumber();
+          const physicalPlotArea = existingContractPlot.physicalPlot.area_sqm.toNumber();
 
           if (totalAfterUpdate > physicalPlotArea) {
             throw new Error(
@@ -158,7 +158,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
               contract_plot_id: existingContractPlot.id, // sale_contract_id → contract_plot_idに変更
               customer_id: roleData.customerId,
               role: roleData.role,
-              is_primary: roleData.isPrimary ?? false,
               role_start_date: roleData.roleStartDate ? new Date(roleData.roleStartDate) : null,
               role_end_date: roleData.roleEndDate ? new Date(roleData.roleEndDate) : null,
               notes: roleData.notes || null,
@@ -170,10 +169,10 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
       // 4. Customerの更新（主契約者を対象）
       if (input.customer) {
         // 主契約者を取得
-        const primaryRole = existingContractPlot.SaleContractRoles?.find(
-          (role: any) => role.is_primary
+        const primaryRole = existingContractPlot.saleContractRoles?.find(
+          (role: any) => role.role === 'contractor'
         );
-        const customerId = primaryRole?.Customer.id;
+        const customerId = primaryRole?.customer.id;
 
         if (customerId) {
           const updateData: any = {};
@@ -207,7 +206,7 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
 
           // 5. WorkInfoの更新/作成/削除
           if (input.workInfo !== undefined) {
-            const existingWorkInfo = primaryRole?.Customer.WorkInfo;
+            const existingWorkInfo = primaryRole?.customer.workInfo;
 
             if (input.workInfo === null) {
               // 削除
@@ -255,7 +254,7 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
 
           // 6. BillingInfoの更新/作成/削除
           if (input.billingInfo !== undefined) {
-            const existingBillingInfo = primaryRole?.Customer.BillingInfo;
+            const existingBillingInfo = primaryRole?.customer.billingInfo;
 
             if (input.billingInfo === null) {
               // 削除
@@ -304,9 +303,9 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
       if (input.usageFee !== undefined) {
         if (input.usageFee === null) {
           // 削除
-          if (existingContractPlot.UsageFee) {
+          if (existingContractPlot.usageFee) {
             await tx.usageFee.delete({
-              where: { id: existingContractPlot.UsageFee.id },
+              where: { id: existingContractPlot.usageFee.id },
             });
           }
         } else {
@@ -324,9 +323,9 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
             usageFeeData.payment_method = input.usageFee.paymentMethod;
 
           if (Object.keys(usageFeeData).length > 0) {
-            if (existingContractPlot.UsageFee) {
+            if (existingContractPlot.usageFee) {
               await tx.usageFee.update({
-                where: { id: existingContractPlot.UsageFee.id },
+                where: { id: existingContractPlot.usageFee.id },
                 data: usageFeeData,
               });
             } else {
@@ -347,9 +346,9 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
       if (input.managementFee !== undefined) {
         if (input.managementFee === null) {
           // 削除
-          if (existingContractPlot.ManagementFee) {
+          if (existingContractPlot.managementFee) {
             await tx.managementFee.delete({
-              where: { id: existingContractPlot.ManagementFee.id },
+              where: { id: existingContractPlot.managementFee.id },
             });
           }
         } else {
@@ -377,9 +376,9 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
             managementFeeData.payment_method = input.managementFee.paymentMethod;
 
           if (Object.keys(managementFeeData).length > 0) {
-            if (existingContractPlot.ManagementFee) {
+            if (existingContractPlot.managementFee) {
               await tx.managementFee.update({
-                where: { id: existingContractPlot.ManagementFee.id },
+                where: { id: existingContractPlot.managementFee.id },
                 data: managementFeeData,
               });
             } else {
@@ -407,26 +406,28 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
     const updatedContractPlot = await prisma.contractPlot.findUnique({
       where: { id },
       include: {
-        PhysicalPlot: true,
-        SaleContractRoles: {
+        physicalPlot: true,
+        saleContractRoles: {
           where: { deleted_at: null },
           include: {
-            Customer: {
+            customer: {
               include: {
-                WorkInfo: true,
-                BillingInfo: true,
+                workInfo: true,
+                billingInfo: true,
               },
             },
           },
         },
-        UsageFee: true,
-        ManagementFee: true,
+        usageFee: true,
+        managementFee: true,
       },
     });
 
-    // 主契約者（is_primary=true）を取得（後方互換性のため）
-    const primaryRole = updatedContractPlot?.SaleContractRoles?.find((role) => role.is_primary);
-    const primaryCustomer = primaryRole?.Customer;
+    // 主契約者（role='contractor'）を取得（後方互換性のため）
+    const primaryRole = updatedContractPlot?.saleContractRoles?.find(
+      (role) => role.role === 'contractor'
+    );
+    const primaryCustomer = primaryRole?.customer;
 
     res.status(200).json({
       success: true,
@@ -446,11 +447,11 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
         notes: updatedContractPlot?.notes,
 
         physicalPlot: {
-          id: updatedContractPlot?.PhysicalPlot.id,
-          plotNumber: updatedContractPlot?.PhysicalPlot.plot_number,
-          areaName: updatedContractPlot?.PhysicalPlot.area_name,
-          areaSqm: updatedContractPlot?.PhysicalPlot.area_sqm.toNumber(),
-          status: updatedContractPlot?.PhysicalPlot.status,
+          id: updatedContractPlot?.physicalPlot.id,
+          plotNumber: updatedContractPlot?.physicalPlot.plot_number,
+          areaName: updatedContractPlot?.physicalPlot.area_name,
+          areaSqm: updatedContractPlot?.physicalPlot.area_sqm.toNumber(),
+          status: updatedContractPlot?.physicalPlot.status,
         },
 
         // 後方互換性: 主契約者の情報
@@ -467,19 +468,18 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
 
         // 全ての役割と顧客情報
         roles:
-          updatedContractPlot?.SaleContractRoles?.map((role) => ({
+          updatedContractPlot?.saleContractRoles?.map((role) => ({
             id: role.id,
             role: role.role,
-            isPrimary: role.is_primary,
             roleStartDate: role.role_start_date,
             roleEndDate: role.role_end_date,
             notes: role.notes,
             customer: {
-              id: role.Customer.id,
-              name: role.Customer.name,
-              nameKana: role.Customer.name_kana,
-              phoneNumber: role.Customer.phone_number,
-              address: role.Customer.address,
+              id: role.customer.id,
+              name: role.customer.name,
+              nameKana: role.customer.name_kana,
+              phoneNumber: role.customer.phone_number,
+              address: role.customer.address,
             },
           })) || [],
 

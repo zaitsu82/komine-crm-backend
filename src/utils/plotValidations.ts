@@ -4,7 +4,7 @@
  * 物理区画・契約区画に関するバリデーションロジックを提供します
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ContractRole } from '@prisma/client';
 import { ValidationError } from '../middleware/errorHandler';
 
 /**
@@ -139,7 +139,7 @@ export async function canDeletePhysicalPlot(
   const physicalPlot = await prisma.physicalPlot.findUnique({
     where: { id: physicalPlotId },
     include: {
-      ContractPlots: {
+      contractPlots: {
         where: { deleted_at: null },
       },
     },
@@ -152,7 +152,7 @@ export async function canDeletePhysicalPlot(
     };
   }
 
-  if (physicalPlot.ContractPlots.length > 0) {
+  if (physicalPlot.contractPlots.length > 0) {
     return {
       canDelete: false,
       reason: '契約が存在するため削除できません',
@@ -179,7 +179,9 @@ export async function canDeleteContractPlot(
   const contractPlot = await prisma.contractPlot.findUnique({
     where: { id: contractPlotId },
     include: {
-      SaleContract: true,
+      saleContractRoles: {
+        where: { deleted_at: null },
+      },
     },
   });
 
@@ -190,7 +192,7 @@ export async function canDeleteContractPlot(
     };
   }
 
-  if (contractPlot.SaleContract && contractPlot.SaleContract.deleted_at === null) {
+  if (contractPlot.saleContractRoles && contractPlot.saleContractRoles.length > 0) {
     return {
       canDelete: false,
       reason: '販売契約が存在するため削除できません',
@@ -252,8 +254,8 @@ export function validateContractDate(contractDate: Date): {
  * @returns 妥当性
  */
 export function validateCustomerRole(role: string): boolean {
-  const validRoles = ['applicant', 'contractor', 'heir'];
-  return validRoles.includes(role);
+  const validRoles = Object.values(ContractRole);
+  return validRoles.includes(role as ContractRole);
 }
 
 /**
@@ -335,14 +337,14 @@ export async function validatePhysicalPlotUpdate(
     const physicalPlot = await prisma.physicalPlot.findUnique({
       where: { id },
       include: {
-        ContractPlots: {
+        contractPlots: {
           where: { deleted_at: null },
         },
       },
     });
 
     if (physicalPlot) {
-      const totalContractedArea = (physicalPlot.ContractPlots || []).reduce(
+      const totalContractedArea = (physicalPlot.contractPlots || []).reduce(
         (sum: number, contract: any) => sum + contract.contract_area_sqm.toNumber(),
         0
       );

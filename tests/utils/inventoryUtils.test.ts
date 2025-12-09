@@ -38,7 +38,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [],
+        contractPlots: [],
       });
 
       const result = await calculateAvailableArea(mockPrismaClient, 'plot-1');
@@ -47,7 +47,7 @@ describe('inventoryUtils', () => {
       expect(mockPrismaClient.physicalPlot.findUnique).toHaveBeenCalledWith({
         where: { id: 'plot-1' },
         include: {
-          ContractPlots: {
+          contractPlots: {
             where: { deleted_at: null },
             select: { contract_area_sqm: true },
           },
@@ -59,7 +59,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+        contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
       });
 
       const result = await calculateAvailableArea(mockPrismaClient, 'plot-1');
@@ -71,7 +71,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [
+        contractPlots: [
           { contract_area_sqm: { toNumber: () => 1.8 } },
           { contract_area_sqm: { toNumber: () => 1.8 } },
         ],
@@ -96,7 +96,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+        contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
       });
 
       const result = await validateContractArea(mockPrismaClient, 'plot-1', 1.8);
@@ -110,7 +110,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+        contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
       });
 
       const result = await validateContractArea(mockPrismaClient, 'plot-1', 2.0);
@@ -124,7 +124,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [],
+        contractPlots: [],
       });
 
       const result = await validateContractArea(mockPrismaClient, 'plot-1', 0);
@@ -147,7 +147,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [], // 除外したため空
+        contractPlots: [], // 除外したため空
       });
 
       const result = await validateContractArea(mockPrismaClient, 'plot-1', 3.6, 'contract-1');
@@ -156,7 +156,7 @@ describe('inventoryUtils', () => {
       expect(mockPrismaClient.physicalPlot.findUnique).toHaveBeenCalledWith({
         where: { id: 'plot-1' },
         include: {
-          ContractPlots: {
+          contractPlots: {
             where: {
               deleted_at: null,
               id: { not: 'contract-1' },
@@ -174,7 +174,7 @@ describe('inventoryUtils', () => {
         .mockResolvedValueOnce({
           id: 'plot-1',
           area_sqm: { toNumber: () => 3.6 },
-          ContractPlots: [],
+          contractPlots: [],
         })
         .mockResolvedValueOnce({
           area_sqm: { toNumber: () => 3.6 },
@@ -199,7 +199,7 @@ describe('inventoryUtils', () => {
         .mockResolvedValueOnce({
           id: 'plot-1',
           area_sqm: { toNumber: () => 3.6 },
-          ContractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
         })
         .mockResolvedValueOnce({
           area_sqm: { toNumber: () => 3.6 },
@@ -224,7 +224,7 @@ describe('inventoryUtils', () => {
         .mockResolvedValueOnce({
           id: 'plot-1',
           area_sqm: { toNumber: () => 3.6 },
-          ContractPlots: [
+          contractPlots: [
             { contract_area_sqm: { toNumber: () => 1.8 } },
             { contract_area_sqm: { toNumber: () => 1.8 } },
           ],
@@ -248,7 +248,7 @@ describe('inventoryUtils', () => {
     it('契約がない場合、trueを返す', async () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
-        ContractPlots: [],
+        contractPlots: [],
       });
 
       const result = await isFullyAvailable(mockPrismaClient, 'plot-1');
@@ -259,7 +259,7 @@ describe('inventoryUtils', () => {
     it('契約がある場合、falseを返す', async () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
-        ContractPlots: [{ id: 'contract-1' }],
+        contractPlots: [{ id: 'contract-1' }],
       });
 
       const result = await isFullyAvailable(mockPrismaClient, 'plot-1');
@@ -281,7 +281,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [
+        contractPlots: [
           { contract_area_sqm: { toNumber: () => 1.8 } },
           { contract_area_sqm: { toNumber: () => 1.8 } },
         ],
@@ -296,7 +296,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+        contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
       });
 
       const result = await isFullySold(mockPrismaClient, 'plot-1');
@@ -310,7 +310,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [],
+        contractPlots: [],
       });
 
       const result = await getAvailableAreaOptions(mockPrismaClient, 'plot-1');
@@ -322,7 +322,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+        contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
       });
 
       const result = await getAvailableAreaOptions(mockPrismaClient, 'plot-1');
@@ -334,7 +334,7 @@ describe('inventoryUtils', () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
         area_sqm: { toNumber: () => 3.6 },
-        ContractPlots: [
+        contractPlots: [
           { contract_area_sqm: { toNumber: () => 1.8 } },
           { contract_area_sqm: { toNumber: () => 1.8 } },
         ],

@@ -22,17 +22,17 @@ export const getPlotContracts = async (req: Request, res: Response): Promise<any
     const physicalPlot = await prisma.physicalPlot.findUnique({
       where: { id, deleted_at: null },
       include: {
-        ContractPlots: {
+        contractPlots: {
           where: { deleted_at: null },
           include: {
-            SaleContractRoles: {
-              where: { deleted_at: null, is_primary: true },
+            saleContractRoles: {
+              where: { deleted_at: null, role: 'contractor' },
               include: {
-                Customer: true,
+                customer: true,
               },
             },
-            UsageFee: true,
-            ManagementFee: true,
+            usageFee: true,
+            managementFee: true,
           },
           orderBy: {
             created_at: 'desc',
@@ -52,10 +52,10 @@ export const getPlotContracts = async (req: Request, res: Response): Promise<any
     }
 
     // 契約一覧を整形
-    const contracts = physicalPlot.ContractPlots.map((contract) => {
-      // 主契約者を取得（is_primary=true）
-      const primaryRole = contract.SaleContractRoles?.[0];
-      const primaryCustomer = primaryRole?.Customer;
+    const contracts = physicalPlot.contractPlots.map((contract) => {
+      // 主契約者を取得（role='contractor'）
+      const primaryRole = contract.saleContractRoles?.[0];
+      const primaryCustomer = primaryRole?.customer;
 
       return {
         id: contract.id,

@@ -162,7 +162,7 @@ describe('plotValidations', () => {
     it('契約がない物理区画は削除可能', async () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
-        ContractPlots: [],
+        contractPlots: [],
       });
 
       const result = await canDeletePhysicalPlot(mockPrismaClient, 'plot-1');
@@ -174,7 +174,7 @@ describe('plotValidations', () => {
     it('契約がある物理区画は削除不可', async () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
-        ContractPlots: [{ id: 'contract-1' }],
+        contractPlots: [{ id: 'contract-1' }],
       });
 
       const result = await canDeletePhysicalPlot(mockPrismaClient, 'plot-1');
@@ -197,7 +197,7 @@ describe('plotValidations', () => {
     it('販売契約がない契約区画は削除可能', async () => {
       mockPrismaClient.contractPlot.findUnique.mockResolvedValue({
         id: 'contract-1',
-        SaleContract: null,
+        saleContractRoles: [],
       });
 
       const result = await canDeleteContractPlot(mockPrismaClient, 'contract-1');
@@ -208,7 +208,7 @@ describe('plotValidations', () => {
     it('販売契約がある契約区画は削除不可', async () => {
       mockPrismaClient.contractPlot.findUnique.mockResolvedValue({
         id: 'contract-1',
-        SaleContract: { id: 'sale-1', deleted_at: null },
+        saleContractRoles: [{ id: 'role-1', deleted_at: null }],
       });
 
       const result = await canDeleteContractPlot(mockPrismaClient, 'contract-1');
@@ -218,9 +218,11 @@ describe('plotValidations', () => {
     });
 
     it('削除済み販売契約の場合は削除可能', async () => {
+      // The query filters out deleted roles with "where: { deleted_at: null }"
+      // so deleted roles won't be returned, making saleContractRoles empty
       mockPrismaClient.contractPlot.findUnique.mockResolvedValue({
         id: 'contract-1',
-        SaleContract: { id: 'sale-1', deleted_at: new Date() },
+        saleContractRoles: [], // Deleted roles are filtered out by the query
       });
 
       const result = await canDeleteContractPlot(mockPrismaClient, 'contract-1');
@@ -282,12 +284,12 @@ describe('plotValidations', () => {
     it('妥当な顧客ロールを受け入れる', () => {
       expect(validateCustomerRole('applicant')).toBe(true);
       expect(validateCustomerRole('contractor')).toBe(true);
-      expect(validateCustomerRole('heir')).toBe(true);
     });
 
     it('不正な顧客ロールを拒否する', () => {
       expect(validateCustomerRole('invalid')).toBe(false);
       expect(validateCustomerRole('customer')).toBe(false);
+      expect(validateCustomerRole('heir')).toBe(false); // 'heir' is not in schema
     });
   });
 
@@ -352,7 +354,7 @@ describe('plotValidations', () => {
     it('面積を更新する場合、既存契約との整合性をチェック', async () => {
       mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
         id: 'plot-1',
-        ContractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+        contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
       });
 
       // 契約済み面積より小さい面積は不可

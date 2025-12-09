@@ -19,10 +19,6 @@ interface TaxTypeMasterData extends MasterData {
   taxRate?: string | null;
 }
 
-interface PrefectureMasterData extends MasterData {
-  nameKana?: string | null;
-}
-
 /**
  * 墓地タイプマスタ取得
  * GET /api/v1/masters/cemetery-type
@@ -54,78 +50,6 @@ export const getCemeteryTypeMaster = async (_req: Request, res: Response) => {
       error: {
         code: 'INTERNAL_SERVER_ERROR',
         message: '墓地タイプマスタの取得に失敗しました',
-      },
-    });
-  }
-};
-
-/**
- * 宗派マスタ取得
- * GET /api/v1/masters/denomination
- */
-export const getDenominationMaster = async (_req: Request, res: Response) => {
-  try {
-    const data = await prisma.denominationMaster.findMany({
-      where: { is_active: true },
-      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-    });
-
-    const formatted: MasterData[] = data.map((item) => ({
-      id: item.id,
-      code: item.code,
-      name: item.name,
-      description: item.description,
-      sortOrder: item.sort_order,
-      isActive: item.is_active,
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: formatted,
-    });
-  } catch (error) {
-    console.error('Error fetching denomination master:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '宗派マスタの取得に失敗しました',
-      },
-    });
-  }
-};
-
-/**
- * 性別マスタ取得
- * GET /api/v1/masters/gender
- */
-export const getGenderMaster = async (_req: Request, res: Response) => {
-  try {
-    const data = await prisma.genderMaster.findMany({
-      where: { is_active: true },
-      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-    });
-
-    const formatted: MasterData[] = data.map((item) => ({
-      id: item.id,
-      code: item.code,
-      name: item.name,
-      description: item.description,
-      sortOrder: item.sort_order,
-      isActive: item.is_active,
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: formatted,
-    });
-  } catch (error) {
-    console.error('Error fetching gender master:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '性別マスタの取得に失敗しました',
       },
     });
   }
@@ -349,42 +273,6 @@ export const getRecipientTypeMaster = async (_req: Request, res: Response) => {
 };
 
 /**
- * 続柄マスタ取得
- * GET /api/v1/masters/relation
- */
-export const getRelationMaster = async (_req: Request, res: Response) => {
-  try {
-    const data = await prisma.relationMaster.findMany({
-      where: { is_active: true },
-      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-    });
-
-    const formatted: MasterData[] = data.map((item) => ({
-      id: item.id,
-      code: item.code,
-      name: item.name,
-      description: item.description,
-      sortOrder: item.sort_order,
-      isActive: item.is_active,
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: formatted,
-    });
-  } catch (error) {
-    console.error('Error fetching relation master:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '続柄マスタの取得に失敗しました',
-      },
-    });
-  }
-};
-
-/**
  * 工事タイプマスタ取得
  * GET /api/v1/masters/construction-type
  */
@@ -421,79 +309,6 @@ export const getConstructionTypeMaster = async (_req: Request, res: Response) =>
 };
 
 /**
- * 更新タイプマスタ取得
- * GET /api/v1/masters/update-type
- */
-export const getUpdateTypeMaster = async (_req: Request, res: Response) => {
-  try {
-    const data = await prisma.updateTypeMaster.findMany({
-      where: { is_active: true },
-      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-    });
-
-    const formatted: MasterData[] = data.map((item) => ({
-      id: item.id,
-      code: item.code,
-      name: item.name,
-      description: item.description,
-      sortOrder: item.sort_order,
-      isActive: item.is_active,
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: formatted,
-    });
-  } catch (error) {
-    console.error('Error fetching update type master:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '更新タイプマスタの取得に失敗しました',
-      },
-    });
-  }
-};
-
-/**
- * 都道府県マスタ取得
- * GET /api/v1/masters/prefecture
- */
-export const getPrefectureMaster = async (_req: Request, res: Response) => {
-  try {
-    const data = await prisma.prefectureMaster.findMany({
-      where: { is_active: true },
-      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-    });
-
-    const formatted: PrefectureMasterData[] = data.map((item) => ({
-      id: item.id,
-      code: item.code,
-      name: item.name,
-      description: null,
-      sortOrder: item.sort_order,
-      isActive: item.is_active,
-      nameKana: item.name_kana,
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: formatted,
-    });
-  } catch (error) {
-    console.error('Error fetching prefecture master:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '都道府県マスタの取得に失敗しました',
-      },
-    });
-  }
-};
-
-/**
  * 全マスタデータ一括取得
  * GET /api/v1/masters/all
  */
@@ -501,28 +316,15 @@ export const getAllMasters = async (_req: Request, res: Response) => {
   try {
     const [
       cemeteryType,
-      denomination,
-      gender,
       paymentMethod,
       taxType,
       calcType,
       billingType,
       accountType,
       recipientType,
-      relation,
       constructionType,
-      updateType,
-      prefecture,
     ] = await Promise.all([
       prisma.cemeteryTypeMaster.findMany({
-        where: { is_active: true },
-        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-      }),
-      prisma.denominationMaster.findMany({
-        where: { is_active: true },
-        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-      }),
-      prisma.genderMaster.findMany({
         where: { is_active: true },
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
@@ -550,19 +352,7 @@ export const getAllMasters = async (_req: Request, res: Response) => {
         where: { is_active: true },
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
-      prisma.relationMaster.findMany({
-        where: { is_active: true },
-        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-      }),
       prisma.constructionTypeMaster.findMany({
-        where: { is_active: true },
-        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-      }),
-      prisma.updateTypeMaster.findMany({
-        where: { is_active: true },
-        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-      }),
-      prisma.prefectureMaster.findMany({
         where: { is_active: true },
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
@@ -572,22 +362,6 @@ export const getAllMasters = async (_req: Request, res: Response) => {
       success: true,
       data: {
         cemeteryType: cemeteryType.map((item) => ({
-          id: item.id,
-          code: item.code,
-          name: item.name,
-          description: item.description,
-          sortOrder: item.sort_order,
-          isActive: item.is_active,
-        })),
-        denomination: denomination.map((item) => ({
-          id: item.id,
-          code: item.code,
-          name: item.name,
-          description: item.description,
-          sortOrder: item.sort_order,
-          isActive: item.is_active,
-        })),
-        gender: gender.map((item) => ({
           id: item.id,
           code: item.code,
           name: item.name,
@@ -644,14 +418,6 @@ export const getAllMasters = async (_req: Request, res: Response) => {
           sortOrder: item.sort_order,
           isActive: item.is_active,
         })),
-        relation: relation.map((item) => ({
-          id: item.id,
-          code: item.code,
-          name: item.name,
-          description: item.description,
-          sortOrder: item.sort_order,
-          isActive: item.is_active,
-        })),
         constructionType: constructionType.map((item) => ({
           id: item.id,
           code: item.code,
@@ -659,23 +425,6 @@ export const getAllMasters = async (_req: Request, res: Response) => {
           description: item.description,
           sortOrder: item.sort_order,
           isActive: item.is_active,
-        })),
-        updateType: updateType.map((item) => ({
-          id: item.id,
-          code: item.code,
-          name: item.name,
-          description: item.description,
-          sortOrder: item.sort_order,
-          isActive: item.is_active,
-        })),
-        prefecture: prefecture.map((item) => ({
-          id: item.id,
-          code: item.code,
-          name: item.name,
-          description: null,
-          sortOrder: item.sort_order,
-          isActive: item.is_active,
-          nameKana: item.name_kana,
         })),
       },
     });

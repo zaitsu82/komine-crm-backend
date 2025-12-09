@@ -81,7 +81,7 @@ export const updateCollectiveBurialCount = async (
  */
 export const isCapacityReached = async (prisma: PrismaClient, plotId: string): Promise<boolean> => {
   const collectiveBurial = await prisma.collectiveBurial.findUnique({
-    where: { physical_plot_id: plotId },
+    where: { contract_plot_id: plotId },
   });
 
   if (!collectiveBurial || collectiveBurial.deleted_at) {
@@ -109,19 +109,13 @@ export const getBillingTargets = async (prisma: PrismaClient): Promise<any[]> =>
       deleted_at: null,
     },
     include: {
-      PhysicalPlot: {
+      contractPlot: {
         include: {
-          ContractPlots: {
+          physicalPlot: true,
+          saleContractRoles: {
             where: { deleted_at: null },
-            orderBy: { created_at: 'desc' },
-            take: 1, // 最新の契約
             include: {
-              SaleContractRoles: {
-                where: { deleted_at: null, is_primary: true },
-                include: {
-                  Customer: true,
-                },
-              },
+              customer: true,
             },
           },
         },

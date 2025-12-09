@@ -42,6 +42,56 @@ enum ContractRole {
   contractor // 契約者
 }
 
+// 郵送先・連絡先タイプ
+enum AddressType {
+  home // 自宅
+  work // 勤務先
+  other // その他
+}
+
+// DM送信設定
+enum DmSetting {
+  allow // 送信許可
+  deny // 送信拒否
+  limited // 制限付き
+}
+
+// 請求先タイプ
+enum BillingType {
+  individual // 個人
+  corporate // 法人
+  bank_transfer // 銀行振込
+}
+
+// 口座種別
+enum AccountType {
+  ordinary // 普通預金
+  current // 当座預金
+  savings // 貯蓄預金
+}
+
+// 請求ステータス
+enum BillingStatus {
+  pending // 請求前
+  billed // 請求済
+  paid // 支払済
+}
+
+// 履歴アクションタイプ
+enum ActionType {
+  CREATE // 作成
+  UPDATE // 更新
+  DELETE // 削除
+}
+
+// スタッフ権限
+enum StaffRole {
+  viewer // 閲覧者
+  operator // オペレーター
+  manager // マネージャー
+  admin // 管理者
+}
+
 // =============================================================================
 // テーブル定義
 // =============================================================================
@@ -59,8 +109,8 @@ model PhysicalPlot {
   deleted_at  DateTime?
 
   // Relations
-  ContractPlots ContractPlot[] // 契約区画（1:N）
-  Histories     History[] // 更新履歴（1:N）
+  contractPlots ContractPlot[] // 契約区画（1:N）
+  histories     History[] // 更新履歴（1:N）
 
   @@index([plot_number])
   @@index([area_name])
@@ -93,16 +143,16 @@ model ContractPlot {
   deleted_at DateTime?
 
   // Relations
-  PhysicalPlot      PhysicalPlot       @relation(fields: [physical_plot_id], references: [id], onDelete: Cascade)
-  UsageFee          UsageFee? // 使用料（1:1）
-  ManagementFee     ManagementFee? // 管理料（1:1）
-  Histories         History[] // 更新履歴（1:N）
+  physicalPlot      PhysicalPlot       @relation(fields: [physical_plot_id], references: [id], onDelete: Cascade)
+  usageFee          UsageFee? // 使用料（1:1）
+  managementFee     ManagementFee? // 管理料（1:1）
+  histories         History[] // 更新履歴（1:N）
   gravestoneInfo    GravestoneInfo?
-  constructionInfo  ConstructionInfo?
-  familyContact     FamilyContact?
-  buriedPerson      BuriedPerson?
-  collectiveBurial  CollectiveBurial?
-  saleContractRoles SaleContractRole[]
+  constructionInfos ConstructionInfo[] // 工事情報（1:N）
+  familyContacts    FamilyContact[] // 家族連絡先（1:N）
+  buriedPersons     BuriedPerson[] // 埋葬者（1:N）
+  collectiveBurial  CollectiveBurial? // 合葬情報（1:1）
+  saleContractRoles SaleContractRole[] // 販売契約役割（1:N）
 
   @@index([physical_plot_id])
   @@index([contract_date])
@@ -130,10 +180,10 @@ model Customer {
   deleted_at         DateTime?
 
   // Relations
-  WorkInfo         WorkInfo? // 勤務先情報（1:1）
-  BillingInfo      BillingInfo? // 請求情報（1:1）
-  FamilyContacts   FamilyContact[] // 家族連絡先（1:N）
-  saleContractRole SaleContractRole?
+  workInfo          WorkInfo? // 勤務先情報（1:1）
+  billingInfo       BillingInfo? // 請求情報（1:1）
+  familyContacts    FamilyContact[] // 家族連絡先（1:N）
+  saleContractRoles SaleContractRole[] // 販売契約役割（1:N）
 
   @@index([name, name_kana])
   @@index([phone_number])
@@ -146,7 +196,7 @@ model Customer {
 model SaleContractRole {
   id               String       @id @default(uuid()) @map("sale_contract_role_id")
   contract_plot_id String // 契約区画ID
-  customer_id      String       @unique // 顧客ID
+  customer_id      String // 顧客ID
   role             ContractRole // 役割: applicant（申込者）, contractor（契約者）
   role_start_date  DateTime?    @db.Date // 役割開始日（相続などで役割が変わる場合）
   role_end_date    DateTime?    @db.Date // 役割終了日
@@ -156,8 +206,8 @@ model SaleContractRole {
   deleted_at       DateTime?
 
   // Relations
-  ContractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
-  Customer     Customer     @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customer_id], references: [id], onDelete: Restrict)
 
   // 複合ユニーク制約：同じ契約で同じ顧客が同じ役割を重複して持たない（削除されていない場合のみ）
   @@unique([contract_plot_id, customer_id, role, deleted_at])
@@ -185,7 +235,7 @@ model UsageFee {
   deleted_at       DateTime?
 
   // Relations
-  ContractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
+  contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
 
   @@index([contract_plot_id])
   @@map("usage_fees")
@@ -210,7 +260,7 @@ model ManagementFee {
   deleted_at         DateTime?
 
   // Relations
-  ContractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
+  contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
 
   @@index([contract_plot_id])
   @@map("management_fees")
@@ -232,7 +282,7 @@ model GravestoneInfo {
   deleted_at             DateTime?
 
   // Relations
-  ContractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
+  contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
 
   @@index([contract_plot_id])
   @@map("gravestone_infos")
@@ -240,46 +290,46 @@ model GravestoneInfo {
 
 // 工事情報: 物理区画で行われる工事の情報
 model ConstructionInfo {
-  id                       String    @id @default(uuid()) @map("construction_info_id")
-  contract_plot_id         String // 契約区画ID
+  id                String    @id @default(uuid()) @map("construction_info_id")
+  contract_plot_id  String // 契約区画ID
   // 工事進捗状況
-  construction_type        String?   @db.VarChar(50) // 工事区分
-  start_date               DateTime? @db.Date // 着工予定日
-  completion_date          DateTime? @db.Date // 完工予定日
-  contractor               String?   @db.VarChar(100) // 工事業者名
-  supervisor               String?   @db.VarChar(100) // 工事担当者名
-  progress                 String?   @db.VarChar(100) // 進捗状況
+  construction_type String?   @db.VarChar(50) // 工事区分
+  start_date        DateTime? @db.Date // 着工予定日
+  completion_date   DateTime? @db.Date // 完工予定日
+  contractor        String?   @db.VarChar(100) // 工事業者名
+  supervisor        String?   @db.VarChar(100) // 工事担当者名
+  progress          String?   @db.VarChar(100) // 進捗状況
   // 工事詳細
-  work_item_1              String?   @db.VarChar(100) // 工事項目1
-  work_date_1              DateTime? @db.Date // 実施日1
-  work_amount_1            Decimal?  @db.Decimal(15, 2) // 金額1
-  work_status_1            String?   @db.VarChar(50) // 状況1
-  work_item_2              String?   @db.VarChar(100) // 工事項目2
-  work_date_2              DateTime? @db.Date // 予定日2
-  work_amount_2            Decimal?  @db.Decimal(15, 2) // 金額2
-  work_status_2            String?   @db.VarChar(50) // 状況2
+  work_item_1       String?   @db.VarChar(100) // 工事項目1
+  work_date_1       DateTime? @db.Date // 実施日1
+  work_amount_1     Decimal?  @db.Decimal(15, 2) // 金額1
+  work_status_1     String?   @db.VarChar(50) // 状況1
+  work_item_2       String?   @db.VarChar(100) // 工事項目2
+  work_date_2       DateTime? @db.Date // 予定日2
+  work_amount_2     Decimal?  @db.Decimal(15, 2) // 金額2
+  work_status_2     String?   @db.VarChar(50) // 状況2
   // 許可・申請状況
-  permit_number            String?   @db.VarChar(50) // 工事許可番号
-  application_date         DateTime? @db.Date // 申請日
-  permit_date              DateTime? @db.Date // 許可日
-  permit_status            String?   @db.VarChar(50) // 許可状況
+  permit_number     String?   @db.VarChar(50) // 工事許可番号
+  application_date  DateTime? @db.Date // 申請日
+  permit_date       DateTime? @db.Date // 許可日
+  permit_status     String?   @db.VarChar(50) // 許可状況
   // 工事代金支払状況
-  payment_type_1           String?   @db.VarChar(50) // 支払区分1
-  payment_amount_1         Decimal?  @db.Decimal(15, 2) // 金額1
-  payment_date_1           DateTime? @db.Date // 支払日1
-  payment_status_1         String?   @db.VarChar(50) // 状況1
-  payment_type_2           String?   @db.VarChar(50) // 支払区分2
-  payment_amount_2         Decimal?  @db.Decimal(15, 2) // 金額2
-  payment_scheduled_date_2 DateTime? @db.Date // 支払予定日2
-  payment_status_2         String?   @db.VarChar(50) // 状況2
+  payment_type_1    String?   @db.VarChar(50) // 支払区分1
+  payment_amount_1  Decimal?  @db.Decimal(15, 2) // 金額1
+  payment_date_1    DateTime? @db.Date // 支払日1
+  payment_status_1  String?   @db.VarChar(50) // 状況1
+  payment_type_2    String?   @db.VarChar(50) // 支払区分2
+  payment_amount_2  Decimal?  @db.Decimal(15, 2) // 金額2
+  payment_date_2    DateTime? @db.Date // 支払日2
+  payment_status_2  String?   @db.VarChar(50) // 状況2
   // 工事備考
-  notes                    String?   @db.Text // 備考
-  created_at               DateTime  @default(now())
-  updated_at               DateTime  @updatedAt
-  deleted_at               DateTime?
+  notes             String?   @db.Text // 備考
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  deleted_at        DateTime?
 
   // Relations
-  ContractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
+  contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
 
   @@index([contract_plot_id])
   @@map("construction_infos")
@@ -287,27 +337,27 @@ model ConstructionInfo {
 
 // 家族・連絡先
 model FamilyContact {
-  id                     String    @id @default(uuid()) @map("family_contact_id")
+  id                     String       @id @default(uuid()) @map("family_contact_id")
   contract_plot_id       String // 契約区画ID
   customer_id            String? // 顧客マスタへの参照（オプショナル）
-  emergency_contact_flag Boolean   @default(false) // 緊急連絡先フラグ
-  name                   String    @db.VarChar(100)
-  birth_date             DateTime? @db.Date
-  relationship           String    @db.VarChar(50)
-  address                String    @db.VarChar(200)
-  phone_number           String    @db.VarChar(11)
-  fax_number             String?   @db.VarChar(11)
-  email                  String?   @db.VarChar(254) // メールアドレス（RFC 5321準拠）
-  registered_address     String?   @db.VarChar(200)
-  mailing_type           String?   @db.VarChar(20) // home, work, other
-  notes                  String?   @db.Text
-  created_at             DateTime  @default(now())
-  updated_at             DateTime  @updatedAt
+  emergency_contact_flag Boolean      @default(false) // 緊急連絡先フラグ
+  name                   String       @db.VarChar(100)
+  birth_date             DateTime?    @db.Date
+  relationship           String       @db.VarChar(50)
+  address                String       @db.VarChar(200)
+  phone_number           String       @db.VarChar(11)
+  fax_number             String?      @db.VarChar(11)
+  email                  String?      @db.VarChar(254) // メールアドレス（RFC 5321準拠）
+  registered_address     String?      @db.VarChar(200)
+  mailing_type           AddressType? // 郵送先タイプ
+  notes                  String?      @db.Text
+  created_at             DateTime     @default(now())
+  updated_at             DateTime     @updatedAt
   deleted_at             DateTime?
 
   // Relations
-  ContractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
-  Customer     Customer?    @relation(fields: [customer_id], references: [id], onDelete: SetNull)
+  contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
+  customer     Customer?    @relation(fields: [customer_id], references: [id], onDelete: SetNull)
 
   @@index([contract_plot_id])
   @@index([customer_id])
@@ -317,7 +367,7 @@ model FamilyContact {
 // 埋葬者一覧
 model BuriedPerson {
   id               String    @id @default(uuid()) @map("buried_person_id")
-  contract_plot_id String    @unique // 契約区画ID
+  contract_plot_id String // 契約区画ID
   name             String    @db.VarChar(100)
   name_kana        String?   @db.VarChar(100)
   relationship     String?   @db.VarChar(50)
@@ -331,7 +381,7 @@ model BuriedPerson {
   deleted_at       DateTime?
 
   // Relations
-  ContractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
+  contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
 
   @@index([contract_plot_id])
   @@map("buried_persons")
@@ -339,22 +389,22 @@ model BuriedPerson {
 
 // 勤務先・連絡情報
 model WorkInfo {
-  id                String    @id @default(uuid()) @map("work_info_id")
-  customer_id       String    @unique // 顧客ID
-  company_name      String    @db.VarChar(100)
-  company_name_kana String    @db.VarChar(100)
-  work_address      String    @db.VarChar(200)
-  work_postal_code  String    @db.VarChar(7)
-  work_phone_number String    @db.VarChar(11)
-  dm_setting        String    @db.VarChar(20) // allow, deny, limited
-  address_type      String    @db.VarChar(20) // home, work, other
-  notes             String?   @db.Text
-  created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
+  id                String      @id @default(uuid()) @map("work_info_id")
+  customer_id       String      @unique // 顧客ID
+  company_name      String      @db.VarChar(100)
+  company_name_kana String      @db.VarChar(100)
+  work_address      String      @db.VarChar(200)
+  work_postal_code  String      @db.VarChar(7)
+  work_phone_number String      @db.VarChar(11)
+  dm_setting        DmSetting // DM送信設定
+  address_type      AddressType // 連絡先タイプ
+  notes             String?     @db.Text
+  created_at        DateTime    @default(now())
+  updated_at        DateTime    @updatedAt
   deleted_at        DateTime?
 
   // Relations
-  Customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
 
   @@index([customer_id])
   @@map("work_infos")
@@ -362,20 +412,20 @@ model WorkInfo {
 
 // 請求情報
 model BillingInfo {
-  id             String    @id @default(uuid()) @map("billing_info_id")
-  customer_id    String    @unique // 顧客ID
-  billing_type   String    @db.VarChar(20) // individual, corporate, bank_transfer
-  bank_name      String    @db.VarChar(100)
-  branch_name    String    @db.VarChar(100)
-  account_type   String    @db.VarChar(20) // ordinary, current, savings
-  account_number String    @db.VarChar(20)
-  account_holder String    @db.VarChar(100)
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
+  id             String      @id @default(uuid()) @map("billing_info_id")
+  customer_id    String      @unique // 顧客ID
+  billing_type   BillingType // 請求先タイプ
+  bank_name      String      @db.VarChar(100)
+  branch_name    String      @db.VarChar(100)
+  account_type   AccountType // 口座種別
+  account_number String      @db.VarChar(20)
+  account_holder String      @db.VarChar(100)
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
   deleted_at     DateTime?
 
   // Relations
-  Customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
 
   @@index([customer_id])
   @@map("billing_infos")
@@ -383,22 +433,22 @@ model BillingInfo {
 
 // 合祀情報（複数の故人を一つの区画に祀る管理）
 model CollectiveBurial {
-  id                     String    @id @default(uuid()) @map("collective_burial_id")
-  contract_plot_id       String    @unique // 契約区画ID
+  id                     String        @id @default(uuid()) @map("collective_burial_id")
+  contract_plot_id       String        @unique // 契約区画ID（1対1リレーション）
   burial_capacity        Int // 埋葬上限人数
-  current_burial_count   Int       @default(0) // 現在埋葬人数（BuriedPersonsから自動集計）
-  capacity_reached_date  DateTime? @db.Date // 上限到達日
+  current_burial_count   Int           @default(0) // 現在埋葬人数（BuriedPersonsから自動集計）
+  capacity_reached_date  DateTime?     @db.Date // 上限到達日
   validity_period_years  Int // 有効期間（年単位）
-  billing_scheduled_date DateTime? @db.Date // 請求予定日（上限到達日 + 有効期間）
-  billing_status         String    @default("pending") @db.VarChar(20) // pending, billed, paid
-  billing_amount         Decimal?  @db.Decimal(15, 2) // 請求金額
-  notes                  String?   @db.Text // 備考
-  created_at             DateTime  @default(now())
-  updated_at             DateTime  @updatedAt
+  billing_scheduled_date DateTime?     @db.Date // 請求予定日（上限到達日 + 有効期間）
+  billing_status         BillingStatus @default(pending) // 請求ステータス
+  billing_amount         Decimal?      @db.Decimal(15, 2) // 請求金額
+  notes                  String?       @db.Text // 備考
+  created_at             DateTime      @default(now())
+  updated_at             DateTime      @updatedAt
   deleted_at             DateTime?
 
   // Relations
-  ContractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
+  contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
 
   @@index([contract_plot_id])
   @@index([billing_status])
@@ -408,23 +458,23 @@ model CollectiveBurial {
 
 // 更新履歴テーブル
 model History {
-  id               String   @id @default(uuid()) @map("history_id")
-  entity_type      String   @db.VarChar(50) // テーブル名: PhysicalPlot, ContractPlot, Customer など
-  entity_id        String   @db.VarChar(32) // 対象レコードのID
+  id               String     @id @default(uuid()) @map("history_id")
+  entity_type      String     @db.VarChar(50) // テーブル名: PhysicalPlot, ContractPlot, Customer など
+  entity_id        String     @db.VarChar(32) // 対象レコードのID
   physical_plot_id String? // 関連する物理区画ID（検索用）
   contract_plot_id String? // 関連する契約区画ID（検索用）
-  action_type      String   @db.VarChar(20) // CREATE, UPDATE, DELETE
+  action_type      ActionType // アクションタイプ
   before_record    Json? // 変更前のレコード全体（JSON形式）
   after_record     Json? // 変更後のレコード全体（JSON形式）
   changed_fields   Json? // 変更されたフィールド名のリスト例: ["plot_number", "section"]
-  changed_by       String?  @db.VarChar(100) // 変更者（Staff IDまたは名前）
-  change_reason    String?  @db.VarChar(200) // 変更理由
-  ip_address       String?  @db.VarChar(50) // 変更元IPアドレス
-  created_at       DateTime @default(now())
+  changed_by       String?    @db.VarChar(100) // 変更者（Staff IDまたは名前）
+  change_reason    String?    @db.VarChar(200) // 変更理由
+  ip_address       String?    @db.VarChar(50) // 変更元IPアドレス
+  created_at       DateTime   @default(now())
 
   // Relations
-  PhysicalPlot PhysicalPlot? @relation(fields: [physical_plot_id], references: [id], onDelete: SetNull)
-  ContractPlot ContractPlot? @relation(fields: [contract_plot_id], references: [id], onDelete: SetNull)
+  physicalPlot PhysicalPlot? @relation(fields: [physical_plot_id], references: [id], onDelete: SetNull)
+  contractPlot ContractPlot? @relation(fields: [contract_plot_id], references: [id], onDelete: SetNull)
 
   @@index([entity_type, entity_id])
   @@index([physical_plot_id])
@@ -439,7 +489,7 @@ model Staff {
   supabase_uid  String    @unique @db.VarChar(255) // Supabase User IDとの紐付け
   name          String    @db.VarChar(100)
   email         String    @unique @db.VarChar(254) // メールアドレス（RFC 5321準拠）
-  role          String    @default("viewer") @db.VarChar(20) // viewer, operator, manager, admin
+  role          StaffRole @default(viewer) // スタッフ権限
   is_active     Boolean   @default(true)
   last_login_at DateTime?
   created_at    DateTime  @default(now())

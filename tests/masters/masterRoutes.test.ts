@@ -7,17 +7,8 @@ import * as permissionMiddleware from '../../src/middleware/permission';
 
 // コントローラーのモック
 jest.mock('../../src/masters/masterController', () => ({
-  getUsageStatusMaster: jest.fn((req, res) =>
-    res.status(200).json({ success: true, controller: 'getUsageStatusMaster' })
-  ),
   getCemeteryTypeMaster: jest.fn((req, res) =>
     res.status(200).json({ success: true, controller: 'getCemeteryTypeMaster' })
-  ),
-  getDenominationMaster: jest.fn((req, res) =>
-    res.status(200).json({ success: true, controller: 'getDenominationMaster' })
-  ),
-  getGenderMaster: jest.fn((req, res) =>
-    res.status(200).json({ success: true, controller: 'getGenderMaster' })
   ),
   getPaymentMethodMaster: jest.fn((req, res) =>
     res.status(200).json({ success: true, controller: 'getPaymentMethodMaster' })
@@ -37,17 +28,8 @@ jest.mock('../../src/masters/masterController', () => ({
   getRecipientTypeMaster: jest.fn((req, res) =>
     res.status(200).json({ success: true, controller: 'getRecipientTypeMaster' })
   ),
-  getRelationMaster: jest.fn((req, res) =>
-    res.status(200).json({ success: true, controller: 'getRelationMaster' })
-  ),
   getConstructionTypeMaster: jest.fn((req, res) =>
     res.status(200).json({ success: true, controller: 'getConstructionTypeMaster' })
-  ),
-  getUpdateTypeMaster: jest.fn((req, res) =>
-    res.status(200).json({ success: true, controller: 'getUpdateTypeMaster' })
-  ),
-  getPrefectureMaster: jest.fn((req, res) =>
-    res.status(200).json({ success: true, controller: 'getPrefectureMaster' })
   ),
   getAllMasters: jest.fn((req, res) =>
     res.status(200).json({ success: true, controller: 'getAllMasters' })
@@ -91,20 +73,6 @@ describe('Master Routes', () => {
     });
   });
 
-  describe('GET /api/v1/masters/usage-status', () => {
-    it('should handle getUsageStatusMaster request', async () => {
-      const response = await request(app)
-        .get('/api/v1/masters/usage-status')
-        .set('Authorization', 'Bearer token');
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.controller).toBe('getUsageStatusMaster');
-      expect(mockMasterController.getUsageStatusMaster).toHaveBeenCalledTimes(1);
-      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
-    });
-  });
-
   describe('GET /api/v1/masters/cemetery-type', () => {
     it('should handle getCemeteryTypeMaster request', async () => {
       const response = await request(app)
@@ -115,34 +83,6 @@ describe('Master Routes', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.controller).toBe('getCemeteryTypeMaster');
       expect(mockMasterController.getCemeteryTypeMaster).toHaveBeenCalledTimes(1);
-      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
-    });
-  });
-
-  describe('GET /api/v1/masters/denomination', () => {
-    it('should handle getDenominationMaster request', async () => {
-      const response = await request(app)
-        .get('/api/v1/masters/denomination')
-        .set('Authorization', 'Bearer token');
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.controller).toBe('getDenominationMaster');
-      expect(mockMasterController.getDenominationMaster).toHaveBeenCalledTimes(1);
-      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
-    });
-  });
-
-  describe('GET /api/v1/masters/gender', () => {
-    it('should handle getGenderMaster request', async () => {
-      const response = await request(app)
-        .get('/api/v1/masters/gender')
-        .set('Authorization', 'Bearer token');
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.controller).toBe('getGenderMaster');
-      expect(mockMasterController.getGenderMaster).toHaveBeenCalledTimes(1);
       expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
     });
   });
@@ -231,20 +171,6 @@ describe('Master Routes', () => {
     });
   });
 
-  describe('GET /api/v1/masters/relation', () => {
-    it('should handle getRelationMaster request', async () => {
-      const response = await request(app)
-        .get('/api/v1/masters/relation')
-        .set('Authorization', 'Bearer token');
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.controller).toBe('getRelationMaster');
-      expect(mockMasterController.getRelationMaster).toHaveBeenCalledTimes(1);
-      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
-    });
-  });
-
   describe('GET /api/v1/masters/construction-type', () => {
     it('should handle getConstructionTypeMaster request', async () => {
       const response = await request(app)
@@ -255,34 +181,6 @@ describe('Master Routes', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.controller).toBe('getConstructionTypeMaster');
       expect(mockMasterController.getConstructionTypeMaster).toHaveBeenCalledTimes(1);
-      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
-    });
-  });
-
-  describe('GET /api/v1/masters/update-type', () => {
-    it('should handle getUpdateTypeMaster request', async () => {
-      const response = await request(app)
-        .get('/api/v1/masters/update-type')
-        .set('Authorization', 'Bearer token');
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.controller).toBe('getUpdateTypeMaster');
-      expect(mockMasterController.getUpdateTypeMaster).toHaveBeenCalledTimes(1);
-      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
-    });
-  });
-
-  describe('GET /api/v1/masters/prefecture', () => {
-    it('should handle getPrefectureMaster request', async () => {
-      const response = await request(app)
-        .get('/api/v1/masters/prefecture')
-        .set('Authorization', 'Bearer token');
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.controller).toBe('getPrefectureMaster');
-      expect(mockMasterController.getPrefectureMaster).toHaveBeenCalledTimes(1);
       expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
     });
   });

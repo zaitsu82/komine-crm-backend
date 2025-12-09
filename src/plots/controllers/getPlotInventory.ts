@@ -22,15 +22,15 @@ export const getPlotInventory = async (req: Request, res: Response): Promise<any
     const physicalPlot = await prisma.physicalPlot.findUnique({
       where: { id, deleted_at: null },
       include: {
-        ContractPlots: {
+        contractPlots: {
           where: { deleted_at: null },
           select: {
             id: true,
             contract_area_sqm: true,
-            SaleContractRoles: {
-              where: { deleted_at: null, is_primary: true },
+            saleContractRoles: {
+              where: { deleted_at: null, role: 'contractor' },
               select: {
-                Customer: {
+                customer: {
                   select: {
                     name: true,
                   },
@@ -54,7 +54,7 @@ export const getPlotInventory = async (req: Request, res: Response): Promise<any
 
     // 在庫計算
     const totalArea = physicalPlot.area_sqm.toNumber();
-    const allocatedArea = physicalPlot.ContractPlots.reduce(
+    const allocatedArea = physicalPlot.contractPlots.reduce(
       (sum, contract) => sum + contract.contract_area_sqm.toNumber(),
       0
     );
@@ -87,10 +87,10 @@ export const getPlotInventory = async (req: Request, res: Response): Promise<any
           utilizationRate: Math.round(utilizationRate * 100) / 100,
           status: inventoryStatus,
         },
-        contracts: physicalPlot.ContractPlots.map((contract) => {
-          // 主契約者を取得（is_primary=true）
-          const primaryRole = contract.SaleContractRoles?.[0];
-          const primaryCustomer = primaryRole?.Customer;
+        contracts: physicalPlot.contractPlots.map((contract) => {
+          // 主契約者を取得（role='contractor'）
+          const primaryRole = contract.saleContractRoles?.[0];
+          const primaryCustomer = primaryRole?.customer;
 
           return {
             id: contract.id,

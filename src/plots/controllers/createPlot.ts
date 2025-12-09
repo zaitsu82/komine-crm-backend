@@ -7,7 +7,7 @@
  */
 
 import { Request, Response } from 'express';
-import { PrismaClient, Prisma, PaymentStatus } from '@prisma/client';
+import { PrismaClient, Prisma, PaymentStatus, ContractRole } from '@prisma/client';
 import { CreateContractPlotInput } from '../../type';
 import { validateContractArea, updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
 
@@ -164,7 +164,6 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
               contract_plot_id: contractPlot.id, // sale_contract_id → contract_plot_idに変更
               customer_id: roleData.customerId || customer.id, // 指定がなければ作成した顧客を使用
               role: roleData.role,
-              is_primary: roleData.isPrimary ?? false,
               role_start_date: roleData.roleStartDate ? new Date(roleData.roleStartDate) : null,
               role_end_date: roleData.roleEndDate ? new Date(roleData.roleEndDate) : null,
               notes: roleData.notes || null,
@@ -177,8 +176,7 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
           data: {
             contract_plot_id: contractPlot.id, // sale_contract_id → contract_plot_idに変更
             customer_id: customer.id,
-            role: input.saleContract.customerRole || 'contractor',
-            is_primary: true, // デフォルトで主役割とする
+            role: (input.saleContract.customerRole as ContractRole) || ContractRole.contractor,
           },
         });
       }
@@ -233,26 +231,26 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
     const createdContractPlot = await prisma.contractPlot.findUnique({
       where: { id: result.contractPlot.id },
       include: {
-        PhysicalPlot: true,
-        SaleContractRoles: {
+        physicalPlot: true,
+        saleContractRoles: {
           where: { deleted_at: null },
           include: {
-            Customer: {
+            customer: {
               include: {
-                WorkInfo: true,
-                BillingInfo: true,
+                workInfo: true,
+                billingInfo: true,
               },
             },
           },
         },
-        UsageFee: true,
-        ManagementFee: true,
+        usageFee: true,
+        managementFee: true,
       },
     });
 
-    // 主契約者（is_primary=true）を取得（後方互換性のため）
-    const primaryRole = createdContractPlot?.SaleContractRoles?.find((role) => role.is_primary);
-    const primaryCustomer = primaryRole?.Customer;
+    // 最初の役割を取得（後方互換性のため）
+    const firstRole = createdContractPlot?.saleContractRoles?.[0];
+    const firstCustomer = firstRole?.customer;
 
     res.status(201).json({
       success: true,
@@ -272,39 +270,38 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
         notes: createdContractPlot?.notes,
 
         physicalPlot: {
-          id: createdContractPlot?.PhysicalPlot.id,
-          plotNumber: createdContractPlot?.PhysicalPlot.plot_number,
-          areaName: createdContractPlot?.PhysicalPlot.area_name,
-          areaSqm: createdContractPlot?.PhysicalPlot.area_sqm.toNumber(),
-          status: createdContractPlot?.PhysicalPlot.status,
+          id: createdContractPlot?.physicalPlot.id,
+          plotNumber: createdContractPlot?.physicalPlot.plot_number,
+          areaName: createdContractPlot?.physicalPlot.area_name,
+          areaSqm: createdContractPlot?.physicalPlot.area_sqm.toNumber(),
+          status: createdContractPlot?.physicalPlot.status,
         },
 
-        // 後方互換性: 主契約者の情報
-        primaryCustomer: primaryCustomer
+        // 後方互換性: 最初の顧客の情報
+        primaryCustomer: firstCustomer
           ? {
-              id: primaryCustomer.id,
-              name: primaryCustomer.name,
-              nameKana: primaryCustomer.name_kana,
-              phoneNumber: primaryCustomer.phone_number,
-              address: primaryCustomer.address,
-              role: primaryRole?.role,
+              id: firstCustomer.id,
+              name: firstCustomer.name,
+              nameKana: firstCustomer.name_kana,
+              phoneNumber: firstCustomer.phone_number,
+              address: firstCustomer.address,
+              role: firstRole?.role,
             }
           : null,
 
         // 全ての役割と顧客情報
-        roles: createdContractPlot?.SaleContractRoles?.map((role) => ({
+        roles: createdContractPlot?.saleContractRoles?.map((role) => ({
           id: role.id,
           role: role.role,
-          isPrimary: role.is_primary,
           roleStartDate: role.role_start_date,
           roleEndDate: role.role_end_date,
           notes: role.notes,
           customer: {
-            id: role.Customer.id,
-            name: role.Customer.name,
-            nameKana: role.Customer.name_kana,
-            phoneNumber: role.Customer.phone_number,
-            address: role.Customer.address,
+            id: role.customer.id,
+            name: role.customer.name,
+            nameKana: role.customer.name_kana,
+            phoneNumber: role.customer.phone_number,
+            address: role.customer.address,
           },
         })),
 

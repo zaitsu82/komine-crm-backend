@@ -24,20 +24,20 @@ export const deletePlot = async (req: Request, res: Response): Promise<any> => {
     const contractPlot = await prisma.contractPlot.findUnique({
       where: { id, deleted_at: null },
       include: {
-        PhysicalPlot: true,
-        SaleContractRoles: {
+        physicalPlot: true,
+        saleContractRoles: {
           where: { deleted_at: null },
           include: {
-            Customer: {
+            customer: {
               include: {
-                WorkInfo: true,
-                BillingInfo: true,
+                workInfo: true,
+                billingInfo: true,
               },
             },
           },
         },
-        UsageFee: true,
-        ManagementFee: true,
+        usageFee: true,
+        managementFee: true,
       },
     });
 
@@ -63,39 +63,39 @@ export const deletePlot = async (req: Request, res: Response): Promise<any> => {
       });
 
       // 2. UsageFeeを論理削除
-      if (contractPlot.UsageFee) {
+      if (contractPlot.usageFee) {
         await tx.usageFee.update({
-          where: { id: contractPlot.UsageFee.id },
+          where: { id: contractPlot.usageFee.id },
           data: { deleted_at: now },
         });
       }
 
       // 3. ManagementFeeを論理削除
-      if (contractPlot.ManagementFee) {
+      if (contractPlot.managementFee) {
         await tx.managementFee.update({
-          where: { id: contractPlot.ManagementFee.id },
+          where: { id: contractPlot.managementFee.id },
           data: { deleted_at: now },
         });
       }
 
       // 4-6. 各顧客のWorkInfo、BillingInfo、Customerを論理削除
-      // 注: SaleContractRolesを通じて顧客にアクセス
-      if (contractPlot.SaleContractRoles) {
-        for (const role of contractPlot.SaleContractRoles) {
-          const customer = role.Customer;
+      // 注: saleContractRolesを通じて顧客にアクセス
+      if (contractPlot.saleContractRoles) {
+        for (const role of contractPlot.saleContractRoles) {
+          const customer = role.customer;
 
           // WorkInfoを論理削除（存在する場合）
-          if (customer.WorkInfo) {
+          if (customer.workInfo) {
             await tx.workInfo.update({
-              where: { id: customer.WorkInfo.id },
+              where: { id: customer.workInfo.id },
               data: { deleted_at: now },
             });
           }
 
           // BillingInfoを論理削除（存在する場合）
-          if (customer.BillingInfo) {
+          if (customer.billingInfo) {
             await tx.billingInfo.update({
-              where: { id: customer.BillingInfo.id },
+              where: { id: customer.billingInfo.id },
               data: { deleted_at: now },
             });
           }

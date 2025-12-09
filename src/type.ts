@@ -2,7 +2,16 @@
 // 型定義ファイル - Cemetery CRM System
 // =============================================================================
 
-import { PaymentStatus, Gender, ContractRole } from '@prisma/client';
+import {
+  PaymentStatus,
+  Gender,
+  ContractRole,
+  AddressType,
+  DmSetting,
+  BillingType,
+  AccountType,
+  BillingStatus,
+} from '@prisma/client';
 
 // 合祀情報（複数の故人を一つの区画に祀る管理）
 export interface CollectiveBurialInfo {
@@ -13,7 +22,7 @@ export interface CollectiveBurialInfo {
   capacityReachedDate: Date | null; // 上限到達日
   validityPeriodYears: number; // 有効期間（年単位）
   billingScheduledDate: Date | null; // 請求予定日（上限到達日 + 有効期間）
-  billingStatus: 'pending' | 'billed' | 'paid'; // 請求状況
+  billingStatus: BillingStatus; // 請求ステータス
   billingAmount: number | null; // 請求金額
   notes: string | null; // 備考
   createdAt: Date; // 作成日時
@@ -97,7 +106,6 @@ export interface SaleContractInfo {
 export interface SaleContractRoleInput {
   customerId?: string; // 顧客ID（指定しない場合は作成された顧客を使用）
   role: ContractRole; // 顧客の役割 *必須
-  isPrimary?: boolean; // 主契約者かどうか（デフォルト: false）
   roleStartDate?: Date | string | null; // 役割開始日
   roleEndDate?: Date | string | null; // 役割終了日
   notes?: string | null; // 備考
@@ -106,7 +114,7 @@ export interface SaleContractRoleInput {
 export interface CreateSaleContractInput {
   contractPlotId: string; // 契約区画ID *必須
   customerId: string; // 顧客ID *必須
-  customerRole: 'applicant' | 'contractor' | 'heir'; // 顧客の役割 *必須
+  customerRole: ContractRole; // 顧客の役割 *必須
   contractDate: Date | string; // 契約日 *必須
   price: number; // 販売価格 *必須
   paymentStatus?: 'unpaid' | 'partial' | 'paid'; // 支払い状況（デフォルト: unpaid）
@@ -119,7 +127,7 @@ export interface CreateSaleContractInput {
 
 export interface UpdateSaleContractInput {
   customerId?: string; // 顧客ID
-  customerRole?: 'applicant' | 'contractor' | 'heir'; // 顧客の役割
+  customerRole?: ContractRole; // 顧客の役割
   contractDate?: Date | string; // 契約日
   price?: number; // 販売価格
   paymentStatus?: 'unpaid' | 'partial' | 'paid'; // 支払い状況
@@ -487,17 +495,17 @@ export interface CreateContractPlotInput {
     workPostalCode: string; // 勤務先郵便番号
     workAddress: string; // 勤務先住所
     workPhoneNumber: string; // 勤務先電話番号
-    dmSetting: string; // DM設定
-    addressType: string; // 住所区分
+    dmSetting: DmSetting; // DM設定
+    addressType: AddressType; // 住所区分
     notes?: string; // 備考
   };
 
   // 請求情報（任意）
   billingInfo?: {
-    billingType: string; // 請求区分
+    billingType: BillingType; // 請求区分
     bankName: string; // 銀行名
     branchName: string; // 支店名
-    accountType: string; // 口座種別
+    accountType: AccountType; // 口座種別
     accountNumber: string; // 口座番号
     accountHolder: string; // 口座名義
   };
@@ -574,17 +582,17 @@ export interface UpdateContractPlotInput {
     workPostalCode?: string;
     workAddress?: string;
     workPhoneNumber?: string;
-    dmSetting?: string;
-    addressType?: string;
+    dmSetting?: DmSetting;
+    addressType?: AddressType;
     notes?: string;
   } | null;
 
   // 請求情報（オプション - null指定で削除）
   billingInfo?: {
-    billingType?: string;
+    billingType?: BillingType;
     bankName?: string;
     branchName?: string;
-    accountType?: string;
+    accountType?: AccountType;
     accountNumber?: string;
     accountHolder?: string;
   } | null;
