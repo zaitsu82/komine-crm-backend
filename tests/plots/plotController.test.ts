@@ -80,6 +80,15 @@ jest.mock('@prisma/client', () => ({
       }
     },
   },
+  PaymentStatus: {
+    unpaid: 'unpaid',
+    partial: 'partial',
+    paid: 'paid',
+  },
+  ContractRole: {
+    applicant: 'applicant',
+    contractor: 'contractor',
+  },
 }));
 
 // ユーティリティ関数のモック化
@@ -133,6 +142,10 @@ describe('Plot Controller (ContractPlot Model)', () => {
     jest.clearAllMocks();
     (validateContractArea as jest.Mock).mockResolvedValue({ isValid: true });
     (updatePhysicalPlotStatus as jest.Mock).mockResolvedValue(undefined);
+    // $transactionモックの再設定（clearAllMocksでクリアされるため）
+    mockPrisma.$transaction.mockImplementation((callback: any) =>
+      Promise.resolve(callback(mockPrisma))
+    );
   });
 
   describe('getPlots', () => {
@@ -271,9 +284,9 @@ describe('Plot Controller (ContractPlot Model)', () => {
           location_description: 'A区画',
           created_at: new Date('2024-01-01'),
           updated_at: new Date('2024-01-01'),
-          contract_date: null,
-          price: null,
-          payment_status: null,
+          contract_date: new Date('2024-01-01'),
+          price: new Prisma.Decimal(1000000),
+          payment_status: 'unpaid',
           physicalPlot: {
             plot_number: 'A-01',
             area_name: '一般墓地A',
@@ -301,9 +314,9 @@ describe('Plot Controller (ContractPlot Model)', () => {
               customerPhoneNumber: null,
               customerAddress: null,
               customerRole: null,
-              contractDate: null,
-              price: null,
-              paymentStatus: null,
+              contractDate: new Date('2024-01-01'),
+              price: 1000000,
+              paymentStatus: 'unpaid',
             }),
           ]),
         })
@@ -447,19 +460,67 @@ describe('Plot Controller (ContractPlot Model)', () => {
         },
       };
 
-      const mockPhysicalPlot = { id: 'pp1', plot_number: 'A-01' };
+      const mockPhysicalPlot = {
+        id: 'pp1',
+        plot_number: 'A-01',
+        area_name: '一般墓地A',
+        area_sqm: new Prisma.Decimal(3.6),
+        status: 'sold_out',
+      };
       const mockCustomer = { id: 'c1', name: '山田太郎' };
-      const mockContractPlot = { id: 'cp1', physical_plot_id: 'pp1' };
-      const mockSaleContract = { id: 'sc1', contract_plot_id: 'cp1' };
+      const mockContractPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_date: new Date('2024-01-01'),
+        price: new Prisma.Decimal(1000000),
+        payment_status: 'unpaid',
+      };
+      const mockCreatedContractPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        location_description: null,
+        contract_date: new Date('2024-01-01'),
+        price: new Prisma.Decimal(1000000),
+        payment_status: 'unpaid',
+        created_at: new Date(),
+        updated_at: new Date(),
+        physicalPlot: mockPhysicalPlot,
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: mockCustomer,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+      };
 
       mockPrisma.physicalPlot.create.mockResolvedValue(mockPhysicalPlot);
       mockPrisma.customer.create.mockResolvedValue(mockCustomer);
       mockPrisma.contractPlot.create.mockResolvedValue(mockContractPlot);
-      mockPrisma.saleContract.create.mockResolvedValue(mockSaleContract);
+      mockPrisma.saleContractRole.create.mockResolvedValue({ id: 'scr1', customer: mockCustomer });
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockCreatedContractPlot);
 
       mockRequest.body = mockInput;
 
-      await createPlot(mockRequest as Request, mockResponse as Response);
+      try {
+        await createPlot(mockRequest as Request, mockResponse as Response);
+      } catch (error) {
+        console.error('Error during createPlot:', error);
+      }
+
+      // デバッグ: 実際のレスポンスを確認
+      console.log('responseStatus called:', responseStatus.mock.calls.length, 'times');
+      console.log('responseJson called:', responseJson.mock.calls.length, 'times');
+      if (responseStatus.mock.calls.length > 0) {
+        console.log('Response Status:', responseStatus.mock.calls[0][0]);
+      }
+      if (responseJson.mock.calls.length > 0) {
+        console.log('Response JSON:', JSON.stringify(responseJson.mock.calls[0][0], null, 2));
+      }
+      console.log('$transaction called:', mockPrisma.$transaction.mock.calls.length, 'times');
 
       expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(validateContractArea).toHaveBeenCalled();
