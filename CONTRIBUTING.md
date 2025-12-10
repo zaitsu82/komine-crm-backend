@@ -543,8 +543,7 @@ prismaMock.plot.create.mockResolvedValue(mockPlot);
 1. **README.md** - プロジェクト概要、セットアップ手順
 2. **CLAUDE.md** - 開発ガイドライン、アーキテクチャ
 3. **swagger.yaml** - API仕様書
-4. **CHANGELOG.md** - 変更履歴
-5. **関連ドキュメント** - DOCKER_SETUP.md, PRODUCTION_SETUP.md等
+4. **関連ドキュメント** - DOCKER_SETUP.md, PRODUCTION_SETUP.md等
 
 ### API仕様書の更新
 
