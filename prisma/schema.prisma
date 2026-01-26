@@ -100,7 +100,7 @@ enum StaffRole {
 model PhysicalPlot {
   id          String             @id @default(uuid()) @map("physical_plot_id")
   plot_number String             @unique @db.VarChar(50) // 区画番号（例: A-56）
-  area_name   String             @db.VarChar(100) // 区域名（例: 第一区域、芝生区画）
+  area_name   String             @db.VarChar(100) // 区画（期）（例: 1期、2期）
   area_sqm    Decimal            @default(3.6) @db.Decimal(5, 2) // 区画の総面積（基本3.6㎡）
   status      PhysicalPlotStatus @default(available) // 区画ステータス
   notes       String?            @db.Text // 備考
@@ -130,11 +130,12 @@ model ContractPlot {
 
   // 販売契約情報
   contract_date     DateTime      @db.Date // 契約日
-  price             Decimal       @db.Decimal(15, 2) // 販売価格
+  price             Int // 販売価格（円単位）
   payment_status    PaymentStatus @default(unpaid) // 支払いステータス
   reservation_date  DateTime?     @db.Date // 予約日
-  acceptance_number String?       @db.VarChar(50) // 受付番号
+  acceptance_number String?       @db.VarChar(50) // 受付番号（承諾書番号）
   permit_date       DateTime?     @db.Date // 許可日
+  permit_number     String?       @db.VarChar(50) // 許可番号
   start_date        DateTime?     @db.Date // 開始日
   notes             String?       @db.Text // 契約に関する備考
 
@@ -302,11 +303,11 @@ model ConstructionInfo {
   // 工事詳細
   work_item_1       String?   @db.VarChar(100) // 工事項目1
   work_date_1       DateTime? @db.Date // 実施日1
-  work_amount_1     Decimal?  @db.Decimal(15, 2) // 金額1
+  work_amount_1     Int? // 金額1（円単位）
   work_status_1     String?   @db.VarChar(50) // 状況1
   work_item_2       String?   @db.VarChar(100) // 工事項目2
   work_date_2       DateTime? @db.Date // 予定日2
-  work_amount_2     Decimal?  @db.Decimal(15, 2) // 金額2
+  work_amount_2     Int? // 金額2（円単位）
   work_status_2     String?   @db.VarChar(50) // 状況2
   // 許可・申請状況
   permit_number     String?   @db.VarChar(50) // 工事許可番号
@@ -315,11 +316,11 @@ model ConstructionInfo {
   permit_status     String?   @db.VarChar(50) // 許可状況
   // 工事代金支払状況
   payment_type_1    String?   @db.VarChar(50) // 支払区分1
-  payment_amount_1  Decimal?  @db.Decimal(15, 2) // 金額1
+  payment_amount_1  Int? // 金額1（円単位）
   payment_date_1    DateTime? @db.Date // 支払日1
   payment_status_1  String?   @db.VarChar(50) // 状況1
   payment_type_2    String?   @db.VarChar(50) // 支払区分2
-  payment_amount_2  Decimal?  @db.Decimal(15, 2) // 金額2
+  payment_amount_2  Int? // 金額2（円単位）
   payment_date_2    DateTime? @db.Date // 支払日2
   payment_status_2  String?   @db.VarChar(50) // 状況2
   // 工事備考
@@ -344,6 +345,7 @@ model FamilyContact {
   name                   String       @db.VarChar(100)
   birth_date             DateTime?    @db.Date
   relationship           String       @db.VarChar(50)
+  postal_code            String?      @db.VarChar(7) // 郵便番号
   address                String       @db.VarChar(200)
   phone_number           String       @db.VarChar(11)
   fax_number             String?      @db.VarChar(11)
@@ -441,7 +443,7 @@ model CollectiveBurial {
   validity_period_years  Int // 有効期間（年単位）
   billing_scheduled_date DateTime?     @db.Date // 請求予定日（上限到達日 + 有効期間）
   billing_status         BillingStatus @default(pending) // 請求ステータス
-  billing_amount         Decimal?      @db.Decimal(15, 2) // 請求金額
+  billing_amount         Int? // 請求金額（円単位）
   notes                  String?       @db.Text // 備考
   created_at             DateTime      @default(now())
   updated_at             DateTime      @updatedAt

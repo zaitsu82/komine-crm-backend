@@ -82,7 +82,7 @@ export function buildContractPlotDetailResponse(contractPlot: any) {
 
     // 販売契約情報（ContractPlotに統合済み）
     contractDate: contractPlot.contract_date,
-    price: contractPlot.price.toNumber(),
+    price: contractPlot.price,
     paymentStatus: contractPlot.payment_status,
     reservationDate: contractPlot.reservation_date,
     acceptanceNumber: contractPlot.acceptance_number,
@@ -283,7 +283,7 @@ export function buildContractPlotSummaryResponse(contractPlot: any) {
 
     // 販売契約情報（ContractPlotに統合済み）
     contractDate: contractPlot.contract_date,
-    price: contractPlot.price.toNumber(),
+    price: contractPlot.price,
     paymentStatus: contractPlot.payment_status,
 
     // 後方互換性のため、主契約者の情報を設定

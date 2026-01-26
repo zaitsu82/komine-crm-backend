@@ -97,7 +97,7 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
 
       // 販売契約情報（ContractPlotに統合済み）
       contractDate: contractPlot.contract_date,
-      price: contractPlot.price.toNumber(),
+      price: contractPlot.price,
       paymentStatus: contractPlot.payment_status,
       reservationDate: contractPlot.reservation_date,
       acceptanceNumber: contractPlot.acceptance_number,

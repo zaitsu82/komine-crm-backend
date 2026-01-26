@@ -438,7 +438,7 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
 
         // 販売契約情報（ContractPlotに統合済み）
         contractDate: updatedContractPlot?.contract_date,
-        price: updatedContractPlot?.price.toNumber(),
+        price: updatedContractPlot?.price,
         paymentStatus: updatedContractPlot?.payment_status,
         reservationDate: updatedContractPlot?.reservation_date,
         acceptanceNumber: updatedContractPlot?.acceptance_number,

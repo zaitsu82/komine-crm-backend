@@ -71,7 +71,7 @@ export const getPlotContracts = async (req: Request, res: Response): Promise<any
           : null,
         // 販売契約情報（ContractPlotに統合済み）
         contractDate: contract.contract_date,
-        price: contract.price.toNumber(),
+        price: contract.price,
         paymentStatus: contract.payment_status,
         createdAt: contract.created_at,
       };

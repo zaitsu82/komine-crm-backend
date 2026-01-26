@@ -48,7 +48,7 @@ paths:
                   format: password
                   example: password123
       responses:
-        '200':
+        "200":
           description: ログイン成功
           content:
             application/json:
@@ -62,7 +62,7 @@ paths:
                     type: object
                     properties:
                       user:
-                        $ref: '#/components/schemas/StaffPublic'
+                        $ref: "#/components/schemas/StaffPublic"
                       session:
                         type: object
                         properties:
@@ -74,13 +74,10 @@ paths:
                             type: integer
                             description: トークンの有効期限（UNIXタイムスタンプ）
                             example: 1704067200
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-
-# PlotエンドポイントのPath定義（ContractPlotモデル対応）
-# この内容をswagger.yamlの /api/v1/plots セクションに置き換える
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /api/v1/plots:
     get:
@@ -122,7 +119,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: 取得成功
           content:
             application/json:
@@ -135,11 +132,11 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/ContractPlotSummary'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+                      $ref: "#/components/schemas/ContractPlotSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
     post:
       tags:
@@ -153,9 +150,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreatePlotInput'
+              $ref: "#/components/schemas/CreatePlotInput"
       responses:
-        '201':
+        "201":
           description: 作成成功
           content:
             application/json:
@@ -175,14 +172,14 @@ paths:
                       message:
                         type: string
                         example: 契約区画を作成しました
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /api/v1/plots/{id}:
     get:
@@ -201,7 +198,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: 取得成功
           content:
             application/json:
@@ -212,13 +209,13 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/ContractPlotDetail'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/ContractPlotDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
     put:
       tags:
@@ -240,9 +237,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdatePlotInput'
+              $ref: "#/components/schemas/UpdatePlotInput"
       responses:
-        '200':
+        "200":
           description: 更新成功
           content:
             application/json:
@@ -261,14 +258,14 @@ paths:
                       message:
                         type: string
                         example: 契約区画を更新しました
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
     delete:
       tags:
@@ -286,7 +283,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: 削除成功
           content:
             application/json:
@@ -305,12 +302,12 @@ paths:
                       id:
                         type: string
                         format: uuid
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/plots/{id}/contracts:
     get:
@@ -329,7 +326,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: 取得成功
           content:
             application/json:
@@ -340,13 +337,13 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/PhysicalPlotContracts'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/PhysicalPlotContracts"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
     post:
       tags:
@@ -368,9 +365,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreatePlotContractInput'
+              $ref: "#/components/schemas/CreatePlotContractInput"
       responses:
-        '201':
+        "201":
           description: 作成成功
           content:
             application/json:
@@ -390,14 +387,14 @@ paths:
                       message:
                         type: string
                         example: 契約を作成しました
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/plots/{id}/inventory:
     get:
@@ -416,7 +413,7 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: 取得成功
           content:
             application/json:
@@ -427,13 +424,13 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/PhysicalPlotInventory'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/PhysicalPlotInventory"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/staff:
     get:
@@ -471,7 +468,7 @@ paths:
           schema:
             type: boolean
       responses:
-        '200':
+        "200":
           description: 取得成功
           content:
             application/json:
@@ -487,7 +484,7 @@ paths:
                       staff:
                         type: array
                         items:
-                          $ref: '#/components/schemas/StaffAdmin'
+                          $ref: "#/components/schemas/StaffAdmin"
                       pagination:
                         type: object
                         properties:
@@ -503,10 +500,10 @@ paths:
                           totalPages:
                             type: integer
                             example: 3
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
     post:
       tags:
@@ -525,9 +522,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateStaffRequest'
+              $ref: "#/components/schemas/CreateStaffRequest"
       responses:
-        '201':
+        "201":
           description: 作成成功
           content:
             application/json:
@@ -538,15 +535,15 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/StaffAdmin'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
+                    $ref: "#/components/schemas/StaffAdmin"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /api/v1/staff/{id}:
     get:
@@ -565,7 +562,7 @@ paths:
             type: integer
             example: 1
       responses:
-        '200':
+        "200":
           description: 取得成功
           content:
             application/json:
@@ -576,13 +573,13 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/StaffAdmin'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                    $ref: "#/components/schemas/StaffAdmin"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
     put:
       tags:
@@ -608,9 +605,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateStaffRequest'
+              $ref: "#/components/schemas/UpdateStaffRequest"
       responses:
-        '200':
+        "200":
           description: 更新成功
           content:
             application/json:
@@ -621,17 +618,17 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: '#/components/schemas/StaffAdmin'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
+                    $ref: "#/components/schemas/StaffAdmin"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
     delete:
       tags:
@@ -654,7 +651,7 @@ paths:
             type: integer
             example: 1
       responses:
-        '200':
+        "200":
           description: 削除成功
           content:
             application/json:
@@ -670,12 +667,12 @@ paths:
                       message:
                         type: string
                         example: スタッフを削除しました
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
 components:
   securitySchemes:
@@ -901,17 +898,35 @@ components:
           example: 山田太郎
         saleStatus:
           type: string
-          description: 販売ステータス
-          example: completed
+          description: 物理区画の契約状況（契約面積に基づいて計算）
+          enum: [fully_contracted, partially_contracted, available]
+          example: fully_contracted
         contractDate:
           type: string
           format: date
           description: 契約日
           example: "2024-01-01"
-        price:
+        phoneNumber:
+          type: string
+          description: 電話番号
+          example: "09012345678"
+        applicantName:
+          type: string
+          description: 申込者名
+          example: "山田花子"
+        currentBuriedPersons:
           type: number
-          description: 価格
-          example: 1000000
+          description: 現在埋葬人数
+          example: 2
+        nextBillingDate:
+          type: string
+          format: date
+          description: 次回請求日（使用料・管理料から計算）
+          example: "2024-01-01"
+        notes:
+          type: string
+          description: 備考
+          example: "🚨ご高齢のため、重要な説明は家族同席の上で行うこと。"
 
     ContractPlotDetail:
       type: object
@@ -921,6 +936,18 @@ components:
           type: string
           format: uuid
           description: 契約区画ID
+        plot_number:
+          type: string
+          description: 墓石コード（区画番号）
+          example: A-01
+        area_name:
+          type: string
+          description: 区域（期）
+          example: 1期
+        area_name_detail:
+          type: string
+          description: 区域（詳細）
+          example: 吉相
         contractAreaSqm:
           type: number
           format: float
@@ -929,70 +956,25 @@ components:
           type: string
           description: 販売ステータス
           nullable: true
-        locationDescription:
-          type: string
-          description: 位置説明
-          nullable: true
-        PhysicalPlot:
-          $ref: '#/components/schemas/PhysicalPlotInfo'
+        ApplicantInfo:
+          $ref: "#/components/schemas/ApplicantInfo"
         SaleContract:
-          $ref: '#/components/schemas/SaleContractInfo'
+          $ref: "#/components/schemas/SaleContractInfo"
         UsageFee:
-          $ref: '#/components/schemas/UsageFeeInfo'
+          $ref: "#/components/schemas/UsageFeeInfo"
           nullable: true
         ManagementFee:
-          $ref: '#/components/schemas/ManagementFeeInfo'
+          $ref: "#/components/schemas/ManagementFeeInfo"
           nullable: true
 
-    PhysicalPlotInfo:
+    ApplicantInfo:
       type: object
-      description: 物理区画情報
+      description: 申込者情報
       properties:
         id:
           type: string
           format: uuid
-        plotNumber:
-          type: string
-          description: 区画番号
-          example: A-01
-        areaName:
-          type: string
-          description: 区域名
-          example: 一般墓地A
-        areaSqm:
-          type: number
-          format: float
-          description: 面積（㎡）
-          example: 3.6
-        status:
-          type: string
-          description: 物理区画ステータス
-          enum: [available, partial, sold_out]
-          example: sold_out
-        notes:
-          type: string
-          nullable: true
-        BuriedPersons:
-          type: array
-          items:
-            $ref: '#/components/schemas/BuriedPersonInfo'
-        CollectiveBurials:
-          type: array
-          items:
-            $ref: '#/components/schemas/CollectiveBurialInfo'
-        FamilyContacts:
-          type: array
-          items:
-            $ref: '#/components/schemas/FamilyContactInfo'
-
-    SaleContractInfo:
-      type: object
-      description: 販売契約情報
-      properties:
-        id:
-          type: string
-          format: uuid
-        contractDate:
+        applicantDate:
           type: string
           format: date
           example: "2024-01-01"
@@ -1000,9 +982,6 @@ components:
           type: number
           example: 1000000
         paymentStatus:
-          type: string
-          nullable: true
-        customerRole:
           type: string
           nullable: true
         reservationDate:
@@ -1024,7 +1003,63 @@ components:
           type: string
           nullable: true
         Customer:
-          $ref: '#/components/schemas/CustomerInfo'
+          $ref: "#/components/schemas/CustomerInfo"
+
+    SaleContractInfo:
+      type: object
+      description: 販売契約情報
+      properties:
+        id:
+          type: string
+          format: uuid
+        contractDate:
+          type: string
+          format: date
+          description: 契約日
+          example: "2024-01-01"
+        price:
+          type: integer
+          description: 価格（円単位）
+          example: 1000000
+        paymentStatus:
+          type: string
+          description: 支払いステータス
+          nullable: true
+        reservationDate:
+          type: string
+          format: date
+          description: 予約日
+          nullable: true
+          example: "2024-01-01"
+        acceptanceNumber:
+          type: string
+          description: 承諾書番号
+          nullable: true
+          example: "AC-2024-0001"
+        permitDate:
+          type: string
+          format: date
+          description: 許可日
+          nullable: true
+          example: "2024-01-15"
+        permitNumber:
+          type: string
+          description: 許可番号
+          maxLength: 50
+          nullable: true
+          example: "KYO-2024-0001"
+        startDate:
+          type: string
+          format: date
+          description: 開始年月日
+          nullable: true
+          example: "2024-02-01"
+        notes:
+          type: string
+          description: 備考
+          nullable: true
+        Customer:
+          $ref: "#/components/schemas/CustomerInfo"
 
     CustomerInfo:
       type: object
@@ -1071,10 +1106,10 @@ components:
           type: string
           nullable: true
         WorkInfo:
-          $ref: '#/components/schemas/WorkInfoInfo'
+          $ref: "#/components/schemas/WorkInfoInfo"
           nullable: true
         BillingInfo:
-          $ref: '#/components/schemas/BillingInfoInfo'
+          $ref: "#/components/schemas/BillingInfoInfo"
           nullable: true
 
     WorkInfoInfo:
@@ -1422,7 +1457,8 @@ components:
         - physicalPlot
         - contractPlot
         - saleContract
-        - customer
+        - applicant
+        - contractor
       properties:
         physicalPlot:
           type: object
@@ -1434,14 +1470,19 @@ components:
             plotNumber:
               type: string
               description: 区画番号（大文字英数字とハイフンのみ）
-              pattern: '^[A-Z0-9-]+$'
+              pattern: "^[A-Z0-9-]+$"
               maxLength: 50
               example: A-01
             areaName:
               type: string
-              description: 区域名
+              description: 区画（期）
               maxLength: 100
-              example: 一般墓地A
+              example: 2期
+            areaNameDetail:
+              type: string
+              description: 区画（詳細）
+              maxLength: 100
+              example: "8"
             areaSqm:
               type: number
               format: float
@@ -1493,10 +1534,6 @@ components:
               type: string
               maxLength: 50
               nullable: true
-            customerRole:
-              type: string
-              maxLength: 50
-              nullable: true
             reservationDate:
               type: string
               format: date
@@ -1508,7 +1545,14 @@ components:
             permitDate:
               type: string
               format: date
+              description: 許可日
               nullable: true
+            permitNumber:
+              type: string
+              maxLength: 50
+              description: 許可番号
+              nullable: true
+              example: "KYO-2024-0001"
             startDate:
               type: string
               format: date
@@ -1517,8 +1561,60 @@ components:
               type: string
               maxLength: 1000
               nullable: true
-        customer:
+        applicant:
           type: object
+          description: 申込者情報
+          required:
+            - name
+            - nameKana
+            - postalCode
+            - address
+          properties:
+            applicationDate:
+              type: string
+              format: date
+              description: 申込日
+              nullable: true
+              example: "2024-01-01"
+            staffName:
+              type: string
+              description: 担当者氏名
+              maxLength: 100
+              nullable: true
+              example: 田中一郎
+            name:
+              type: string
+              description: 申込者氏名
+              minLength: 1
+              maxLength: 100
+              example: 山田花子
+            nameKana:
+              type: string
+              description: 申込者氏名カナ（カタカナのみ）
+              pattern: '^[ァ-ヶー\s]+$'
+              maxLength: 100
+              example: ヤマダハナコ
+            postalCode:
+              type: string
+              description: 郵便番号
+              minLength: 1
+              maxLength: 10
+              example: "150-0001"
+            phoneNumber:
+              type: string
+              description: 電話番号
+              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              nullable: true
+              example: "03-1234-5678"
+            address:
+              type: string
+              description: 住所
+              minLength: 1
+              maxLength: 200
+              example: 東京都渋谷区
+        contractor:
+          type: object
+          description: 契約者情報
           required:
             - name
             - nameKana
@@ -1527,22 +1623,25 @@ components:
           properties:
             name:
               type: string
-              description: 顧客名
+              description: 契約者氏名
               minLength: 1
               maxLength: 100
               example: 山田太郎
             nameKana:
               type: string
-              description: 顧客名カナ（カタカナのみ）
+              description: 契約者氏名カナ（カタカナのみ）
               pattern: '^[ァ-ヶー\s]+$'
               maxLength: 100
               example: ヤマダタロウ
             birthDate:
               type: string
               format: date
+              description: 生年月日
               nullable: true
+              example: "1980-01-01"
             gender:
               type: string
+              description: 性別
               enum: [male, female, other]
               nullable: true
             postalCode:
@@ -1559,44 +1658,90 @@ components:
               example: 東京都渋谷区
             registeredAddress:
               type: string
+              description: 本籍地住所
               maxLength: 200
               nullable: true
+              example: 東京都新宿区
             phoneNumber:
               type: string
+              description: 電話番号
               pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
               nullable: true
               example: "03-1234-5678"
             faxNumber:
               type: string
+              description: ファックス
               pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
               nullable: true
+              example: "03-1234-5679"
             email:
               type: string
+              description: メール
               format: email
               nullable: true
+              example: yamada@example.com
             notes:
               type: string
               maxLength: 1000
               nullable: true
         workInfo:
           type: object
+          description: 勤務先情報
           nullable: true
           properties:
+            companyName:
+              type: string
+              description: 勤務先名称
+              maxLength: 100
+              nullable: true
+              example: 株式会社サンプル
+            companyNameKana:
+              type: string
+              description: 勤務先仮名（カタカナのみ）
+              pattern: '^[ァ-ヶー\s]+$'
+              maxLength: 100
+              nullable: true
+              example: カブシキガイシャサンプル
             workPostalCode:
               type: string
+              description: 郵便番号
               maxLength: 10
               nullable: true
-            workAddress:
-              type: string
-              maxLength: 200
-              nullable: true
+              example: "150-0001"
             workPhoneNumber:
               type: string
+              description: 電話番号
               pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
               nullable: true
+              example: "03-1234-5678"
+            workAddress:
+              type: string
+              description: 勤務先住所
+              maxLength: 200
+              nullable: true
+              example: 東京都渋谷区
             workFaxNumber:
               type: string
+              description: ファックス
               pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              nullable: true
+              example: "03-1234-5679"
+            dmSetting:
+              type: string
+              description: DM送信設定
+              enum: [allow, deny, limited]
+              nullable: true
+              example: allow
+            addressType:
+              type: string
+              description: 宛先区分（連絡先タイプ）
+              enum: [home, work, other]
+              nullable: true
+              example: home
+            notes:
+              type: string
+              description: 備考
+              maxLength: 1000
               nullable: true
         billingInfo:
           type: object
@@ -1707,6 +1852,179 @@ components:
               type: string
               maxLength: 50
               nullable: true
+        gravestone:
+          type: object
+          description: 墓石情報
+          nullable: true
+          properties:
+            gravestoneBase:
+              type: string
+              description: 墓石台（墓石基礎）
+              maxLength: 100
+              nullable: true
+              example: コンクリート基礎
+            enclosurePosition:
+              type: string
+              description: 包囲位置（囲障位置）
+              maxLength: 100
+              nullable: true
+              example: 前面開放
+            gravestoneDealer:
+              type: string
+              description: 墓石取扱い（石材店）
+              maxLength: 100
+              nullable: true
+              example: 石材店A
+            gravestoneType:
+              type: string
+              description: 墓石タイプ（墓石種別）
+              maxLength: 50
+              nullable: true
+              example: 和型
+            surroundingArea:
+              type: string
+              description: 周辺設備（周辺区画）
+              maxLength: 100
+              nullable: true
+              example: 水場あり
+            establishmentDeadline:
+              type: string
+              format: date
+              description: 設立期限（設置期限）
+              nullable: true
+              example: "2024-12-31"
+            establishmentDate:
+              type: string
+              format: date
+              description: 設立日（設置日）
+              nullable: true
+              example: "2024-06-01"
+        familyContacts:
+          type: array
+          description: 家族・連絡先情報（配列）
+          nullable: true
+          items:
+            type: object
+            properties:
+              emergencyContactFlag:
+                type: boolean
+                description: 緊急連絡先フラグ
+                default: false
+                example: true
+              name:
+                type: string
+                description: 氏名
+                maxLength: 100
+                example: 山田次郎
+              birthDate:
+                type: string
+                format: date
+                description: 生年月日
+                nullable: true
+                example: "1985-05-15"
+              relationship:
+                type: string
+                description: 続柄
+                maxLength: 50
+                example: 長男
+              postalCode:
+                type: string
+                description: 郵便番号
+                maxLength: 10
+                nullable: true
+                example: "150-0001"
+              address:
+                type: string
+                description: 住所
+                maxLength: 200
+                example: 東京都渋谷区
+              phoneNumber:
+                type: string
+                description: 電話番号
+                pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+                example: "03-1234-5678"
+              faxNumber:
+                type: string
+                description: ファックス
+                pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+                nullable: true
+                example: "03-1234-5679"
+              email:
+                type: string
+                format: email
+                description: メールアドレス
+                nullable: true
+                example: jiro@example.com
+              registeredAddress:
+                type: string
+                description: 本籍地住所
+                maxLength: 200
+                nullable: true
+                example: 東京都新宿区
+              mailingType:
+                type: string
+                description: 郵送先タイプ
+                enum: [home, work, other]
+                nullable: true
+                example: home
+              notes:
+                type: string
+                description: 備考
+                maxLength: 1000
+                nullable: true
+        buriedPersons:
+          type: array
+          description: 埋葬者一覧（配列）
+          nullable: true
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: 氏名
+                maxLength: 100
+                example: 山田三郎
+              nameKana:
+                type: string
+                description: 氏名カナ（カタカナのみ）
+                pattern: '^[ァ-ヶー\s]+$'
+                maxLength: 100
+                nullable: true
+                example: ヤマダサブロウ
+              relationship:
+                type: string
+                description: 続柄
+                maxLength: 50
+                nullable: true
+                example: 祖父
+              deathDate:
+                type: string
+                format: date
+                description: 死亡日
+                nullable: true
+                example: "2020-03-15"
+              age:
+                type: integer
+                description: 年齢
+                nullable: true
+                example: 85
+              gender:
+                type: string
+                description: 性別
+                enum: [male, female, other]
+                nullable: true
+                example: male
+              burialDate:
+                type: string
+                format: date
+                description: 埋葬日
+                nullable: true
+                example: "2020-03-20"
+              notes:
+                type: string
+                description: 備考
+                maxLength: 1000
+                nullable: true
 
     UpdatePlotInput:
       type: object
@@ -1740,10 +2058,6 @@ components:
               type: string
               maxLength: 50
               nullable: true
-            customerRole:
-              type: string
-              maxLength: 50
-              nullable: true
             reservationDate:
               type: string
               format: date
@@ -1755,7 +2069,14 @@ components:
             permitDate:
               type: string
               format: date
+              description: 許可日
               nullable: true
+            permitNumber:
+              type: string
+              maxLength: 50
+              description: 許可番号
+              nullable: true
+              example: "KYO-2024-0001"
             startDate:
               type: string
               format: date
@@ -1810,23 +2131,62 @@ components:
               nullable: true
         workInfo:
           type: object
+          description: 勤務先情報
           nullable: true
           properties:
+            companyName:
+              type: string
+              description: 勤務先名称
+              maxLength: 100
+              nullable: true
+              example: 株式会社サンプル
+            companyNameKana:
+              type: string
+              description: 勤務先仮名（カタカナのみ）
+              pattern: '^[ァ-ヶー\s]+$'
+              maxLength: 100
+              nullable: true
+              example: カブシキガイシャサンプル
             workPostalCode:
               type: string
+              description: 郵便番号
               maxLength: 10
               nullable: true
-            workAddress:
-              type: string
-              maxLength: 200
-              nullable: true
+              example: "150-0001"
             workPhoneNumber:
               type: string
+              description: 電話番号
               pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
               nullable: true
+              example: "03-1234-5678"
+            workAddress:
+              type: string
+              description: 勤務先住所
+              maxLength: 200
+              nullable: true
+              example: 東京都渋谷区
             workFaxNumber:
               type: string
+              description: ファックス
               pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              nullable: true
+              example: "03-1234-5679"
+            dmSetting:
+              type: string
+              description: DM送信設定
+              enum: [allow, deny, limited]
+              nullable: true
+              example: allow
+            addressType:
+              type: string
+              description: 宛先区分（連絡先タイプ）
+              enum: [home, work, other]
+              nullable: true
+              example: home
+            notes:
+              type: string
+              description: 備考
+              maxLength: 1000
               nullable: true
         billingInfo:
           type: object
@@ -1982,10 +2342,6 @@ components:
               type: string
               maxLength: 50
               nullable: true
-            customerRole:
-              type: string
-              maxLength: 50
-              nullable: true
             reservationDate:
               type: string
               format: date
@@ -1997,7 +2353,14 @@ components:
             permitDate:
               type: string
               format: date
+              description: 許可日
               nullable: true
+            permitNumber:
+              type: string
+              maxLength: 50
+              description: 許可番号
+              nullable: true
+              example: "KYO-2024-0001"
             startDate:
               type: string
               format: date
@@ -2123,7 +2486,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:
@@ -2138,7 +2501,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:
@@ -2151,7 +2514,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:
@@ -2164,7 +2527,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:
@@ -2177,7 +2540,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:
@@ -2190,7 +2553,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           example:
             success: false
             error:

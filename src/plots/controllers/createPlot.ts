@@ -141,7 +141,7 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
           location_description: input.contractPlot.locationDescription || null,
           // 販売契約情報（ContractPlotに統合済み）
           contract_date: new Date(input.saleContract.contractDate),
-          price: new Prisma.Decimal(input.saleContract.price),
+          price: input.saleContract.price,
           payment_status: input.saleContract.paymentStatus || PaymentStatus.unpaid,
           reservation_date: input.saleContract.reservationDate
             ? new Date(input.saleContract.reservationDate)
@@ -261,7 +261,7 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
 
         // 販売契約情報（ContractPlotに統合済み）
         contractDate: createdContractPlot?.contract_date,
-        price: createdContractPlot?.price.toNumber(),
+        price: createdContractPlot?.price,
         paymentStatus: createdContractPlot?.payment_status,
         reservationDate: createdContractPlot?.reservation_date,
         acceptanceNumber: createdContractPlot?.acceptance_number,

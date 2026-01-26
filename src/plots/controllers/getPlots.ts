@@ -80,7 +80,7 @@ export const getPlots = async (_req: Request, res: Response) => {
 
         // 販売契約情報（ContractPlotに統合済み）
         contractDate: contractPlot.contract_date,
-        price: contractPlot.price.toNumber(),
+        price: contractPlot.price, // Int型なのでそのまま
         paymentStatus: contractPlot.payment_status,
 
         // 顧客情報（主契約者のみ - 後方互換性）
