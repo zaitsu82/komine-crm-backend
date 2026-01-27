@@ -14,6 +14,8 @@ import swaggerDocument from '../swagger.json';
 import authRoutes from './auth/authRoutes';
 import plotRoutes from './plots/plotRoutes';
 import masterRoutes from './masters/masterRoutes';
+import staffRoutes from './staff/staffRoutes';
+import collectiveBurialRoutes from './collective-burials/collectiveBurialRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requestLogger, securityHeaders } from './middleware/logger';
 import {
@@ -73,6 +75,8 @@ app.use(
 app.use('/api/v1/auth', authRoutes); // 認証ルート
 app.use('/api/v1/plots', plotRoutes); // 区画情報ルート
 app.use('/api/v1/masters', masterRoutes); // マスタデータルート
+app.use('/api/v1/staff', staffRoutes); // スタッフ管理ルート
+app.use('/api/v1/collective-burials', collectiveBurialRoutes); // 合祀管理ルート
 
 // 404エラーハンドラー（すべてのルートの後に配置）
 app.use(notFoundHandler);

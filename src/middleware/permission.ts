@@ -215,6 +215,17 @@ export const checkResourceAction = (userRole: Role, resource: string, action: st
     'user:read': ['manager', 'admin'],
     'user:manage': ['admin'],
 
+    'staff:read': ['manager', 'admin'],
+    'staff:create': ['admin'],
+    'staff:update': ['admin'],
+    'staff:delete': ['admin'],
+
+    'collective-burial:read': ['manager', 'admin'],
+    'collective-burial:create': ['admin'],
+    'collective-burial:update': ['admin'],
+    'collective-burial:delete': ['admin'],
+    'collective-burial:billing': ['manager', 'admin'],
+
     'system:admin': ['admin'],
   };
 
