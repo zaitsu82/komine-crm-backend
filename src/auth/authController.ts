@@ -250,6 +250,75 @@ export const getCurrentUser = async (req: Request, res: Response) => {
 };
 
 /**
+ * トークンリフレッシュ
+ * POST /api/v1/auth/refresh
+ */
+export const refreshToken = async (req: Request, res: Response) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Supabase認証サービスが利用できません',
+          details: [],
+        },
+      });
+    }
+
+    const { refresh_token } = req.body;
+
+    if (!refresh_token) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'リフレッシュトークンは必須です',
+          details: [],
+        },
+      });
+    }
+
+    // Supabaseでトークンをリフレッシュ
+    const { data, error } = await supabase.auth.refreshSession({
+      refresh_token,
+    });
+
+    if (error || !data.session) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'トークンのリフレッシュに失敗しました。再度ログインしてください。',
+          details: [],
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        session: {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+          expires_at: data.session.expires_at,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'トークンリフレッシュ処理中にエラーが発生しました',
+        details: [],
+      },
+    });
+  }
+};
+
+/**
  * パスワード変更
  * PUT /api/v1/auth/password
  */

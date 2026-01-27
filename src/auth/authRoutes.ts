@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { login, logout, getCurrentUser, changePassword } from './authController';
+import { login, logout, getCurrentUser, changePassword, refreshToken } from './authController';
 import { authenticate } from '../middleware/auth';
 import { createAuthRateLimiter } from '../middleware/security';
 import { validate } from '../middleware/validation';
@@ -9,6 +9,9 @@ const router = Router();
 
 // ログイン（認証不要、厳格なRate Limiting適用、バリデーション）
 router.post('/login', createAuthRateLimiter(), validate({ body: loginSchema }), login);
+
+// トークンリフレッシュ（認証不要、Rate Limiting適用）
+router.post('/refresh', createAuthRateLimiter(), refreshToken);
 
 // ログアウト（認証必要）
 router.post('/logout', authenticate, logout);
