@@ -21,6 +21,8 @@ tags:
     description: マスターデータ
   - name: Staff
     description: スタッフ管理
+  - name: Documents
+    description: 書類管理（PDF生成・ファイルアップロード）
 
 paths:
   /api/v1/auth/login:
@@ -674,6 +676,415 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  # ==================== Documents API ====================
+
+  /api/v1/documents:
+    get:
+      tags:
+        - Documents
+      summary: 書類一覧取得
+      description: 書類の一覧を取得（検索・フィルター・ページネーション対応）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: ページ番号（1から開始）
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: 1ページあたりの件数
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: contractPlotId
+          in: query
+          description: 契約区画IDでフィルター
+          schema:
+            type: string
+            format: uuid
+        - name: customerId
+          in: query
+          description: 顧客IDでフィルター
+          schema:
+            type: string
+            format: uuid
+        - name: type
+          in: query
+          description: 書類タイプでフィルター
+          schema:
+            $ref: "#/components/schemas/DocumentType"
+        - name: status
+          in: query
+          description: ステータスでフィルター
+          schema:
+            $ref: "#/components/schemas/DocumentStatus"
+        - name: sortBy
+          in: query
+          description: ソート項目
+          schema:
+            type: string
+            enum: [created_at, updated_at, name, type, status]
+            default: created_at
+        - name: sortOrder
+          in: query
+          description: ソート順
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/DocumentListItem"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags:
+        - Documents
+      summary: 書類作成
+      description: 新規書類メタデータを作成
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDocumentRequest"
+      responses:
+        "201":
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/DocumentDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/documents/generate-pdf:
+    post:
+      tags:
+        - Documents
+      summary: PDF生成
+      description: テンプレートからPDFを生成（Base64エンコードで返却）
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeneratePdfRequest"
+      responses:
+        "200":
+          description: PDF生成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/GeneratePdfResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/documents/{id}:
+    get:
+      tags:
+        - Documents
+      summary: 書類詳細取得
+      description: 指定されたIDの書類詳細を取得
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 書類ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/DocumentDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags:
+        - Documents
+      summary: 書類更新
+      description: 書類のメタデータを更新
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 書類ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDocumentRequest"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/DocumentDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags:
+        - Documents
+      summary: 書類削除（論理削除）
+      description: 書類を論理削除（deleted_atに日時を設定）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 書類ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 削除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 書類を削除しました
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/documents/{id}/upload:
+    post:
+      tags:
+        - Documents
+      summary: ファイルアップロード
+      description: 書類にファイルをアップロード（最大10MB）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 書類ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: アップロードするファイル（PDF, Word, Excel, 画像）
+      responses:
+        "200":
+          description: アップロード成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      fileName:
+                        type: string
+                        example: invoice_2024.pdf
+                      fileSize:
+                        type: integer
+                        example: 102400
+                      mimeType:
+                        type: string
+                        example: application/pdf
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/documents/{id}/download:
+    get:
+      tags:
+        - Documents
+      summary: ダウンロードURL取得
+      description: ファイルのダウンロードURL（Pre-signed URL）を取得
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 書類ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: URL取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                        format: uri
+                        description: ダウンロードURL（有効期限15分）
+                      fileName:
+                        type: string
+                        example: invoice_2024.pdf
+                      mimeType:
+                        type: string
+                        example: application/pdf
+                      expiresIn:
+                        type: integer
+                        description: 有効期限（秒）
+                        example: 900
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/documents/file/{fileKey}:
+    get:
+      tags:
+        - Documents
+      summary: ローカルファイルダウンロード
+      description: ローカルストレージからファイルを直接ダウンロード（開発環境用）
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: fileKey
+          in: path
+          required: true
+          description: ファイルキー
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ファイルダウンロード
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -683,6 +1094,295 @@ components:
       description: Supabaseから発行されたJWTトークンを使用
 
   schemas:
+    # ==================== Document スキーマ ====================
+
+    DocumentType:
+      type: string
+      description: 書類タイプ
+      enum:
+        - invoice
+        - postcard
+        - contract
+        - permit
+        - other
+      example: invoice
+
+    DocumentStatus:
+      type: string
+      description: 書類ステータス
+      enum:
+        - draft
+        - generated
+        - sent
+        - archived
+      example: draft
+
+    DocumentListItem:
+      type: object
+      description: 書類一覧アイテム
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 書類ID
+        contractPlotId:
+          type: string
+          format: uuid
+          nullable: true
+          description: 契約区画ID
+        customerId:
+          type: string
+          format: uuid
+          nullable: true
+          description: 顧客ID
+        type:
+          $ref: "#/components/schemas/DocumentType"
+        name:
+          type: string
+          description: 書類名
+          example: 請求書_2024年1月分
+        description:
+          type: string
+          nullable: true
+          description: 説明
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+        fileName:
+          type: string
+          nullable: true
+          description: ファイル名
+          example: invoice_2024_01.pdf
+        fileSize:
+          type: integer
+          nullable: true
+          description: ファイルサイズ（バイト）
+          example: 102400
+        mimeType:
+          type: string
+          nullable: true
+          description: MIMEタイプ
+          example: application/pdf
+        templateType:
+          type: string
+          nullable: true
+          description: テンプレートタイプ
+        generatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 生成日時
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 送付日時
+        createdBy:
+          type: string
+          nullable: true
+          description: 作成者
+        notes:
+          type: string
+          nullable: true
+          description: 備考
+        createdAt:
+          type: string
+          format: date-time
+          description: 作成日時
+        updatedAt:
+          type: string
+          format: date-time
+          description: 更新日時
+        contractPlot:
+          type: object
+          nullable: true
+          description: 関連区画情報
+          properties:
+            id:
+              type: string
+              format: uuid
+            plotNumber:
+              type: string
+            areaName:
+              type: string
+        customer:
+          type: object
+          nullable: true
+          description: 関連顧客情報
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            nameKana:
+              type: string
+
+    DocumentDetail:
+      type: object
+      description: 書類詳細
+      allOf:
+        - $ref: "#/components/schemas/DocumentListItem"
+        - type: object
+          properties:
+            fileKey:
+              type: string
+              nullable: true
+              description: ファイルキー（S3/ローカル）
+            templateData:
+              type: object
+              nullable: true
+              description: テンプレートデータ（JSON）
+            contractPlot:
+              type: object
+              nullable: true
+              description: 関連区画詳細
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                contractAreaSqm:
+                  type: number
+                contractDate:
+                  type: string
+                  format: date
+                  nullable: true
+                physicalPlot:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    plotNumber:
+                      type: string
+                    areaName:
+                      type: string
+            customer:
+              type: object
+              nullable: true
+              description: 関連顧客詳細
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                nameKana:
+                  type: string
+                postalCode:
+                  type: string
+                address:
+                  type: string
+                phoneNumber:
+                  type: string
+                  nullable: true
+                email:
+                  type: string
+                  nullable: true
+
+    CreateDocumentRequest:
+      type: object
+      description: 書類作成リクエスト
+      required:
+        - type
+        - name
+      properties:
+        contractPlotId:
+          type: string
+          format: uuid
+          description: 契約区画ID
+        customerId:
+          type: string
+          format: uuid
+          description: 顧客ID
+        type:
+          $ref: "#/components/schemas/DocumentType"
+        name:
+          type: string
+          description: 書類名
+          maxLength: 200
+          example: 請求書_2024年1月分
+        description:
+          type: string
+          description: 説明
+        templateType:
+          type: string
+          description: テンプレートタイプ（invoice, postcard）
+        templateData:
+          type: object
+          description: テンプレートデータ
+        notes:
+          type: string
+          description: 備考
+
+    UpdateDocumentRequest:
+      type: object
+      description: 書類更新リクエスト
+      properties:
+        name:
+          type: string
+          description: 書類名
+          maxLength: 200
+        description:
+          type: string
+          description: 説明
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+        templateData:
+          type: object
+          description: テンプレートデータ
+        notes:
+          type: string
+          description: 備考
+
+    GeneratePdfRequest:
+      type: object
+      description: PDF生成リクエスト
+      required:
+        - templateType
+        - templateData
+      properties:
+        templateType:
+          type: string
+          enum: [invoice, postcard]
+          description: テンプレートタイプ
+        templateData:
+          type: object
+          description: テンプレートデータ（請求書またははがき用）
+        documentId:
+          type: string
+          format: uuid
+          description: 関連する書類ID（指定時はファイルを保存）
+        name:
+          type: string
+          description: 書類名
+        contractPlotId:
+          type: string
+          format: uuid
+          description: 契約区画ID
+        customerId:
+          type: string
+          format: uuid
+          description: 顧客ID
+
+    GeneratePdfResponse:
+      type: object
+      description: PDF生成レスポンス
+      properties:
+        documentId:
+          type: string
+          format: uuid
+          description: 書類ID
+        pdf:
+          type: string
+          description: Base64エンコードされたPDF
+        mimeType:
+          type: string
+          example: application/pdf
+        fileSize:
+          type: integer
+          description: ファイルサイズ（バイト）
+          example: 102400
+
     # ==================== Staff スキーマ ====================
 
     Staff:

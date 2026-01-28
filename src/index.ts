@@ -9,6 +9,7 @@ initializeSentry();
 
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
 import swaggerDocument from '../swagger.json';
 import authRoutes from './auth/authRoutes';
@@ -16,6 +17,7 @@ import plotRoutes from './plots/plotRoutes';
 import masterRoutes from './masters/masterRoutes';
 import staffRoutes from './staff/staffRoutes';
 import collectiveBurialRoutes from './collective-burials/collectiveBurialRoutes';
+import documentRoutes from './documents/documentRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requestLogger, securityHeaders } from './middleware/logger';
 import {
@@ -37,6 +39,9 @@ app.use(hppProtection); // HTTP Parameter Pollution対策
 // ボディパーサー
 app.use(express.json({ limit: '10mb' })); // JSONパーサー（サイズ制限付き）
 app.use(express.urlencoded({ extended: true, limit: '10mb' })); // URLエンコードされたボディのパーサー
+
+// Cookieパーサー（HttpOnly Cookie認証用）
+app.use(cookieParser());
 
 // 入力サニタイゼーション（パーサーの後に適用）
 app.use(sanitizeInput);
@@ -77,6 +82,7 @@ app.use('/api/v1/plots', plotRoutes); // 区画情報ルート
 app.use('/api/v1/masters', masterRoutes); // マスタデータルート
 app.use('/api/v1/staff', staffRoutes); // スタッフ管理ルート
 app.use('/api/v1/collective-burials', collectiveBurialRoutes); // 合祀管理ルート
+app.use('/api/v1/documents', documentRoutes); // 書類管理ルート
 
 // 404エラーハンドラー（すべてのルートの後に配置）
 app.use(notFoundHandler);

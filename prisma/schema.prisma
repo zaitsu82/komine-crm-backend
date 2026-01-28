@@ -84,6 +84,23 @@ enum ActionType {
   DELETE // 削除
 }
 
+// 書類タイプ
+enum DocumentType {
+  invoice // 請求書
+  postcard // はがき
+  contract // 契約書
+  permit // 許可証
+  other // その他
+}
+
+// 書類ステータス
+enum DocumentStatus {
+  draft // 下書き
+  generated // 生成済み
+  sent // 送付済み
+  archived // アーカイブ
+}
+
 // スタッフ権限
 enum StaffRole {
   viewer // 閲覧者
@@ -154,6 +171,7 @@ model ContractPlot {
   buriedPersons     BuriedPerson[] // 埋葬者（1:N）
   collectiveBurial  CollectiveBurial? // 合葬情報（1:1）
   saleContractRoles SaleContractRole[] // 販売契約役割（1:N）
+  documents         Document[] // 書類（1:N）
 
   @@index([physical_plot_id])
   @@index([contract_date])
@@ -185,6 +203,7 @@ model Customer {
   billingInfo       BillingInfo? // 請求情報（1:1）
   familyContacts    FamilyContact[] // 家族連絡先（1:N）
   saleContractRoles SaleContractRole[] // 販売契約役割（1:N）
+  documents         Document[] // 書類（1:N）
 
   @@index([name, name_kana])
   @@index([phone_number])
@@ -620,4 +639,43 @@ model ConstructionTypeMaster {
   updated_at  DateTime @updatedAt // 更新日時
 
   @@map("construction_type_master")
+}
+
+// =============================================================================
+// 書類管理
+// =============================================================================
+
+// 書類: 請求書、はがき、契約書、許可証などの管理
+model Document {
+  id               String         @id @default(uuid()) @map("document_id")
+  contract_plot_id String? // 契約区画ID（オプショナル）
+  customer_id      String? // 顧客ID（オプショナル）
+  type             DocumentType // 書類タイプ
+  name             String         @db.VarChar(200) // 書類名
+  description      String?        @db.Text // 説明
+  status           DocumentStatus @default(draft) // ステータス
+  file_key         String?        @db.VarChar(500) // S3ファイルキー
+  file_name        String?        @db.VarChar(200) // 元のファイル名
+  file_size        Int? // ファイルサイズ（バイト）
+  mime_type        String?        @db.VarChar(100) // MIMEタイプ
+  template_type    String?        @db.VarChar(50) // テンプレートタイプ
+  template_data    Json? // テンプレート用データ
+  generated_at     DateTime? // 生成日時
+  sent_at          DateTime? // 送付日時
+  created_by       String?        @db.VarChar(100) // 作成者
+  notes            String?        @db.Text // 備考
+  created_at       DateTime       @default(now())
+  updated_at       DateTime       @updatedAt
+  deleted_at       DateTime?
+
+  // Relations
+  contractPlot ContractPlot? @relation(fields: [contract_plot_id], references: [id], onDelete: SetNull)
+  customer     Customer?     @relation(fields: [customer_id], references: [id], onDelete: SetNull)
+
+  @@index([contract_plot_id])
+  @@index([customer_id])
+  @@index([type])
+  @@index([status])
+  @@index([deleted_at])
+  @@map("documents")
 }

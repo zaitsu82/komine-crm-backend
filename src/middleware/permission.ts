@@ -105,6 +105,15 @@ export const API_PERMISSIONS: Record<string, Role[]> = {
   'POST /import': ['admin'],
   'GET /export': ['manager', 'admin'],
   'POST /reports': ['manager', 'admin'],
+
+  // 書類管理
+  'GET /documents': ['viewer', 'operator', 'manager', 'admin'],
+  'GET /documents/*': ['viewer', 'operator', 'manager', 'admin'],
+  'POST /documents': ['operator', 'manager', 'admin'],
+  'POST /documents/generate-pdf': ['operator', 'manager', 'admin'],
+  'PUT /documents/*': ['operator', 'manager', 'admin'],
+  'DELETE /documents/*': ['manager', 'admin'],
+  'POST /documents/*/upload': ['operator', 'manager', 'admin'],
 };
 
 /**
@@ -225,6 +234,13 @@ export const checkResourceAction = (userRole: Role, resource: string, action: st
     'collective-burial:update': ['admin'],
     'collective-burial:delete': ['admin'],
     'collective-burial:billing': ['manager', 'admin'],
+
+    'document:read': ['viewer', 'operator', 'manager', 'admin'],
+    'document:create': ['operator', 'manager', 'admin'],
+    'document:update': ['operator', 'manager', 'admin'],
+    'document:delete': ['manager', 'admin'],
+    'document:upload': ['operator', 'manager', 'admin'],
+    'document:generate-pdf': ['operator', 'manager', 'admin'],
 
     'system:admin': ['admin'],
   };

@@ -19,6 +19,9 @@ if (supabaseUrl && supabaseServiceKey) {
   supabase = createClient(supabaseUrl, supabaseServiceKey);
 }
 
+// Cookie名の定数
+const ACCESS_TOKEN_COOKIE = 'access_token';
+
 declare global {
   namespace Express {
     interface Request {
@@ -35,8 +38,28 @@ declare global {
 }
 
 /**
+ * リクエストからトークンを取得するヘルパー関数
+ * 優先順位: 1. Cookie, 2. Authorization ヘッダー
+ */
+const extractToken = (req: Request): string | null => {
+  // 1. Cookieからトークンを取得（推奨）
+  const cookieToken = req.cookies?.[ACCESS_TOKEN_COOKIE];
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  // 2. Authorization ヘッダーからトークンを取得（後方互換性のため）
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    return authHeader.replace('Bearer ', '').trim();
+  }
+
+  return null;
+};
+
+/**
  * Supabase認証ミドルウェア
- * リクエストヘッダーのJWTトークンを検証し、Staffテーブルのユーザー情報を取得
+ * CookieまたはリクエストヘッダーのJWTトークンを検証し、Staffテーブルのユーザー情報を取得
  */
 export const authenticate = async (
   req: Request,
@@ -55,22 +78,8 @@ export const authenticate = async (
       });
     }
 
-    // Authorizationヘッダーからトークンを取得
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: '認証ヘッダーが必要です',
-          details: [],
-        },
-      });
-    }
-
-    // "Bearer <token>" 形式からトークンを抽出
-    const token = authHeader.replace('Bearer ', '').trim();
+    // CookieまたはAuthorizationヘッダーからトークンを取得
+    const token = extractToken(req);
 
     if (!token) {
       return res.status(401).json({
@@ -181,13 +190,8 @@ export const optionalAuthenticate = async (
       return next();
     }
 
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      return next();
-    }
-
-    const token = authHeader.replace('Bearer ', '').trim();
+    // CookieまたはAuthorizationヘッダーからトークンを取得
+    const token = extractToken(req);
 
     if (!token) {
       return next();

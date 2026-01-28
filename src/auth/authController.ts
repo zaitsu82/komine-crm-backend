@@ -4,6 +4,45 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const prisma = new PrismaClient();
 
+// Cookie設定の定数
+const isProduction = process.env['NODE_ENV'] === 'production';
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: isProduction, // 本番環境ではHTTPS必須
+  sameSite: 'lax' as const,
+  path: '/',
+};
+
+// アクセストークン用Cookie設定（有効期限: 1時間）
+const ACCESS_TOKEN_COOKIE = 'access_token';
+const ACCESS_TOKEN_MAX_AGE = 60 * 60 * 1000; // 1時間
+
+// リフレッシュトークン用Cookie設定（有効期限: 7日）
+const REFRESH_TOKEN_COOKIE = 'refresh_token';
+const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7日
+
+/**
+ * 認証Cookieを設定するヘルパー関数
+ */
+const setAuthCookies = (res: Response, accessToken: string, refreshToken: string) => {
+  res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
+    ...COOKIE_OPTIONS,
+    maxAge: ACCESS_TOKEN_MAX_AGE,
+  });
+  res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
+    ...COOKIE_OPTIONS,
+    maxAge: REFRESH_TOKEN_MAX_AGE,
+  });
+};
+
+/**
+ * 認証Cookieをクリアするヘルパー関数
+ */
+const clearAuthCookies = (res: Response) => {
+  res.clearCookie(ACCESS_TOKEN_COOKIE, { ...COOKIE_OPTIONS });
+  res.clearCookie(REFRESH_TOKEN_COOKIE, { ...COOKIE_OPTIONS });
+};
+
 // Supabaseクライアントの初期化
 const supabaseUrl = process.env['SUPABASE_URL'] || '';
 const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || '';
@@ -109,6 +148,11 @@ export const login = async (req: Request, res: Response) => {
       data: { last_login_at: new Date() },
     });
 
+    // HttpOnly Cookieを設定
+    if (data.session?.access_token && data.session?.refresh_token) {
+      setAuthCookies(res, data.session.access_token, data.session.refresh_token);
+    }
+
     return res.status(200).json({
       success: true,
       data: {
@@ -120,8 +164,8 @@ export const login = async (req: Request, res: Response) => {
           supabase_uid: staff.supabase_uid,
         },
         session: {
-          access_token: data.session?.access_token,
-          refresh_token: data.session?.refresh_token,
+          // トークンはCookieに設定するため、レスポンスボディには含めない（セキュリティ向上）
+          // フロントエンドはexpiresAtのみを使用して有効期限を管理
           expires_at: data.session?.expires_at,
         },
       },
@@ -156,14 +200,19 @@ export const logout = async (req: Request, res: Response) => {
       });
     }
 
-    // Authorizationヘッダーからトークンを取得
+    // Cookieまたはヘッダーからトークンを取得
+    const cookieToken = req.cookies?.[ACCESS_TOKEN_COOKIE];
     const authHeader = req.headers.authorization;
-    const token = authHeader?.replace('Bearer ', '').trim();
+    const headerToken = authHeader?.replace('Bearer ', '').trim();
+    const token = cookieToken || headerToken;
 
     if (token) {
       // Supabaseでログアウト
       await supabase.auth.admin.signOut(token);
     }
+
+    // HttpOnly Cookieをクリア
+    clearAuthCookies(res);
 
     return res.status(200).json({
       success: true,
@@ -266,7 +315,10 @@ export const refreshToken = async (req: Request, res: Response) => {
       });
     }
 
-    const { refresh_token } = req.body;
+    // Cookieまたはリクエストボディからリフレッシュトークンを取得
+    const cookieRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+    const bodyRefreshToken = req.body?.refresh_token;
+    const refresh_token = cookieRefreshToken || bodyRefreshToken;
 
     if (!refresh_token) {
       return res.status(400).json({
@@ -285,6 +337,8 @@ export const refreshToken = async (req: Request, res: Response) => {
     });
 
     if (error || !data.session) {
+      // リフレッシュ失敗時はCookieをクリア
+      clearAuthCookies(res);
       return res.status(401).json({
         success: false,
         error: {
@@ -295,12 +349,14 @@ export const refreshToken = async (req: Request, res: Response) => {
       });
     }
 
+    // 新しいトークンでCookieを更新
+    setAuthCookies(res, data.session.access_token, data.session.refresh_token);
+
     return res.status(200).json({
       success: true,
       data: {
         session: {
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
+          // トークンはCookieに設定するため、レスポンスボディには含めない
           expires_at: data.session.expires_at,
         },
       },

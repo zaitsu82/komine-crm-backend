@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>請求書</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #333;
+      background: white;
+    }
+
+    .invoice-container {
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 20mm;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: bold;
+      letter-spacing: 8px;
+      border-bottom: 3px double #333;
+      display: inline-block;
+      padding-bottom: 5px;
+    }
+
+    .invoice-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+    }
+
+    .customer-info {
+      width: 55%;
+    }
+
+    .customer-name {
+      font-size: 18px;
+      font-weight: bold;
+      border-bottom: 1px solid #333;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+    }
+
+    .customer-name::after {
+      content: " 様";
+      font-weight: normal;
+    }
+
+    .customer-address {
+      font-size: 11px;
+      color: #555;
+    }
+
+    .invoice-meta {
+      width: 40%;
+      text-align: right;
+    }
+
+    .invoice-meta table {
+      margin-left: auto;
+      border-collapse: collapse;
+    }
+
+    .invoice-meta td {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+
+    .invoice-meta .label {
+      text-align: right;
+      color: #666;
+    }
+
+    .total-box {
+      background: #f8f8f8;
+      border: 2px solid #333;
+      padding: 15px 20px;
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .total-label {
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .total-amount {
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .total-amount::before {
+      content: "\\A5 ";
+      font-size: 18px;
+    }
+
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+
+    .items-table th,
+    .items-table td {
+      border: 1px solid #ddd;
+      padding: 10px 8px;
+      text-align: left;
+    }
+
+    .items-table th {
+      background: #f5f5f5;
+      font-weight: bold;
+      font-size: 11px;
+    }
+
+    .items-table td {
+      font-size: 11px;
+    }
+
+    .text-right {
+      text-align: right !important;
+    }
+
+    .text-center {
+      text-align: center !important;
+    }
+
+    .summary-table {
+      width: 250px;
+      margin-left: auto;
+      border-collapse: collapse;
+    }
+
+    .summary-table td {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+    }
+
+    .summary-table .label {
+      background: #f5f5f5;
+      font-weight: bold;
+      width: 100px;
+    }
+
+    .summary-table .total-row td {
+      border: 2px solid #333;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .notes {
+      margin-top: 30px;
+      padding: 15px;
+      background: #fafafa;
+      border: 1px solid #eee;
+      font-size: 11px;
+    }
+
+    .notes-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .company-info {
+      margin-top: 40px;
+      text-align: right;
+      font-size: 11px;
+    }
+
+    .company-name {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .stamp-area {
+      display: inline-block;
+      width: 60px;
+      height: 60px;
+      border: 1px dashed #ccc;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="invoice-container">
+    <div class="header">
+      <h1>請 求 書</h1>
+    </div>
+
+    <div class="invoice-info">
+      <div class="customer-info">
+        <div class="customer-name">{{ customerName }}</div>
+        <div class="customer-address">{{ customerAddress }}</div>
+      </div>
+      <div class="invoice-meta">
+        <table>
+          <tr>
+            <td class="label">請求書番号:</td>
+            <td>{{ invoiceNumber }}</td>
+          </tr>
+          <tr>
+            <td class="label">発行日:</td>
+            <td>{{ issueDate }}</td>
+          </tr>
+          <tr>
+            <td class="label">お支払期限:</td>
+            <td>{{ dueDate }}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="total-box">
+      <div class="total-label">ご請求金額（税込）</div>
+      <div class="total-amount">{{ total }}</div>
+    </div>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width: 50%">品目・内容</th>
+          <th style="width: 15%" class="text-center">数量</th>
+          <th style="width: 17.5%" class="text-right">単価</th>
+          <th style="width: 17.5%" class="text-right">金額</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#items}}
+        <!-- Items will be inserted here -->
+        {{/items}}
+      </tbody>
+    </table>
+
+    <table class="summary-table">
+      <tr>
+        <td class="label">小計</td>
+        <td class="text-right">{{ subtotal }}</td>
+      </tr>
+      <tr>
+        <td class="label">消費税</td>
+        <td class="text-right">{{ tax }}</td>
+      </tr>
+      <tr class="total-row">
+        <td class="label">合計</td>
+        <td class="text-right">{{ total }}</td>
+      </tr>
+    </table>
+
+    <div class="notes">
+      <div class="notes-title">備考</div>
+      <div>{{ notes }}</div>
+    </div>
+
+    <div class="company-info">
+      <div class="company-name">小峰霊園管理事務所</div>
+      <div>〒XXX-XXXX</div>
+      <div>○○県○○市○○町X-X-X</div>
+      <div>TEL: XXX-XXX-XXXX</div>
+      <div>FAX: XXX-XXX-XXXX</div>
+      <div class="stamp-area"></div>
+    </div>
+  </div>
+</body>
+
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>はがき</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif;
+      font-size: 12px;
+      line-height: 1.8;
+      color: #333;
+      background: white;
+    }
+
+    .postcard-container {
+      width: 100mm;
+      height: 148mm;
+      padding: 8mm;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 宛先面のスタイル */
+    .address-side {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .postal-code-area {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 5mm;
+    }
+
+    .postal-code {
+      font-size: 16px;
+      font-weight: bold;
+      letter-spacing: 4px;
+    }
+
+    .postal-code::before {
+      content: "〒";
+      margin-right: 2px;
+    }
+
+    .recipient-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding-right: 15mm;
+    }
+
+    .recipient-address {
+      font-size: 11px;
+      margin-bottom: 5mm;
+      line-height: 1.6;
+    }
+
+    .recipient-name {
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: auto;
+      text-align: center;
+      padding-right: 10mm;
+    }
+
+    .recipient-name::after {
+      content: " 様";
+      font-weight: normal;
+      font-size: 14px;
+    }
+
+    .sender-area {
+      border-top: 1px dashed #ccc;
+      padding-top: 5mm;
+      margin-top: 5mm;
+    }
+
+    .sender-postal-code {
+      font-size: 10px;
+      margin-bottom: 2mm;
+    }
+
+    .sender-postal-code::before {
+      content: "〒";
+    }
+
+    .sender-address {
+      font-size: 9px;
+      margin-bottom: 2mm;
+    }
+
+    .sender-name {
+      font-size: 11px;
+      font-weight: bold;
+    }
+
+    /* 文面のスタイル（裏面用） */
+    .message-side {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .date {
+      text-align: right;
+      font-size: 10px;
+      margin-bottom: 5mm;
+    }
+
+    .message {
+      flex: 1;
+      font-size: 11px;
+      line-height: 2;
+      text-align: justify;
+      white-space: pre-wrap;
+    }
+
+    .signature {
+      text-align: right;
+      margin-top: 10mm;
+      font-size: 10px;
+    }
+
+    /* 印刷時のページ分割 */
+    @media print {
+      .postcard-container {
+        page-break-after: always;
+      }
+    }
+
+    /* 縦書き対応（オプション） */
+    .vertical-text {
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 宛先面 -->
+  <div class="postcard-container address-side">
+    <div class="postal-code-area">
+      <div class="postal-code">{{ recipientPostalCode }}</div>
+    </div>
+
+    <div class="recipient-area">
+      <div class="recipient-address">{{ recipientAddress }}</div>
+      <div class="recipient-name">{{ recipientName }}</div>
+    </div>
+
+    <div class="sender-area">
+      <div class="sender-postal-code">{{ senderPostalCode }}</div>
+      <div class="sender-address">{{ senderAddress }}</div>
+      <div class="sender-name">{{ senderName }}</div>
+    </div>
+  </div>
+
+  <!-- 文面（裏面） - 必要に応じて2ページ目として印刷 -->
+  <!--
+  <div class="postcard-container message-side">
+    <div class="date">{{ date }}</div>
+    <div class="message">{{ message }}</div>
+    <div class="signature">{{ senderName }}</div>
+  </div>
+  -->
+</body>
+
+</html>
