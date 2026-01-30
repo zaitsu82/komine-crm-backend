@@ -8,6 +8,10 @@ import {
   getPlotContracts,
   createPlotContract,
   getPlotInventory,
+  getInventorySummary,
+  getInventoryPeriods,
+  getInventorySections,
+  getInventoryAreas,
 } from './controllers';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission';
@@ -19,6 +23,12 @@ import {
   updatePlotSchema,
   createPlotContractSchema,
 } from '../validations/plotValidation';
+import {
+  inventorySummaryQuerySchema,
+  inventoryPeriodsQuerySchema,
+  inventorySectionsQuerySchema,
+  inventoryAreasQuerySchema,
+} from '../validations/inventoryValidation';
 
 const router = Router();
 
@@ -30,6 +40,50 @@ router.get(
   validate({ query: plotSearchQuerySchema }),
   getPlots
 );
+
+// ==========================================
+// 在庫管理API（/inventory/* は /:id より先に定義）
+// ==========================================
+
+// 在庫全体サマリー取得
+router.get(
+  '/inventory/summary',
+  authenticate,
+  requirePermission(['viewer', 'operator', 'manager', 'admin']),
+  validate({ query: inventorySummaryQuerySchema }),
+  getInventorySummary
+);
+
+// 期別サマリー取得
+router.get(
+  '/inventory/periods',
+  authenticate,
+  requirePermission(['viewer', 'operator', 'manager', 'admin']),
+  validate({ query: inventoryPeriodsQuerySchema }),
+  getInventoryPeriods
+);
+
+// セクション別集計取得
+router.get(
+  '/inventory/sections',
+  authenticate,
+  requirePermission(['viewer', 'operator', 'manager', 'admin']),
+  validate({ query: inventorySectionsQuerySchema }),
+  getInventorySections
+);
+
+// 面積別集計取得
+router.get(
+  '/inventory/areas',
+  authenticate,
+  requirePermission(['viewer', 'operator', 'manager', 'admin']),
+  validate({ query: inventoryAreasQuerySchema }),
+  getInventoryAreas
+);
+
+// ==========================================
+// 区画情報CRUD
+// ==========================================
 
 // 区画情報詳細取得
 router.get(

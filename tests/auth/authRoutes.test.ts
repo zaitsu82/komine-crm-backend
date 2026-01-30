@@ -22,12 +22,14 @@ const mockLogin = jest.fn();
 const mockLogout = jest.fn();
 const mockGetCurrentUser = jest.fn();
 const mockChangePassword = jest.fn();
+const mockRefreshToken = jest.fn();
 
 jest.mock('../../src/auth/authController', () => ({
   login: (req: any, res: any) => mockLogin(req, res),
   logout: (req: any, res: any) => mockLogout(req, res),
   getCurrentUser: (req: any, res: any) => mockGetCurrentUser(req, res),
   changePassword: (req: any, res: any) => mockChangePassword(req, res),
+  refreshToken: (req: any, res: any) => mockRefreshToken(req, res),
 }));
 
 // Authenticateミドルウェアのモック

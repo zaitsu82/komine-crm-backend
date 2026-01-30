@@ -133,7 +133,7 @@ describe('contractService', () => {
         location_description: '南側',
         // 販売契約情報（ContractPlotに統合済み）
         contract_date: new Date('2024-01-01'),
-        price: { toNumber: () => 1000000 },
+        price: 1000000,
         payment_status: 'paid',
         reservation_date: null,
         acceptance_number: null,
@@ -266,7 +266,7 @@ describe('contractService', () => {
         location_description: '南側',
         // 販売契約情報（ContractPlotに統合済み）
         contract_date: new Date('2024-01-01'),
-        price: { toNumber: () => 1000000 },
+        price: 1000000,
         payment_status: 'paid',
         reservation_date: null,
         acceptance_number: null,
@@ -376,7 +376,7 @@ describe('contractService', () => {
         created_at: new Date('2024-01-01'),
         updated_at: new Date('2024-01-02'),
         contract_date: new Date('2024-01-01'),
-        price: { toNumber: () => 1000000 },
+        price: 1000000,
         payment_status: 'paid',
         physicalPlot: {
           plot_number: 'A-01',

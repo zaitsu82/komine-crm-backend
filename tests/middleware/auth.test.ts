@@ -154,7 +154,7 @@ describe('Auth Middleware', () => {
           success: false,
           error: {
             code: 'UNAUTHORIZED',
-            message: '認証ヘッダーが必要です',
+            message: '認証トークンが必要です',
             details: [],
           },
         });

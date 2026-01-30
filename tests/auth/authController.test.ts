@@ -74,10 +74,13 @@ describe('Auth Controller', () => {
       mockRequest = {
         body: {},
         headers: {},
+        cookies: {},
       };
       mockResponse = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn().mockReturnThis(),
+        cookie: jest.fn().mockReturnThis(),
+        clearCookie: jest.fn().mockReturnThis(),
       };
       consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
@@ -148,6 +151,8 @@ describe('Auth Controller', () => {
         });
         expect(mockPrisma.staff.update).toHaveBeenCalled();
         expect(mockResponse.status).toHaveBeenCalledWith(200);
+        // トークンはCookieに設定されるため、レスポンスボディには含まれない
+        expect(mockResponse.cookie).toHaveBeenCalled();
         expect(mockResponse.json).toHaveBeenCalledWith({
           success: true,
           data: {
@@ -159,8 +164,6 @@ describe('Auth Controller', () => {
               supabase_uid: 'supabase-uid-123',
             },
             session: {
-              access_token: 'test-access-token',
-              refresh_token: 'test-refresh-token',
               expires_at: 1234567890,
             },
           },
@@ -788,10 +791,12 @@ describe('Auth Controller', () => {
 
     beforeEach(() => {
       jest.resetModules();
-      mockRequest = { body: {}, headers: {} };
+      mockRequest = { body: {}, headers: {}, cookies: {} };
       mockResponse = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn().mockReturnThis(),
+        cookie: jest.fn().mockReturnThis(),
+        clearCookie: jest.fn().mockReturnThis(),
       };
       consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();

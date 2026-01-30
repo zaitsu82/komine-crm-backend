@@ -46,6 +46,17 @@ jest.mock('../../src/plots/controllers', () => ({
   getPlotContracts: jest.fn((req, res) => res.status(200).json({ success: true, data: {} })),
   createPlotContract: jest.fn((req, res) => res.status(201).json({ success: true, data: {} })),
   getPlotInventory: jest.fn((req, res) => res.status(200).json({ success: true, data: {} })),
+  // 在庫管理API
+  getInventorySummary: jest.fn((req, res) => res.status(200).json({ success: true, data: {} })),
+  getInventoryPeriods: jest.fn((req, res) =>
+    res.status(200).json({ success: true, data: { periods: [] } })
+  ),
+  getInventorySections: jest.fn((req, res) =>
+    res.status(200).json({ success: true, data: { items: [], pagination: {} } })
+  ),
+  getInventoryAreas: jest.fn((req, res) =>
+    res.status(200).json({ success: true, data: { items: [], pagination: {} } })
+  ),
 }));
 
 import {

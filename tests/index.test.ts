@@ -84,6 +84,9 @@ describe('Server Index', () => {
     }));
     jest.doMock('@sentry/node', () => mockSentry);
 
+    // cookie-parserのモック
+    jest.doMock('cookie-parser', () => jest.fn(() => 'cookie-parser-middleware'));
+
     // ルートモジュールのモック
     jest.doMock('../src/auth/authRoutes', () => ({
       __esModule: true,
@@ -96,6 +99,18 @@ describe('Server Index', () => {
     jest.doMock('../src/masters/masterRoutes', () => ({
       __esModule: true,
       default: 'master-routes',
+    }));
+    jest.doMock('../src/staff/staffRoutes', () => ({
+      __esModule: true,
+      default: 'staff-routes',
+    }));
+    jest.doMock('../src/collective-burials/collectiveBurialRoutes', () => ({
+      __esModule: true,
+      default: 'collective-burial-routes',
+    }));
+    jest.doMock('../src/documents/documentRoutes', () => ({
+      __esModule: true,
+      default: 'document-routes',
     }));
 
     // ミドルウェアのモック
@@ -200,10 +215,11 @@ describe('Server Index', () => {
   it('should register all middleware and routes correctly', () => {
     require('../src/index');
 
-    // セキュリティミドルウェア（helmet, cors, hpp, json, urlencoded, sanitizeInput, rateLimiter）
+    // セキュリティミドルウェア（helmet, cors, hpp, json, urlencoded, cookieParser, sanitizeInput, rateLimiter）
     // + ログミドルウェア（requestLogger, securityHeaders）
-    // + Swagger UI + 3 API routes + notFoundHandler + errorHandler = 15 use calls
-    expect(mockApp.use).toHaveBeenCalledTimes(15);
+    // + Swagger UI + 6 API routes (auth, plots, masters, staff, collective-burials, documents)
+    // + notFoundHandler + errorHandler = 19 use calls
+    expect(mockApp.use).toHaveBeenCalledTimes(19);
     // 1 health check endpoint
     expect(mockApp.get).toHaveBeenCalledTimes(1);
   });

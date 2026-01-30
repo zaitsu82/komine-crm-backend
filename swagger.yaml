@@ -398,6 +398,224 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/plots/inventory/summary:
+    get:
+      tags:
+        - Plots
+      summary: 在庫全体サマリー取得
+      description: 全区画の在庫状況サマリーを取得。総区画数、使用済数、残数、使用率、総面積、残面積を返す。
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/InventorySummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/plots/inventory/periods:
+    get:
+      tags:
+        - Plots
+      summary: 期別サマリー取得
+      description: 期別（1期〜4期）の在庫サマリーを取得。特定の期のみ取得も可能。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          description: 期（指定しない場合は全期）
+          schema:
+            type: string
+            enum: ["1期", "2期", "3期", "4期"]
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      periods:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PeriodSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/plots/inventory/sections:
+    get:
+      tags:
+        - Plots
+      summary: セクション別集計取得
+      description: セクション別（A, B, 吉相など）の在庫集計を取得。フィルタ・ソート・ページネーション対応。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          description: 期でフィルタ
+          schema:
+            type: string
+            enum: ["1期", "2期", "3期", "4期"]
+        - name: status
+          in: query
+          description: ステータスでフィルタ
+          schema:
+            type: string
+            enum: ["available", "partially_sold", "sold_out"]
+        - name: search
+          in: query
+          description: セクション名で検索
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          description: ソートキー
+          schema:
+            type: string
+            enum: ["period", "section", "totalCount", "usedCount", "remainingCount", "usageRate"]
+            default: "period"
+        - name: sortOrder
+          in: query
+          description: ソート順
+          schema:
+            type: string
+            enum: ["asc", "desc"]
+            default: "asc"
+        - name: page
+          in: query
+          description: ページ番号
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: 1ページあたりの件数
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/SectionInventoryItem"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/plots/inventory/areas:
+    get:
+      tags:
+        - Plots
+      summary: 面積別集計取得
+      description: 面積別（3.6㎡, 1.8㎡など）の在庫集計を取得。フィルタ・ソート・ページネーション対応。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          description: 期でフィルタ
+          schema:
+            type: string
+            enum: ["1期", "2期", "3期", "4期"]
+        - name: search
+          in: query
+          description: 面積・タイプで検索
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          description: ソートキー
+          schema:
+            type: string
+            enum: ["period", "areaSqm", "totalCount", "usedCount", "remainingCount", "remainingAreaSqm", "plotType"]
+            default: "period"
+        - name: sortOrder
+          in: query
+          description: ソート順
+          schema:
+            type: string
+            enum: ["asc", "desc"]
+            default: "asc"
+        - name: page
+          in: query
+          description: ページ番号
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: 1ページあたりの件数
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AreaInventoryItem"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/v1/plots/{id}/inventory:
     get:
       tags:
@@ -3137,6 +3355,142 @@ components:
         managementFee:
           type: object
           nullable: true
+
+    # ==================== 在庫管理スキーマ ====================
+
+    InventorySummary:
+      type: object
+      description: 在庫全体サマリー
+      properties:
+        totalCount:
+          type: integer
+          description: 総区画数
+          example: 3626
+        usedCount:
+          type: integer
+          description: 使用済区画数
+          example: 2963
+        remainingCount:
+          type: integer
+          description: 残区画数
+          example: 663
+        usageRate:
+          type: number
+          format: float
+          description: 使用率（%）
+          example: 81.7
+        totalAreaSqm:
+          type: number
+          format: float
+          description: 総面積（㎡）
+          example: 13053.6
+        remainingAreaSqm:
+          type: number
+          format: float
+          description: 残面積（㎡）
+          example: 2386.8
+        lastUpdated:
+          type: string
+          format: date-time
+          description: 最終更新日時
+
+    PeriodSummary:
+      type: object
+      description: 期別サマリー
+      properties:
+        period:
+          type: string
+          description: 期（1期〜4期）
+          enum: ["1期", "2期", "3期", "4期"]
+          example: "1期"
+        totalCount:
+          type: integer
+          description: 総区画数
+          example: 1591
+        usedCount:
+          type: integer
+          description: 使用済区画数
+          example: 1320
+        remainingCount:
+          type: integer
+          description: 残区画数
+          example: 271
+        usageRate:
+          type: number
+          format: float
+          description: 使用率（%）
+          example: 83.0
+
+    SectionInventoryItem:
+      type: object
+      description: セクション別在庫アイテム
+      properties:
+        period:
+          type: string
+          description: 期
+          example: "1期"
+        section:
+          type: string
+          description: セクション（A, B, 吉相など）
+          example: "A"
+        totalCount:
+          type: integer
+          description: 総区画数
+          example: 100
+        usedCount:
+          type: integer
+          description: 使用済区画数
+          example: 85
+        remainingCount:
+          type: integer
+          description: 残区画数
+          example: 15
+        usageRate:
+          type: number
+          format: float
+          description: 使用率（%）
+          example: 85.0
+        category:
+          type: string
+          nullable: true
+          description: カテゴリ（樹林・天空など）
+          example: "樹林・天空"
+
+    AreaInventoryItem:
+      type: object
+      description: 面積別在庫アイテム
+      properties:
+        period:
+          type: string
+          description: 期
+          example: "1期"
+        areaSqm:
+          type: number
+          format: float
+          description: 面積（㎡）
+          example: 3.6
+        totalCount:
+          type: integer
+          description: 総区画数
+          example: 50
+        usedCount:
+          type: integer
+          description: 使用済区画数
+          example: 40
+        remainingCount:
+          type: integer
+          description: 残区画数
+          example: 10
+        remainingAreaSqm:
+          type: number
+          format: float
+          description: 残面積（㎡）
+          example: 36.0
+        plotType:
+          type: string
+          description: 区画タイプ（自由、吉相、樹林、天空など）
+          example: "自由"
+
     Pagination:
       type: object
       properties:

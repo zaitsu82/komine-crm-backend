@@ -160,7 +160,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           updated_at: new Date('2024-01-01'),
           deleted_at: null,
           contract_date: new Date('2024-01-01'),
-          price: new Prisma.Decimal(1000000),
+          price: 1000000,
           payment_status: 'paid',
           physicalPlot: {
             id: 'pp1',
@@ -230,7 +230,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           updated_at: new Date('2024-01-01'),
           deleted_at: null,
           contract_date: new Date('2024-01-01'),
-          price: new Prisma.Decimal(1000000),
+          price: 1000000,
           payment_status: 'paid',
           physicalPlot: {
             plot_number: 'A-01',
@@ -285,7 +285,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           created_at: new Date('2024-01-01'),
           updated_at: new Date('2024-01-01'),
           contract_date: new Date('2024-01-01'),
-          price: new Prisma.Decimal(1000000),
+          price: 1000000, // Int型
           payment_status: 'unpaid',
           physicalPlot: {
             plot_number: 'A-01',
@@ -349,7 +349,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
         updated_at: new Date('2024-01-01'),
         deleted_at: null,
         contract_date: new Date('2024-01-01'),
-        price: new Prisma.Decimal(1000000),
+        price: 1000000,
         payment_status: 'paid',
         reservation_date: null,
         acceptance_number: null,
@@ -472,7 +472,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
         id: 'cp1',
         physical_plot_id: 'pp1',
         contract_date: new Date('2024-01-01'),
-        price: new Prisma.Decimal(1000000),
+        price: 1000000,
         payment_status: 'unpaid',
       };
       const mockCreatedContractPlot = {
@@ -481,7 +481,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
         contract_area_sqm: new Prisma.Decimal(3.6),
         location_description: null,
         contract_date: new Date('2024-01-01'),
-        price: new Prisma.Decimal(1000000),
+        price: 1000000,
         payment_status: 'unpaid',
         created_at: new Date(),
         updated_at: new Date(),
@@ -894,7 +894,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
             location_description: 'A区画-1',
             created_at: new Date('2024-01-01'),
             contract_date: new Date('2024-01-01'),
-            price: new Prisma.Decimal(1000000),
+            price: 1000000,
             payment_status: 'paid',
             saleContractRoles: [
               {
