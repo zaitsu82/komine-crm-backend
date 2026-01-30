@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { getOverallSummary } from '../services/inventoryService';
-
-const prisma = new PrismaClient();
+import prisma from '../../db/prisma';
 
 /**
  * GET /plots/inventory/summary

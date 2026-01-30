@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-const prisma = new PrismaClient();
+import prisma from '../db/prisma';
 
 // Supabaseクライアントの初期化
 const supabaseUrl = process.env['SUPABASE_URL'] || '';

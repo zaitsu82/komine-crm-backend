@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-const prisma = new PrismaClient();
+import prisma from '../db/prisma';
 
 // Cookie設定の定数
 const isProduction = process.env['NODE_ENV'] === 'production';

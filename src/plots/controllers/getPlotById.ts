@@ -3,16 +3,19 @@
  * GET /api/v1/plots/:id
  */
 
-import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { Request, Response, NextFunction } from 'express';
+import prisma from '../../db/prisma';
+import { NotFoundError } from '../../middleware/errorHandler';
 
 /**
  * 契約区画詳細取得（ContractPlot中心）
  * GET /api/v1/plots/:id?includeHistory=true&historyLimit=50
  */
-export const getPlotById = async (req: Request, res: Response): Promise<any> => {
+export const getPlotById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { id } = req.params;
     const includeHistory = req.query['includeHistory'] === 'true';
@@ -53,13 +56,7 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
     });
 
     if (!contractPlot || contractPlot.deleted_at) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'NOT_FOUND',
-          message: '契約区画が見つかりません',
-        },
-      });
+      throw new NotFoundError('契約区画が見つかりません');
     }
 
     // 履歴情報取得（オプション）
@@ -333,13 +330,6 @@ export const getPlotById = async (req: Request, res: Response): Promise<any> => 
       data: response,
     });
   } catch (error) {
-    console.error('Error fetching contract plot by id:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '契約区画詳細の取得に失敗しました',
-      },
-    });
+    next(error);
   }
 };

@@ -6,9 +6,7 @@
  */
 
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../../db/prisma';
 
 /**
  * 物理区画の在庫状況取得

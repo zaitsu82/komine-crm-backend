@@ -3,10 +3,9 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, BillingStatus } from '@prisma/client';
+import { BillingStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler';
-
-const prisma = new PrismaClient();
+import prisma from '../db/prisma';
 
 /**
  * 合祀一覧取得

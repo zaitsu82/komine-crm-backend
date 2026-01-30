@@ -6,17 +6,20 @@
  * 契約キャンセル時に使用します。
  */
 
-import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Request, Response, NextFunction } from 'express';
 import { updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
-
-const prisma = new PrismaClient();
+import prisma from '../../db/prisma';
+import { NotFoundError } from '../../middleware/errorHandler';
 
 /**
  * ContractPlot削除（論理削除）
  * 契約をキャンセルし、関連データも論理削除します。
  */
-export const deletePlot = async (req: Request, res: Response): Promise<any> => {
+export const deletePlot = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -42,13 +45,7 @@ export const deletePlot = async (req: Request, res: Response): Promise<any> => {
     });
 
     if (!contractPlot) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'NOT_FOUND',
-          message: '指定された契約区画が見つかりません',
-        },
-      });
+      throw new NotFoundError('指定された契約区画が見つかりません');
     }
 
     const now = new Date();
@@ -131,14 +128,6 @@ export const deletePlot = async (req: Request, res: Response): Promise<any> => {
       },
     });
   } catch (error) {
-    console.error('Error deleting contract plot:', error);
-
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '契約区画の削除に失敗しました',
-      },
-    });
+    next(error);
   }
 };

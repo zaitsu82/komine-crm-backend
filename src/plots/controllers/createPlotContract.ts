@@ -6,10 +6,9 @@
  */
 
 import { Request, Response } from 'express';
-import { PrismaClient, Prisma, PaymentStatus, ContractRole } from '@prisma/client';
+import { Prisma, PaymentStatus, ContractRole } from '@prisma/client';
 import { validateContractArea, updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
-
-const prisma = new PrismaClient();
+import prisma from '../../db/prisma';
 
 /**
  * 物理区画に新規契約追加

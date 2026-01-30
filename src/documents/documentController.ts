@@ -3,7 +3,7 @@
  */
 
 import { Request, Response } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   uploadFile,
   downloadFile,
@@ -17,8 +17,7 @@ import {
   InvoiceTemplateData,
   PostcardTemplateData,
 } from './documentService';
-
-const prisma = new PrismaClient();
+import prisma from '../db/prisma';
 
 // 型定義（Prisma生成後にenumからインポート可能）
 type DocumentType = 'invoice' | 'postcard' | 'contract' | 'permit' | 'other';

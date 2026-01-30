@@ -3,10 +3,9 @@
  * スタッフ（ユーザー）管理のCRUD操作を提供
  */
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, StaffRole } from '@prisma/client';
+import { StaffRole } from '@prisma/client';
 import { NotFoundError, ConflictError, ValidationError } from '../middleware/errorHandler';
-
-const prisma = new PrismaClient();
+import prisma from '../db/prisma';
 
 // スタッフ一覧のレスポンス型
 interface StaffListItem {

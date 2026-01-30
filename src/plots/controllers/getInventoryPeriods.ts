@@ -1,9 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { getPeriodSummaries } from '../services/inventoryService';
 import { PlotPeriod } from '../../validations/inventoryValidation';
-
-const prisma = new PrismaClient();
+import prisma from '../../db/prisma';
 
 /**
  * GET /plots/inventory/periods

@@ -5,18 +5,22 @@
  * ContractPlot（販売契約情報統合済み）、Customer、関連情報の部分更新を行います。
  */
 
-import { Request, Response } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { UpdateContractPlotInput } from '../../type';
 import { updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
-
-const prisma = new PrismaClient();
+import prisma from '../../db/prisma';
+import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 
 /**
  * 契約区画更新
  * PUT /api/v1/plots/:id
  */
-export const updatePlot = async (req: Request, res: Response): Promise<any> => {
+export const updatePlot = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { id } = req.params;
     const input: UpdateContractPlotInput = req.body;
@@ -45,7 +49,7 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
       });
 
       if (!existingContractPlot) {
-        throw new Error('指定された契約区画が見つかりません');
+        throw new NotFoundError('指定された契約区画が見つかりません');
       }
 
       const physicalPlotId = existingContractPlot.physical_plot_id;
@@ -78,7 +82,7 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
           const physicalPlotArea = existingContractPlot.physicalPlot.area_sqm.toNumber();
 
           if (totalAfterUpdate > physicalPlotArea) {
-            throw new Error(
+            throw new ValidationError(
               `契約面積の合計が物理区画の面積を超えています（物理区画: ${physicalPlotArea}㎡、合計: ${totalAfterUpdate}㎡）`
             );
           }
@@ -150,7 +154,7 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
         for (const roleData of input.saleContract.roles) {
           // customerId が指定されていない場合はエラー
           if (!roleData.customerId) {
-            throw new Error('役割更新時は customerId が必須です');
+            throw new ValidationError('役割更新時は customerId が必須です');
           }
 
           await tx.saleContractRole.create({
@@ -487,24 +491,6 @@ export const updatePlot = async (req: Request, res: Response): Promise<any> => {
       },
     });
   } catch (error) {
-    console.error('Error updating contract plot:', error);
-
-    if (error instanceof Error && error.message) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: error.message,
-        },
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '契約区画の更新に失敗しました',
-      },
-    });
+    next(error);
   }
 };

@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { getSectionInventory } from '../services/inventoryService';
 import {
   PlotPeriod,
@@ -7,8 +6,7 @@ import {
   SectionSortKey,
   SortOrder,
 } from '../../validations/inventoryValidation';
-
-const prisma = new PrismaClient();
+import prisma from '../../db/prisma';
 
 /**
  * GET /plots/inventory/sections

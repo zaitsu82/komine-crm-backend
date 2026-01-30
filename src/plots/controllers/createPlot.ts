@@ -6,41 +6,33 @@
  * 物理区画（PhysicalPlot）の新規作成または既存区画への契約追加に対応。
  */
 
-import { Request, Response } from 'express';
-import { PrismaClient, Prisma, PaymentStatus, ContractRole } from '@prisma/client';
+import { Request, Response, NextFunction } from 'express';
+import { Prisma, PaymentStatus, ContractRole } from '@prisma/client';
 import { CreateContractPlotInput } from '../../type';
 import { validateContractArea, updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
-
-const prisma = new PrismaClient();
+import prisma from '../../db/prisma';
+import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 
 /**
  * 新規契約作成（ContractPlot + SaleContract + Customer）
  * POST /api/v1/plots
  */
-export const createPlot = async (req: Request, res: Response): Promise<any> => {
+export const createPlot = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const input: CreateContractPlotInput = req.body;
 
     // 入力バリデーション
     if (!input.contractPlot || !input.saleContract || !input.customer) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'contractPlot, saleContract, customerは必須です',
-        },
-      });
+      throw new ValidationError('contractPlot, saleContract, customerは必須です');
     }
 
     // 契約面積のバリデーション
     if (!input.contractPlot.contractAreaSqm || input.contractPlot.contractAreaSqm <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: '契約面積は0より大きい値を指定してください',
-        },
-      });
+      throw new ValidationError('契約面積は0より大きい値を指定してください');
     }
 
     // トランザクション処理
@@ -54,12 +46,12 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
         });
 
         if (!physicalPlot) {
-          throw new Error('指定された物理区画が見つかりません');
+          throw new NotFoundError('指定された物理区画が見つかりません');
         }
       } else {
         // 新規物理区画を作成
         if (!input.physicalPlot.plotNumber || !input.physicalPlot.areaName) {
-          throw new Error('新規物理区画作成時は plotNumber と areaName が必須です');
+          throw new ValidationError('新規物理区画作成時は plotNumber と areaName が必須です');
         }
 
         physicalPlot = await tx.physicalPlot.create({
@@ -81,7 +73,7 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
       );
 
       if (!validationResult.isValid) {
-        throw new Error(validationResult.message || '契約面積の検証に失敗しました');
+        throw new ValidationError(validationResult.message || '契約面積の検証に失敗しました');
       }
 
       // 3. 顧客情報の作成
@@ -310,24 +302,6 @@ export const createPlot = async (req: Request, res: Response): Promise<any> => {
       },
     });
   } catch (error) {
-    console.error('Error creating contract plot:', error);
-
-    if (error instanceof Error && error.message) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: error.message,
-        },
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '契約区画の作成に失敗しました',
-      },
-    });
+    next(error);
   }
 };

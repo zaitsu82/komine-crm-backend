@@ -4,9 +4,7 @@
  */
 
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../../db/prisma';
 
 /**
  * 契約区画一覧取得（ContractPlot中心）

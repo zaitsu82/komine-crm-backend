@@ -132,6 +132,7 @@ export async function getOverallSummary(prisma: DbClient): Promise<InventorySumm
 
 /**
  * 期別サマリーを取得
+ * 最適化: N+1クエリを1クエリに統合
  */
 export async function getPeriodSummaries(
   prisma: DbClient,
@@ -139,52 +140,62 @@ export async function getPeriodSummaries(
 ): Promise<PeriodSummaryItem[]> {
   const periodsToQuery = period ? [period] : PERIODS;
 
-  const results: PeriodSummaryItem[] = [];
+  // 単一クエリで全期間のデータを取得
+  const physicalPlots = await prisma.physicalPlot.findMany({
+    where: {
+      deleted_at: null,
+      area_name: { in: periodsToQuery },
+    },
+    include: {
+      contractPlots: {
+        where: { deleted_at: null },
+        select: { contract_area_sqm: true },
+      },
+    },
+  });
 
+  // 期別にグルーピング
+  const plotsByPeriod = new Map<string, { totalCount: number; usedCount: number }>();
+
+  // 対象期間を初期化
   for (const p of periodsToQuery) {
-    const physicalPlots = await prisma.physicalPlot.findMany({
-      where: {
-        deleted_at: null,
-        area_name: p,
-      },
-      include: {
-        contractPlots: {
-          where: { deleted_at: null },
-          select: { contract_area_sqm: true },
-        },
-      },
-    });
+    plotsByPeriod.set(p, { totalCount: 0, usedCount: 0 });
+  }
 
-    let totalCount = 0;
-    let usedCount = 0;
+  // データを集計
+  for (const plot of physicalPlots) {
+    const periodData = plotsByPeriod.get(plot.area_name);
+    if (!periodData) continue;
 
-    for (const plot of physicalPlots) {
-      totalCount += 1;
-      const plotArea = plot.area_sqm ? toNumber(plot.area_sqm) : 3.6;
+    periodData.totalCount += 1;
+    const plotArea = plot.area_sqm ? toNumber(plot.area_sqm) : 3.6;
 
-      const contractedArea = plot.contractPlots.reduce(
-        (sum, cp) => sum + toNumber(cp.contract_area_sqm),
-        0
-      );
+    const contractedArea = plot.contractPlots.reduce(
+      (sum, cp) => sum + toNumber(cp.contract_area_sqm),
+      0
+    );
 
-      if (plot.status === 'sold_out') {
-        usedCount += 1;
-      } else if (plot.status === 'partially_sold' && contractedArea > 0) {
-        usedCount += contractedArea / plotArea;
-      }
+    if (plot.status === 'sold_out') {
+      periodData.usedCount += 1;
+    } else if (plot.status === 'partially_sold' && contractedArea > 0) {
+      periodData.usedCount += contractedArea / plotArea;
     }
+  }
 
-    const remainingCount = totalCount - usedCount;
-    const usageRate = totalCount > 0 ? (usedCount / totalCount) * 100 : 0;
+  // 結果を配列に変換
+  const results: PeriodSummaryItem[] = periodsToQuery.map((p) => {
+    const data = plotsByPeriod.get(p)!;
+    const remainingCount = data.totalCount - data.usedCount;
+    const usageRate = data.totalCount > 0 ? (data.usedCount / data.totalCount) * 100 : 0;
 
-    results.push({
+    return {
       period: p,
-      totalCount: Math.round(totalCount),
-      usedCount: Math.round(usedCount),
+      totalCount: Math.round(data.totalCount),
+      usedCount: Math.round(data.usedCount),
       remainingCount: Math.round(remainingCount),
       usageRate: Math.round(usageRate * 10) / 10,
-    });
-  }
+    };
+  });
 
   return results;
 }
