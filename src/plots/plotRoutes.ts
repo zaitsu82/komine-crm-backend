@@ -12,6 +12,7 @@ import {
   getInventoryPeriods,
   getInventorySections,
   getInventoryAreas,
+  getPlotHistory,
 } from './controllers';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission';
@@ -146,6 +147,15 @@ router.get(
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ params: plotIdParamsSchema }),
   getPlotInventory
+);
+
+// 区画の変更履歴取得
+router.get(
+  '/:id/history',
+  authenticate,
+  requirePermission(['viewer', 'operator', 'manager', 'admin']),
+  validate({ params: plotIdParamsSchema }),
+  getPlotHistory
 );
 
 export default router;

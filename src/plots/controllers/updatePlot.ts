@@ -11,6 +11,7 @@ import { UpdateContractPlotInput } from '../../type';
 import { updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
+import { recordContractPlotUpdated, recordCustomerUpdated } from '../services/historyService';
 
 /**
  * 契約区画更新
@@ -403,6 +404,95 @@ export const updatePlot = async (
         input.contractPlot.contractAreaSqm !== oldContractArea
       ) {
         await updatePhysicalPlotStatus(tx as any, physicalPlotId);
+      }
+
+      // 10. 履歴の自動記録
+      // ContractPlotの更新履歴
+      if (Object.keys(updateData).length > 0) {
+        const beforeContractPlotData = {
+          contract_area_sqm: existingContractPlot.contract_area_sqm.toString(),
+          location_description: existingContractPlot.location_description,
+          contract_date: existingContractPlot.contract_date?.toISOString(),
+          price: existingContractPlot.price,
+          payment_status: existingContractPlot.payment_status,
+          reservation_date: existingContractPlot.reservation_date?.toISOString(),
+          acceptance_number: existingContractPlot.acceptance_number,
+          permit_date: existingContractPlot.permit_date?.toISOString(),
+          start_date: existingContractPlot.start_date?.toISOString(),
+          notes: existingContractPlot.notes,
+        };
+
+        const updatedCp = await tx.contractPlot.findUnique({ where: { id } });
+        const afterContractPlotData = updatedCp
+          ? {
+              contract_area_sqm: updatedCp.contract_area_sqm.toString(),
+              location_description: updatedCp.location_description,
+              contract_date: updatedCp.contract_date?.toISOString(),
+              price: updatedCp.price,
+              payment_status: updatedCp.payment_status,
+              reservation_date: updatedCp.reservation_date?.toISOString(),
+              acceptance_number: updatedCp.acceptance_number,
+              permit_date: updatedCp.permit_date?.toISOString(),
+              start_date: updatedCp.start_date?.toISOString(),
+              notes: updatedCp.notes,
+            }
+          : beforeContractPlotData;
+
+        await recordContractPlotUpdated(
+          tx,
+          beforeContractPlotData,
+          afterContractPlotData,
+          physicalPlotId,
+          id as string,
+          req
+        );
+      }
+
+      // Customerの更新履歴
+      if (input.customer) {
+        const primaryRole = existingContractPlot.saleContractRoles?.find(
+          (role: any) => role.role === 'contractor'
+        );
+        const existingCustomer = primaryRole?.customer;
+
+        if (existingCustomer) {
+          const beforeCustomerData = {
+            name: existingCustomer.name,
+            name_kana: existingCustomer.name_kana,
+            birth_date: existingCustomer.birth_date?.toISOString(),
+            gender: existingCustomer.gender,
+            postal_code: existingCustomer.postal_code,
+            address: existingCustomer.address,
+            phone_number: existingCustomer.phone_number,
+            email: existingCustomer.email,
+          };
+
+          const updatedCustomer = await tx.customer.findUnique({
+            where: { id: existingCustomer.id },
+          });
+          const afterCustomerData = updatedCustomer
+            ? {
+                name: updatedCustomer.name,
+                name_kana: updatedCustomer.name_kana,
+                birth_date: updatedCustomer.birth_date?.toISOString(),
+                gender: updatedCustomer.gender,
+                postal_code: updatedCustomer.postal_code,
+                address: updatedCustomer.address,
+                phone_number: updatedCustomer.phone_number,
+                email: updatedCustomer.email,
+              }
+            : beforeCustomerData;
+
+          await recordCustomerUpdated(
+            tx,
+            beforeCustomerData,
+            afterCustomerData,
+            existingCustomer.id,
+            id as string,
+            physicalPlotId,
+            req
+          );
+        }
       }
     });
 

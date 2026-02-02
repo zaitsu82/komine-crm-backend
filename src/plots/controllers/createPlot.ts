@@ -12,6 +12,7 @@ import { CreateContractPlotInput } from '../../type';
 import { validateContractArea, updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
+import { recordContractPlotCreated, recordCustomerCreated } from '../services/historyService';
 
 /**
  * 新規契約作成（ContractPlot + SaleContract + Customer）
@@ -211,6 +212,10 @@ export const createPlot = async (
 
       // 9. 物理区画のステータス更新
       await updatePhysicalPlotStatus(tx as any, physicalPlot.id);
+
+      // 10. 履歴の自動記録
+      await recordContractPlotCreated(tx, contractPlot, req);
+      await recordCustomerCreated(tx, customer, contractPlot.id, physicalPlot.id, req);
 
       return {
         contractPlot,

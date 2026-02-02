@@ -17,3 +17,6 @@ export { getInventorySummary } from './getInventorySummary';
 export { getInventoryPeriods } from './getInventoryPeriods';
 export { getInventorySections } from './getInventorySections';
 export { getInventoryAreas } from './getInventoryAreas';
+
+// 履歴管理API
+export { getPlotHistory } from './getPlotHistory';
