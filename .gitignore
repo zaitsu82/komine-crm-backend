@@ -102,6 +102,9 @@ tmp/
 # Prisma generated files
 prisma/generated/
 
+# Uploads directory
+uploads/
+
 # Development notes and design documents
 *design*.md
 *notes*.md
