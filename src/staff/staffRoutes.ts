@@ -6,6 +6,7 @@ import { Router } from 'express';
 import {
   getStaffList,
   getStaffById,
+  createStaff,
   updateStaff,
   deleteStaff,
   toggleStaffActive,
@@ -21,6 +22,13 @@ const router = Router();
  * @access 認証必須 - manager以上
  */
 router.get('/', authenticate, requirePermission([ROLES.MANAGER, ROLES.ADMIN]), getStaffList);
+
+/**
+ * @route POST /api/v1/staff
+ * @desc スタッフ新規作成
+ * @access 認証必須 - admin のみ
+ */
+router.post('/', authenticate, requirePermission([ROLES.ADMIN]), createStaff);
 
 /**
  * @route GET /api/v1/staff/:id

@@ -119,6 +119,83 @@ export const getStaffList = async (
 };
 
 /**
+ * スタッフ新規作成
+ * POST /staff
+ *
+ * TODO: Supabase Admin SDKを使用してアカウント作成・招待メール送信
+ * 現在はDBへの登録のみ。Supabaseアカウントは別途手動作成が必要。
+ */
+export const createStaff = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { name, email, role = 'viewer' } = req.body;
+
+    // バリデーション
+    if (!name || !name.trim()) {
+      throw new ValidationError('名前は必須です');
+    }
+    if (!email || !email.trim()) {
+      throw new ValidationError('メールアドレスは必須です');
+    }
+    if (!['viewer', 'operator', 'manager', 'admin'].includes(role)) {
+      throw new ValidationError('無効なロールです');
+    }
+
+    // メールアドレスの形式チェック
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new ValidationError('有効なメールアドレスを入力してください');
+    }
+
+    // メールアドレスの重複チェック
+    const existingStaff = await prisma.staff.findFirst({
+      where: {
+        email,
+        deleted_at: null,
+      },
+    });
+
+    if (existingStaff) {
+      throw new ConflictError('このメールアドレスは既に使用されています');
+    }
+
+    // スタッフ作成
+    // TODO: Supabaseアカウント作成後、supabase_uidを設定
+    const newStaff = await prisma.staff.create({
+      data: {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        role: role as StaffRole,
+        supabase_uid: `pending_${Date.now()}`, // 仮のUID（Supabase連携時に更新）
+        is_active: true,
+      },
+    });
+
+    const response: StaffDetail = {
+      id: newStaff.id,
+      name: newStaff.name,
+      email: newStaff.email,
+      role: newStaff.role,
+      isActive: newStaff.is_active,
+      lastLoginAt: newStaff.last_login_at,
+      createdAt: newStaff.created_at,
+      updatedAt: newStaff.updated_at,
+    };
+
+    res.status(201).json({
+      success: true,
+      data: response,
+      message: 'スタッフを作成しました。Supabaseアカウントは別途作成してください。',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * スタッフ詳細取得
  * GET /staff/:id
  */
