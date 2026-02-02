@@ -26,7 +26,18 @@ enum PaymentStatus {
   paid // 全額入金済み
   overdue // 延滞
   refunded // 返金済み
-  cancelled // キャンセル
+  cancelled // キャンセル（非推奨: ContractStatus.cancelledを使用）
+}
+
+// 契約ステータス
+enum ContractStatus {
+  draft // 下書き・仮予約
+  reserved // 予約済み（仮契約）
+  active // 有効（本契約）
+  suspended // 一時停止（滞納等）
+  terminated // 終了（正常終了）
+  cancelled // 解約（中途解約）
+  transferred // 継承済み（名義変更完了）
 }
 
 // 性別
@@ -146,9 +157,10 @@ model ContractPlot {
   location_description String? @db.VarChar(200) // 物理区画内のどの位置か（例: 左半分、右側）
 
   // 販売契約情報
-  contract_date     DateTime      @db.Date // 契約日
+  contract_date     DateTime       @db.Date // 契約日
   price             Int // 販売価格（円単位）
-  payment_status    PaymentStatus @default(unpaid) // 支払いステータス
+  contract_status   ContractStatus @default(draft) // 契約ステータス
+  payment_status    PaymentStatus  @default(unpaid) // 支払いステータス
   reservation_date  DateTime?     @db.Date // 予約日
   acceptance_number String?       @db.VarChar(50) // 受付番号（承諾書番号）
   permit_date       DateTime?     @db.Date // 許可日
@@ -175,6 +187,7 @@ model ContractPlot {
 
   @@index([physical_plot_id])
   @@index([contract_date])
+  @@index([contract_status])
   @@index([payment_status])
   @@index([deleted_at])
   @@map("contract_plots")
@@ -481,7 +494,7 @@ model CollectiveBurial {
 model History {
   id               String     @id @default(uuid()) @map("history_id")
   entity_type      String     @db.VarChar(50) // テーブル名: PhysicalPlot, ContractPlot, Customer など
-  entity_id        String     @db.VarChar(32) // 対象レコードのID
+  entity_id        String     @db.VarChar(36) // 対象レコードのID（UUID形式）
   physical_plot_id String? // 関連する物理区画ID（検索用）
   contract_plot_id String? // 関連する契約区画ID（検索用）
   action_type      ActionType // アクションタイプ

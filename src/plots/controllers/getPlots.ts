@@ -185,12 +185,14 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
 
     res.status(200).json({
       success: true,
-      data: plotList,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+      data: {
+        data: plotList,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       },
     });
   } catch (error) {
