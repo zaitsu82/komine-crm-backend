@@ -56,7 +56,7 @@ This is Cemetery CRM (kurosakicrm) - a comprehensive backend system for managing
   - `docker compose exec db psql -U cemetery_user -d komine_cemetery_crm` - Access PostgreSQL
   - `docker compose exec app npx prisma studio` - Open Prisma Studio
   - `docker compose down -v` - Remove all containers and volumes
-- **See DOCKER_SETUP.md for comprehensive Docker documentation**
+- **See SETUP.md for Docker documentation**
 
 ## Architecture Overview
 
@@ -231,7 +231,6 @@ interface SuccessResponse<T> {
 
 Complete OpenAPI 3.0 specification available:
 - **swagger.yaml** - YAML format specification
-- **swagger.json** - JSON format specification
 
 **Swagger Management Commands**:
 - `npm run swagger:validate` - Validate OpenAPI specification
@@ -330,7 +329,7 @@ The specification includes:
 - **DB_NAME**: PostgreSQL database name (default: komine_cemetery_crm)
 - **DB_PORT**: PostgreSQL port (default: 5432)
 
-See `PRODUCTION_SETUP.md` for detailed production deployment configuration and `DOCKER_SETUP.md` for Docker-specific setup including CORS setup, security checklist, and troubleshooting.
+See `SETUP.md` for detailed deployment configuration, Docker setup, CORS setup, and troubleshooting.
 
 ## CI/CD Pipeline
 
@@ -367,7 +366,7 @@ See `PRODUCTION_SETUP.md` for detailed production deployment configuration and `
     - If not enabled, workflow continues with warning (table output still available)
 - Results uploaded to GitHub Security tab for centralized management (when Code Scanning enabled)
 
-See `CI_CD_SETUP.md` for detailed setup instructions and `SECURITY.md` for security policy.
+See `SETUP.md` for CI/CD setup and `SECURITY.md` for security policy.
 
 ### Test Environment
 - CI uses **Prisma Mock** (not real PostgreSQL) for fast execution
@@ -389,15 +388,10 @@ See `CI_CD_SETUP.md` for detailed setup instructions and `SECURITY.md` for secur
   - XSS sanitization on all inputs
 - **Documentation**:
   - Project overview: README.md
-  - Contributing guidelines: CONTRIBUTING.md
+  - Development guidelines: CLAUDE.md
+  - Setup guide: SETUP.md
   - Security policy: SECURITY.md
-  - Change history: CHANGELOG.md
-  - API specification: API_SPECIFICATION.md, swagger.yaml, swagger.json
-  - Database specification: DATABASE_SPECIFICATION.md
-  - Docker setup: DOCKER_SETUP.md
-  - Production setup: PRODUCTION_SETUP.md
-  - CI/CD setup: CI_CD_SETUP.md
-  - Postman collection: postman-collection.json
+  - API specification: swagger.yaml
 - **Language**: Japanese language content throughout (墓石管理システム = Cemetery Management System)
 - **Test suite**: 428 tests with high coverage thresholds (Functions 100%, Lines 99%, Statements 97%, Branches 80%)
 - **Testing approach**: Mock Prisma client defined in `__mocks__/@prisma/client.ts`
@@ -431,7 +425,7 @@ If frontend cannot connect to backend:
 - Must be comma-separated, no spaces: `"https://app.com,https://admin.app.com"`
 - Include protocol (https://) and exact domain (no wildcards)
 - Check server logs for "CORS blocked:" warnings
-- See `PRODUCTION_SETUP.md` for detailed troubleshooting
+- See `SETUP.md` for detailed troubleshooting
 
 ### Docker Issues
 If Docker containers fail to start or connect:
@@ -440,4 +434,4 @@ If Docker containers fail to start or connect:
 - **Permission errors**: Ensure proper file permissions on volumes
 - **Container not updating**: Rebuild with `docker compose build --no-cache`
 - **Prisma client errors**: Run `docker compose exec app npx prisma generate`
-- See `DOCKER_SETUP.md` for comprehensive troubleshooting guide
+- See `SETUP.md` for troubleshooting guide
