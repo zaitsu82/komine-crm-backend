@@ -1,49 +1,124 @@
 /**
  * 契約区画一覧取得コントローラー
  * GET /api/v1/plots
+ *
+ * サーバーサイド検索・ページネーション対応
  */
 
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../../db/prisma';
+
+interface PlotSearchQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: 'available' | 'partially_sold' | 'sold_out';
+  cemeteryType?: string;
+}
 
 /**
  * 契約区画一覧取得（ContractPlot中心）
+ * サーバーサイド検索・ページネーション対応
  */
-export const getPlots = async (_req: Request, res: Response) => {
+export const getPlots = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const contractPlots = await prisma.contractPlot.findMany({
-      where: {
-        deleted_at: null, // 論理削除されていない契約のみ
-      },
-      include: {
-        physicalPlot: {
-          select: {
-            plot_number: true,
-            area_name: true,
-            area_sqm: true,
-            status: true,
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      status,
+      cemeteryType,
+    } = req.query as unknown as PlotSearchQuery;
+
+    // ページネーション計算
+    const skip = (page - 1) * limit;
+    const take = limit;
+
+    // 検索条件の構築
+    const whereCondition: Prisma.ContractPlotWhereInput = {
+      deleted_at: null,
+    };
+
+    // フリーテキスト検索（区画番号、顧客名、顧客名カナ、電話番号、住所）
+    if (search) {
+      whereCondition.OR = [
+        {
+          physicalPlot: {
+            plot_number: { contains: search, mode: 'insensitive' },
           },
         },
-        saleContractRoles: {
-          where: { deleted_at: null },
-          include: {
-            customer: {
-              select: {
-                id: true,
-                name: true,
-                name_kana: true,
-                phone_number: true,
-                address: true,
+        {
+          saleContractRoles: {
+            some: {
+              deleted_at: null,
+              customer: {
+                OR: [
+                  { name: { contains: search, mode: 'insensitive' } },
+                  { name_kana: { contains: search, mode: 'insensitive' } },
+                  { phone_number: { contains: search } },
+                  { address: { contains: search, mode: 'insensitive' } },
+                ],
               },
             },
           },
         },
-        managementFee: true,
-      },
-      orderBy: {
-        created_at: 'desc',
-      },
-    });
+      ];
+    }
+
+    // ステータスフィルター
+    if (status) {
+      whereCondition.physicalPlot = {
+        ...((whereCondition.physicalPlot as object) || {}),
+        status,
+      };
+    }
+
+    // 墓地タイプフィルター
+    if (cemeteryType) {
+      whereCondition.physicalPlot = {
+        ...((whereCondition.physicalPlot as object) || {}),
+        area_name: { contains: cemeteryType, mode: 'insensitive' },
+      };
+    }
+
+    // 総件数とデータを並列で取得
+    const [total, contractPlots] = await Promise.all([
+      prisma.contractPlot.count({ where: whereCondition }),
+      prisma.contractPlot.findMany({
+        where: whereCondition,
+        skip,
+        take,
+        include: {
+          physicalPlot: {
+            select: {
+              plot_number: true,
+              area_name: true,
+              area_sqm: true,
+              status: true,
+            },
+          },
+          saleContractRoles: {
+            where: { deleted_at: null },
+            include: {
+              customer: {
+                select: {
+                  id: true,
+                  name: true,
+                  name_kana: true,
+                  phone_number: true,
+                  address: true,
+                },
+              },
+            },
+          },
+          managementFee: true,
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+      }),
+    ]);
 
     const plotList = contractPlots.map((contractPlot) => {
       // 次回請求日の計算（last_billing_monthから1ヶ月後を計算）
@@ -111,15 +186,14 @@ export const getPlots = async (_req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       data: plotList,
-    });
-  } catch (error) {
-    console.error('Error fetching contract plots:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '契約区画情報の取得に失敗しました',
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
     });
+  } catch (error) {
+    next(error);
   }
 };
