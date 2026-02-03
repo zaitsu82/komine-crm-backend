@@ -6,6 +6,13 @@ import { Request, Response, NextFunction } from 'express';
 import { StaffRole } from '@prisma/client';
 import { NotFoundError, ConflictError, ValidationError } from '../middleware/errorHandler';
 import prisma from '../db/prisma';
+import {
+  isSupabaseAdminAvailable,
+  createSupabaseUser,
+  deleteSupabaseUser,
+  updateSupabaseUserEmail,
+  resendInvitation,
+} from '../services/supabaseAdmin';
 
 // スタッフ一覧のレスポンス型
 interface StaffListItem {
@@ -122,8 +129,8 @@ export const getStaffList = async (
  * スタッフ新規作成
  * POST /staff
  *
- * TODO: Supabase Admin SDKを使用してアカウント作成・招待メール送信
- * 現在はDBへの登録のみ。Supabaseアカウントは別途手動作成が必要。
+ * Supabase Admin SDKを使用してアカウントを作成し、招待メールを送信
+ * スタッフDBレコードとSupabaseアカウントを同時に作成
  */
 export const createStaff = async (
   req: Request,
@@ -131,7 +138,7 @@ export const createStaff = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { name, email, role = 'viewer' } = req.body;
+    const { name, email, role = 'viewer', skipSupabase = false } = req.body;
 
     // バリデーション
     if (!name || !name.trim()) {
@@ -150,10 +157,12 @@ export const createStaff = async (
       throw new ValidationError('有効なメールアドレスを入力してください');
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     // メールアドレスの重複チェック
     const existingStaff = await prisma.staff.findFirst({
       where: {
-        email,
+        email: normalizedEmail,
         deleted_at: null,
       },
     });
@@ -162,14 +171,36 @@ export const createStaff = async (
       throw new ConflictError('このメールアドレスは既に使用されています');
     }
 
+    let supabaseUid: string;
+    let invitationSent = false;
+
+    // Supabase Admin SDKが利用可能かつskipSupabaseがfalseの場合
+    if (isSupabaseAdminAvailable() && !skipSupabase) {
+      // Supabaseユーザーを作成（招待メール送信）
+      const supabaseResult = await createSupabaseUser(
+        normalizedEmail,
+        { name: name.trim(), role },
+        process.env['FRONTEND_URL'] ? `${process.env['FRONTEND_URL']}/set-password` : undefined
+      );
+
+      if (!supabaseResult.success || !supabaseResult.user) {
+        throw new ConflictError(supabaseResult.error || 'Supabaseアカウントの作成に失敗しました');
+      }
+
+      supabaseUid = supabaseResult.user.id;
+      invitationSent = true;
+    } else {
+      // Supabaseが利用不可またはスキップの場合は仮のUIDを設定
+      supabaseUid = `pending_${Date.now()}`;
+    }
+
     // スタッフ作成
-    // TODO: Supabaseアカウント作成後、supabase_uidを設定
     const newStaff = await prisma.staff.create({
       data: {
         name: name.trim(),
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         role: role as StaffRole,
-        supabase_uid: `pending_${Date.now()}`, // 仮のUID（Supabase連携時に更新）
+        supabase_uid: supabaseUid,
         is_active: true,
       },
     });
@@ -185,10 +216,15 @@ export const createStaff = async (
       updatedAt: newStaff.updated_at,
     };
 
+    const message = invitationSent
+      ? 'スタッフを作成しました。招待メールを送信しました。'
+      : 'スタッフを作成しました。Supabaseアカウントは別途作成してください。';
+
     res.status(201).json({
       success: true,
       data: response,
-      message: 'スタッフを作成しました。Supabaseアカウントは別途作成してください。',
+      message,
+      invitationSent,
     });
   } catch (error) {
     next(error);
@@ -246,6 +282,8 @@ export const getStaffById = async (
 /**
  * スタッフ更新
  * PUT /staff/:id
+ *
+ * メールアドレス変更時はSupabaseも同期
  */
 export const updateStaff = async (
   req: Request,
@@ -273,12 +311,13 @@ export const updateStaff = async (
     }
 
     const { name, email, role, isActive } = req.body;
+    const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
 
     // メールアドレスの重複チェック
-    if (email && email !== existingStaff.email) {
+    if (normalizedEmail && normalizedEmail !== existingStaff.email) {
       const emailExists = await prisma.staff.findFirst({
         where: {
-          email,
+          email: normalizedEmail,
           id: { not: staffId },
           deleted_at: null,
         },
@@ -286,6 +325,23 @@ export const updateStaff = async (
 
       if (emailExists) {
         throw new ConflictError('このメールアドレスは既に使用されています');
+      }
+
+      // Supabaseのメールアドレスも更新
+      if (
+        isSupabaseAdminAvailable() &&
+        existingStaff.supabase_uid &&
+        !existingStaff.supabase_uid.startsWith('pending_')
+      ) {
+        const updateResult = await updateSupabaseUserEmail(
+          existingStaff.supabase_uid,
+          normalizedEmail
+        );
+        if (!updateResult.success) {
+          throw new ConflictError(
+            updateResult.error || 'Supabaseメールアドレスの更新に失敗しました'
+          );
+        }
       }
     }
 
@@ -298,7 +354,7 @@ export const updateStaff = async (
     } = {};
 
     if (name !== undefined) updateData.name = name;
-    if (email !== undefined) updateData.email = email;
+    if (normalizedEmail !== undefined) updateData.email = normalizedEmail;
     if (role !== undefined && ['viewer', 'operator', 'manager', 'admin'].includes(role)) {
       updateData.role = role as StaffRole;
     }
@@ -333,6 +389,8 @@ export const updateStaff = async (
 /**
  * スタッフ削除（論理削除）
  * DELETE /staff/:id
+ *
+ * Supabaseユーザーも同時に削除（オプション）
  */
 export const deleteStaff = async (
   req: Request,
@@ -342,6 +400,7 @@ export const deleteStaff = async (
   try {
     const { id } = req.params;
     const staffId = parseInt(id || '', 10);
+    const { deleteSupabaseAccount = true } = req.query;
 
     if (isNaN(staffId)) {
       throw new ValidationError('無効なスタッフIDです');
@@ -364,6 +423,23 @@ export const deleteStaff = async (
       throw new ValidationError('自分自身を削除することはできません');
     }
 
+    let supabaseDeleted = false;
+
+    // Supabaseユーザーの削除（pending_で始まる仮UIDは除外）
+    if (
+      deleteSupabaseAccount !== 'false' &&
+      isSupabaseAdminAvailable() &&
+      existingStaff.supabase_uid &&
+      !existingStaff.supabase_uid.startsWith('pending_')
+    ) {
+      const deleteResult = await deleteSupabaseUser(existingStaff.supabase_uid);
+      supabaseDeleted = deleteResult.success;
+      // Supabase削除が失敗してもDBの論理削除は続行
+      if (!deleteResult.success) {
+        console.warn(`Supabaseユーザー削除失敗 (staff_id: ${staffId}): ${deleteResult.error}`);
+      }
+    }
+
     // 論理削除実行
     await prisma.staff.update({
       where: { id: staffId },
@@ -375,7 +451,10 @@ export const deleteStaff = async (
 
     res.json({
       success: true,
-      data: { message: 'スタッフを削除しました' },
+      data: {
+        message: 'スタッフを削除しました',
+        supabaseAccountDeleted: supabaseDeleted,
+      },
     });
   } catch (error) {
     next(error);
@@ -430,6 +509,69 @@ export const toggleStaffActive = async (
         id: updatedStaff.id,
         isActive: updatedStaff.is_active,
         message: updatedStaff.is_active ? 'スタッフを有効化しました' : 'スタッフを無効化しました',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 招待メール再送信
+ * POST /staff/:id/resend-invitation
+ */
+export const resendStaffInvitation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const staffId = parseInt(id || '', 10);
+
+    if (isNaN(staffId)) {
+      throw new ValidationError('無効なスタッフIDです');
+    }
+
+    // 対象のスタッフ存在確認
+    const existingStaff = await prisma.staff.findFirst({
+      where: {
+        id: staffId,
+        deleted_at: null,
+      },
+    });
+
+    if (!existingStaff) {
+      throw new NotFoundError('スタッフが見つかりません');
+    }
+
+    // Supabase Admin SDKが利用可能かチェック
+    if (!isSupabaseAdminAvailable()) {
+      throw new ValidationError('Supabase Admin サービスが利用できません');
+    }
+
+    // 招待メール再送信
+    const result = await resendInvitation(
+      existingStaff.email,
+      process.env['FRONTEND_URL'] ? `${process.env['FRONTEND_URL']}/set-password` : undefined
+    );
+
+    if (!result.success) {
+      throw new ValidationError(result.error || '招待メールの送信に失敗しました');
+    }
+
+    // supabase_uidが仮の値の場合、新しいUIDで更新
+    if (result.user && existingStaff.supabase_uid?.startsWith('pending_')) {
+      await prisma.staff.update({
+        where: { id: staffId },
+        data: { supabase_uid: result.user.id },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        message: '招待メールを再送信しました',
       },
     });
   } catch (error) {

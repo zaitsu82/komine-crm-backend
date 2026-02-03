@@ -10,6 +10,7 @@ import {
   updateStaff,
   deleteStaff,
   toggleStaffActive,
+  resendStaffInvitation,
 } from './staffController';
 import { authenticate } from '../middleware/auth';
 import { requirePermission, ROLES } from '../middleware/permission';
@@ -57,5 +58,17 @@ router.delete('/:id', authenticate, requirePermission([ROLES.ADMIN]), deleteStaf
  * @access 認証必須 - admin のみ
  */
 router.put('/:id/toggle-active', authenticate, requirePermission([ROLES.ADMIN]), toggleStaffActive);
+
+/**
+ * @route POST /api/v1/staff/:id/resend-invitation
+ * @desc 招待メール再送信
+ * @access 認証必須 - admin のみ
+ */
+router.post(
+  '/:id/resend-invitation',
+  authenticate,
+  requirePermission([ROLES.ADMIN]),
+  resendStaffInvitation
+);
 
 export default router;
