@@ -74,7 +74,7 @@ describe('Server Index', () => {
       __esModule: true,
       default: mockSwaggerUi,
     }));
-    jest.doMock('../swagger.json', () => ({
+    jest.doMock('../src/swagger.json', () => ({
       __esModule: true,
       default: { openapi: '3.0.0', info: { title: 'Test API', version: '1.0.0' } },
     }));
