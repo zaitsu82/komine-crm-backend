@@ -11,7 +11,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
-import swaggerDocument from '../swagger.json';
+import swaggerDocument from './swagger.json';
 import authRoutes from './auth/authRoutes';
 import plotRoutes from './plots/plotRoutes';
 import masterRoutes from './masters/masterRoutes';

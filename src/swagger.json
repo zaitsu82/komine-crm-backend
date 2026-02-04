@@ -1,0 +1,5041 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cemetery CRM API",
+    "description": "墓石管理システム（Cemetery Management System）のバックエンドAPI",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Cemetery CRM Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "ローカル開発環境"
+    },
+    {
+      "url": "http://localhost:4000/api/v1",
+      "description": "API v1 ベースURL"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "認証関連のエンドポイント"
+    },
+    {
+      "name": "Plots",
+      "description": "区画（墓石）管理"
+    },
+    {
+      "name": "Masters",
+      "description": "マスターデータ"
+    },
+    {
+      "name": "Staff",
+      "description": "スタッフ管理"
+    },
+    {
+      "name": "Documents",
+      "description": "書類管理（PDF生成・ファイルアップロード）"
+    }
+  ],
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "ログイン",
+        "description": "メールアドレスとパスワードでログインし、JWTトークンを取得",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "user@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "password123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ログイン成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "$ref": "#/components/schemas/StaffPublic"
+                        },
+                        "session": {
+                          "type": "object",
+                          "properties": {
+                            "access_token": {
+                              "type": "string"
+                            },
+                            "refresh_token": {
+                              "type": "string"
+                            },
+                            "expires_at": {
+                              "type": "integer",
+                              "description": "トークンの有効期限（UNIXタイムスタンプ）",
+                              "example": 1704067200
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/plots": {
+      "get": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "契約区画一覧取得",
+        "description": "契約区画の一覧を取得（検索・ページネーション対応）。物理区画と契約情報を含む。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号（1から開始）",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1ページあたりの件数",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "検索キーワード（区画番号、顧客名で検索）",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "usageStatus",
+            "in": "query",
+            "description": "使用状況フィルタ",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cemeteryType",
+            "in": "query",
+            "description": "墓地タイプフィルタ",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ContractPlotSummary"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "新規契約区画作成",
+        "description": "物理区画と契約区画を同時に作成。顧客情報、販売契約、オプション情報も含む。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlotInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "作成されたContractPlotのID"
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "契約区画を作成しました"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/plots/{id}": {
+      "get": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "契約区画詳細取得",
+        "description": "指定した契約区画の詳細情報を取得。物理区画、顧客、販売契約、オプション情報を含む。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "契約区画ID（UUID）",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ContractPlotDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "契約区画更新",
+        "description": "契約区画情報を更新。部分更新をサポート（contractPlot, saleContract, customer, workInfo, billingInfo, usageFee, managementFee）。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "契約区画ID（UUID）",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlotInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "契約区画を更新しました"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "契約区画削除（論理削除）",
+        "description": "契約区画を論理削除。関連する販売契約、使用料、管理料、請求情報、勤務先情報も削除。顧客は他の契約がない場合のみ削除。物理区画のステータスは自動更新。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "契約区画ID（UUID）",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "削除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "契約区画を削除しました"
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/plots/{id}/contracts": {
+      "get": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "物理区画の契約一覧取得",
+        "description": "指定した物理区画に紐づく全ての契約を取得。分割販売の場合、複数の契約が返される。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "物理区画ID（UUID）",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PhysicalPlotContracts"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "物理区画に新規契約追加",
+        "description": "既存の物理区画に新しい契約を追加（分割販売）。契約面積の検証を実施し、物理区画のステータスを自動更新。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "物理区画ID（UUID）",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlotContractInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "作成されたContractPlotのID"
+                        },
+                        "message": {
+                          "type": "string",
+                          "example": "契約を作成しました"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/plots/inventory/summary": {
+      "get": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "在庫全体サマリー取得",
+        "description": "全区画の在庫状況サマリーを取得。総区画数、使用済数、残数、使用率、総面積、残面積を返す。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/InventorySummary"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/plots/inventory/periods": {
+      "get": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "期別サマリー取得",
+        "description": "期別（1期〜4期）の在庫サマリーを取得。特定の期のみ取得も可能。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "description": "期（指定しない場合は全期）",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1期",
+                "2期",
+                "3期",
+                "4期"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "periods": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PeriodSummary"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/plots/inventory/sections": {
+      "get": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "セクション別集計取得",
+        "description": "セクション別（A, B, 吉相など）の在庫集計を取得。フィルタ・ソート・ページネーション対応。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "description": "期でフィルタ",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1期",
+                "2期",
+                "3期",
+                "4期"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "ステータスでフィルタ",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "available",
+                "partially_sold",
+                "sold_out"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "セクション名で検索",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "ソートキー",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "period",
+                "section",
+                "totalCount",
+                "usedCount",
+                "remainingCount",
+                "usageRate"
+              ],
+              "default": "period"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "description": "ソート順",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "asc"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1ページあたりの件数",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/SectionInventoryItem"
+                          }
+                        },
+                        "pagination": {
+                          "$ref": "#/components/schemas/Pagination"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/plots/inventory/areas": {
+      "get": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "面積別集計取得",
+        "description": "面積別（3.6㎡, 1.8㎡など）の在庫集計を取得。フィルタ・ソート・ページネーション対応。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "description": "期でフィルタ",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1期",
+                "2期",
+                "3期",
+                "4期"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "面積・タイプで検索",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "ソートキー",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "period",
+                "areaSqm",
+                "totalCount",
+                "usedCount",
+                "remainingCount",
+                "remainingAreaSqm",
+                "plotType"
+              ],
+              "default": "period"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "description": "ソート順",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "asc"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1ページあたりの件数",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AreaInventoryItem"
+                          }
+                        },
+                        "pagination": {
+                          "$ref": "#/components/schemas/Pagination"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/plots/{id}/inventory": {
+      "get": {
+        "tags": [
+          "Plots"
+        ],
+        "summary": "物理区画の在庫状況取得",
+        "description": "物理区画の在庫状況を取得。総面積、割当済面積、利用可能面積、利用率、ステータスを返す。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "物理区画ID（UUID）",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PhysicalPlotInventory"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/staff": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "summary": "スタッフ一覧取得",
+        "description": "スタッフの一覧を取得（ページネーション対応）。削除済みスタッフは含まれません。",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号（1から開始）",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1ページあたりの件数",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "description": "役割でフィルタ",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "viewer",
+                "operator",
+                "manager",
+                "admin"
+              ]
+            }
+          },
+          {
+            "name": "is_active",
+            "in": "query",
+            "description": "アクティブ状態でフィルタ",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "staff": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/StaffAdmin"
+                          }
+                        },
+                        "pagination": {
+                          "type": "object",
+                          "properties": {
+                            "page": {
+                              "type": "integer",
+                              "example": 1
+                            },
+                            "limit": {
+                              "type": "integer",
+                              "example": 20
+                            },
+                            "total": {
+                              "type": "integer",
+                              "example": 50
+                            },
+                            "totalPages": {
+                              "type": "integer",
+                              "example": 3
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "summary": "スタッフ新規登録",
+        "description": "新しいスタッフを登録します。\n- Supabase Admin APIでユーザーを作成\n- 取得したsupabase_uidでStaffテーブルにレコード作成\n- トランザクション処理でロールバック対応\n- 管理者権限（admin）のみアクセス可能\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStaffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StaffAdmin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/staff/{id}": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "summary": "スタッフ詳細取得",
+        "description": "指定されたIDのスタッフ情報を取得",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "スタッフID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StaffAdmin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "summary": "スタッフ情報更新",
+        "description": "スタッフ情報を更新します。\n- 名前、メールアドレス、役割の更新\n- Supabase側のメールアドレス更新も同期\n- 管理者権限（admin）のみアクセス可能\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "スタッフID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStaffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StaffAdmin"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Staff"
+        ],
+        "summary": "スタッフ削除（ソフトデリート）",
+        "description": "スタッフを論理削除します。\n- deleted_atに現在日時を設定\n- is_activeをfalseに更新\n- 物理削除は行わない\n- 管理者権限（admin）のみアクセス可能\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "スタッフID",
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "削除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "スタッフを削除しました"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/documents": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "書類一覧取得",
+        "description": "書類の一覧を取得（検索・フィルター・ページネーション対応）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号（1から開始）",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1ページあたりの件数",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "contractPlotId",
+            "in": "query",
+            "description": "契約区画IDでフィルター",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "customerId",
+            "in": "query",
+            "description": "顧客IDでフィルター",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "書類タイプでフィルター",
+            "schema": {
+              "$ref": "#/components/schemas/DocumentType"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "ステータスでフィルター",
+            "schema": {
+              "$ref": "#/components/schemas/DocumentStatus"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "ソート項目",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created_at",
+                "updated_at",
+                "name",
+                "type",
+                "status"
+              ],
+              "default": "created_at"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "description": "ソート順",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/DocumentListItem"
+                          }
+                        },
+                        "pagination": {
+                          "$ref": "#/components/schemas/Pagination"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "書類作成",
+        "description": "新規書類メタデータを作成",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "作成成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DocumentDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/documents/generate-pdf": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "PDF生成",
+        "description": "テンプレートからPDFを生成（Base64エンコードで返却）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneratePdfRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PDF生成成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GeneratePdfResponse"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "書類詳細取得",
+        "description": "指定されたIDの書類詳細を取得",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "書類ID",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DocumentDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "書類更新",
+        "description": "書類のメタデータを更新",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "書類ID",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DocumentDetail"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "書類削除（論理削除）",
+        "description": "書類を論理削除（deleted_atに日時を設定）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "書類ID",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "削除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "example": "書類を削除しました"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/upload": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "ファイルアップロード",
+        "description": "書類にファイルをアップロード（最大10MB）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "書類ID",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "アップロードするファイル（PDF, Word, Excel, 画像）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "アップロード成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "fileName": {
+                          "type": "string",
+                          "example": "invoice_2024.pdf"
+                        },
+                        "fileSize": {
+                          "type": "integer",
+                          "example": 102400
+                        },
+                        "mimeType": {
+                          "type": "string",
+                          "example": "application/pdf"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{id}/download": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "ダウンロードURL取得",
+        "description": "ファイルのダウンロードURL（Pre-signed URL）を取得",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "書類ID",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "URL取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "ダウンロードURL（有効期限15分）"
+                        },
+                        "fileName": {
+                          "type": "string",
+                          "example": "invoice_2024.pdf"
+                        },
+                        "mimeType": {
+                          "type": "string",
+                          "example": "application/pdf"
+                        },
+                        "expiresIn": {
+                          "type": "integer",
+                          "description": "有効期限（秒）",
+                          "example": 900
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/documents/file/{fileKey}": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "ローカルファイルダウンロード",
+        "description": "ローカルストレージからファイルを直接ダウンロード（開発環境用）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileKey",
+            "in": "path",
+            "required": true,
+            "description": "ファイルキー",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ファイルダウンロード",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Supabaseから発行されたJWTトークンを使用"
+      }
+    },
+    "schemas": {
+      "DocumentType": {
+        "type": "string",
+        "description": "書類タイプ",
+        "enum": [
+          "invoice",
+          "postcard",
+          "contract",
+          "permit",
+          "other"
+        ],
+        "example": "invoice"
+      },
+      "DocumentStatus": {
+        "type": "string",
+        "description": "書類ステータス",
+        "enum": [
+          "draft",
+          "generated",
+          "sent",
+          "archived"
+        ],
+        "example": "draft"
+      },
+      "DocumentListItem": {
+        "type": "object",
+        "description": "書類一覧アイテム",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "書類ID"
+          },
+          "contractPlotId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "契約区画ID"
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "顧客ID"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DocumentType"
+          },
+          "name": {
+            "type": "string",
+            "description": "書類名",
+            "example": "請求書_2024年1月分"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "説明"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true,
+            "description": "ファイル名",
+            "example": "invoice_2024_01.pdf"
+          },
+          "fileSize": {
+            "type": "integer",
+            "nullable": true,
+            "description": "ファイルサイズ（バイト）",
+            "example": 102400
+          },
+          "mimeType": {
+            "type": "string",
+            "nullable": true,
+            "description": "MIMEタイプ",
+            "example": "application/pdf"
+          },
+          "templateType": {
+            "type": "string",
+            "nullable": true,
+            "description": "テンプレートタイプ"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "生成日時"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "送付日時"
+          },
+          "createdBy": {
+            "type": "string",
+            "nullable": true,
+            "description": "作成者"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "description": "備考"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "作成日時"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新日時"
+          },
+          "contractPlot": {
+            "type": "object",
+            "nullable": true,
+            "description": "関連区画情報",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "plotNumber": {
+                "type": "string"
+              },
+              "areaName": {
+                "type": "string"
+              }
+            }
+          },
+          "customer": {
+            "type": "object",
+            "nullable": true,
+            "description": "関連顧客情報",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "nameKana": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "DocumentDetail": {
+        "type": "object",
+        "description": "書類詳細",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DocumentListItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "fileKey": {
+                "type": "string",
+                "nullable": true,
+                "description": "ファイルキー（S3/ローカル）"
+              },
+              "templateData": {
+                "type": "object",
+                "nullable": true,
+                "description": "テンプレートデータ（JSON）"
+              },
+              "contractPlot": {
+                "type": "object",
+                "nullable": true,
+                "description": "関連区画詳細",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "contractAreaSqm": {
+                    "type": "number"
+                  },
+                  "contractDate": {
+                    "type": "string",
+                    "format": "date",
+                    "nullable": true
+                  },
+                  "physicalPlot": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "plotNumber": {
+                        "type": "string"
+                      },
+                      "areaName": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "customer": {
+                "type": "object",
+                "nullable": true,
+                "description": "関連顧客詳細",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "nameKana": {
+                    "type": "string"
+                  },
+                  "postalCode": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "phoneNumber": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "email": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "CreateDocumentRequest": {
+        "type": "object",
+        "description": "書類作成リクエスト",
+        "required": [
+          "type",
+          "name"
+        ],
+        "properties": {
+          "contractPlotId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "契約区画ID"
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "顧客ID"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DocumentType"
+          },
+          "name": {
+            "type": "string",
+            "description": "書類名",
+            "maxLength": 200,
+            "example": "請求書_2024年1月分"
+          },
+          "description": {
+            "type": "string",
+            "description": "説明"
+          },
+          "templateType": {
+            "type": "string",
+            "description": "テンプレートタイプ（invoice, postcard）"
+          },
+          "templateData": {
+            "type": "object",
+            "description": "テンプレートデータ"
+          },
+          "notes": {
+            "type": "string",
+            "description": "備考"
+          }
+        }
+      },
+      "UpdateDocumentRequest": {
+        "type": "object",
+        "description": "書類更新リクエスト",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "書類名",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "description": "説明"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "templateData": {
+            "type": "object",
+            "description": "テンプレートデータ"
+          },
+          "notes": {
+            "type": "string",
+            "description": "備考"
+          }
+        }
+      },
+      "GeneratePdfRequest": {
+        "type": "object",
+        "description": "PDF生成リクエスト",
+        "required": [
+          "templateType",
+          "templateData"
+        ],
+        "properties": {
+          "templateType": {
+            "type": "string",
+            "enum": [
+              "invoice",
+              "postcard"
+            ],
+            "description": "テンプレートタイプ"
+          },
+          "templateData": {
+            "type": "object",
+            "description": "テンプレートデータ（請求書またははがき用）"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "関連する書類ID（指定時はファイルを保存）"
+          },
+          "name": {
+            "type": "string",
+            "description": "書類名"
+          },
+          "contractPlotId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "契約区画ID"
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "顧客ID"
+          }
+        }
+      },
+      "GeneratePdfResponse": {
+        "type": "object",
+        "description": "PDF生成レスポンス",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "書類ID"
+          },
+          "pdf": {
+            "type": "string",
+            "description": "Base64エンコードされたPDF"
+          },
+          "mimeType": {
+            "type": "string",
+            "example": "application/pdf"
+          },
+          "fileSize": {
+            "type": "integer",
+            "description": "ファイルサイズ（バイト）",
+            "example": 102400
+          }
+        }
+      },
+      "Staff": {
+        "type": "object",
+        "description": "スタッフ情報（内部処理・DB操作用、APIレスポンスでは使用しない）",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "スタッフID",
+            "example": 1
+          },
+          "supabase_uid": {
+            "type": "string",
+            "description": "Supabase User ID（内部管理用）",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "name": {
+            "type": "string",
+            "description": "スタッフ名",
+            "example": "山田太郎",
+            "maxLength": 100
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "メールアドレス",
+            "example": "yamada@example.com",
+            "maxLength": 254
+          },
+          "role": {
+            "type": "string",
+            "description": "役割",
+            "enum": [
+              "viewer",
+              "operator",
+              "manager",
+              "admin"
+            ],
+            "example": "operator"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "アクティブ状態",
+            "example": true
+          },
+          "last_login_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最終ログイン日時",
+            "nullable": true,
+            "example": "2024-01-01T12:00:00Z"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "作成日時",
+            "example": "2024-01-01T10:00:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新日時",
+            "example": "2024-01-01T12:00:00Z"
+          }
+        }
+      },
+      "StaffPublic": {
+        "type": "object",
+        "description": "スタッフ情報（一般公開用・認証レスポンス用）",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "スタッフID",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "スタッフ名",
+            "example": "山田太郎"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "メールアドレス",
+            "example": "yamada@example.com"
+          },
+          "role": {
+            "type": "string",
+            "description": "役割",
+            "enum": [
+              "viewer",
+              "operator",
+              "manager",
+              "admin"
+            ],
+            "example": "operator"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "アクティブ状態",
+            "example": true
+          }
+        }
+      },
+      "StaffAdmin": {
+        "type": "object",
+        "description": "スタッフ情報（管理者用・管理API用、supabase_uidを含まない）",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "スタッフID",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "スタッフ名",
+            "example": "山田太郎"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "メールアドレス",
+            "example": "yamada@example.com"
+          },
+          "role": {
+            "type": "string",
+            "description": "役割",
+            "enum": [
+              "viewer",
+              "operator",
+              "manager",
+              "admin"
+            ],
+            "example": "operator"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "アクティブ状態",
+            "example": true
+          },
+          "last_login_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最終ログイン日時",
+            "nullable": true,
+            "example": "2024-01-01T12:00:00Z"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "作成日時",
+            "example": "2024-01-01T10:00:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新日時",
+            "example": "2024-01-01T12:00:00Z"
+          }
+        }
+      },
+      "CreateStaffRequest": {
+        "type": "object",
+        "description": "スタッフ新規登録リクエスト",
+        "required": [
+          "name",
+          "email",
+          "password",
+          "role"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "スタッフ名",
+            "example": "山田太郎",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "メールアドレス",
+            "example": "yamada@example.com",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "description": "パスワード（8文字以上）",
+            "example": "SecurePass123!",
+            "minLength": 8
+          },
+          "role": {
+            "type": "string",
+            "description": "役割",
+            "enum": [
+              "viewer",
+              "operator",
+              "manager",
+              "admin"
+            ],
+            "example": "operator"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "アクティブ状態",
+            "default": true,
+            "example": true
+          }
+        }
+      },
+      "UpdateStaffRequest": {
+        "type": "object",
+        "description": "スタッフ更新リクエスト（すべてのフィールドはオプション）",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "スタッフ名",
+            "example": "山田太郎",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "メールアドレス",
+            "example": "yamada@example.com",
+            "maxLength": 254
+          },
+          "role": {
+            "type": "string",
+            "description": "役割",
+            "enum": [
+              "viewer",
+              "operator",
+              "manager",
+              "admin"
+            ],
+            "example": "manager"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "アクティブ状態",
+            "example": true
+          }
+        }
+      },
+      "ContractPlotSummary": {
+        "type": "object",
+        "description": "契約区画のサマリー情報（一覧表示用）",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "契約区画ID",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "plotNumber": {
+            "type": "string",
+            "description": "区画番号",
+            "example": "A-01"
+          },
+          "areaName": {
+            "type": "string",
+            "description": "区域名",
+            "example": "一般墓地A"
+          },
+          "contractAreaSqm": {
+            "type": "number",
+            "format": "float",
+            "description": "契約面積（㎡）",
+            "example": 3.6
+          },
+          "customerName": {
+            "type": "string",
+            "description": "顧客名",
+            "example": "山田太郎"
+          },
+          "saleStatus": {
+            "type": "string",
+            "description": "物理区画の契約状況（契約面積に基づいて計算）",
+            "enum": [
+              "fully_contracted",
+              "partially_contracted",
+              "available"
+            ],
+            "example": "fully_contracted"
+          },
+          "contractDate": {
+            "type": "string",
+            "format": "date",
+            "description": "契約日",
+            "example": "2024-01-01"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "description": "電話番号",
+            "example": "09012345678"
+          },
+          "applicantName": {
+            "type": "string",
+            "description": "申込者名",
+            "example": "山田花子"
+          },
+          "currentBuriedPersons": {
+            "type": "number",
+            "description": "現在埋葬人数",
+            "example": 2
+          },
+          "nextBillingDate": {
+            "type": "string",
+            "format": "date",
+            "description": "次回請求日（使用料・管理料から計算）",
+            "example": "2024-01-01"
+          },
+          "notes": {
+            "type": "string",
+            "description": "備考",
+            "example": "🚨ご高齢のため、重要な説明は家族同席の上で行うこと。"
+          }
+        }
+      },
+      "ContractPlotDetail": {
+        "type": "object",
+        "description": "契約区画の詳細情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "契約区画ID"
+          },
+          "plot_number": {
+            "type": "string",
+            "description": "墓石コード（区画番号）",
+            "example": "A-01"
+          },
+          "area_name": {
+            "type": "string",
+            "description": "区域（期）",
+            "example": "1期"
+          },
+          "area_name_detail": {
+            "type": "string",
+            "description": "区域（詳細）",
+            "example": "吉相"
+          },
+          "contractAreaSqm": {
+            "type": "number",
+            "format": "float",
+            "description": "契約面積（㎡）"
+          },
+          "saleStatus": {
+            "type": "string",
+            "description": "販売ステータス",
+            "nullable": true
+          },
+          "ApplicantInfo": {
+            "$ref": "#/components/schemas/ApplicantInfo"
+          },
+          "SaleContract": {
+            "$ref": "#/components/schemas/SaleContractInfo"
+          },
+          "UsageFee": {
+            "$ref": "#/components/schemas/UsageFeeInfo",
+            "nullable": true
+          },
+          "ManagementFee": {
+            "$ref": "#/components/schemas/ManagementFeeInfo",
+            "nullable": true
+          }
+        }
+      },
+      "ApplicantInfo": {
+        "type": "object",
+        "description": "申込者情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "applicantDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2024-01-01"
+          },
+          "price": {
+            "type": "number",
+            "example": 1000000
+          },
+          "paymentStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "reservationDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "acceptanceNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "permitDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "Customer": {
+            "$ref": "#/components/schemas/CustomerInfo"
+          }
+        }
+      },
+      "SaleContractInfo": {
+        "type": "object",
+        "description": "販売契約情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contractDate": {
+            "type": "string",
+            "format": "date",
+            "description": "契約日",
+            "example": "2024-01-01"
+          },
+          "price": {
+            "type": "integer",
+            "description": "価格（円単位）",
+            "example": 1000000
+          },
+          "paymentStatus": {
+            "type": "string",
+            "description": "支払いステータス",
+            "nullable": true
+          },
+          "reservationDate": {
+            "type": "string",
+            "format": "date",
+            "description": "予約日",
+            "nullable": true,
+            "example": "2024-01-01"
+          },
+          "acceptanceNumber": {
+            "type": "string",
+            "description": "承諾書番号",
+            "nullable": true,
+            "example": "AC-2024-0001"
+          },
+          "permitDate": {
+            "type": "string",
+            "format": "date",
+            "description": "許可日",
+            "nullable": true,
+            "example": "2024-01-15"
+          },
+          "permitNumber": {
+            "type": "string",
+            "description": "許可番号",
+            "maxLength": 50,
+            "nullable": true,
+            "example": "KYO-2024-0001"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "description": "開始年月日",
+            "nullable": true,
+            "example": "2024-02-01"
+          },
+          "notes": {
+            "type": "string",
+            "description": "備考",
+            "nullable": true
+          },
+          "Customer": {
+            "$ref": "#/components/schemas/CustomerInfo"
+          }
+        }
+      },
+      "CustomerInfo": {
+        "type": "object",
+        "description": "顧客情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "山田太郎"
+          },
+          "nameKana": {
+            "type": "string",
+            "example": "ヤマダタロウ"
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female",
+              "other"
+            ],
+            "nullable": true
+          },
+          "postalCode": {
+            "type": "string",
+            "example": "150-0001"
+          },
+          "address": {
+            "type": "string",
+            "example": "東京都渋谷区"
+          },
+          "registeredAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "phoneNumber": {
+            "type": "string",
+            "example": "03-1234-5678",
+            "nullable": true
+          },
+          "faxNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "WorkInfo": {
+            "$ref": "#/components/schemas/WorkInfoInfo",
+            "nullable": true
+          },
+          "BillingInfo": {
+            "$ref": "#/components/schemas/BillingInfoInfo",
+            "nullable": true
+          }
+        }
+      },
+      "WorkInfoInfo": {
+        "type": "object",
+        "description": "勤務先情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "companyName": {
+            "type": "string"
+          },
+          "companyNameKana": {
+            "type": "string"
+          },
+          "workPostalCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "workAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "workPhoneNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "dmSetting": {
+            "type": "string"
+          },
+          "addressType": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "BillingInfoInfo": {
+        "type": "object",
+        "description": "請求情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "billingType": {
+            "type": "string",
+            "nullable": true
+          },
+          "accountType": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true
+          },
+          "branchName": {
+            "type": "string",
+            "nullable": true
+          },
+          "accountNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "accountHolder": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "UsageFeeInfo": {
+        "type": "object",
+        "description": "使用料情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calculationType": {
+            "type": "string",
+            "nullable": true
+          },
+          "taxType": {
+            "type": "string",
+            "nullable": true
+          },
+          "billingType": {
+            "type": "string",
+            "nullable": true
+          },
+          "billingYears": {
+            "type": "string",
+            "nullable": true
+          },
+          "area": {
+            "type": "string",
+            "nullable": true
+          },
+          "unitPrice": {
+            "type": "string",
+            "nullable": true
+          },
+          "usageFee": {
+            "type": "string",
+            "nullable": true
+          },
+          "paymentMethod": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ManagementFeeInfo": {
+        "type": "object",
+        "description": "管理料情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calculationType": {
+            "type": "string",
+            "nullable": true
+          },
+          "taxType": {
+            "type": "string",
+            "nullable": true
+          },
+          "billingType": {
+            "type": "string",
+            "nullable": true
+          },
+          "billingYears": {
+            "type": "string",
+            "nullable": true
+          },
+          "area": {
+            "type": "string",
+            "nullable": true
+          },
+          "billingMonth": {
+            "type": "string",
+            "nullable": true
+          },
+          "managementFee": {
+            "type": "string",
+            "nullable": true
+          },
+          "unitPrice": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastBillingMonth": {
+            "type": "string",
+            "nullable": true
+          },
+          "paymentMethod": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "BuriedPersonInfo": {
+        "type": "object",
+        "description": "埋葬者情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "nameKana": {
+            "type": "string",
+            "nullable": true
+          },
+          "relationship": {
+            "type": "string",
+            "nullable": true
+          },
+          "deathDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "age": {
+            "type": "integer",
+            "nullable": true
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female",
+              "other"
+            ],
+            "nullable": true
+          },
+          "burialDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "graveNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CollectiveBurialInfo": {
+        "type": "object",
+        "description": "合祀情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "burialType": {
+            "type": "string"
+          },
+          "requestDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "executionDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "FamilyContactInfo": {
+        "type": "object",
+        "description": "家族連絡先情報",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "relationship": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "phoneNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true
+          }
+        }
+      },
+      "PhysicalPlotContracts": {
+        "type": "object",
+        "description": "物理区画の契約一覧情報",
+        "properties": {
+          "physicalPlot": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "plotNumber": {
+                "type": "string",
+                "example": "A-01"
+              },
+              "areaName": {
+                "type": "string",
+                "example": "一般墓地A"
+              },
+              "areaSqm": {
+                "type": "number",
+                "format": "float",
+                "example": 3.6
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "partial",
+                  "sold_out"
+                ]
+              }
+            }
+          },
+          "contracts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "contractAreaSqm": {
+                  "type": "number",
+                  "format": "float"
+                },
+                "saleStatus": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "customerName": {
+                  "type": "string"
+                },
+                "contractDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "price": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "totalContracts": {
+                "type": "integer",
+                "description": "契約総数",
+                "example": 2
+              },
+              "totalAllocatedArea": {
+                "type": "number",
+                "format": "float",
+                "description": "割当済総面積（㎡）",
+                "example": 3.6
+              }
+            }
+          }
+        }
+      },
+      "PhysicalPlotInventory": {
+        "type": "object",
+        "description": "物理区画の在庫情報",
+        "properties": {
+          "physicalPlot": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "plotNumber": {
+                "type": "string",
+                "example": "A-01"
+              },
+              "areaName": {
+                "type": "string",
+                "example": "一般墓地A"
+              },
+              "areaSqm": {
+                "type": "number",
+                "format": "float",
+                "example": 3.6
+              }
+            }
+          },
+          "inventory": {
+            "type": "object",
+            "properties": {
+              "totalArea": {
+                "type": "number",
+                "format": "float",
+                "description": "総面積（㎡）",
+                "example": 3.6
+              },
+              "allocatedArea": {
+                "type": "number",
+                "format": "float",
+                "description": "割当済面積（㎡）",
+                "example": 1.8
+              },
+              "availableArea": {
+                "type": "number",
+                "format": "float",
+                "description": "利用可能面積（㎡）",
+                "example": 1.8
+              },
+              "utilizationRate": {
+                "type": "number",
+                "format": "float",
+                "description": "利用率（%）",
+                "example": 50
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "partial",
+                  "sold_out"
+                ],
+                "description": "在庫ステータス",
+                "example": "partial"
+              }
+            }
+          },
+          "contracts": {
+            "type": "array",
+            "description": "既存契約一覧",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "contractAreaSqm": {
+                  "type": "number",
+                  "format": "float"
+                },
+                "saleStatus": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "customerName": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CreatePlotInput": {
+        "type": "object",
+        "description": "新規契約区画作成リクエスト",
+        "required": [
+          "physicalPlot",
+          "contractPlot",
+          "saleContract",
+          "applicant",
+          "contractor"
+        ],
+        "properties": {
+          "physicalPlot": {
+            "type": "object",
+            "required": [
+              "plotNumber",
+              "areaName",
+              "areaSqm"
+            ],
+            "properties": {
+              "plotNumber": {
+                "type": "string",
+                "description": "区画番号（大文字英数字とハイフンのみ）",
+                "pattern": "^[A-Z0-9-]+$",
+                "maxLength": 50,
+                "example": "A-01"
+              },
+              "areaName": {
+                "type": "string",
+                "description": "区画（期）",
+                "maxLength": 100,
+                "example": "2期"
+              },
+              "areaNameDetail": {
+                "type": "string",
+                "description": "区画（詳細）",
+                "maxLength": 100,
+                "example": "8"
+              },
+              "areaSqm": {
+                "type": "number",
+                "format": "float",
+                "description": "面積（㎡）",
+                "minimum": 0.01,
+                "example": 3.6
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 1000,
+                "nullable": true
+              }
+            }
+          },
+          "contractPlot": {
+            "type": "object",
+            "required": [
+              "contractAreaSqm"
+            ],
+            "properties": {
+              "contractAreaSqm": {
+                "type": "number",
+                "format": "float",
+                "description": "契約面積（㎡）",
+                "minimum": 0.01,
+                "example": 3.6
+              },
+              "saleStatus": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true,
+                "example": "completed"
+              },
+              "locationDescription": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true,
+                "example": "南側"
+              }
+            }
+          },
+          "saleContract": {
+            "type": "object",
+            "required": [
+              "contractDate",
+              "price"
+            ],
+            "properties": {
+              "contractDate": {
+                "type": "string",
+                "format": "date",
+                "description": "契約日",
+                "example": "2024-01-01"
+              },
+              "price": {
+                "type": "number",
+                "description": "価格",
+                "minimum": 0,
+                "example": 1000000
+              },
+              "paymentStatus": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "reservationDate": {
+                "type": "string",
+                "format": "date",
+                "nullable": true
+              },
+              "acceptanceNumber": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "permitDate": {
+                "type": "string",
+                "format": "date",
+                "description": "許可日",
+                "nullable": true
+              },
+              "permitNumber": {
+                "type": "string",
+                "maxLength": 50,
+                "description": "許可番号",
+                "nullable": true,
+                "example": "KYO-2024-0001"
+              },
+              "startDate": {
+                "type": "string",
+                "format": "date",
+                "nullable": true
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 1000,
+                "nullable": true
+              }
+            }
+          },
+          "applicant": {
+            "type": "object",
+            "description": "申込者情報",
+            "required": [
+              "name",
+              "nameKana",
+              "postalCode",
+              "address"
+            ],
+            "properties": {
+              "applicationDate": {
+                "type": "string",
+                "format": "date",
+                "description": "申込日",
+                "nullable": true,
+                "example": "2024-01-01"
+              },
+              "staffName": {
+                "type": "string",
+                "description": "担当者氏名",
+                "maxLength": 100,
+                "nullable": true,
+                "example": "田中一郎"
+              },
+              "name": {
+                "type": "string",
+                "description": "申込者氏名",
+                "minLength": 1,
+                "maxLength": 100,
+                "example": "山田花子"
+              },
+              "nameKana": {
+                "type": "string",
+                "description": "申込者氏名カナ（カタカナのみ）",
+                "pattern": "^[ァ-ヶー\\s]+$",
+                "maxLength": 100,
+                "example": "ヤマダハナコ"
+              },
+              "postalCode": {
+                "type": "string",
+                "description": "郵便番号",
+                "minLength": 1,
+                "maxLength": 10,
+                "example": "150-0001"
+              },
+              "phoneNumber": {
+                "type": "string",
+                "description": "電話番号",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true,
+                "example": "03-1234-5678"
+              },
+              "address": {
+                "type": "string",
+                "description": "住所",
+                "minLength": 1,
+                "maxLength": 200,
+                "example": "東京都渋谷区"
+              }
+            }
+          },
+          "contractor": {
+            "type": "object",
+            "description": "契約者情報",
+            "required": [
+              "name",
+              "nameKana",
+              "postalCode",
+              "address"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "契約者氏名",
+                "minLength": 1,
+                "maxLength": 100,
+                "example": "山田太郎"
+              },
+              "nameKana": {
+                "type": "string",
+                "description": "契約者氏名カナ（カタカナのみ）",
+                "pattern": "^[ァ-ヶー\\s]+$",
+                "maxLength": 100,
+                "example": "ヤマダタロウ"
+              },
+              "birthDate": {
+                "type": "string",
+                "format": "date",
+                "description": "生年月日",
+                "nullable": true,
+                "example": "1980-01-01"
+              },
+              "gender": {
+                "type": "string",
+                "description": "性別",
+                "enum": [
+                  "male",
+                  "female",
+                  "other"
+                ],
+                "nullable": true
+              },
+              "postalCode": {
+                "type": "string",
+                "description": "郵便番号",
+                "minLength": 1,
+                "maxLength": 10,
+                "example": "150-0001"
+              },
+              "address": {
+                "type": "string",
+                "description": "住所",
+                "minLength": 1,
+                "maxLength": 200,
+                "example": "東京都渋谷区"
+              },
+              "registeredAddress": {
+                "type": "string",
+                "description": "本籍地住所",
+                "maxLength": 200,
+                "nullable": true,
+                "example": "東京都新宿区"
+              },
+              "phoneNumber": {
+                "type": "string",
+                "description": "電話番号",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true,
+                "example": "03-1234-5678"
+              },
+              "faxNumber": {
+                "type": "string",
+                "description": "ファックス",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true,
+                "example": "03-1234-5679"
+              },
+              "email": {
+                "type": "string",
+                "description": "メール",
+                "format": "email",
+                "nullable": true,
+                "example": "yamada@example.com"
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 1000,
+                "nullable": true
+              }
+            }
+          },
+          "workInfo": {
+            "type": "object",
+            "description": "勤務先情報",
+            "nullable": true,
+            "properties": {
+              "companyName": {
+                "type": "string",
+                "description": "勤務先名称",
+                "maxLength": 100,
+                "nullable": true,
+                "example": "株式会社サンプル"
+              },
+              "companyNameKana": {
+                "type": "string",
+                "description": "勤務先仮名（カタカナのみ）",
+                "pattern": "^[ァ-ヶー\\s]+$",
+                "maxLength": 100,
+                "nullable": true,
+                "example": "カブシキガイシャサンプル"
+              },
+              "workPostalCode": {
+                "type": "string",
+                "description": "郵便番号",
+                "maxLength": 10,
+                "nullable": true,
+                "example": "150-0001"
+              },
+              "workPhoneNumber": {
+                "type": "string",
+                "description": "電話番号",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true,
+                "example": "03-1234-5678"
+              },
+              "workAddress": {
+                "type": "string",
+                "description": "勤務先住所",
+                "maxLength": 200,
+                "nullable": true,
+                "example": "東京都渋谷区"
+              },
+              "workFaxNumber": {
+                "type": "string",
+                "description": "ファックス",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true,
+                "example": "03-1234-5679"
+              },
+              "dmSetting": {
+                "type": "string",
+                "description": "DM送信設定",
+                "enum": [
+                  "allow",
+                  "deny",
+                  "limited"
+                ],
+                "nullable": true,
+                "example": "allow"
+              },
+              "addressType": {
+                "type": "string",
+                "description": "宛先区分（連絡先タイプ）",
+                "enum": [
+                  "home",
+                  "work",
+                  "other"
+                ],
+                "nullable": true,
+                "example": "home"
+              },
+              "notes": {
+                "type": "string",
+                "description": "備考",
+                "maxLength": 1000,
+                "nullable": true
+              }
+            }
+          },
+          "billingInfo": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "billingType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "accountType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "bankName": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              },
+              "branchName": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              },
+              "accountNumber": {
+                "type": "string",
+                "maxLength": 20,
+                "nullable": true
+              },
+              "accountHolder": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              }
+            }
+          },
+          "usageFee": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "calculationType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "taxType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "billingType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "billingYears": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "area": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "unitPrice": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "usageFee": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "paymentMethod": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              }
+            }
+          },
+          "managementFee": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "calculationType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "taxType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "billingType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "billingYears": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "area": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "billingMonth": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "managementFee": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "unitPrice": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "lastBillingMonth": {
+                "type": "string",
+                "pattern": "^\\d{4}年\\d{1,2}月$",
+                "nullable": true,
+                "example": "2024年3月"
+              },
+              "paymentMethod": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              }
+            }
+          },
+          "gravestone": {
+            "type": "object",
+            "description": "墓石情報",
+            "nullable": true,
+            "properties": {
+              "gravestoneBase": {
+                "type": "string",
+                "description": "墓石台（墓石基礎）",
+                "maxLength": 100,
+                "nullable": true,
+                "example": "コンクリート基礎"
+              },
+              "enclosurePosition": {
+                "type": "string",
+                "description": "包囲位置（囲障位置）",
+                "maxLength": 100,
+                "nullable": true,
+                "example": "前面開放"
+              },
+              "gravestoneDealer": {
+                "type": "string",
+                "description": "墓石取扱い（石材店）",
+                "maxLength": 100,
+                "nullable": true,
+                "example": "石材店A"
+              },
+              "gravestoneType": {
+                "type": "string",
+                "description": "墓石タイプ（墓石種別）",
+                "maxLength": 50,
+                "nullable": true,
+                "example": "和型"
+              },
+              "surroundingArea": {
+                "type": "string",
+                "description": "周辺設備（周辺区画）",
+                "maxLength": 100,
+                "nullable": true,
+                "example": "水場あり"
+              },
+              "establishmentDeadline": {
+                "type": "string",
+                "format": "date",
+                "description": "設立期限（設置期限）",
+                "nullable": true,
+                "example": "2024-12-31"
+              },
+              "establishmentDate": {
+                "type": "string",
+                "format": "date",
+                "description": "設立日（設置日）",
+                "nullable": true,
+                "example": "2024-06-01"
+              }
+            }
+          },
+          "familyContacts": {
+            "type": "array",
+            "description": "家族・連絡先情報（配列）",
+            "nullable": true,
+            "items": {
+              "type": "object",
+              "properties": {
+                "emergencyContactFlag": {
+                  "type": "boolean",
+                  "description": "緊急連絡先フラグ",
+                  "default": false,
+                  "example": true
+                },
+                "name": {
+                  "type": "string",
+                  "description": "氏名",
+                  "maxLength": 100,
+                  "example": "山田次郎"
+                },
+                "birthDate": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "生年月日",
+                  "nullable": true,
+                  "example": "1985-05-15"
+                },
+                "relationship": {
+                  "type": "string",
+                  "description": "続柄",
+                  "maxLength": 50,
+                  "example": "長男"
+                },
+                "postalCode": {
+                  "type": "string",
+                  "description": "郵便番号",
+                  "maxLength": 10,
+                  "nullable": true,
+                  "example": "150-0001"
+                },
+                "address": {
+                  "type": "string",
+                  "description": "住所",
+                  "maxLength": 200,
+                  "example": "東京都渋谷区"
+                },
+                "phoneNumber": {
+                  "type": "string",
+                  "description": "電話番号",
+                  "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                  "example": "03-1234-5678"
+                },
+                "faxNumber": {
+                  "type": "string",
+                  "description": "ファックス",
+                  "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                  "nullable": true,
+                  "example": "03-1234-5679"
+                },
+                "email": {
+                  "type": "string",
+                  "format": "email",
+                  "description": "メールアドレス",
+                  "nullable": true,
+                  "example": "jiro@example.com"
+                },
+                "registeredAddress": {
+                  "type": "string",
+                  "description": "本籍地住所",
+                  "maxLength": 200,
+                  "nullable": true,
+                  "example": "東京都新宿区"
+                },
+                "mailingType": {
+                  "type": "string",
+                  "description": "郵送先タイプ",
+                  "enum": [
+                    "home",
+                    "work",
+                    "other"
+                  ],
+                  "nullable": true,
+                  "example": "home"
+                },
+                "notes": {
+                  "type": "string",
+                  "description": "備考",
+                  "maxLength": 1000,
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "buriedPersons": {
+            "type": "array",
+            "description": "埋葬者一覧（配列）",
+            "nullable": true,
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "氏名",
+                  "maxLength": 100,
+                  "example": "山田三郎"
+                },
+                "nameKana": {
+                  "type": "string",
+                  "description": "氏名カナ（カタカナのみ）",
+                  "pattern": "^[ァ-ヶー\\s]+$",
+                  "maxLength": 100,
+                  "nullable": true,
+                  "example": "ヤマダサブロウ"
+                },
+                "relationship": {
+                  "type": "string",
+                  "description": "続柄",
+                  "maxLength": 50,
+                  "nullable": true,
+                  "example": "祖父"
+                },
+                "deathDate": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "死亡日",
+                  "nullable": true,
+                  "example": "2020-03-15"
+                },
+                "age": {
+                  "type": "integer",
+                  "description": "年齢",
+                  "nullable": true,
+                  "example": 85
+                },
+                "gender": {
+                  "type": "string",
+                  "description": "性別",
+                  "enum": [
+                    "male",
+                    "female",
+                    "other"
+                  ],
+                  "nullable": true,
+                  "example": "male"
+                },
+                "burialDate": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "埋葬日",
+                  "nullable": true,
+                  "example": "2020-03-20"
+                },
+                "notes": {
+                  "type": "string",
+                  "description": "備考",
+                  "maxLength": 1000,
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "UpdatePlotInput": {
+        "type": "object",
+        "description": "契約区画更新リクエスト（全フィールドオプション）",
+        "properties": {
+          "contractPlot": {
+            "type": "object",
+            "properties": {
+              "contractAreaSqm": {
+                "type": "number",
+                "format": "float",
+                "minimum": 0.01
+              },
+              "saleStatus": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "locationDescription": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              }
+            }
+          },
+          "saleContract": {
+            "type": "object",
+            "properties": {
+              "contractDate": {
+                "type": "string",
+                "format": "date"
+              },
+              "price": {
+                "type": "number",
+                "minimum": 0
+              },
+              "paymentStatus": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "reservationDate": {
+                "type": "string",
+                "format": "date",
+                "nullable": true
+              },
+              "acceptanceNumber": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "permitDate": {
+                "type": "string",
+                "format": "date",
+                "description": "許可日",
+                "nullable": true
+              },
+              "permitNumber": {
+                "type": "string",
+                "maxLength": 50,
+                "description": "許可番号",
+                "nullable": true,
+                "example": "KYO-2024-0001"
+              },
+              "startDate": {
+                "type": "string",
+                "format": "date",
+                "nullable": true
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 1000,
+                "nullable": true
+              }
+            }
+          },
+          "customer": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "nameKana": {
+                "type": "string",
+                "pattern": "^[ァ-ヶー\\s]+$",
+                "maxLength": 100
+              },
+              "birthDate": {
+                "type": "string",
+                "format": "date",
+                "nullable": true
+              },
+              "gender": {
+                "type": "string",
+                "enum": [
+                  "male",
+                  "female",
+                  "other"
+                ],
+                "nullable": true
+              },
+              "postalCode": {
+                "type": "string",
+                "maxLength": 10
+              },
+              "address": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "registeredAddress": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              },
+              "phoneNumber": {
+                "type": "string",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true
+              },
+              "faxNumber": {
+                "type": "string",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "nullable": true
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 1000,
+                "nullable": true
+              }
+            }
+          },
+          "workInfo": {
+            "type": "object",
+            "description": "勤務先情報",
+            "nullable": true,
+            "properties": {
+              "companyName": {
+                "type": "string",
+                "description": "勤務先名称",
+                "maxLength": 100,
+                "nullable": true,
+                "example": "株式会社サンプル"
+              },
+              "companyNameKana": {
+                "type": "string",
+                "description": "勤務先仮名（カタカナのみ）",
+                "pattern": "^[ァ-ヶー\\s]+$",
+                "maxLength": 100,
+                "nullable": true,
+                "example": "カブシキガイシャサンプル"
+              },
+              "workPostalCode": {
+                "type": "string",
+                "description": "郵便番号",
+                "maxLength": 10,
+                "nullable": true,
+                "example": "150-0001"
+              },
+              "workPhoneNumber": {
+                "type": "string",
+                "description": "電話番号",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true,
+                "example": "03-1234-5678"
+              },
+              "workAddress": {
+                "type": "string",
+                "description": "勤務先住所",
+                "maxLength": 200,
+                "nullable": true,
+                "example": "東京都渋谷区"
+              },
+              "workFaxNumber": {
+                "type": "string",
+                "description": "ファックス",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true,
+                "example": "03-1234-5679"
+              },
+              "dmSetting": {
+                "type": "string",
+                "description": "DM送信設定",
+                "enum": [
+                  "allow",
+                  "deny",
+                  "limited"
+                ],
+                "nullable": true,
+                "example": "allow"
+              },
+              "addressType": {
+                "type": "string",
+                "description": "宛先区分（連絡先タイプ）",
+                "enum": [
+                  "home",
+                  "work",
+                  "other"
+                ],
+                "nullable": true,
+                "example": "home"
+              },
+              "notes": {
+                "type": "string",
+                "description": "備考",
+                "maxLength": 1000,
+                "nullable": true
+              }
+            }
+          },
+          "billingInfo": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "billingType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "accountType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "bankName": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              },
+              "branchName": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              },
+              "accountNumber": {
+                "type": "string",
+                "maxLength": 20,
+                "nullable": true
+              },
+              "accountHolder": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              }
+            }
+          },
+          "usageFee": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "calculationType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "taxType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "billingType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "billingYears": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "area": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "unitPrice": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "usageFee": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "paymentMethod": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              }
+            }
+          },
+          "managementFee": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "calculationType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "taxType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "billingType": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "billingYears": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "area": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "billingMonth": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "managementFee": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "unitPrice": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "lastBillingMonth": {
+                "type": "string",
+                "pattern": "^\\d{4}年\\d{1,2}月$",
+                "nullable": true
+              },
+              "paymentMethod": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              }
+            }
+          }
+        }
+      },
+      "CreatePlotContractInput": {
+        "type": "object",
+        "description": "物理区画への新規契約追加リクエスト（physicalPlot不要）",
+        "required": [
+          "contractPlot",
+          "saleContract",
+          "customer"
+        ],
+        "properties": {
+          "contractPlot": {
+            "type": "object",
+            "required": [
+              "contractAreaSqm"
+            ],
+            "properties": {
+              "contractAreaSqm": {
+                "type": "number",
+                "format": "float",
+                "description": "契約面積（㎡）",
+                "minimum": 0.01,
+                "example": 1.8
+              },
+              "saleStatus": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "locationDescription": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              }
+            }
+          },
+          "saleContract": {
+            "type": "object",
+            "required": [
+              "contractDate",
+              "price"
+            ],
+            "properties": {
+              "contractDate": {
+                "type": "string",
+                "format": "date",
+                "example": "2024-06-01"
+              },
+              "price": {
+                "type": "number",
+                "minimum": 0,
+                "example": 500000
+              },
+              "paymentStatus": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "reservationDate": {
+                "type": "string",
+                "format": "date",
+                "nullable": true
+              },
+              "acceptanceNumber": {
+                "type": "string",
+                "maxLength": 50,
+                "nullable": true
+              },
+              "permitDate": {
+                "type": "string",
+                "format": "date",
+                "description": "許可日",
+                "nullable": true
+              },
+              "permitNumber": {
+                "type": "string",
+                "maxLength": 50,
+                "description": "許可番号",
+                "nullable": true,
+                "example": "KYO-2024-0001"
+              },
+              "startDate": {
+                "type": "string",
+                "format": "date",
+                "nullable": true
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 1000,
+                "nullable": true
+              }
+            }
+          },
+          "customer": {
+            "type": "object",
+            "required": [
+              "name",
+              "nameKana",
+              "postalCode",
+              "address"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "example": "田中花子"
+              },
+              "nameKana": {
+                "type": "string",
+                "pattern": "^[ァ-ヶー\\s]+$",
+                "maxLength": 100,
+                "example": "タナカハナコ"
+              },
+              "birthDate": {
+                "type": "string",
+                "format": "date",
+                "nullable": true
+              },
+              "gender": {
+                "type": "string",
+                "enum": [
+                  "male",
+                  "female",
+                  "other"
+                ],
+                "nullable": true
+              },
+              "postalCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10,
+                "example": "150-0002"
+              },
+              "address": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "example": "東京都渋谷区"
+              },
+              "registeredAddress": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              },
+              "phoneNumber": {
+                "type": "string",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true
+              },
+              "faxNumber": {
+                "type": "string",
+                "pattern": "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$",
+                "nullable": true
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "nullable": true
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 1000,
+                "nullable": true
+              }
+            }
+          },
+          "workInfo": {
+            "type": "object",
+            "nullable": true
+          },
+          "billingInfo": {
+            "type": "object",
+            "nullable": true
+          },
+          "usageFee": {
+            "type": "object",
+            "nullable": true
+          },
+          "managementFee": {
+            "type": "object",
+            "nullable": true
+          }
+        }
+      },
+      "InventorySummary": {
+        "type": "object",
+        "description": "在庫全体サマリー",
+        "properties": {
+          "totalCount": {
+            "type": "integer",
+            "description": "総区画数",
+            "example": 3626
+          },
+          "usedCount": {
+            "type": "integer",
+            "description": "使用済区画数",
+            "example": 2963
+          },
+          "remainingCount": {
+            "type": "integer",
+            "description": "残区画数",
+            "example": 663
+          },
+          "usageRate": {
+            "type": "number",
+            "format": "float",
+            "description": "使用率（%）",
+            "example": 81.7
+          },
+          "totalAreaSqm": {
+            "type": "number",
+            "format": "float",
+            "description": "総面積（㎡）",
+            "example": 13053.6
+          },
+          "remainingAreaSqm": {
+            "type": "number",
+            "format": "float",
+            "description": "残面積（㎡）",
+            "example": 2386.8
+          },
+          "lastUpdated": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最終更新日時"
+          }
+        }
+      },
+      "PeriodSummary": {
+        "type": "object",
+        "description": "期別サマリー",
+        "properties": {
+          "period": {
+            "type": "string",
+            "description": "期（1期〜4期）",
+            "enum": [
+              "1期",
+              "2期",
+              "3期",
+              "4期"
+            ],
+            "example": "1期"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "総区画数",
+            "example": 1591
+          },
+          "usedCount": {
+            "type": "integer",
+            "description": "使用済区画数",
+            "example": 1320
+          },
+          "remainingCount": {
+            "type": "integer",
+            "description": "残区画数",
+            "example": 271
+          },
+          "usageRate": {
+            "type": "number",
+            "format": "float",
+            "description": "使用率（%）",
+            "example": 83
+          }
+        }
+      },
+      "SectionInventoryItem": {
+        "type": "object",
+        "description": "セクション別在庫アイテム",
+        "properties": {
+          "period": {
+            "type": "string",
+            "description": "期",
+            "example": "1期"
+          },
+          "section": {
+            "type": "string",
+            "description": "セクション（A, B, 吉相など）",
+            "example": "A"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "総区画数",
+            "example": 100
+          },
+          "usedCount": {
+            "type": "integer",
+            "description": "使用済区画数",
+            "example": 85
+          },
+          "remainingCount": {
+            "type": "integer",
+            "description": "残区画数",
+            "example": 15
+          },
+          "usageRate": {
+            "type": "number",
+            "format": "float",
+            "description": "使用率（%）",
+            "example": 85
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "description": "カテゴリ（樹林・天空など）",
+            "example": "樹林・天空"
+          }
+        }
+      },
+      "AreaInventoryItem": {
+        "type": "object",
+        "description": "面積別在庫アイテム",
+        "properties": {
+          "period": {
+            "type": "string",
+            "description": "期",
+            "example": "1期"
+          },
+          "areaSqm": {
+            "type": "number",
+            "format": "float",
+            "description": "面積（㎡）",
+            "example": 3.6
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "総区画数",
+            "example": 50
+          },
+          "usedCount": {
+            "type": "integer",
+            "description": "使用済区画数",
+            "example": 40
+          },
+          "remainingCount": {
+            "type": "integer",
+            "description": "残区画数",
+            "example": 10
+          },
+          "remainingAreaSqm": {
+            "type": "number",
+            "format": "float",
+            "description": "残面積（㎡）",
+            "example": 36
+          },
+          "plotType": {
+            "type": "string",
+            "description": "区画タイプ（自由、吉相、樹林、天空など）",
+            "example": "自由"
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "example": 100
+          },
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "example": 20
+          },
+          "totalPages": {
+            "type": "integer",
+            "example": 5
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string",
+                "example": "バリデーションエラーが発生しました"
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "example": "plot.plotNumber"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "区画番号は必須です"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "バリデーションエラー",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "バリデーションエラーが発生しました",
+                "details": [
+                  {
+                    "field": "plot.plotNumber",
+                    "message": "区画番号は必須です"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "認証エラー",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "認証が必要です",
+                "details": []
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "権限エラー",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "この操作を実行する権限がありません",
+                "details": []
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "リソースが見つからない",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "指定されたリソースが見つかりません",
+                "details": []
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "データ競合エラー",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "error": {
+                "code": "CONFLICT",
+                "message": "区画番号が既に存在します",
+                "details": []
+              }
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "サービス利用不可",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "error": {
+                "code": "SERVICE_UNAVAILABLE",
+                "message": "Supabase認証サービスが利用できません",
+                "details": []
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
