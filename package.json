@@ -27,6 +27,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@komine/types": "file:../packages/types",
     "@aws-sdk/client-s3": "^3.975.0",
     "@aws-sdk/s3-request-presigner": "^3.975.0",
     "@prisma/client": "^6.9.0",
