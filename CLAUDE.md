@@ -21,7 +21,7 @@ This is Cemetery CRM (kurosakicrm) - a comprehensive backend system for managing
 - `npm run test:e2e:ui` - Run Playwright tests with UI mode
 - `npm run test:e2e:debug` - Debug Playwright tests
 - **Running Single Test**: `npm test -- path/to/test.ts` or `npm test -- --testNamePattern="test name"`
-- **Coverage Requirements**: Functions 100%, Lines 99%, Statements 97%, Branches 80% (high-quality thresholds)
+- **Coverage Requirements**: Currently fn 80%, lines 65%, stmts 65%, branches 40% (temporarily lowered; targets: fn 100%, lines 99%, stmts 97%, branches 80%)
 
 ### Code Quality
 - `npm run lint` - Run ESLint to check code quality
@@ -259,7 +259,7 @@ The specification includes:
 - Handle effective dating for temporal data
 
 ### Testing Standards
-- **High test coverage required** - Functions 100%, Lines 99%, Statements 97%, Branches 80%
+- **High test coverage required** - Currently fn 80%, lines 65%, stmts 65%, branches 40% (targets: fn 100%, lines 99%, stmts 97%, branches 80%)
 - Tests located in `tests/` directory mirroring `src/` structure
 - Use `tests/setup.ts` for test configuration
 - Mock Prisma client defined in `__mocks__/@prisma/client.ts`
@@ -346,7 +346,7 @@ See `SETUP.md` for detailed deployment configuration, Docker setup, CORS setup, 
   - **Swagger Validation**: OpenAPI spec validation
   - **Security Audit**: npm audit (moderate+ vulnerabilities)
   - **Docker Security Scan**: Trivy vulnerability scanner (CRITICAL/HIGH)
-  - **Test**: Run all 428 tests on Node.js 18.x, 20.x, 22.x (parallel)
+  - **Test**: Run all 610+ tests on Node.js 18.x, 20.x, 22.x (parallel)
   - **Coverage**: Generate and upload to Codecov (Node 20.x only)
   - **All Checks Passed**: Final validation gate
 
@@ -393,7 +393,7 @@ See `SETUP.md` for CI/CD setup and `SECURITY.md` for security policy.
   - Security policy: SECURITY.md
   - API specification: swagger.yaml
 - **Language**: Japanese language content throughout (墓石管理システム = Cemetery Management System)
-- **Test suite**: 428 tests with high coverage thresholds (Functions 100%, Lines 99%, Statements 97%, Branches 80%)
+- **Test suite**: 610+ tests with coverage thresholds (currently fn 80%, lines 65%, stmts 65%, branches 40%)
 - **Testing approach**: Mock Prisma client defined in `__mocks__/@prisma/client.ts`
 
 ## Troubleshooting
@@ -414,9 +414,9 @@ If you see `'user' does not exist in type 'Partial<Request>'`:
 
 ### CI/CD Coverage Threshold Failures
 If GitHub Actions CI fails with "coverage threshold not met":
-- Current thresholds: Functions 100%, Lines 99%, Statements 97%, Branches 80%
-- Check `jest.config.js` line 16-22 for threshold configuration
-- These are high-quality thresholds; 100% on all metrics is unrealistic for complex controllers
+- Current thresholds: fn 80%, lines 65%, stmts 65%, branches 40% (temporarily lowered)
+- Target thresholds: fn 100%, lines 99%, stmts 97%, branches 80%
+- Check `jest.config.js` for threshold configuration
 - See commit history for rationale on current threshold values
 
 ### CORS Issues in Production
