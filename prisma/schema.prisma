@@ -161,12 +161,12 @@ model ContractPlot {
   price             Int // 販売価格（円単位）
   contract_status   ContractStatus @default(draft) // 契約ステータス
   payment_status    PaymentStatus  @default(unpaid) // 支払いステータス
-  reservation_date  DateTime?     @db.Date // 予約日
-  acceptance_number String?       @db.VarChar(50) // 受付番号（承諾書番号）
-  permit_date       DateTime?     @db.Date // 許可日
-  permit_number     String?       @db.VarChar(50) // 許可番号
-  start_date        DateTime?     @db.Date // 開始日
-  notes             String?       @db.Text // 契約に関する備考
+  reservation_date  DateTime?      @db.Date // 予約日
+  acceptance_number String?        @db.VarChar(50) // 受付番号（承諾書番号）
+  permit_date       DateTime?      @db.Date // 許可日
+  permit_number     String?        @db.VarChar(50) // 許可番号
+  start_date        DateTime?      @db.Date // 開始日
+  notes             String?        @db.Text // 契約に関する備考
 
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
