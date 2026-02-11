@@ -24,7 +24,7 @@ interface AuthenticatedRequest extends Request {
  * 履歴レコード作成のための入力パラメータ
  */
 export interface CreateHistoryInput {
-  entityType: 'PhysicalPlot' | 'ContractPlot' | 'Customer' | 'SaleContractRole';
+  entityType: 'PhysicalPlot' | 'ContractPlot' | 'Customer' | 'SaleContractRole' | 'Document';
   entityId: string;
   physicalPlotId?: string | null;
   contractPlotId?: string | null;
@@ -203,6 +203,86 @@ export async function recordCustomerUpdated(
     beforeRecord: beforeData,
     afterRecord: afterData,
     changeReason,
+    req,
+  });
+}
+
+/**
+ * DocumentのCREATE履歴を作成する
+ */
+export async function recordDocumentCreated(
+  tx: Prisma.TransactionClient | PrismaClient,
+  document: {
+    id: string;
+    contract_plot_id: string | null;
+    type: string;
+    name: string;
+    [key: string]: unknown;
+  },
+  req: Request
+): Promise<void> {
+  await createHistory(tx, {
+    entityType: 'Document',
+    entityId: document.id,
+    contractPlotId: document.contract_plot_id,
+    actionType: 'CREATE',
+    afterRecord: {
+      id: document.id,
+      contract_plot_id: document.contract_plot_id,
+      type: document.type,
+      name: document.name,
+    },
+    req,
+  });
+}
+
+/**
+ * DocumentのUPDATE履歴を作成する
+ */
+export async function recordDocumentUpdated(
+  tx: Prisma.TransactionClient | PrismaClient,
+  beforeData: Record<string, unknown>,
+  afterData: Record<string, unknown>,
+  documentId: string,
+  contractPlotId: string | null,
+  req: Request
+): Promise<void> {
+  await createHistory(tx, {
+    entityType: 'Document',
+    entityId: documentId,
+    contractPlotId,
+    actionType: 'UPDATE',
+    beforeRecord: beforeData,
+    afterRecord: afterData,
+    req,
+  });
+}
+
+/**
+ * DocumentのDELETE履歴を作成する
+ */
+export async function recordDocumentDeleted(
+  tx: Prisma.TransactionClient | PrismaClient,
+  document: {
+    id: string;
+    contract_plot_id: string | null;
+    type: string;
+    name: string;
+    [key: string]: unknown;
+  },
+  req: Request
+): Promise<void> {
+  await createHistory(tx, {
+    entityType: 'Document',
+    entityId: document.id,
+    contractPlotId: document.contract_plot_id,
+    actionType: 'DELETE',
+    beforeRecord: {
+      id: document.id,
+      contract_plot_id: document.contract_plot_id,
+      type: document.type,
+      name: document.name,
+    },
     req,
   });
 }

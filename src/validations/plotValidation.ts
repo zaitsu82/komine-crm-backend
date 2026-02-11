@@ -17,6 +17,21 @@ export const plotSearchQuerySchema = paginationSchema.extend({
   search: z.string().optional(),
   status: z.enum(['available', 'partially_sold', 'sold_out']).optional(), // PhysicalPlotStatus ENUM
   cemeteryType: z.string().optional(),
+  paymentStatus: z
+    .enum(['unpaid', 'partial_paid', 'paid', 'overdue', 'refunded', 'cancelled'])
+    .optional(),
+  sortBy: z
+    .enum([
+      'plotNumber',
+      'customerName',
+      'contractDate',
+      'paymentStatus',
+      'managementFee',
+      'createdAt',
+    ])
+    .optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+  nameKanaPrefix: z.string().max(5).optional(),
 });
 
 /**

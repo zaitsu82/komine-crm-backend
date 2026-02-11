@@ -15,6 +15,16 @@ interface PlotSearchQuery {
   search?: string;
   status?: 'available' | 'partially_sold' | 'sold_out';
   cemeteryType?: string;
+  paymentStatus?: 'unpaid' | 'partial_paid' | 'paid' | 'overdue' | 'refunded' | 'cancelled';
+  sortBy?:
+    | 'plotNumber'
+    | 'customerName'
+    | 'contractDate'
+    | 'paymentStatus'
+    | 'managementFee'
+    | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
+  nameKanaPrefix?: string;
 }
 
 /**
@@ -29,6 +39,10 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
       search,
       status,
       cemeteryType,
+      paymentStatus,
+      sortBy,
+      sortOrder = 'asc',
+      nameKanaPrefix,
     } = req.query as unknown as PlotSearchQuery;
 
     // ページネーション計算
@@ -82,6 +96,66 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
       };
     }
 
+    // 入金ステータスフィルター
+    if (paymentStatus) {
+      whereCondition.payment_status = paymentStatus;
+    }
+
+    // フリガナ先頭文字フィルター（あいうえおタブ用）
+    if (nameKanaPrefix) {
+      // カタカナの行範囲マッピング
+      const kanaRanges: Record<string, [string, string]> = {
+        ア: ['ア', 'オ'],
+        カ: ['カ', 'コ'],
+        サ: ['サ', 'ソ'],
+        タ: ['タ', 'ト'],
+        ナ: ['ナ', 'ノ'],
+        ハ: ['ハ', 'ホ'],
+        マ: ['マ', 'モ'],
+        ヤ: ['ヤ', 'ヨ'],
+        ラ: ['ラ', 'ロ'],
+        ワ: ['ワ', 'ン'],
+      };
+      const range = kanaRanges[nameKanaPrefix];
+      if (range) {
+        whereCondition.saleContractRoles = {
+          some: {
+            deleted_at: null,
+            customer: {
+              name_kana: { gte: range[0], lte: range[1] + '\uffff' },
+            },
+          },
+        };
+      }
+    }
+
+    // ソート条件の構築
+    let orderByCondition: Prisma.ContractPlotOrderByWithRelationInput;
+    switch (sortBy) {
+      case 'plotNumber':
+        orderByCondition = { physicalPlot: { plot_number: sortOrder } };
+        break;
+      case 'customerName':
+        // 主契約者名でのソートはリレーション経由のため直接は困難
+        // created_atでフォールバック（取得後にアプリ側でソート）
+        orderByCondition = { created_at: sortOrder };
+        break;
+      case 'contractDate':
+        orderByCondition = { contract_date: sortOrder };
+        break;
+      case 'paymentStatus':
+        orderByCondition = { payment_status: sortOrder };
+        break;
+      case 'managementFee':
+        orderByCondition = { managementFee: { management_fee: sortOrder } };
+        break;
+      case 'createdAt':
+        orderByCondition = { created_at: sortOrder };
+        break;
+      default:
+        orderByCondition = { created_at: 'desc' };
+    }
+
     // 総件数とデータを並列で取得
     const [total, contractPlots] = await Promise.all([
       prisma.contractPlot.count({ where: whereCondition }),
@@ -114,9 +188,7 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
           },
           managementFee: true,
         },
-        orderBy: {
-          created_at: 'desc',
-        },
+        orderBy: orderByCondition,
       }),
     ]);
 

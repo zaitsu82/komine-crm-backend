@@ -18,6 +18,11 @@ import {
   PostcardTemplateData,
 } from './documentService';
 import prisma from '../db/prisma';
+import {
+  recordDocumentCreated,
+  recordDocumentUpdated,
+  recordDocumentDeleted,
+} from '../plots/services/historyService';
 
 // 型定義（Prisma生成後にenumからインポート可能）
 type DocumentType = 'invoice' | 'postcard' | 'contract' | 'permit' | 'other';
@@ -380,6 +385,9 @@ export const createDocument = async (req: Request, res: Response): Promise<void>
       },
     });
 
+    // 履歴記録
+    await recordDocumentCreated(prisma, document, req);
+
     res.status(201).json({
       success: true,
       data: {
@@ -456,6 +464,26 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
       data: updateData,
     });
 
+    // 履歴記録
+    await recordDocumentUpdated(
+      prisma,
+      {
+        name: existingDocument.name,
+        description: existingDocument.description,
+        status: existingDocument.status,
+        notes: existingDocument.notes,
+      },
+      {
+        name: document.name,
+        description: document.description,
+        status: document.status,
+        notes: document.notes,
+      },
+      document.id,
+      document.contract_plot_id,
+      req
+    );
+
     res.status(200).json({
       success: true,
       data: {
@@ -525,6 +553,9 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
       where: { id },
       data: { deleted_at: new Date() },
     });
+
+    // 履歴記録
+    await recordDocumentDeleted(prisma, existingDocument, req);
 
     res.status(200).json({
       success: true,
