@@ -1,5 +1,5 @@
 /**
- * 区画バリデーションユーティリティのテスト
+ * 区画ビジネスルールバリデーションのテスト
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -18,7 +18,7 @@ import {
   validateCustomerRole,
   validatePhysicalPlotCreate,
   validatePhysicalPlotUpdate,
-} from '../../src/utils/plotValidations';
+} from '../../src/validations/plotBusinessRules';
 
 // Prisma Client のモック（jest.mockの前に定義）
 const mockPrismaClient = {
@@ -39,7 +39,7 @@ jest.mock('@prisma/client', () => {
   };
 });
 
-describe('plotValidations', () => {
+describe('plotBusinessRules', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
