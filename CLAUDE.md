@@ -81,21 +81,43 @@ The server applies middleware in this critical order:
 11. **notFoundHandler** - Catches 404 errors for undefined routes
 12. **errorHandler** - Global error handler (must be last)
 
-### Modular Organization
-Each business entity has its own module with consistent structure:
+### Modular Organization — Hybrid Approach
+Each business entity has its own module. **Module structure is determined by scale:**
+
+**Small modules (< ~700 LOC)** — Flat structure:
+```
+src/auth/
+├── authController.ts          # All endpoints in one file
+└── authRoutes.ts
+```
+Currently flat: `auth/`, `staff/`, `masters/`, `collective-burials/`
+
+**Large modules (700+ LOC, 8+ endpoints)** — Hierarchical structure:
+```
+src/plots/
+├── controllers/
+│   ├── index.ts               # Barrel export
+│   ├── createPlot.ts          # One file per endpoint operation
+│   ├── getPlots.ts
+│   └── ...
+├── services/
+│   ├── plotService.ts         # One file per business domain
+│   ├── contractService.ts
+│   └── ...
+└── plotRoutes.ts
+```
+Currently hierarchical: `plots/`
+
+**When to split**: If a controller exceeds ~700 LOC or has 8+ distinct operations, consider splitting into `controllers/` subdirectory. Extract `services/` when business logic becomes complex enough to share across controllers.
+
+**Supporting directories**:
 ```
 src/
-├── entity-name/
-│   ├── entityController.ts    # Business logic and database operations
-│   └── entityRoutes.ts        # Express route definitions
-├── middleware/
-│   ├── auth.ts               # Supabase JWT authentication middleware
-│   ├── permission.ts         # Role-based permission checking
-│   ├── errorHandler.ts       # Global error handling & custom error classes
-│   └── logger.ts             # Request logging & security headers
-└── auth/
-    ├── authController.ts     # Authentication endpoints (login, logout, password change)
-    └── authRoutes.ts         # Auth route definitions
+├── middleware/                 # Cross-cutting concerns (auth, permissions, errors, logging)
+├── validations/               # All Zod schemas and business rule validators
+├── utils/                     # Generic utilities (dateUtils, responseBuilder, etc.)
+├── services/                  # Shared services (supabaseAdmin)
+└── db/                        # Database client
 ```
 
 ### Currently Implemented Modules
