@@ -7,7 +7,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
+import { updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { NotFoundError } from '../../middleware/errorHandler';
 

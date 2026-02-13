@@ -7,7 +7,7 @@
 
 import { Request, Response } from 'express';
 import { Prisma, PaymentStatus, ContractRole } from '@prisma/client';
-import { validateContractArea, updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
+import { validateContractArea, updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 
 /**

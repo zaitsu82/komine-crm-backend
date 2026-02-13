@@ -7,8 +7,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
-import { UpdateContractPlotInput } from '../../type';
-import { updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
+import { UpdateContractPlotInput } from '../types';
+import { updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 import { recordContractPlotUpdated, recordCustomerUpdated } from '../services/historyService';

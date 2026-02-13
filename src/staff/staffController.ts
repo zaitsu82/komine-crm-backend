@@ -12,7 +12,7 @@ import {
   deleteSupabaseUser,
   updateSupabaseUserEmail,
   resendInvitation,
-} from '../services/supabaseAdmin';
+} from '../config/supabase';
 
 // スタッフ一覧のレスポンス型
 interface StaffListItem {

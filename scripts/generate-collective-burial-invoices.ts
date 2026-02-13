@@ -13,7 +13,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { getBillingTargets } from '../src/utils/collectiveBurialUtils';
+import { getBillingTargets } from '../src/collective-burials/utils';
 
 const prisma = new PrismaClient();
 

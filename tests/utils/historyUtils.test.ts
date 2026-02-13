@@ -5,7 +5,7 @@ import {
   createHistoryRecord,
   hasChanges,
   ChangedFields,
-} from '../../src/utils/historyUtils';
+} from '../../src/plots/historyUtils';
 
 describe('historyUtils', () => {
   describe('detectChangedFields', () => {

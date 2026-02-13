@@ -3,7 +3,7 @@ import {
   updateCollectiveBurialCount,
   isCapacityReached,
   getBillingTargets,
-} from '../../src/utils/collectiveBurialUtils';
+} from '../../src/collective-burials/utils';
 
 // Prisma Clientのモック
 const mockPrisma = {

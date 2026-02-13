@@ -2,7 +2,7 @@ import {
   generateCollectiveBurialInvoices,
   processBilling,
 } from '../../scripts/generate-collective-burial-invoices';
-import * as collectiveBurialUtils from '../../src/utils/collectiveBurialUtils';
+import * as collectiveBurialUtils from '../../src/collective-burials/utils';
 import { PrismaClient } from '@prisma/client';
 
 // Prisma Clientのモック
@@ -20,7 +20,7 @@ jest.mock('@prisma/client', () => {
 });
 
 // collectiveBurialUtilsのモック
-jest.mock('../../src/utils/collectiveBurialUtils', () => ({
+jest.mock('../../src/collective-burials/utils', () => ({
   getBillingTargets: jest.fn(),
 }));
 

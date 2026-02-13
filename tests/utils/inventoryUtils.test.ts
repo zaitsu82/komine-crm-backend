@@ -10,7 +10,7 @@ import {
   isFullyAvailable,
   isFullySold,
   getAvailableAreaOptions,
-} from '../../src/utils/inventoryUtils';
+} from '../../src/plots/utils';
 
 // Prisma Client のモック（jest.mockの前に定義）
 const mockPrismaClient = {

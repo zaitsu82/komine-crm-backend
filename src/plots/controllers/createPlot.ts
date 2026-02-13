@@ -8,8 +8,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { Prisma, PaymentStatus, ContractRole } from '@prisma/client';
-import { CreateContractPlotInput } from '../../type';
-import { validateContractArea, updatePhysicalPlotStatus } from '../../utils/inventoryUtils';
+import { CreateContractPlotInput } from '../types';
+import { validateContractArea, updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 import { recordContractPlotCreated, recordCustomerCreated } from '../services/historyService';

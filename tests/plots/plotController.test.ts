@@ -92,7 +92,7 @@ jest.mock('@prisma/client', () => ({
 }));
 
 // ユーティリティ関数のモック化
-jest.mock('../../src/utils/inventoryUtils', () => ({
+jest.mock('../../src/plots/utils', () => ({
   validateContractArea: jest.fn(),
   updatePhysicalPlotStatus: jest.fn(),
 }));
@@ -107,7 +107,7 @@ import {
   createPlotContract,
   getPlotInventory,
 } from '../../src/plots/controllers';
-import { validateContractArea, updatePhysicalPlotStatus } from '../../src/utils/inventoryUtils';
+import { validateContractArea, updatePhysicalPlotStatus } from '../../src/plots/utils';
 
 describe('Plot Controller (ContractPlot Model)', () => {
   let mockRequest: Partial<Request>;

@@ -6,7 +6,7 @@
 
 import { PrismaClient, ActionType, Prisma } from '@prisma/client';
 import { Request } from 'express';
-import { detectChangedFields, getIpAddress, ChangedFields } from '../../utils/historyUtils';
+import { detectChangedFields, getIpAddress, ChangedFields } from '../historyUtils';
 
 // 認証されたリクエストの型定義
 interface AuthenticatedRequest extends Request {
