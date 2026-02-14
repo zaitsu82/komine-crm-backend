@@ -156,28 +156,23 @@ describe('inventoryService', () => {
     });
 
     it('全期のサマリーを取得できること', async () => {
-      // 各期に対してfindManyが呼ばれる
-      mockPrisma.physicalPlot.findMany
-        .mockResolvedValueOnce([
-          // 1期
-          {
-            id: 'plot-1',
-            area_sqm: { toNumber: () => 3.6 },
-            status: 'available',
-            contractPlots: [],
-          },
-        ])
-        .mockResolvedValueOnce([
-          // 2期
-          {
-            id: 'plot-2',
-            area_sqm: { toNumber: () => 3.6 },
-            status: 'sold_out',
-            contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
-          },
-        ])
-        .mockResolvedValueOnce([]) // 3期
-        .mockResolvedValueOnce([]); // 4期
+      // 単一クエリで全期間のデータを返す（area_nameでグルーピングされる）
+      mockPrisma.physicalPlot.findMany.mockResolvedValue([
+        {
+          id: 'plot-1',
+          area_name: '1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'available',
+          contractPlots: [],
+        },
+        {
+          id: 'plot-2',
+          area_name: '2期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'sold_out',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
+        },
+      ]);
 
       const result = await getPeriodSummaries(mockPrisma);
 
@@ -193,12 +188,14 @@ describe('inventoryService', () => {
       mockPrisma.physicalPlot.findMany.mockResolvedValue([
         {
           id: 'plot-1',
+          area_name: '1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
         },
         {
           id: 'plot-2',
+          area_name: '1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],

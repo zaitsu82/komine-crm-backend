@@ -57,6 +57,10 @@ jest.mock('../../src/plots/controllers', () => ({
   getInventoryAreas: jest.fn((req, res) =>
     res.status(200).json({ success: true, data: { items: [], pagination: {} } })
   ),
+  // 履歴API
+  getPlotHistory: jest.fn((req, res) =>
+    res.status(200).json({ success: true, data: { items: [], total: 0 } })
+  ),
 }));
 
 import {
