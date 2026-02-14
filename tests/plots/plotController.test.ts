@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 
 // Express.Request型を拡張（認証ミドルウェアで使用される型定義）
@@ -114,6 +114,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
   let mockResponse: Partial<Response>;
   let responseJson: jest.Mock;
   let responseStatus: jest.Mock;
+  let mockNext: jest.Mock;
 
   beforeEach(() => {
     responseJson = jest.fn().mockReturnThis();
@@ -138,6 +139,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
       json: responseJson,
     };
 
+    mockNext = jest.fn();
     // モックのリセット
     jest.clearAllMocks();
     (validateContractArea as jest.Mock).mockResolvedValue({ isValid: true });
@@ -195,7 +197,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
 
       mockRequest.query = { page: '1', limit: '10' };
 
-      await getPlots(mockRequest as Request, mockResponse as Response);
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockPrisma.contractPlot.findMany).toHaveBeenCalled();
       expect(responseStatus).toHaveBeenCalledWith(200);
@@ -259,7 +261,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
 
       mockPrisma.contractPlot.findMany.mockResolvedValue(mockContractPlots);
 
-      await getPlots(mockRequest as Request, mockResponse as Response);
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(responseStatus).toHaveBeenCalledWith(200);
       expect(responseJson).toHaveBeenCalledWith(
@@ -300,7 +302,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
 
       mockPrisma.contractPlot.findMany.mockResolvedValue(mockContractPlots);
 
-      await getPlots(mockRequest as Request, mockResponse as Response);
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(responseStatus).toHaveBeenCalledWith(200);
       expect(responseJson).toHaveBeenCalledWith(
@@ -326,7 +328,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
     it('should return empty array when no contract plots exist', async () => {
       mockPrisma.contractPlot.findMany.mockResolvedValue([]);
 
-      await getPlots(mockRequest as Request, mockResponse as Response);
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(responseStatus).toHaveBeenCalledWith(200);
       expect(responseJson).toHaveBeenCalledWith(
@@ -401,7 +403,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
       mockPrisma.contractPlot.findUnique.mockResolvedValue(mockContractPlot);
       mockRequest.params = { id: 'cp1' };
 
-      await getPlotById(mockRequest as Request, mockResponse as Response);
+      await getPlotById(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockPrisma.contractPlot.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -421,7 +423,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
       mockPrisma.contractPlot.findUnique.mockResolvedValue(null);
       mockRequest.params = { id: 'non-existent' };
 
-      await getPlotById(mockRequest as Request, mockResponse as Response);
+      await getPlotById(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(responseStatus).toHaveBeenCalledWith(404);
       expect(responseJson).toHaveBeenCalledWith(
@@ -506,7 +508,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
       mockRequest.body = mockInput;
 
       try {
-        await createPlot(mockRequest as Request, mockResponse as Response);
+        await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
       } catch (error) {
         console.error('Error during createPlot:', error);
       }
@@ -570,7 +572,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
 
       mockRequest.body = mockInput;
 
-      await createPlot(mockRequest as Request, mockResponse as Response);
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockPrisma.physicalPlot.findUnique).toHaveBeenCalled();
       expect(mockPrisma.physicalPlot.create).not.toHaveBeenCalled();
@@ -583,7 +585,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
         // contractPlot, saleContract, customer が欠けている
       };
 
-      await createPlot(mockRequest as Request, mockResponse as Response);
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(responseStatus).toHaveBeenCalledWith(400);
       expect(responseJson).toHaveBeenCalledWith(
@@ -618,7 +620,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
         },
       };
 
-      await createPlot(mockRequest as Request, mockResponse as Response);
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(responseStatus).toHaveBeenCalledWith(400);
       expect(responseJson).toHaveBeenCalledWith(
@@ -660,7 +662,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
         },
       };
 
-      await createPlot(mockRequest as Request, mockResponse as Response);
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(responseStatus).toHaveBeenCalledWith(400);
     });
@@ -714,7 +716,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
 
       mockRequest.body = mockInput;
 
-      await createPlot(mockRequest as Request, mockResponse as Response);
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockPrisma.workInfo.create).toHaveBeenCalled();
       expect(mockPrisma.billingInfo.create).toHaveBeenCalled();
@@ -773,7 +775,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
 
       mockRequest.body = mockInput;
 
-      await createPlot(mockRequest as Request, mockResponse as Response);
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockPrisma.usageFee.create).toHaveBeenCalled();
       expect(mockPrisma.managementFee.create).toHaveBeenCalled();
@@ -802,7 +804,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
         },
       };
 
-      await createPlot(mockRequest as Request, mockResponse as Response);
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(responseStatus).toHaveBeenCalledWith(400);
       expect(responseJson).toHaveBeenCalledWith(
@@ -854,7 +856,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
         },
       };
 
-      await updatePlot(mockRequest as Request, mockResponse as Response);
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(responseStatus).toHaveBeenCalledWith(400);
       expect(responseJson).toHaveBeenCalledWith(
@@ -873,7 +875,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
       mockPrisma.contractPlot.findUnique.mockResolvedValue(null);
       mockRequest.params = { id: 'non-existent' };
 
-      await deletePlot(mockRequest as Request, mockResponse as Response);
+      await deletePlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(responseStatus).toHaveBeenCalledWith(404);
     });
