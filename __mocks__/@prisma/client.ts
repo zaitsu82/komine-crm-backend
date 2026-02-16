@@ -1,3 +1,5 @@
+import { jest } from '@jest/globals';
+
 export const PrismaClient = jest.fn().mockImplementation(() => ({
   staff: {
     findMany: jest.fn(),
