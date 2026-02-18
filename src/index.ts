@@ -31,6 +31,9 @@ import {
 const app = express();
 const PORT = process.env['PORT'] || 4000;
 
+// プロキシ信頼設定（Render等のリバースプロキシ環境で必要）
+app.set('trust proxy', 1);
+
 // セキュリティミドルウェアの設定（最初に適用）
 app.use(getHelmetOptions()); // Helmet: セキュリティヘッダー
 app.use(cors(getCorsOptions())); // CORS設定（厳格化）
