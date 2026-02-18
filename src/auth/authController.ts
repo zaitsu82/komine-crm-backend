@@ -7,7 +7,7 @@ const isProduction = process.env['NODE_ENV'] === 'production';
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: isProduction, // 本番環境ではHTTPS必須
-  sameSite: 'lax' as const,
+  sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
   path: '/',
 };
 
