@@ -3,6 +3,9 @@
 # ============================================
 FROM node:20-alpine AS deps
 
+# git: GitHub URL依存パッケージのインストールに必要
+RUN apk add --no-cache git
+
 # 作業ディレクトリの設定
 WORKDIR /app
 
@@ -21,6 +24,9 @@ RUN npm ci --omit=dev --ignore-scripts && \
 # Stage 2: Build
 # ============================================
 FROM node:20-alpine AS builder
+
+# git: GitHub URL依存パッケージのインストールに必要
+RUN apk add --no-cache git
 
 WORKDIR /app
 
