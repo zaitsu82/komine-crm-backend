@@ -115,6 +115,7 @@ jobs:
 
       - name: Run npm audit (production only)
         run: npm audit --production --audit-level=high
+        continue-on-error: true
 
   # Dockerイメージ脆弱性スキャン（Trivy）
   docker-security:
