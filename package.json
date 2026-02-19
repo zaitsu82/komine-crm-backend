@@ -30,7 +30,7 @@
     "@aws-sdk/client-s3": "^3.975.0",
     "@aws-sdk/s3-request-presigner": "^3.975.0",
     "@komine/types": "github:zaitsu82/komine-types",
-    "@prisma/client": "^6.9.0",
+    "@prisma/client": "^7.4.0",
     "@sentry/node": "^10.26.0",
     "@sentry/profiling-node": "^10.26.0",
     "@supabase/supabase-js": "^2.76.1",
