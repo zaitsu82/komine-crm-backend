@@ -1,7 +1,7 @@
 # ============================================
 # Stage 1: Dependencies
 # ============================================
-FROM node:20-alpine AS deps
+FROM node:25-alpine AS deps
 
 # git: GitHub URL依存パッケージのインストールに必要
 RUN apk add --no-cache git
@@ -23,7 +23,7 @@ RUN npm ci --omit=dev --ignore-scripts && \
 # ============================================
 # Stage 2: Build
 # ============================================
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 
 # git: GitHub URL依存パッケージのインストールに必要
 RUN apk add --no-cache git
@@ -45,7 +45,7 @@ RUN npm run build
 # ============================================
 # Stage 3: Production
 # ============================================
-FROM node:20-alpine AS production
+FROM node:25-alpine AS production
 
 # セキュリティ: non-rootユーザーで実行
 RUN addgroup -g 1001 -S nodejs && \
