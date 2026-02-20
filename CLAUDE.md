@@ -41,22 +41,9 @@ This is Cemetery CRM (kurosakicrm) - a comprehensive backend system for managing
 - `node scripts/insert-test-data.js` - Insert test data into database
 - `node scripts/test-prisma.js` - Test Prisma connection
 
-### Docker Commands
-- **Production Environment**:
-  - `docker compose up -d` - Start all services in production mode
-  - `docker compose down` - Stop all services
-  - `docker compose logs -f app` - View application logs
-  - `docker compose exec app npx prisma migrate deploy` - Run migrations
-- **Development Environment** (with hot reload):
-  - `docker compose -f docker-compose.dev.yml up -d` - Start dev environment
-  - `docker compose -f docker-compose.dev.yml down` - Stop dev environment
-  - `docker compose -f docker-compose.dev.yml logs -f app` - View logs
-- **Utility Commands**:
-  - `docker compose exec app sh` - Access application container shell
-  - `docker compose exec db psql -U cemetery_user -d komine_cemetery_crm` - Access PostgreSQL
-  - `docker compose exec app npx prisma studio` - Open Prisma Studio
-  - `docker compose down -v` - Remove all containers and volumes
-- **See SETUP.md for Docker documentation**
+### Docker
+- `Dockerfile` - Multi-stage production build (CI の Docker Security Scan および Render デプロイで使用)
+- `docker build -t cemetery-crm-backend:test .` - ローカルでのイメージビルド
 
 ## Architecture Overview
 
@@ -345,13 +332,7 @@ The specification includes:
 - **PORT**: Server port (optional, defaults to 4000)
 - **NODE_ENV**: Environment mode (development, test, production)
 
-### Docker-specific Environment Variables
-- **DB_USER**: PostgreSQL username (default: cemetery_user)
-- **DB_PASSWORD**: PostgreSQL password (default: cemetery_password)
-- **DB_NAME**: PostgreSQL database name (default: komine_cemetery_crm)
-- **DB_PORT**: PostgreSQL port (default: 5432)
-
-See `SETUP.md` for detailed deployment configuration, Docker setup, CORS setup, and troubleshooting.
+See `SETUP.md` for detailed deployment configuration, CORS setup, and troubleshooting.
 
 ## CI/CD Pipeline
 
@@ -450,10 +431,5 @@ If frontend cannot connect to backend:
 - See `SETUP.md` for detailed troubleshooting
 
 ### Docker Issues
-If Docker containers fail to start or connect:
-- **Database connection errors**: Check `DB_USER`, `DB_PASSWORD`, `DB_NAME` in `.env`
-- **Port conflicts**: Change `PORT` or `DB_PORT` in `.env` if already in use
-- **Permission errors**: Ensure proper file permissions on volumes
-- **Container not updating**: Rebuild with `docker compose build --no-cache`
-- **Prisma client errors**: Run `docker compose exec app npx prisma generate`
-- See `SETUP.md` for troubleshooting guide
+- **Image build fails**: Check `Dockerfile` and ensure all dependencies are available
+- **Container not updating**: Rebuild with `docker build --no-cache -t cemetery-crm-backend:test .`

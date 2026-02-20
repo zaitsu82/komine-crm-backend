@@ -23,6 +23,7 @@ describe('Server Index', () => {
     mockApp = {
       use: jest.fn(),
       get: jest.fn(),
+      set: jest.fn(),
       listen: jest.fn((port, callback) => {
         if (callback) callback();
         return { close: jest.fn() };

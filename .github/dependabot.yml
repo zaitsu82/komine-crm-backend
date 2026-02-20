@@ -30,6 +30,14 @@ updates:
     # milestone: 1
     # セキュリティアップデートの優先順位
     versioning-strategy: increase
+    # メジャーバージョンの自動更新を除外（互換性のない変更のため）
+    ignore:
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
     # グループ化（メジャーバージョン更新は個別PR）
     groups:
       minor-and-patch:
@@ -72,3 +80,7 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    # メジャーバージョンの自動更新を除外
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
