@@ -27,6 +27,7 @@ import {
   hppProtection,
   sanitizeInput,
 } from './middleware/security';
+import { prisma } from './db/prisma';
 
 const app = express();
 const PORT = process.env['PORT'] || 4000;
@@ -57,16 +58,29 @@ app.use(requestLogger);
 app.use(securityHeaders); // 追加のセキュリティヘッダー
 
 // ヘルスチェックエンドポイント
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    success: true,
-    data: {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env['NODE_ENV'] || 'development',
-    },
-  });
+app.get('/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({
+      success: true,
+      data: {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env['NODE_ENV'] || 'development',
+        database: 'connected',
+      },
+    });
+  } catch {
+    res.status(503).json({
+      success: false,
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'データベース接続に失敗しました',
+        details: [],
+      },
+    });
+  }
 });
 
 // Swagger UI（API仕様書）
@@ -97,7 +111,7 @@ Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 // サーバー起動処理
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════════════════════╗
 ║   Cemetery CRM Backend Server                          ║
@@ -111,3 +125,28 @@ app.listen(PORT, () => {
 ╚════════════════════════════════════════════════════════╝
   `);
 });
+
+// グレースフルシャットダウン
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\n${signal} received. Starting graceful shutdown...`);
+  server.close(async () => {
+    console.log('HTTP server closed.');
+    try {
+      await prisma.$disconnect();
+      console.log('Database connection closed.');
+    } catch {
+      console.error('Error disconnecting from database.');
+    }
+    console.log('Server shut down gracefully.');
+    process.exit(0);
+  });
+
+  // 30秒後に強制終了
+  setTimeout(() => {
+    console.error('Forced shutdown due to timeout.');
+    process.exit(1);
+  }, 30000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
