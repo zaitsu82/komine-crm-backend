@@ -1,5 +1,11 @@
 import { Request, Response } from 'express';
 import prisma from '../db/prisma';
+import {
+  createMasterSchema,
+  updateMasterSchema,
+  isValidMasterType,
+  MasterType,
+} from '../validations/masterValidation';
 
 /**
  * マスターデータの共通レスポンス型
@@ -301,6 +307,306 @@ export const getConstructionTypeMaster = async (_req: Request, res: Response) =>
       error: {
         code: 'INTERNAL_SERVER_ERROR',
         message: '工事タイプマスタの取得に失敗しました',
+      },
+    });
+  }
+};
+
+/**
+ * マスタタイプからPrismaモデルデリゲートを取得
+ */
+const getMasterDelegate = (masterType: MasterType) => {
+  const delegateMap: Record<MasterType, any> = {
+    'cemetery-type': prisma.cemeteryTypeMaster,
+    'payment-method': prisma.paymentMethodMaster,
+    'tax-type': prisma.taxTypeMaster,
+    'calc-type': prisma.calcTypeMaster,
+    'billing-type': prisma.billingTypeMaster,
+    'account-type': prisma.accountTypeMaster,
+    'recipient-type': prisma.recipientTypeMaster,
+    'construction-type': prisma.constructionTypeMaster,
+  };
+  return delegateMap[masterType];
+};
+
+const masterTypeLabels: Record<MasterType, string> = {
+  'cemetery-type': '墓地タイプ',
+  'payment-method': '支払方法',
+  'tax-type': '税タイプ',
+  'calc-type': '計算タイプ',
+  'billing-type': '請求タイプ',
+  'account-type': '口座タイプ',
+  'recipient-type': '受取人タイプ',
+  'construction-type': '工事タイプ',
+};
+
+/**
+ * マスタデータ作成
+ * POST /api/v1/masters/:masterType
+ */
+export const createMaster = async (req: Request, res: Response) => {
+  const { masterType } = req.params;
+
+  if (!isValidMasterType(masterType)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: `無効なマスタタイプです: ${masterType}`,
+        details: [],
+      },
+    });
+  }
+
+  const parsed = createMasterSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'バリデーションエラー',
+        details: parsed.error.issues.map((e) => ({
+          field: e.path.join('.'),
+          message: e.message,
+        })),
+      },
+    });
+  }
+
+  try {
+    const delegate = getMasterDelegate(masterType);
+    const { taxRate, sortOrder, isActive, ...rest } = parsed.data;
+
+    const createData: any = {
+      ...rest,
+      sort_order: sortOrder ?? null,
+      is_active: isActive ?? true,
+    };
+
+    if (masterType === 'tax-type' && taxRate !== undefined) {
+      createData.tax_rate = taxRate;
+    }
+
+    const created = await delegate.create({ data: createData });
+    const label = masterTypeLabels[masterType];
+
+    const formatted: any = {
+      id: created.id,
+      code: created.code,
+      name: created.name,
+      description: created.description,
+      sortOrder: created.sort_order,
+      isActive: created.is_active,
+    };
+    if (masterType === 'tax-type' && 'tax_rate' in created) {
+      formatted.taxRate = created.tax_rate?.toString() || null;
+    }
+
+    res.status(201).json({
+      success: true,
+      data: formatted,
+      message: `${label}マスタを作成しました`,
+    });
+  } catch (error: any) {
+    const label = masterTypeLabels[masterType];
+
+    if (error?.code === 'P2002') {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: `${label}マスタのコードが重複しています`,
+          details: [],
+        },
+      });
+    }
+
+    console.error(`Error creating ${masterType} master:`, error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `${label}マスタの作成に失敗しました`,
+      },
+    });
+  }
+};
+
+/**
+ * マスタデータ更新
+ * PUT /api/v1/masters/:masterType/:id
+ */
+export const updateMaster = async (req: Request, res: Response) => {
+  const { masterType, id } = req.params;
+
+  if (!isValidMasterType(masterType)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: `無効なマスタタイプです: ${masterType}`,
+        details: [],
+      },
+    });
+  }
+
+  const masterId = parseInt(id, 10);
+  if (isNaN(masterId)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: '無効なIDです',
+        details: [],
+      },
+    });
+  }
+
+  const parsed = updateMasterSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'バリデーションエラー',
+        details: parsed.error.issues.map((e) => ({
+          field: e.path.join('.'),
+          message: e.message,
+        })),
+      },
+    });
+  }
+
+  try {
+    const delegate = getMasterDelegate(masterType);
+    const { taxRate, sortOrder, isActive, ...rest } = parsed.data;
+
+    const updateData: any = { ...rest };
+    if (sortOrder !== undefined) updateData.sort_order = sortOrder;
+    if (isActive !== undefined) updateData.is_active = isActive;
+    if (masterType === 'tax-type' && taxRate !== undefined) {
+      updateData.tax_rate = taxRate;
+    }
+
+    const updated = await delegate.update({
+      where: { id: masterId },
+      data: updateData,
+    });
+
+    const label = masterTypeLabels[masterType];
+    const formatted: any = {
+      id: updated.id,
+      code: updated.code,
+      name: updated.name,
+      description: updated.description,
+      sortOrder: updated.sort_order,
+      isActive: updated.is_active,
+    };
+    if (masterType === 'tax-type' && 'tax_rate' in updated) {
+      formatted.taxRate = updated.tax_rate?.toString() || null;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+      message: `${label}マスタを更新しました`,
+    });
+  } catch (error: any) {
+    const label = masterTypeLabels[masterType];
+
+    if (error?.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: `${label}マスタが見つかりません (ID: ${id})`,
+          details: [],
+        },
+      });
+    }
+
+    if (error?.code === 'P2002') {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: `${label}マスタのコードが重複しています`,
+          details: [],
+        },
+      });
+    }
+
+    console.error(`Error updating ${masterType} master:`, error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `${label}マスタの更新に失敗しました`,
+      },
+    });
+  }
+};
+
+/**
+ * マスタデータ削除
+ * DELETE /api/v1/masters/:masterType/:id
+ */
+export const deleteMaster = async (req: Request, res: Response) => {
+  const { masterType, id } = req.params;
+
+  if (!isValidMasterType(masterType)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: `無効なマスタタイプです: ${masterType}`,
+        details: [],
+      },
+    });
+  }
+
+  const masterId = parseInt(id, 10);
+  if (isNaN(masterId)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: '無効なIDです',
+        details: [],
+      },
+    });
+  }
+
+  try {
+    const delegate = getMasterDelegate(masterType);
+    const label = masterTypeLabels[masterType];
+
+    await delegate.delete({ where: { id: masterId } });
+
+    res.status(200).json({
+      success: true,
+      message: `${label}マスタを削除しました`,
+    });
+  } catch (error: any) {
+    const label = masterTypeLabels[masterType];
+
+    if (error?.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: `${label}マスタが見つかりません (ID: ${id})`,
+          details: [],
+        },
+      });
+    }
+
+    console.error(`Error deleting ${masterType} master:`, error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `${label}マスタの削除に失敗しました`,
       },
     });
   }

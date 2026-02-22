@@ -9,6 +9,9 @@ import {
   getRecipientTypeMaster,
   getConstructionTypeMaster,
   getAllMasters,
+  createMaster,
+  updateMaster,
+  deleteMaster,
 } from './masterController';
 import { authenticate } from '../middleware/auth';
 import { checkApiPermission } from '../middleware/permission';
@@ -41,5 +44,10 @@ router.get('/recipient-type', authenticate, checkApiPermission(), getRecipientTy
 
 // 工事タイプマスタ
 router.get('/construction-type', authenticate, checkApiPermission(), getConstructionTypeMaster);
+
+// マスタデータ CRUD（汎用）
+router.post('/:masterType', authenticate, checkApiPermission(), createMaster);
+router.put('/:masterType/:id', authenticate, checkApiPermission(), updateMaster);
+router.delete('/:masterType/:id', authenticate, checkApiPermission(), deleteMaster);
 
 export default router;

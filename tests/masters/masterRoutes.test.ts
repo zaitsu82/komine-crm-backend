@@ -34,6 +34,15 @@ jest.mock('../../src/masters/masterController', () => ({
   getAllMasters: jest.fn((req, res) =>
     res.status(200).json({ success: true, controller: 'getAllMasters' })
   ),
+  createMaster: jest.fn((req, res) =>
+    res.status(201).json({ success: true, controller: 'createMaster' })
+  ),
+  updateMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'updateMaster' })
+  ),
+  deleteMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'deleteMaster' })
+  ),
 }));
 
 // ミドルウェアのモック
@@ -181,6 +190,47 @@ describe('Master Routes', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.controller).toBe('getConstructionTypeMaster');
       expect(mockMasterController.getConstructionTypeMaster).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /api/v1/masters/:masterType', () => {
+    it('should handle createMaster request', async () => {
+      const response = await request(app)
+        .post('/api/v1/masters/cemetery-type')
+        .set('Authorization', 'Bearer token')
+        .send({ code: 'test', name: 'テスト' });
+
+      expect(response.status).toBe(201);
+      expect(response.body.controller).toBe('createMaster');
+      expect(mockMasterController.createMaster).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
+    });
+  });
+
+  describe('PUT /api/v1/masters/:masterType/:id', () => {
+    it('should handle updateMaster request', async () => {
+      const response = await request(app)
+        .put('/api/v1/masters/cemetery-type/1')
+        .set('Authorization', 'Bearer token')
+        .send({ name: '更新テスト' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.controller).toBe('updateMaster');
+      expect(mockMasterController.updateMaster).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
+    });
+  });
+
+  describe('DELETE /api/v1/masters/:masterType/:id', () => {
+    it('should handle deleteMaster request', async () => {
+      const response = await request(app)
+        .delete('/api/v1/masters/cemetery-type/1')
+        .set('Authorization', 'Bearer token');
+
+      expect(response.status).toBe(200);
+      expect(response.body.controller).toBe('deleteMaster');
+      expect(mockMasterController.deleteMaster).toHaveBeenCalledTimes(1);
       expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
     });
   });

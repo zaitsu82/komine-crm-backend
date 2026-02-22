@@ -12,3 +12,4 @@ export * from './plotValidation';
 export * from './plotBusinessRules';
 export * from './inventoryValidation';
 export * from './authValidation';
+export * from './masterValidation';
