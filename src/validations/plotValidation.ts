@@ -65,14 +65,21 @@ export const familyContactSchema = z.object({
   _delete: z.boolean().optional(),
   customerId: uuidSchema.optional(),
   name: z.string().max(100).optional().or(z.literal('')),
+  nameKana: z.string().max(100).optional().or(z.literal('')),
   birthDate: dateSchema.optional().or(z.literal('')),
   relationship: z.string().max(50).optional().or(z.literal('')),
   address: z.string().max(200).optional().or(z.literal('')),
   phoneNumber: requiredPhoneSchema,
+  phoneNumber2: z.string().max(15).optional().or(z.literal('')),
   faxNumber: phoneSchema,
   email: emailSchema.optional().or(z.literal('')),
   registeredAddress: z.string().max(200).optional().or(z.literal('')),
   mailingType: z.string().max(50).optional().or(z.literal('')),
+  workCompanyName: z.string().max(100).optional().or(z.literal('')),
+  workCompanyNameKana: z.string().max(100).optional().or(z.literal('')),
+  workAddress: z.string().max(200).optional().or(z.literal('')),
+  workPhoneNumber: z.string().max(15).optional().or(z.literal('')),
+  contactMethod: z.string().max(50).optional().or(z.literal('')),
   useWorkContact: z.boolean().optional(),
   workContactNotes: z.string().max(200).optional().or(z.literal('')),
   notes: z.string().max(500).optional().or(z.literal('')),
@@ -100,10 +107,14 @@ export const buriedPersonSchema = z.object({
   name: z.string().max(100).optional().or(z.literal('')),
   nameKana: z.string().max(100).optional().or(z.literal('')),
   relationship: z.string().max(50).optional().or(z.literal('')),
+  birthDate: dateSchema.optional().or(z.literal('')).or(z.null()),
   deathDate: dateSchema.optional().or(z.literal('')),
   age: z.number().int().nonnegative().optional().or(z.literal(null)),
   gender: z.enum(['male', 'female', 'other']).optional().or(z.literal('')),
   burialDate: dateSchema.optional().or(z.literal('')),
+  posthumousName: z.string().max(200).optional().or(z.literal('')),
+  reportDate: dateSchema.optional().or(z.literal('')).or(z.null()),
+  religion: z.string().max(50).optional().or(z.literal('')),
   graveNumber: z.string().max(50).optional().or(z.literal('')),
   notes: z.string().max(500).optional().or(z.literal('')),
 });
@@ -119,6 +130,7 @@ export const gravestoneInfoSchema = z
     gravestoneDealer: z.string().max(100).optional().or(z.literal('')),
     gravestoneType: z.string().max(100).optional().or(z.literal('')),
     surroundingArea: z.string().max(100).optional().or(z.literal('')),
+    gravestoneCost: z.number().nonnegative().optional().or(z.literal(null)),
     establishmentDeadline: dateSchema.optional().or(z.literal('')),
     establishmentDate: dateSchema.optional().or(z.literal('')),
   })
@@ -156,6 +168,8 @@ export const constructionInfoSchema = z
     paymentAmount2: z.number().nonnegative().optional().or(z.literal(null)),
     paymentScheduledDate2: dateSchema.optional().or(z.literal('')),
     paymentStatus2: z.string().max(50).optional().or(z.literal('')),
+    scheduledEndDate: dateSchema.optional().or(z.literal('')).or(z.null()),
+    constructionContent: z.string().max(2000).optional().or(z.literal('')),
     constructionNotes: z.string().max(500).optional().or(z.literal('')),
   })
   .optional();
@@ -192,6 +206,8 @@ const saleContractSchema = z.object({
   roles: z.array(saleContractRoleSchema).optional(), // 複数役割サポート（新方式）
   reservationDate: dateSchema.optional().or(z.literal('')).or(z.null()),
   acceptanceNumber: z.string().max(50).optional().or(z.literal('')),
+  acceptanceDate: dateSchema.optional().or(z.literal('')).or(z.null()),
+  staffInCharge: z.string().max(100).optional().or(z.literal('')),
   permitDate: dateSchema.optional().or(z.literal('')).or(z.null()),
   startDate: dateSchema.optional().or(z.literal('')).or(z.null()),
   notes: z.string().max(1000).optional().or(z.literal('')),
@@ -213,6 +229,11 @@ const customerSchema = z.object({
     .min(1, '郵便番号は必須です')
     .max(10, '郵便番号は10文字以内で入力してください'),
   address: z.string().min(1, '住所は必須です').max(200, '住所は200文字以内で入力してください'),
+  addressLine2: z
+    .string()
+    .max(200, '住所2は200文字以内で入力してください')
+    .optional()
+    .or(z.literal('')),
   registeredAddress: z
     .string()
     .max(200, '本籍地は200文字以内で入力してください')

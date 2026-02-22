@@ -11,6 +11,7 @@ import {
   deleteStaff,
   toggleStaffActive,
   resendStaffInvitation,
+  bulkCreateStaff,
 } from './staffController';
 import { authenticate } from '../middleware/auth';
 import { requirePermission, ROLES } from '../middleware/permission';
@@ -30,6 +31,13 @@ router.get('/', authenticate, requirePermission([ROLES.MANAGER, ROLES.ADMIN]), g
  * @access 認証必須 - admin のみ
  */
 router.post('/', authenticate, requirePermission([ROLES.ADMIN]), createStaff);
+
+/**
+ * @route POST /api/v1/staff/bulk
+ * @desc スタッフ一括登録
+ * @access 認証必須 - admin のみ
+ */
+router.post('/bulk', authenticate, requirePermission([ROLES.ADMIN]), bulkCreateStaff);
 
 /**
  * @route GET /api/v1/staff/:id

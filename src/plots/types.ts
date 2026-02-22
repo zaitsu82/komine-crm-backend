@@ -467,6 +467,8 @@ export interface CreateContractPlotInput {
     customerRole?: string; // 顧客の役割（デフォルト: 'contractor'）- 旧方式（後方互換性）
     reservationDate?: Date | string | null; // 予約日
     acceptanceNumber?: string; // 受付番号
+    acceptanceDate?: Date | string | null; // 受付日
+    staffInCharge?: string; // 担当者
     permitDate?: Date | string | null; // 許可日
     startDate?: Date | string | null; // 開始日
     notes?: string; // 契約に関する備考
@@ -481,6 +483,7 @@ export interface CreateContractPlotInput {
     gender?: Gender; // 性別
     postalCode: string; // 郵便番号 *必須
     address: string; // 住所 *必須
+    addressLine2?: string; // 住所2（2行目）
     registeredAddress?: string; // 本籍地
     phoneNumber: string; // 電話番号 *必須
     faxNumber?: string; // FAX番号
@@ -554,6 +557,8 @@ export interface UpdateContractPlotInput {
     customerRole?: string; // 顧客の役割 - 旧方式（後方互換性）
     reservationDate?: Date | string | null; // 予約日
     acceptanceNumber?: string; // 受付番号
+    acceptanceDate?: Date | string | null; // 受付日
+    staffInCharge?: string; // 担当者
     permitDate?: Date | string | null; // 許可日
     startDate?: Date | string | null; // 開始日
     notes?: string; // 契約に関する備考
@@ -568,6 +573,7 @@ export interface UpdateContractPlotInput {
     gender?: Gender; // 性別
     postalCode?: string; // 郵便番号
     address?: string; // 住所
+    addressLine2?: string; // 住所2（2行目）
     registeredAddress?: string; // 本籍地
     phoneNumber?: string; // 電話番号
     faxNumber?: string; // FAX番号

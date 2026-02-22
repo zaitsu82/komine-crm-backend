@@ -3,6 +3,7 @@ import {
   getPlots,
   getPlotById,
   createPlot,
+  bulkCreatePlots,
   updatePlot,
   deletePlot,
   getPlotContracts,
@@ -85,6 +86,9 @@ router.get(
 // ==========================================
 // 区画情報CRUD
 // ==========================================
+
+// 物理区画一括登録
+router.post('/bulk', authenticate, requirePermission(['manager', 'admin']), bulkCreatePlots);
 
 // 区画情報詳細取得
 router.get(

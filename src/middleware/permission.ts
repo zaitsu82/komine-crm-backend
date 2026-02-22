@@ -101,6 +101,12 @@ export const API_PERMISSIONS: Record<string, Role[]> = {
   'GET /permissions/matrix': ['admin'],
   'PUT /permissions/matrix': ['admin'],
 
+  // 物理区画一括登録
+  'POST /plots/bulk': ['manager', 'admin'],
+
+  // スタッフ一括登録
+  'POST /staff/bulk': ['admin'],
+
   // バッチ処理・その他
   'POST /import': ['admin'],
   'GET /export': ['manager', 'admin'],

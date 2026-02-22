@@ -344,11 +344,11 @@ const masterTypeLabels: Record<MasterType, string> = {
  * マスタデータ作成
  * POST /api/v1/masters/:masterType
  */
-export const createMaster = async (req: Request, res: Response) => {
-  const { masterType } = req.params;
+export const createMaster = async (req: Request, res: Response): Promise<void> => {
+  const masterType = req.params['masterType'] as string;
 
   if (!isValidMasterType(masterType)) {
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
@@ -356,11 +356,12 @@ export const createMaster = async (req: Request, res: Response) => {
         details: [],
       },
     });
+    return;
   }
 
   const parsed = createMasterSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
@@ -371,6 +372,7 @@ export const createMaster = async (req: Request, res: Response) => {
         })),
       },
     });
+    return;
   }
 
   try {
@@ -411,7 +413,7 @@ export const createMaster = async (req: Request, res: Response) => {
     const label = masterTypeLabels[masterType];
 
     if (error?.code === 'P2002') {
-      return res.status(409).json({
+      res.status(409).json({
         success: false,
         error: {
           code: 'CONFLICT',
@@ -419,6 +421,7 @@ export const createMaster = async (req: Request, res: Response) => {
           details: [],
         },
       });
+      return;
     }
 
     console.error(`Error creating ${masterType} master:`, error);
@@ -436,11 +439,12 @@ export const createMaster = async (req: Request, res: Response) => {
  * マスタデータ更新
  * PUT /api/v1/masters/:masterType/:id
  */
-export const updateMaster = async (req: Request, res: Response) => {
-  const { masterType, id } = req.params;
+export const updateMaster = async (req: Request, res: Response): Promise<void> => {
+  const masterType = req.params['masterType'] as string;
+  const id = req.params['id'] as string;
 
   if (!isValidMasterType(masterType)) {
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
@@ -448,11 +452,12 @@ export const updateMaster = async (req: Request, res: Response) => {
         details: [],
       },
     });
+    return;
   }
 
   const masterId = parseInt(id, 10);
   if (isNaN(masterId)) {
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
@@ -460,11 +465,12 @@ export const updateMaster = async (req: Request, res: Response) => {
         details: [],
       },
     });
+    return;
   }
 
   const parsed = updateMasterSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
@@ -475,6 +481,7 @@ export const updateMaster = async (req: Request, res: Response) => {
         })),
       },
     });
+    return;
   }
 
   try {
@@ -515,7 +522,7 @@ export const updateMaster = async (req: Request, res: Response) => {
     const label = masterTypeLabels[masterType];
 
     if (error?.code === 'P2025') {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: {
           code: 'NOT_FOUND',
@@ -523,10 +530,11 @@ export const updateMaster = async (req: Request, res: Response) => {
           details: [],
         },
       });
+      return;
     }
 
     if (error?.code === 'P2002') {
-      return res.status(409).json({
+      res.status(409).json({
         success: false,
         error: {
           code: 'CONFLICT',
@@ -534,6 +542,7 @@ export const updateMaster = async (req: Request, res: Response) => {
           details: [],
         },
       });
+      return;
     }
 
     console.error(`Error updating ${masterType} master:`, error);
@@ -551,11 +560,12 @@ export const updateMaster = async (req: Request, res: Response) => {
  * マスタデータ削除
  * DELETE /api/v1/masters/:masterType/:id
  */
-export const deleteMaster = async (req: Request, res: Response) => {
-  const { masterType, id } = req.params;
+export const deleteMaster = async (req: Request, res: Response): Promise<void> => {
+  const masterType = req.params['masterType'] as string;
+  const id = req.params['id'] as string;
 
   if (!isValidMasterType(masterType)) {
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
@@ -563,11 +573,12 @@ export const deleteMaster = async (req: Request, res: Response) => {
         details: [],
       },
     });
+    return;
   }
 
   const masterId = parseInt(id, 10);
   if (isNaN(masterId)) {
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
@@ -575,6 +586,7 @@ export const deleteMaster = async (req: Request, res: Response) => {
         details: [],
       },
     });
+    return;
   }
 
   try {
@@ -591,7 +603,7 @@ export const deleteMaster = async (req: Request, res: Response) => {
     const label = masterTypeLabels[masterType];
 
     if (error?.code === 'P2025') {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: {
           code: 'NOT_FOUND',
@@ -599,6 +611,7 @@ export const deleteMaster = async (req: Request, res: Response) => {
           details: [],
         },
       });
+      return;
     }
 
     console.error(`Error deleting ${masterType} master:`, error);

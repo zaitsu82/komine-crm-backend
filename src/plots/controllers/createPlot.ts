@@ -86,6 +86,7 @@ export const createPlot = async (
           gender: input.customer.gender || null,
           postal_code: input.customer.postalCode,
           address: input.customer.address,
+          address_line_2: input.customer.addressLine2 || null,
           registered_address: input.customer.registeredAddress || null,
           phone_number: input.customer.phoneNumber,
           fax_number: input.customer.faxNumber || null,
@@ -140,6 +141,10 @@ export const createPlot = async (
             ? new Date(input.saleContract.reservationDate)
             : null,
           acceptance_number: input.saleContract.acceptanceNumber || null,
+          acceptance_date: input.saleContract.acceptanceDate
+            ? new Date(input.saleContract.acceptanceDate)
+            : null,
+          staff_in_charge: input.saleContract.staffInCharge || null,
           permit_date: input.saleContract.permitDate
             ? new Date(input.saleContract.permitDate)
             : null,

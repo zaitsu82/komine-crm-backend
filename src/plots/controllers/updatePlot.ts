@@ -115,6 +115,14 @@ export const updatePlot = async (
         if (input.saleContract.acceptanceNumber !== undefined) {
           updateData.acceptance_number = input.saleContract.acceptanceNumber;
         }
+        if (input.saleContract.acceptanceDate !== undefined) {
+          updateData.acceptance_date = input.saleContract.acceptanceDate
+            ? new Date(input.saleContract.acceptanceDate)
+            : null;
+        }
+        if (input.saleContract.staffInCharge !== undefined) {
+          updateData.staff_in_charge = input.saleContract.staffInCharge;
+        }
         if (input.saleContract.permitDate !== undefined) {
           updateData.permit_date = input.saleContract.permitDate
             ? new Date(input.saleContract.permitDate)
@@ -193,6 +201,8 @@ export const updatePlot = async (
           if (input.customer.postalCode !== undefined)
             updateData.postal_code = input.customer.postalCode;
           if (input.customer.address !== undefined) updateData.address = input.customer.address;
+          if (input.customer.addressLine2 !== undefined)
+            updateData.address_line_2 = input.customer.addressLine2;
           if (input.customer.registeredAddress !== undefined)
             updateData.registered_address = input.customer.registeredAddress;
           if (input.customer.phoneNumber !== undefined)
