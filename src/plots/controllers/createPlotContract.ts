@@ -120,6 +120,7 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
             ? new Date(input.saleContract.permitDate)
             : null,
           start_date: input.saleContract.startDate ? new Date(input.saleContract.startDate) : null,
+          uncollected_amount: input.saleContract.uncollectedAmount ?? 0,
           notes: input.saleContract.notes || null,
         },
       });

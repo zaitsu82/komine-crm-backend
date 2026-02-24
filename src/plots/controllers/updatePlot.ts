@@ -133,6 +133,9 @@ export const updatePlot = async (
             ? new Date(input.saleContract.startDate)
             : null;
         }
+        if (input.saleContract.uncollectedAmount !== undefined) {
+          updateData.uncollected_amount = input.saleContract.uncollectedAmount;
+        }
         if (input.saleContract.notes !== undefined) {
           updateData.notes = input.saleContract.notes;
         }
@@ -429,6 +432,7 @@ export const updatePlot = async (
           acceptance_number: existingContractPlot.acceptance_number,
           permit_date: existingContractPlot.permit_date?.toISOString(),
           start_date: existingContractPlot.start_date?.toISOString(),
+          uncollected_amount: existingContractPlot.uncollected_amount,
           notes: existingContractPlot.notes,
         };
 
@@ -444,6 +448,7 @@ export const updatePlot = async (
               acceptance_number: updatedCp.acceptance_number,
               permit_date: updatedCp.permit_date?.toISOString(),
               start_date: updatedCp.start_date?.toISOString(),
+              uncollected_amount: updatedCp.uncollected_amount,
               notes: updatedCp.notes,
             }
           : beforeContractPlotData;
@@ -548,6 +553,7 @@ export const updatePlot = async (
         acceptanceNumber: updatedContractPlot?.acceptance_number,
         permitDate: updatedContractPlot?.permit_date,
         startDate: updatedContractPlot?.start_date,
+        uncollectedAmount: updatedContractPlot?.uncollected_amount,
         notes: updatedContractPlot?.notes,
 
         physicalPlot: {

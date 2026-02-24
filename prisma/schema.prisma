@@ -168,6 +168,7 @@ model ContractPlot {
   permit_date       DateTime?      @db.Date // 許可日
   permit_number     String?        @db.VarChar(50) // 許可番号
   start_date        DateTime?      @db.Date // 開始日
+  uncollected_amount Int           @default(0) // 未集金額（円単位）
   notes             String?        @db.Text // 契約に関する備考
 
   created_at DateTime  @default(now())

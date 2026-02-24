@@ -248,6 +248,7 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
         // 料金情報
         nextBillingDate,
         managementFee: contractPlot.managementFee?.management_fee || null,
+        uncollectedAmount: contractPlot.uncollected_amount,
 
         // メタ情報
         createdAt: contractPlot.created_at,

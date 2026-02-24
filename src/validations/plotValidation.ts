@@ -210,6 +210,11 @@ const saleContractSchema = z.object({
   staffInCharge: z.string().max(100).optional().or(z.literal('')),
   permitDate: dateSchema.optional().or(z.literal('')).or(z.null()),
   startDate: dateSchema.optional().or(z.literal('')).or(z.null()),
+  uncollectedAmount: z
+    .number()
+    .int()
+    .nonnegative('未集金額は0以上の整数で入力してください')
+    .optional(),
   notes: z.string().max(1000).optional().or(z.literal('')),
 });
 

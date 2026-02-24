@@ -149,6 +149,7 @@ export const createPlot = async (
             ? new Date(input.saleContract.permitDate)
             : null,
           start_date: input.saleContract.startDate ? new Date(input.saleContract.startDate) : null,
+          uncollected_amount: input.saleContract.uncollectedAmount ?? 0,
           notes: input.saleContract.notes || null,
         },
       });
@@ -269,6 +270,7 @@ export const createPlot = async (
         acceptanceNumber: createdContractPlot?.acceptance_number,
         permitDate: createdContractPlot?.permit_date,
         startDate: createdContractPlot?.start_date,
+        uncollectedAmount: createdContractPlot?.uncollected_amount,
         notes: createdContractPlot?.notes,
 
         physicalPlot: {
