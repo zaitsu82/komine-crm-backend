@@ -18,6 +18,7 @@ import {
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission';
 import { validate } from '../middleware/validation';
+import { withLogging } from '../middleware/controllerLogger';
 import {
   plotSearchQuerySchema,
   plotIdParamsSchema,
@@ -40,7 +41,7 @@ router.get(
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ query: plotSearchQuerySchema }),
-  getPlots
+  withLogging('Plots', 'getPlots', getPlots)
 );
 
 // ==========================================
@@ -53,7 +54,7 @@ router.get(
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ query: inventorySummaryQuerySchema }),
-  getInventorySummary
+  withLogging('Plots', 'getInventorySummary', getInventorySummary)
 );
 
 // 期別サマリー取得
@@ -62,7 +63,7 @@ router.get(
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ query: inventoryPeriodsQuerySchema }),
-  getInventoryPeriods
+  withLogging('Plots', 'getInventoryPeriods', getInventoryPeriods)
 );
 
 // セクション別集計取得
@@ -71,7 +72,7 @@ router.get(
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ query: inventorySectionsQuerySchema }),
-  getInventorySections
+  withLogging('Plots', 'getInventorySections', getInventorySections)
 );
 
 // 面積別集計取得
@@ -80,7 +81,7 @@ router.get(
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ query: inventoryAreasQuerySchema }),
-  getInventoryAreas
+  withLogging('Plots', 'getInventoryAreas', getInventoryAreas)
 );
 
 // ==========================================
@@ -88,7 +89,12 @@ router.get(
 // ==========================================
 
 // 物理区画一括登録
-router.post('/bulk', authenticate, requirePermission(['manager', 'admin']), bulkCreatePlots);
+router.post(
+  '/bulk',
+  authenticate,
+  requirePermission(['manager', 'admin']),
+  withLogging('Plots', 'bulkCreatePlots', bulkCreatePlots)
+);
 
 // 区画情報詳細取得
 router.get(
@@ -96,7 +102,7 @@ router.get(
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ params: plotIdParamsSchema }),
-  getPlotById
+  withLogging('Plots', 'getPlotById', getPlotById)
 );
 
 // 区画情報登録
@@ -105,7 +111,7 @@ router.post(
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
   validate({ body: createPlotSchema }),
-  createPlot
+  withLogging('Plots', 'createPlot', createPlot)
 );
 
 // 区画情報更新
@@ -114,7 +120,7 @@ router.put(
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
   validate({ params: plotIdParamsSchema, body: updatePlotSchema }),
-  updatePlot
+  withLogging('Plots', 'updatePlot', updatePlot)
 );
 
 // 区画情報削除（論理削除）
@@ -123,7 +129,7 @@ router.delete(
   authenticate,
   requirePermission(['manager', 'admin']),
   validate({ params: plotIdParamsSchema }),
-  deletePlot
+  withLogging('Plots', 'deletePlot', deletePlot)
 );
 
 // 物理区画の契約一覧取得
@@ -132,7 +138,7 @@ router.get(
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ params: plotIdParamsSchema }),
-  getPlotContracts
+  withLogging('Plots', 'getPlotContracts', getPlotContracts)
 );
 
 // 物理区画に新規契約追加
@@ -141,7 +147,7 @@ router.post(
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
   validate({ params: plotIdParamsSchema, body: createPlotContractSchema }),
-  createPlotContract
+  withLogging('Plots', 'createPlotContract', createPlotContract)
 );
 
 // 物理区画の在庫状況取得
@@ -150,7 +156,7 @@ router.get(
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ params: plotIdParamsSchema }),
-  getPlotInventory
+  withLogging('Plots', 'getPlotInventory', getPlotInventory)
 );
 
 // 区画の変更履歴取得
@@ -159,7 +165,7 @@ router.get(
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ params: plotIdParamsSchema }),
-  getPlotHistory
+  withLogging('Plots', 'getPlotHistory', getPlotHistory)
 );
 
 export default router;

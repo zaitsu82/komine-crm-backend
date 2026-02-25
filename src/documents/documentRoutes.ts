@@ -6,6 +6,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission';
+import { withLogging } from '../middleware/controllerLogger';
 import {
   getDocuments,
   getDocumentById,
@@ -52,7 +53,7 @@ router.get(
   '/',
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
-  getDocuments
+  withLogging('Documents', 'getDocuments', getDocuments)
 );
 
 // PDF生成（一覧より先に定義）
@@ -60,7 +61,7 @@ router.post(
   '/generate-pdf',
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
-  generatePdf
+  withLogging('Documents', 'generatePdf', generatePdf)
 );
 
 // 書類詳細取得
@@ -68,22 +69,32 @@ router.get(
   '/:id',
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
-  getDocumentById
+  withLogging('Documents', 'getDocumentById', getDocumentById)
 );
 
 // 書類作成
-router.post('/', authenticate, requirePermission(['operator', 'manager', 'admin']), createDocument);
+router.post(
+  '/',
+  authenticate,
+  requirePermission(['operator', 'manager', 'admin']),
+  withLogging('Documents', 'createDocument', createDocument)
+);
 
 // 書類更新
 router.put(
   '/:id',
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
-  updateDocument
+  withLogging('Documents', 'updateDocument', updateDocument)
 );
 
 // 書類削除
-router.delete('/:id', authenticate, requirePermission(['manager', 'admin']), deleteDocument);
+router.delete(
+  '/:id',
+  authenticate,
+  requirePermission(['manager', 'admin']),
+  withLogging('Documents', 'deleteDocument', deleteDocument)
+);
 
 // ファイルアップロード
 router.post(
@@ -91,7 +102,7 @@ router.post(
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
   upload.single('file'),
-  uploadDocumentFile
+  withLogging('Documents', 'uploadDocumentFile', uploadDocumentFile)
 );
 
 // ダウンロードURL取得
@@ -99,7 +110,7 @@ router.get(
   '/:id/download',
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
-  getDocumentDownloadUrl
+  withLogging('Documents', 'getDocumentDownloadUrl', getDocumentDownloadUrl)
 );
 
 // ローカルファイルダウンロード（ローカルストレージ用）
@@ -107,7 +118,7 @@ router.get(
   '/file/:fileKey',
   authenticate,
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
-  downloadLocalFile
+  withLogging('Documents', 'downloadLocalFile', downloadLocalFile)
 );
 
 export default router;

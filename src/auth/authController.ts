@@ -87,12 +87,16 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Supabaseで認証
+    console.info(`[Auth] Login attempt: email=${email}`);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error || !data.user) {
+      console.warn(
+        `[Auth] Login failed: email=${email}, reason=supabase_auth_error, error=${error?.message || 'no user returned'}, status=${error?.status || 'N/A'}`
+      );
       return res.status(401).json({
         success: false,
         error: {
@@ -119,6 +123,9 @@ export const login = async (req: Request, res: Response) => {
     });
 
     if (!staff) {
+      console.warn(
+        `[Auth] Login failed: email=${email}, reason=staff_not_found, supabase_uid=${data.user.id}`
+      );
       return res.status(401).json({
         success: false,
         error: {
@@ -130,6 +137,9 @@ export const login = async (req: Request, res: Response) => {
     }
 
     if (!staff.is_active) {
+      console.warn(
+        `[Auth] Login failed: email=${email}, reason=user_inactive, staff_id=${staff.id}`
+      );
       return res.status(401).json({
         success: false,
         error: {
@@ -151,6 +161,7 @@ export const login = async (req: Request, res: Response) => {
       setAuthCookies(res, data.session.access_token, data.session.refresh_token);
     }
 
+    console.info(`[Auth] Login success: email=${email}, staff_id=${staff.id}, role=${staff.role}`);
     return res.status(200).json({
       success: true,
       data: {
@@ -203,6 +214,9 @@ export const logout = async (req: Request, res: Response) => {
     const authHeader = req.headers.authorization;
     const headerToken = authHeader?.replace('Bearer ', '').trim();
     const token = cookieToken || headerToken;
+    const tokenSource = cookieToken ? 'cookie' : headerToken ? 'header' : 'none';
+
+    console.info(`[Auth] Logout attempt: token_source=${tokenSource}`);
 
     if (token) {
       // Supabaseでログアウト
@@ -212,6 +226,7 @@ export const logout = async (req: Request, res: Response) => {
     // HttpOnly Cookieをクリア
     clearAuthCookies(res);
 
+    console.info(`[Auth] Logout success`);
     return res.status(200).json({
       success: true,
       data: {
@@ -219,7 +234,7 @@ export const logout = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Logout error:', error);
+    console.error('[Auth] Logout error:', error);
     return res.status(500).json({
       success: false,
       error: {
@@ -317,8 +332,12 @@ export const refreshToken = async (req: Request, res: Response) => {
     const cookieRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
     const bodyRefreshToken = req.body?.refresh_token;
     const refresh_token = cookieRefreshToken || bodyRefreshToken;
+    const tokenSource = cookieRefreshToken ? 'cookie' : bodyRefreshToken ? 'body' : 'none';
+
+    console.info(`[Auth] Token refresh attempt: token_source=${tokenSource}`);
 
     if (!refresh_token) {
+      console.warn(`[Auth] Token refresh failed: reason=no_refresh_token`);
       return res.status(400).json({
         success: false,
         error: {
@@ -335,6 +354,9 @@ export const refreshToken = async (req: Request, res: Response) => {
     });
 
     if (error || !data.session) {
+      console.warn(
+        `[Auth] Token refresh failed: reason=supabase_error, error=${error?.message || 'no session returned'}`
+      );
       // リフレッシュ失敗時はCookieをクリア
       clearAuthCookies(res);
       return res.status(401).json({
@@ -350,6 +372,7 @@ export const refreshToken = async (req: Request, res: Response) => {
     // 新しいトークンでCookieを更新
     setAuthCookies(res, data.session.access_token, data.session.refresh_token);
 
+    console.info(`[Auth] Token refresh success: expires_at=${data.session.expires_at}`);
     return res.status(200).json({
       success: true,
       data: {
@@ -360,7 +383,7 @@ export const refreshToken = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Token refresh error:', error);
+    console.error('[Auth] Token refresh error:', error);
     return res.status(500).json({
       success: false,
       error: {
@@ -402,7 +425,12 @@ export const changePassword = async (req: Request, res: Response) => {
 
     const { currentPassword, newPassword } = req.body;
 
+    console.info(
+      `[Auth] Password change attempt: staff_id=${req.user.id}, email=${req.user.email}`
+    );
+
     if (!currentPassword || !newPassword) {
+      console.warn(`[Auth] Password change failed: reason=missing_fields, staff_id=${req.user.id}`);
       return res.status(400).json({
         success: false,
         error: {
@@ -414,6 +442,9 @@ export const changePassword = async (req: Request, res: Response) => {
     }
 
     if (newPassword.length < 8) {
+      console.warn(
+        `[Auth] Password change failed: reason=password_too_short, staff_id=${req.user.id}`
+      );
       return res.status(400).json({
         success: false,
         error: {
@@ -431,6 +462,9 @@ export const changePassword = async (req: Request, res: Response) => {
     });
 
     if (signInError) {
+      console.warn(
+        `[Auth] Password change failed: reason=current_password_invalid, staff_id=${req.user.id}`
+      );
       return res.status(401).json({
         success: false,
         error: {
@@ -447,6 +481,9 @@ export const changePassword = async (req: Request, res: Response) => {
     });
 
     if (updateError) {
+      console.error(
+        `[Auth] Password change failed: reason=supabase_update_error, staff_id=${req.user.id}, error=${updateError.message}`
+      );
       return res.status(500).json({
         success: false,
         error: {
@@ -457,6 +494,7 @@ export const changePassword = async (req: Request, res: Response) => {
       });
     }
 
+    console.info(`[Auth] Password change success: staff_id=${req.user.id}`);
     return res.status(200).json({
       success: true,
       data: {
@@ -464,7 +502,7 @@ export const changePassword = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Change password error:', error);
+    console.error('[Auth] Password change error:', error);
     return res.status(500).json({
       success: false,
       error: {
