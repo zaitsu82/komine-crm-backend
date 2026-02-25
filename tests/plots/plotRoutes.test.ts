@@ -41,6 +41,7 @@ jest.mock('../../src/plots/controllers', () => ({
   getPlots: jest.fn((req, res) => res.status(200).json({ success: true, data: [] })),
   getPlotById: jest.fn((req, res) => res.status(200).json({ success: true, data: {} })),
   createPlot: jest.fn((req, res) => res.status(201).json({ success: true, data: {} })),
+  bulkCreatePlots: jest.fn((req, res) => res.status(201).json({ success: true, data: {} })),
   updatePlot: jest.fn((req, res) => res.status(200).json({ success: true, data: {} })),
   deletePlot: jest.fn((req, res) => res.status(200).json({ success: true })),
   getPlotContracts: jest.fn((req, res) => res.status(200).json({ success: true, data: {} })),

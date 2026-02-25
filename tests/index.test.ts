@@ -150,6 +150,8 @@ describe('Server Index', () => {
     }
     delete process.env.PORT;
     delete process.env.NODE_ENV;
+    delete process.env.BASE_URL;
+    delete process.env.RENDER_EXTERNAL_URL;
     jest.clearAllMocks();
   });
 
@@ -544,6 +546,41 @@ describe('Server Index', () => {
       const logMessage = consoleSpy.mock.calls[0][0];
       expect(logMessage).toContain('API Docs:');
       expect(logMessage).toContain('/api-docs');
+    });
+
+    it('should use BASE_URL when set', () => {
+      process.env.BASE_URL = 'https://api.example.com';
+
+      require('../src/index');
+
+      const logMessage = consoleSpy.mock.calls[0][0];
+      expect(logMessage).toContain('https://api.example.com');
+      expect(logMessage).toContain('https://api.example.com/health');
+      expect(logMessage).toContain('https://api.example.com/api-docs');
+      expect(logMessage).not.toContain('http://localhost');
+    });
+
+    it('should use RENDER_EXTERNAL_URL when BASE_URL is not set', () => {
+      process.env.RENDER_EXTERNAL_URL = 'https://komine-crm-backend.onrender.com';
+
+      require('../src/index');
+
+      const logMessage = consoleSpy.mock.calls[0][0];
+      expect(logMessage).toContain('https://komine-crm-backend.onrender.com');
+      expect(logMessage).toContain('https://komine-crm-backend.onrender.com/health');
+      expect(logMessage).toContain('https://komine-crm-backend.onrender.com/api-docs');
+      expect(logMessage).not.toContain('http://localhost');
+    });
+
+    it('should prefer BASE_URL over RENDER_EXTERNAL_URL', () => {
+      process.env.BASE_URL = 'https://custom.example.com';
+      process.env.RENDER_EXTERNAL_URL = 'https://komine-crm-backend.onrender.com';
+
+      require('../src/index');
+
+      const logMessage = consoleSpy.mock.calls[0][0];
+      expect(logMessage).toContain('https://custom.example.com');
+      expect(logMessage).not.toContain('onrender.com');
     });
   });
 });

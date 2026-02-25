@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'feature/**']
   pull_request:
     branches: [main, develop]
 
@@ -20,6 +20,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Checkout and build shared types
+        run: |
+          git clone --depth 1 https://github.com/zaitsu82/komine-types.git ../packages/types
+          cd ../packages/types && npm ci && npm run build
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -52,6 +57,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Checkout and build shared types
+        run: |
+          git clone --depth 1 https://github.com/zaitsu82/komine-types.git ../packages/types
+          cd ../packages/types && npm ci && npm run build
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -75,6 +85,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Checkout and build shared types
+        run: |
+          git clone --depth 1 https://github.com/zaitsu82/komine-types.git ../packages/types
+          cd ../packages/types && npm ci && npm run build
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -114,7 +129,7 @@ jobs:
         continue-on-error: true
 
       - name: Run npm audit (production only)
-        run: npm audit --production --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
         continue-on-error: true
 
   # Dockerイメージ脆弱性スキャン（Trivy）
@@ -174,6 +189,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Checkout and build shared types
+        run: |
+          git clone --depth 1 https://github.com/zaitsu82/komine-types.git ../packages/types
+          cd ../packages/types && npm ci && npm run build
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v6

@@ -112,18 +112,27 @@ app.use(errorHandler);
 
 // サーバー起動処理
 const server = app.listen(PORT, () => {
-  console.log(`
-╔════════════════════════════════════════════════════════╗
-║   Cemetery CRM Backend Server                          ║
-╠════════════════════════════════════════════════════════╣
-║   Status: Running                                      ║
-║   Port: ${PORT}                                           ║
-║   Environment: ${process.env['NODE_ENV'] || 'development'}                             ║
-║   URL: http://localhost:${PORT}                           ║
-║   Health Check: http://localhost:${PORT}/health           ║
-║   API Docs: http://localhost:${PORT}/api-docs             ║
-╚════════════════════════════════════════════════════════╝
-  `);
+  const baseUrl =
+    process.env['BASE_URL'] || process.env['RENDER_EXTERNAL_URL'] || `http://localhost:${PORT}`;
+  const env = process.env['NODE_ENV'] || 'development';
+
+  const title = 'Cemetery CRM Backend Server';
+  const contentLines = [
+    `Status: Running`,
+    `Port: ${PORT}`,
+    `Environment: ${env}`,
+    `URL: ${baseUrl}`,
+    `Health Check: ${baseUrl}/health`,
+    `API Docs: ${baseUrl}/api-docs`,
+  ];
+  const maxLen = Math.max(title.length, ...contentLines.map((l) => l.length));
+  const innerWidth = maxLen + 6;
+  const hr = '═'.repeat(innerWidth);
+  const pad = (s: string) => `║   ${s.padEnd(innerWidth - 3)}║`;
+
+  console.log(
+    ['', `╔${hr}╗`, pad(title), `╠${hr}╣`, ...contentLines.map(pad), `╚${hr}╝`, ''].join('\n')
+  );
 });
 
 // グレースフルシャットダウン

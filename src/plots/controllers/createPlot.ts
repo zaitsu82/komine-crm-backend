@@ -7,8 +7,8 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { Prisma, PaymentStatus, ContractRole } from '@prisma/client';
-import { CreateContractPlotInput } from '../types';
+import { Prisma, PaymentStatus, ContractRole, DmSetting, AddressType } from '@prisma/client';
+import { CreatePlotRequest } from '@komine/types';
 import { validateContractArea, updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
@@ -24,7 +24,7 @@ export const createPlot = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const input: CreateContractPlotInput = req.body;
+    const input: CreatePlotRequest = req.body;
 
     // 入力バリデーション
     if (!input.contractPlot || !input.saleContract || !input.customer) {
@@ -86,6 +86,7 @@ export const createPlot = async (
           gender: input.customer.gender || null,
           postal_code: input.customer.postalCode,
           address: input.customer.address,
+          address_line_2: input.customer.addressLine2 || null,
           registered_address: input.customer.registeredAddress || null,
           phone_number: input.customer.phoneNumber,
           fax_number: input.customer.faxNumber || null,
@@ -104,8 +105,8 @@ export const createPlot = async (
             work_postal_code: input.workInfo.workPostalCode,
             work_address: input.workInfo.workAddress,
             work_phone_number: input.workInfo.workPhoneNumber,
-            dm_setting: input.workInfo.dmSetting,
-            address_type: input.workInfo.addressType,
+            dm_setting: input.workInfo.dmSetting as string as DmSetting,
+            address_type: input.workInfo.addressType as string as AddressType,
             notes: input.workInfo.notes || null,
           },
         });
@@ -140,10 +141,15 @@ export const createPlot = async (
             ? new Date(input.saleContract.reservationDate)
             : null,
           acceptance_number: input.saleContract.acceptanceNumber || null,
+          acceptance_date: input.saleContract.acceptanceDate
+            ? new Date(input.saleContract.acceptanceDate)
+            : null,
+          staff_in_charge: input.saleContract.staffInCharge || null,
           permit_date: input.saleContract.permitDate
             ? new Date(input.saleContract.permitDate)
             : null,
           start_date: input.saleContract.startDate ? new Date(input.saleContract.startDate) : null,
+          uncollected_amount: input.saleContract.uncollectedAmount ?? 0,
           notes: input.saleContract.notes || null,
         },
       });
@@ -179,14 +185,14 @@ export const createPlot = async (
         await tx.usageFee.create({
           data: {
             contract_plot_id: contractPlot.id,
-            calculation_type: input.usageFee.calculationType,
-            tax_type: input.usageFee.taxType,
-            billing_type: 'onetime', // デフォルト値
-            billing_years: '1', // デフォルト値
-            usage_fee: input.usageFee.usageFee.toString(),
-            area: input.usageFee.area.toString(),
-            unit_price: input.usageFee.unitPrice.toString(),
-            payment_method: input.usageFee.paymentMethod,
+            calculation_type: input.usageFee.calculationType || '',
+            tax_type: input.usageFee.taxType || '',
+            billing_type: input.usageFee.billingType || 'onetime',
+            billing_years: input.usageFee.billingYears || '1',
+            usage_fee: String(input.usageFee.usageFee ?? ''),
+            area: String(input.usageFee.area ?? ''),
+            unit_price: String(input.usageFee.unitPrice ?? ''),
+            payment_method: input.usageFee.paymentMethod || '',
           },
         });
       }
@@ -196,16 +202,16 @@ export const createPlot = async (
         await tx.managementFee.create({
           data: {
             contract_plot_id: contractPlot.id,
-            calculation_type: input.managementFee.calculationType,
-            tax_type: input.managementFee.taxType,
-            billing_type: input.managementFee.billingType,
-            billing_years: input.managementFee.billingYears.toString(),
-            area: input.managementFee.area.toString(),
-            billing_month: input.managementFee.billingMonth,
-            management_fee: input.managementFee.managementFee.toString(),
-            unit_price: input.managementFee.unitPrice.toString(),
-            last_billing_month: input.managementFee.lastBillingMonth,
-            payment_method: input.managementFee.paymentMethod,
+            calculation_type: input.managementFee.calculationType || '',
+            tax_type: input.managementFee.taxType || '',
+            billing_type: input.managementFee.billingType || '',
+            billing_years: String(input.managementFee.billingYears ?? ''),
+            area: String(input.managementFee.area ?? ''),
+            billing_month: input.managementFee.billingMonth || '',
+            management_fee: String(input.managementFee.managementFee ?? ''),
+            unit_price: String(input.managementFee.unitPrice ?? ''),
+            last_billing_month: input.managementFee.lastBillingMonth || '',
+            payment_method: input.managementFee.paymentMethod || '',
           },
         });
       }
@@ -264,6 +270,7 @@ export const createPlot = async (
         acceptanceNumber: createdContractPlot?.acceptance_number,
         permitDate: createdContractPlot?.permit_date,
         startDate: createdContractPlot?.start_date,
+        uncollectedAmount: createdContractPlot?.uncollected_amount,
         notes: createdContractPlot?.notes,
 
         physicalPlot: {

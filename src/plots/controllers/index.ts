@@ -6,6 +6,7 @@
 export { getPlots } from './getPlots';
 export { getPlotById } from './getPlotById';
 export { createPlot } from './createPlot';
+export { bulkCreatePlots } from './bulkCreatePlots';
 export { updatePlot } from './updatePlot';
 export { deletePlot } from './deletePlot';
 export { getPlotContracts } from './getPlotContracts';

@@ -164,9 +164,12 @@ model ContractPlot {
   payment_status    PaymentStatus  @default(unpaid) // 支払いステータス
   reservation_date  DateTime?      @db.Date // 予約日
   acceptance_number String?        @db.VarChar(50) // 受付番号（承諾書番号）
+  acceptance_date   DateTime?      @db.Date // 受付日
+  staff_in_charge   String?        @db.VarChar(100) // 担当者
   permit_date       DateTime?      @db.Date // 許可日
   permit_number     String?        @db.VarChar(50) // 許可番号
   start_date        DateTime?      @db.Date // 開始日
+  uncollected_amount Int           @default(0) // 未集金額（円単位）
   notes             String?        @db.Text // 契約に関する備考
 
   created_at DateTime  @default(now())
@@ -203,6 +206,7 @@ model Customer {
   gender             Gender? // 性別
   postal_code        String    @db.VarChar(7) // 郵便番号
   address            String    @db.VarChar(200) // 住所
+  address_line_2     String?   @db.VarChar(200) // 住所2（2行目）
   registered_address String?   @db.VarChar(200) // 本籍地
   phone_number       String    @db.VarChar(11) // 電話番号
   fax_number         String?   @db.VarChar(11) // FAX番号
@@ -309,6 +313,7 @@ model GravestoneInfo {
   gravestone_dealer      String?   @db.VarChar(100) // 石材店
   gravestone_type        String?   @db.VarChar(50) // 墓石種別
   surrounding_area       String?   @db.VarChar(100) // 周辺区画
+  gravestone_cost        Int? // 墓石代（円単位）
   establishment_deadline DateTime? @db.Date // 設置期限
   establishment_date     DateTime? @db.Date // 設置日
   created_at             DateTime  @default(now())
@@ -324,43 +329,45 @@ model GravestoneInfo {
 
 // 工事情報: 物理区画で行われる工事の情報
 model ConstructionInfo {
-  id                String    @id @default(uuid()) @map("construction_info_id")
-  contract_plot_id  String // 契約区画ID
+  id                   String    @id @default(uuid()) @map("construction_info_id")
+  contract_plot_id     String // 契約区画ID
   // 工事進捗状況
-  construction_type String?   @db.VarChar(50) // 工事区分
-  start_date        DateTime? @db.Date // 着工予定日
-  completion_date   DateTime? @db.Date // 完工予定日
-  contractor        String?   @db.VarChar(100) // 工事業者名
-  supervisor        String?   @db.VarChar(100) // 工事担当者名
-  progress          String?   @db.VarChar(100) // 進捗状況
+  construction_type    String?   @db.VarChar(50) // 工事区分
+  start_date           DateTime? @db.Date // 着工予定日
+  completion_date      DateTime? @db.Date // 完工予定日
+  contractor           String?   @db.VarChar(100) // 工事業者名
+  supervisor           String?   @db.VarChar(100) // 工事担当者名
+  progress             String?   @db.VarChar(100) // 進捗状況
   // 工事詳細
-  work_item_1       String?   @db.VarChar(100) // 工事項目1
-  work_date_1       DateTime? @db.Date // 実施日1
-  work_amount_1     Int? // 金額1（円単位）
-  work_status_1     String?   @db.VarChar(50) // 状況1
-  work_item_2       String?   @db.VarChar(100) // 工事項目2
-  work_date_2       DateTime? @db.Date // 予定日2
-  work_amount_2     Int? // 金額2（円単位）
-  work_status_2     String?   @db.VarChar(50) // 状況2
+  work_item_1          String?   @db.VarChar(100) // 工事項目1
+  work_date_1          DateTime? @db.Date // 実施日1
+  work_amount_1        Int? // 金額1（円単位）
+  work_status_1        String?   @db.VarChar(50) // 状況1
+  work_item_2          String?   @db.VarChar(100) // 工事項目2
+  work_date_2          DateTime? @db.Date // 予定日2
+  work_amount_2        Int? // 金額2（円単位）
+  work_status_2        String?   @db.VarChar(50) // 状況2
   // 許可・申請状況
-  permit_number     String?   @db.VarChar(50) // 工事許可番号
-  application_date  DateTime? @db.Date // 申請日
-  permit_date       DateTime? @db.Date // 許可日
-  permit_status     String?   @db.VarChar(50) // 許可状況
+  permit_number        String?   @db.VarChar(50) // 工事許可番号
+  application_date     DateTime? @db.Date // 申請日
+  permit_date          DateTime? @db.Date // 許可日
+  permit_status        String?   @db.VarChar(50) // 許可状況
   // 工事代金支払状況
-  payment_type_1    String?   @db.VarChar(50) // 支払区分1
-  payment_amount_1  Int? // 金額1（円単位）
-  payment_date_1    DateTime? @db.Date // 支払日1
-  payment_status_1  String?   @db.VarChar(50) // 状況1
-  payment_type_2    String?   @db.VarChar(50) // 支払区分2
-  payment_amount_2  Int? // 金額2（円単位）
-  payment_date_2    DateTime? @db.Date // 支払日2
-  payment_status_2  String?   @db.VarChar(50) // 状況2
+  payment_type_1       String?   @db.VarChar(50) // 支払区分1
+  payment_amount_1     Int? // 金額1（円単位）
+  payment_date_1       DateTime? @db.Date // 支払日1
+  payment_status_1     String?   @db.VarChar(50) // 状況1
+  payment_type_2       String?   @db.VarChar(50) // 支払区分2
+  payment_amount_2     Int? // 金額2（円単位）
+  payment_date_2       DateTime? @db.Date // 支払日2
+  payment_status_2     String?   @db.VarChar(50) // 状況2
   // 工事備考
-  notes             String?   @db.Text // 備考
-  created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
-  deleted_at        DateTime?
+  scheduled_end_date   DateTime? @db.Date // 終了予定日
+  construction_content String?   @db.Text // 工事内容
+  notes                String?   @db.Text // 備考
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+  deleted_at           DateTime?
 
   // Relations
   contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
@@ -376,15 +383,22 @@ model FamilyContact {
   customer_id            String? // 顧客マスタへの参照（オプショナル）
   emergency_contact_flag Boolean      @default(false) // 緊急連絡先フラグ
   name                   String       @db.VarChar(100)
+  name_kana              String?      @db.VarChar(100) // 読み（かな）
   birth_date             DateTime?    @db.Date
   relationship           String       @db.VarChar(50)
   postal_code            String?      @db.VarChar(7) // 郵便番号
   address                String       @db.VarChar(200)
   phone_number           String       @db.VarChar(11)
+  phone_number_2         String?      @db.VarChar(15) // 電話番号2
   fax_number             String?      @db.VarChar(11)
   email                  String?      @db.VarChar(254) // メールアドレス（RFC 5321準拠）
   registered_address     String?      @db.VarChar(200)
   mailing_type           AddressType? // 郵送先タイプ
+  work_company_name      String?      @db.VarChar(100) // 勤務先名称
+  work_company_name_kana String?      @db.VarChar(100) // 勤務先かな
+  work_address           String?      @db.VarChar(200) // 勤務先住所
+  work_phone_number      String?      @db.VarChar(15) // 勤務先電話番号
+  contact_method         String?      @db.VarChar(50) // 連絡区分
   notes                  String?      @db.Text
   created_at             DateTime     @default(now())
   updated_at             DateTime     @updatedAt
@@ -406,10 +420,14 @@ model BuriedPerson {
   name             String    @db.VarChar(100)
   name_kana        String?   @db.VarChar(100)
   relationship     String?   @db.VarChar(50)
+  birth_date       DateTime? @db.Date // 生年月日
   death_date       DateTime? @db.Date
   age              Int?
   gender           Gender? // 性別
   burial_date      DateTime? @db.Date
+  posthumous_name  String?   @db.VarChar(200) // 戒名
+  report_date      DateTime? @db.Date // 届出日（埋葬届）
+  religion         String?   @db.VarChar(50) // 宗派
   notes            String?   @db.Text
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt

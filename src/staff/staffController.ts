@@ -4,6 +4,7 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { StaffRole } from '@prisma/client';
+import { z } from 'zod';
 import { NotFoundError, ConflictError, ValidationError } from '../middleware/errorHandler';
 import prisma from '../db/prisma';
 import {
@@ -572,6 +573,179 @@ export const resendStaffInvitation = async (
       success: true,
       data: {
         message: '招待メールを再送信しました',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 一括登録用Zodスキーマ
+const bulkStaffItemSchema = z.object({
+  name: z
+    .string({ error: '名前は必須です' })
+    .min(1, '名前は必須です')
+    .max(100, '名前は100文字以内で入力してください'),
+  email: z
+    .string({ error: 'メールアドレスは必須です' })
+    .min(1, 'メールアドレスは必須です')
+    .email('有効なメールアドレスを入力してください'),
+  role: z.enum(['viewer', 'operator', 'manager', 'admin'] as const, {
+    error: '無効なロールです。viewer, operator, manager, admin のいずれかを指定してください',
+  }),
+});
+
+/**
+ * スタッフ一括登録
+ * POST /staff/bulk
+ *
+ * 複数のスタッフを一括で登録する（トランザクション使用: all-or-nothing）
+ * admin権限のみ
+ */
+export const bulkCreateStaff = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { items } = req.body;
+
+    // 配列バリデーション
+    if (!Array.isArray(items)) {
+      throw new ValidationError('items は配列である必要があります');
+    }
+
+    if (items.length === 0) {
+      throw new ValidationError('items は空にできません');
+    }
+
+    if (items.length > 100) {
+      throw new ValidationError('一括登録は最大100件までです');
+    }
+
+    // 各行のZodバリデーション
+    const validationErrors: Array<{ row: number; field: string; message: string }> = [];
+
+    const parsedItems: Array<{ name: string; email: string; role: string }> = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const result = bulkStaffItemSchema.safeParse(items[i]);
+      if (!result.success) {
+        for (const issue of result.error.issues) {
+          validationErrors.push({
+            row: i,
+            field: issue.path.join('.') || 'unknown',
+            message: issue.message,
+          });
+        }
+      } else {
+        parsedItems.push(result.data);
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: '一括登録でエラーが発生しました',
+          details: validationErrors,
+        },
+      });
+      return;
+    }
+
+    // バッチ内の重複メールチェック
+    const normalizedEmails = parsedItems.map((item) => item.email.trim().toLowerCase());
+    const emailSet = new Set<string>();
+    const duplicateErrors: Array<{ row: number; field: string; message: string }> = [];
+
+    for (let i = 0; i < normalizedEmails.length; i++) {
+      if (emailSet.has(normalizedEmails[i]!)) {
+        duplicateErrors.push({
+          row: i,
+          field: 'email',
+          message: 'バッチ内でメールアドレスが重複しています',
+        });
+      } else {
+        emailSet.add(normalizedEmails[i]!);
+      }
+    }
+
+    if (duplicateErrors.length > 0) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: '一括登録でエラーが発生しました',
+          details: duplicateErrors,
+        },
+      });
+      return;
+    }
+
+    // 既存メールアドレスとの重複チェック
+    const existingStaff = await prisma.staff.findMany({
+      where: {
+        email: { in: normalizedEmails },
+        deleted_at: null,
+      },
+      select: { email: true },
+    });
+
+    if (existingStaff.length > 0) {
+      const existingEmailSet = new Set(existingStaff.map((s) => s.email));
+      const dbDuplicateErrors: Array<{ row: number; field: string; message: string }> = [];
+
+      for (let i = 0; i < normalizedEmails.length; i++) {
+        if (existingEmailSet.has(normalizedEmails[i]!)) {
+          dbDuplicateErrors.push({
+            row: i,
+            field: 'email',
+            message: 'このメールアドレスは既に使用されています',
+          });
+        }
+      }
+
+      res.status(409).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: '一括登録でエラーが発生しました',
+          details: dbDuplicateErrors,
+        },
+      });
+      return;
+    }
+
+    // トランザクションで一括作成
+    const timestamp = Date.now();
+    const createdStaff = await prisma.$transaction(
+      parsedItems.map((item, index) =>
+        prisma.staff.create({
+          data: {
+            name: item.name.trim(),
+            email: normalizedEmails[index]!,
+            role: item.role as StaffRole,
+            supabase_uid: `pending_bulk_${timestamp}_${index}`,
+            is_active: true,
+          },
+        })
+      )
+    );
+
+    const results = createdStaff.map((staff) => ({
+      id: staff.id,
+      name: staff.name,
+      email: staff.email,
+    }));
+
+    res.status(201).json({
+      success: true,
+      data: {
+        totalRequested: items.length,
+        created: createdStaff.length,
+        results,
       },
     });
   } catch (error) {

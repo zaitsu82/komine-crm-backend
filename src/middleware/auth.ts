@@ -78,8 +78,14 @@ export const authenticate = async (
 
     // CookieまたはAuthorizationヘッダーからトークンを取得
     const token = extractToken(req);
+    const tokenSource = req.cookies?.[ACCESS_TOKEN_COOKIE]
+      ? 'cookie'
+      : req.headers.authorization
+        ? 'header'
+        : 'none';
 
     if (!token) {
+      console.warn(`[Auth] Middleware: no token provided, path=${req.method} ${req.path}`);
       return res.status(401).json({
         success: false,
         error: {
@@ -97,6 +103,9 @@ export const authenticate = async (
     } = await supabase.auth.getUser(token);
 
     if (error || !user) {
+      console.warn(
+        `[Auth] Middleware: invalid token, path=${req.method} ${req.path}, token_source=${tokenSource}, error=${error?.message || 'no user returned'}`
+      );
       return res.status(401).json({
         success: false,
         error: {
@@ -123,6 +132,9 @@ export const authenticate = async (
     });
 
     if (!staff) {
+      console.warn(
+        `[Auth] Middleware: staff not found, path=${req.method} ${req.path}, supabase_uid=${user.id}`
+      );
       return res.status(401).json({
         success: false,
         error: {
@@ -134,6 +146,9 @@ export const authenticate = async (
     }
 
     if (!staff.is_active) {
+      console.warn(
+        `[Auth] Middleware: user inactive, path=${req.method} ${req.path}, staff_id=${staff.id}`
+      );
       return res.status(401).json({
         success: false,
         error: {
@@ -162,7 +177,7 @@ export const authenticate = async (
 
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
+    console.error('[Auth] Middleware: authentication error:', error);
     return res.status(401).json({
       success: false,
       error: {
