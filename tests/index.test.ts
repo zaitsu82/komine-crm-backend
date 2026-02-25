@@ -132,6 +132,14 @@ describe('Server Index', () => {
       sanitizeInput: jest.fn((req: any, res: any, next: any) => next()),
     }));
 
+    // Prismaのモック
+    jest.doMock('../src/db/prisma', () => ({
+      prisma: {
+        $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
+        $disconnect: jest.fn().mockResolvedValue(undefined),
+      },
+    }));
+
     consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     process.env.PORT = '3001';
   });
@@ -371,7 +379,7 @@ describe('Server Index', () => {
   });
 
   describe('Health check endpoint', () => {
-    it('should return correct health check response', () => {
+    it('should return correct health check response when DB is connected', async () => {
       require('../src/index');
 
       const healthHandler = mockApp.get.mock.calls.find((call: any) => call[0] === '/health')[1];
@@ -382,7 +390,7 @@ describe('Server Index', () => {
         json: jest.fn(),
       };
 
-      healthHandler(mockReq, mockRes);
+      await healthHandler(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -392,11 +400,92 @@ describe('Server Index', () => {
           timestamp: expect.any(String),
           uptime: expect.any(Number),
           environment: expect.any(String),
+          database: 'connected',
         }),
       });
     });
 
-    it('should include NODE_ENV in health check when set', () => {
+    it('should return 503 when DB connection fails', async () => {
+      // DB接続失敗をモック
+      jest.resetModules();
+
+      // 既存のモックを再適用（prismaのみ失敗させる）
+      jest.doMock('express', () => mockExpress);
+      jest.doMock('cors', () => mockCors);
+      jest.doMock('dotenv', () => mockDotenv);
+      jest.doMock('swagger-ui-express', () => ({ __esModule: true, default: mockSwaggerUi }));
+      jest.doMock('../src/swagger.json', () => ({
+        __esModule: true,
+        default: { openapi: '3.0.0', info: { title: 'Test API', version: '1.0.0' } },
+      }));
+      jest.doMock('../src/utils/sentry', () => ({ initializeSentry: mockInitializeSentry }));
+      jest.doMock('@sentry/node', () => mockSentry);
+      jest.doMock('cookie-parser', () => jest.fn(() => 'cookie-parser-middleware'));
+      jest.doMock('../src/auth/authRoutes', () => ({ __esModule: true, default: 'auth-routes' }));
+      jest.doMock('../src/plots/plotRoutes', () => ({ __esModule: true, default: 'plot-routes' }));
+      jest.doMock('../src/masters/masterRoutes', () => ({
+        __esModule: true,
+        default: 'master-routes',
+      }));
+      jest.doMock('../src/staff/staffRoutes', () => ({
+        __esModule: true,
+        default: 'staff-routes',
+      }));
+      jest.doMock('../src/collective-burials/collectiveBurialRoutes', () => ({
+        __esModule: true,
+        default: 'collective-burial-routes',
+      }));
+      jest.doMock('../src/documents/documentRoutes', () => ({
+        __esModule: true,
+        default: 'document-routes',
+      }));
+      jest.doMock('../src/middleware/errorHandler', () => ({
+        errorHandler: mockErrorHandler,
+        notFoundHandler: mockNotFoundHandler,
+      }));
+      jest.doMock('../src/middleware/logger', () => ({
+        requestLogger: mockRequestLogger,
+        securityHeaders: mockSecurityHeaders,
+      }));
+      jest.doMock('../src/middleware/security', () => ({
+        getCorsOptions: jest.fn(() => ({})),
+        createRateLimiter: jest.fn(() => jest.fn((req: any, res: any, next: any) => next())),
+        createAuthRateLimiter: jest.fn(() => jest.fn((req: any, res: any, next: any) => next())),
+        getHelmetOptions: jest.fn(() => jest.fn((req: any, res: any, next: any) => next())),
+        hppProtection: jest.fn((req: any, res: any, next: any) => next()),
+        sanitizeInput: jest.fn((req: any, res: any, next: any) => next()),
+      }));
+      jest.doMock('../src/db/prisma', () => ({
+        prisma: {
+          $queryRaw: jest.fn().mockRejectedValue(new Error('Connection refused')),
+          $disconnect: jest.fn().mockResolvedValue(undefined),
+        },
+      }));
+
+      require('../src/index');
+
+      const healthHandler = mockApp.get.mock.calls.find((call: any) => call[0] === '/health')[1];
+
+      const mockReq = {};
+      const mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+
+      await healthHandler(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(503);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'データベース接続に失敗しました',
+          details: [],
+        },
+      });
+    });
+
+    it('should include NODE_ENV in health check when set', async () => {
       process.env.NODE_ENV = 'production';
 
       require('../src/index');
@@ -409,12 +498,13 @@ describe('Server Index', () => {
         json: jest.fn(),
       };
 
-      healthHandler(mockReq, mockRes);
+      await healthHandler(mockReq, mockRes);
 
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
         data: expect.objectContaining({
           environment: 'production',
+          database: 'connected',
         }),
       });
     });
