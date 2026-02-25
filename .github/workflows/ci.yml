@@ -21,6 +21,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Checkout @komine/types
+        uses: actions/checkout@v6
+        with:
+          repository: zaitsu82/komine-types
+          path: ../packages/types
+
+      - name: Build @komine/types
+        run: cd ../packages/types && npm ci && npm run build
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -52,6 +61,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Checkout @komine/types
+        uses: actions/checkout@v6
+        with:
+          repository: zaitsu82/komine-types
+          path: ../packages/types
+
+      - name: Build @komine/types
+        run: cd ../packages/types && npm ci && npm run build
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -76,6 +94,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Checkout @komine/types
+        uses: actions/checkout@v6
+        with:
+          repository: zaitsu82/komine-types
+          path: ../packages/types
+
+      - name: Build @komine/types
+        run: cd ../packages/types && npm ci && npm run build
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -99,6 +126,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Checkout @komine/types
+        uses: actions/checkout@v6
+        with:
+          repository: zaitsu82/komine-types
+          path: ../packages/types
+
+      - name: Build @komine/types
+        run: cd ../packages/types && npm ci && npm run build
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -174,6 +210,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Checkout @komine/types
+        uses: actions/checkout@v6
+        with:
+          repository: zaitsu82/komine-types
+          path: ../packages/types
+
+      - name: Build @komine/types
+        run: cd ../packages/types && npm ci && npm run build
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v6

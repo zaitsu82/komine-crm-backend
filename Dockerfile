@@ -1,4 +1,17 @@
 # ============================================
+# Stage 0: Build @komine/types
+# ============================================
+FROM node:20-alpine AS types
+
+RUN apk add --no-cache git
+
+WORKDIR /packages/types
+
+RUN git clone --depth 1 https://github.com/zaitsu82/komine-types.git . && \
+    npm ci && \
+    npm run build
+
+# ============================================
 # Stage 1: Dependencies
 # ============================================
 FROM node:20-alpine AS deps
@@ -8,6 +21,9 @@ RUN apk add --no-cache git
 
 # 作業ディレクトリの設定
 WORKDIR /app
+
+# @komine/types パッケージを配置（file:../packages/types の解決用）
+COPY --from=types /packages/types /packages/types
 
 # 依存関係のインストールに必要なファイルをコピー
 COPY package*.json ./
@@ -29,6 +45,9 @@ FROM node:20-alpine AS builder
 RUN apk add --no-cache git
 
 WORKDIR /app
+
+# @komine/types パッケージを配置（file:../packages/types の解決用）
+COPY --from=types /packages/types /packages/types
 
 # 依存関係のインストール（devDependenciesを含む）
 COPY package*.json ./
