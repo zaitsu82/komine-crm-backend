@@ -7,7 +7,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
-import { UpdateContractPlotInput } from '../types';
+import { UpdatePlotRequest } from '@komine/types';
 import { updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
@@ -24,7 +24,7 @@ export const updatePlot = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const input: UpdateContractPlotInput = req.body;
+    const input: UpdatePlotRequest = req.body;
 
     // トランザクション処理
     await prisma.$transaction(async (tx) => {
@@ -333,10 +333,11 @@ export const updatePlot = async (
             usageFeeData.calculation_type = input.usageFee.calculationType;
           if (input.usageFee.taxType !== undefined) usageFeeData.tax_type = input.usageFee.taxType;
           if (input.usageFee.usageFee !== undefined)
-            usageFeeData.usage_fee = input.usageFee.usageFee.toString();
-          if (input.usageFee.area !== undefined) usageFeeData.area = input.usageFee.area.toString();
+            usageFeeData.usage_fee = String(input.usageFee.usageFee ?? '');
+          if (input.usageFee.area !== undefined)
+            usageFeeData.area = String(input.usageFee.area ?? '');
           if (input.usageFee.unitPrice !== undefined)
-            usageFeeData.unit_price = input.usageFee.unitPrice.toString();
+            usageFeeData.unit_price = String(input.usageFee.unitPrice ?? '');
           if (input.usageFee.paymentMethod !== undefined)
             usageFeeData.payment_method = input.usageFee.paymentMethod;
 
@@ -379,15 +380,15 @@ export const updatePlot = async (
           if (input.managementFee.billingType !== undefined)
             managementFeeData.billing_type = input.managementFee.billingType;
           if (input.managementFee.billingYears !== undefined)
-            managementFeeData.billing_years = input.managementFee.billingYears.toString();
+            managementFeeData.billing_years = String(input.managementFee.billingYears ?? '');
           if (input.managementFee.area !== undefined)
-            managementFeeData.area = input.managementFee.area.toString();
+            managementFeeData.area = String(input.managementFee.area ?? '');
           if (input.managementFee.billingMonth !== undefined)
             managementFeeData.billing_month = input.managementFee.billingMonth;
           if (input.managementFee.managementFee !== undefined)
-            managementFeeData.management_fee = input.managementFee.managementFee.toString();
+            managementFeeData.management_fee = String(input.managementFee.managementFee ?? '');
           if (input.managementFee.unitPrice !== undefined)
-            managementFeeData.unit_price = input.managementFee.unitPrice.toString();
+            managementFeeData.unit_price = String(input.managementFee.unitPrice ?? '');
           if (input.managementFee.lastBillingMonth !== undefined)
             managementFeeData.last_billing_month = input.managementFee.lastBillingMonth;
           if (input.managementFee.paymentMethod !== undefined)
