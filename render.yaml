@@ -1,0 +1,25 @@
+# Render Blueprint — komine-crm-backend
+# https://docs.render.com/blueprint-spec
+#
+# 秘匿値（sync: false）はRender Dashboardで管理。
+# Blueprint適用時にDashboardで入力を求められます。
+
+services:
+  - type: web
+    name: komine-crm-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    branch: main
+    preDeployCommand: "npx prisma migrate deploy"
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
