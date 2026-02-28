@@ -50,14 +50,7 @@ app.use(cookieParser());
 // 入力サニタイゼーション（パーサーの後に適用）
 app.use(sanitizeInput);
 
-// Rate Limiting（全体）
-app.use(createRateLimiter());
-
-// リクエストログ
-app.use(requestLogger);
-app.use(securityHeaders); // 追加のセキュリティヘッダー
-
-// ヘルスチェックエンドポイント
+// ヘルスチェックエンドポイント（Rate Limiterの前に配置 — Renderヘルスチェックが429で失敗するのを防止）
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -82,6 +75,13 @@ app.get('/health', async (_req, res) => {
     });
   }
 });
+
+// Rate Limiting（全体）
+app.use(createRateLimiter());
+
+// リクエストログ
+app.use(requestLogger);
+app.use(securityHeaders); // 追加のセキュリティヘッダー
 
 // Swagger UI（API仕様書）
 app.use(
