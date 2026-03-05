@@ -66,11 +66,22 @@ RUN npm run build
 # ============================================
 # Stage 3: Production
 # ============================================
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
+
+# Chromium + 日本語フォント（Puppeteer PDF生成に必要）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    fonts-ipafont-gothic \
+    fonts-ipafont-mincho \
+    && rm -rf /var/lib/apt/lists/*
+
+# Puppeteer: システムChromiumを使用し、バンドル版ダウンロードをスキップ
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # セキュリティ: non-rootユーザーで実行
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+RUN groupadd -g 1001 nodejs && \
+    useradd -m -u 1001 -g nodejs nodejs
 
 WORKDIR /app
 
