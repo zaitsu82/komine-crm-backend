@@ -56,6 +56,15 @@ export function isS3Configured(): boolean {
   );
 }
 
+// Startup warning when running in production without S3
+if (process.env['NODE_ENV'] === 'production' && !isS3Configured()) {
+  console.warn(
+    '[WARN] S3 is not configured in production environment. ' +
+      'Document files will be stored on local filesystem and WILL BE LOST on deploy/restart. ' +
+      'Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and S3_BUCKET_NAME to enable persistent storage.'
+  );
+}
+
 /**
  * MIMEタイプを検証
  */

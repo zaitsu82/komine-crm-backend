@@ -23,7 +23,7 @@ export const updatePlot = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const input: UpdatePlotRequest = req.body;
 
     // トランザクション処理

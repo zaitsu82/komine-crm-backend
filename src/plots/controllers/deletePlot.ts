@@ -21,7 +21,7 @@ export const deletePlot = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     // ContractPlotの存在確認
     const contractPlot = await prisma.contractPlot.findUnique({

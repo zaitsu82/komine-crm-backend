@@ -242,7 +242,7 @@ export const getStaffById = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const staffId = parseInt(id || '', 10);
 
     if (isNaN(staffId)) {
@@ -292,7 +292,7 @@ export const updateStaff = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const staffId = parseInt(id || '', 10);
 
     if (isNaN(staffId)) {
@@ -399,7 +399,7 @@ export const deleteStaff = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const staffId = parseInt(id || '', 10);
     const { deleteSupabaseAccount = true } = req.query;
 
@@ -472,7 +472,7 @@ export const toggleStaffActive = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const staffId = parseInt(id || '', 10);
 
     if (isNaN(staffId)) {
@@ -527,7 +527,7 @@ export const resendStaffInvitation = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const staffId = parseInt(id || '', 10);
 
     if (isNaN(staffId)) {

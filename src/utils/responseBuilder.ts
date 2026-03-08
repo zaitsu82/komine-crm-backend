@@ -3,7 +3,7 @@
  * Prismaモデルから一貫したAPIレスポンスを構築するためのヘルパー関数
  */
 
-import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 
 /**
  * Prisma DecimalやBigIntを数値に変換
@@ -12,7 +12,7 @@ export function toNumber(value: unknown): number {
   if (value === null || value === undefined) return 0;
   if (typeof value === 'number') return value;
   if (typeof value === 'bigint') return Number(value);
-  if (value instanceof Decimal) return value.toNumber();
+  if (Prisma.Decimal.isDecimal(value)) return (value as Prisma.Decimal).toNumber();
   if (
     typeof value === 'object' &&
     'toNumber' in value &&
