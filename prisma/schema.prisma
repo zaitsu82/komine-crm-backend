@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -158,19 +158,19 @@ model ContractPlot {
   location_description String? @db.VarChar(200) // 物理区画内のどの位置か（例: 左半分、右側）
 
   // 販売契約情報
-  contract_date     DateTime       @db.Date // 契約日
-  price             Int // 販売価格（円単位）
-  contract_status   ContractStatus @default(draft) // 契約ステータス
-  payment_status    PaymentStatus  @default(unpaid) // 支払いステータス
-  reservation_date  DateTime?      @db.Date // 予約日
-  acceptance_number String?        @db.VarChar(50) // 受付番号（承諾書番号）
-  acceptance_date   DateTime?      @db.Date // 受付日
-  staff_in_charge   String?        @db.VarChar(100) // 担当者
-  permit_date       DateTime?      @db.Date // 許可日
-  permit_number     String?        @db.VarChar(50) // 許可番号
-  start_date        DateTime?      @db.Date // 開始日
-  uncollected_amount Int           @default(0) // 未集金額（円単位）
-  notes             String?        @db.Text // 契約に関する備考
+  contract_date      DateTime       @db.Date // 契約日
+  price              Int // 販売価格（円単位）
+  contract_status    ContractStatus @default(draft) // 契約ステータス
+  payment_status     PaymentStatus  @default(unpaid) // 支払いステータス
+  reservation_date   DateTime?      @db.Date // 予約日
+  acceptance_number  String?        @db.VarChar(50) // 受付番号（承諾書番号）
+  acceptance_date    DateTime?      @db.Date // 受付日
+  staff_in_charge    String?        @db.VarChar(100) // 担当者
+  permit_date        DateTime?      @db.Date // 許可日
+  permit_number      String?        @db.VarChar(50) // 許可番号
+  start_date         DateTime?      @db.Date // 開始日
+  uncollected_amount Int            @default(0) // 未集金額（円単位）
+  notes              String?        @db.Text // 契約に関する備考
 
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
