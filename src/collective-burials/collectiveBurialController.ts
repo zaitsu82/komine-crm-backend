@@ -166,7 +166,7 @@ export const getCollectiveBurialById = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const collectiveBurial = await prisma.collectiveBurial.findFirst({
       where: { id, deleted_at: null },
@@ -331,7 +331,7 @@ export const updateCollectiveBurial = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const {
       burialCapacity,
       validityPeriodYears,
@@ -426,7 +426,7 @@ export const updateBillingStatus = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const { billingStatus, billingAmount } = req.body;
 
     // バリデーション
@@ -475,7 +475,7 @@ export const deleteCollectiveBurial = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     // 存在確認
     const existing = await prisma.collectiveBurial.findFirst({
@@ -512,7 +512,7 @@ export const syncBurialCount = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     // 合祀情報取得
     const collectiveBurial = await prisma.collectiveBurial.findFirst({

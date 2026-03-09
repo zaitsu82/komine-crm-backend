@@ -349,7 +349,7 @@ See `SETUP.md` for detailed deployment configuration, CORS setup, and troublesho
   - **Swagger Validation**: OpenAPI spec validation
   - **Security Audit**: npm audit (moderate+ vulnerabilities)
   - **Docker Security Scan**: Trivy vulnerability scanner (CRITICAL/HIGH)
-  - **Test**: Run all 610+ tests on Node.js 18.x, 20.x, 22.x (parallel)
+  - **Test**: Run all 610+ tests on Node.js 20.x, 22.x (parallel)
   - **Coverage**: Generate and upload to Codecov (Node 20.x only)
   - **All Checks Passed**: Final validation gate
 

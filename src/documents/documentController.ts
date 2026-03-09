@@ -204,7 +204,7 @@ export const getDocuments = async (req: Request, res: Response): Promise<void> =
  */
 export const getDocumentById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const document = await prisma.document.findFirst({
       where: { id, deleted_at: null },
@@ -423,7 +423,7 @@ export const createDocument = async (req: Request, res: Response): Promise<void>
  */
 export const updateDocument = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const body = req.body as UpdateDocumentBody;
     const { name, description, status, templateData, notes } = body;
 
@@ -523,7 +523,7 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
  */
 export const deleteDocument = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const existingDocument = await prisma.document.findFirst({
       where: { id, deleted_at: null },
@@ -578,7 +578,7 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
  */
 export const uploadDocumentFile = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = req.params['id'];
+    const id = req.params['id'] as string;
     const file = req.file;
 
     if (!id) {
@@ -703,7 +703,7 @@ export const uploadDocumentFile = async (req: Request, res: Response): Promise<v
  */
 export const getDocumentDownloadUrl = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const document = await prisma.document.findFirst({
       where: { id, deleted_at: null },
@@ -937,7 +937,7 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
  */
 export const downloadLocalFile = async (req: Request, res: Response): Promise<void> => {
   try {
-    const fileKey = req.params['fileKey'];
+    const fileKey = req.params['fileKey'] as string;
 
     if (!fileKey) {
       res.status(400).json({

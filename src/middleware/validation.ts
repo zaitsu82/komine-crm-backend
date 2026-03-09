@@ -24,13 +24,17 @@ export const validate = (schemas: ValidationSchemas) => {
       }
 
       // クエリパラメータのバリデーション
+      // Express v5: req.query is a getter that re-parses the URL each time,
+      // so we override it with Object.defineProperty to return parsed values.
       if (schemas.query) {
-        req.query = (await schemas.query.parseAsync(req.query)) as any;
+        const parsed = await schemas.query.parseAsync(req.query);
+        Object.defineProperty(req, 'query', { value: parsed, writable: true });
       }
 
       // パスパラメータのバリデーション
       if (schemas.params) {
-        req.params = (await schemas.params.parseAsync(req.params)) as any;
+        const parsed = await schemas.params.parseAsync(req.params);
+        Object.defineProperty(req, 'params', { value: parsed, writable: true });
       }
 
       next();

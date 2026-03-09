@@ -28,9 +28,10 @@ COPY --from=types /packages/types /packages/types
 # 依存関係のインストールに必要なファイルをコピー
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
 
 # 本番用依存関係のみインストール
-# OpenSSL 3.0対応のため、Prisma binaryTargets に "linux-musl-openssl-3.0.x" が必要
+# Prisma v7: クライアントエンジンはJSベース（ネイティブバイナリ不要）
 # --ignore-scriptsでprepareスクリプト(husky)をスキップ（本番環境では不要）
 # --no-save prisma: preDeployCommand (prisma migrate deploy) 実行用にCLIを含める
 RUN npm ci --omit=dev --ignore-scripts && \
@@ -54,6 +55,7 @@ COPY --from=types /packages/types /packages/types
 # 依存関係のインストール（devDependenciesを含む）
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
 RUN npm ci && \
     npx prisma generate
 
@@ -92,6 +94,7 @@ COPY --from=deps --chown=nodejs:nodejs /app/package*.json ./
 # ビルド成果物をコピー
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nodejs:nodejs /app/prisma.config.ts ./
 
 # 環境変数の設定
 ENV NODE_ENV=production

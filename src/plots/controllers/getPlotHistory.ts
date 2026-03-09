@@ -25,7 +25,7 @@ export const getPlotHistory = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const { page = '1', limit = '20', entityType } = req.query as HistoryQueryParams;
 
     const pageNum = parseInt(page, 10) || 1;

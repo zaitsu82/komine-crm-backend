@@ -14,7 +14,7 @@ import prisma from '../../db/prisma';
  */
 export const getPlotInventory = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     // PhysicalPlotの存在確認
     const physicalPlot = await prisma.physicalPlot.findUnique({

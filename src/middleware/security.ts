@@ -148,9 +148,10 @@ export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) 
     req.body = sanitizeObject(req.body);
   }
 
-  // クエリパラメータのサニタイゼーション
+  // クエリパラメータのサニタイゼーション（Express v5: req.query is a getter）
   if (req.query) {
-    req.query = sanitizeObject(req.query);
+    const sanitized = sanitizeObject(req.query);
+    Object.defineProperty(req, 'query', { value: sanitized, writable: true });
   }
 
   next();

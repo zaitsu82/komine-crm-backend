@@ -17,7 +17,7 @@ export const getPlotById = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const includeHistory = req.query['includeHistory'] === 'true';
     const historyLimit = parseInt((req.query['historyLimit'] as string) || '50');
 

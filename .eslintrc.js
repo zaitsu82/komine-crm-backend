@@ -27,6 +27,7 @@ module.exports = {
     '__mocks__',
     '*.test.ts',
     '*.spec.ts',
+    'prisma.config.ts',
   ],
   rules: {
     '@typescript-eslint/interface-name-prefix': 'off',
