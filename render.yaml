@@ -27,11 +27,3 @@ services:
         value: /usr/bin/chromium
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: "true"
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: S3_BUCKET_NAME
-        sync: false
-      - key: AWS_REGION
-        value: ap-northeast-1
