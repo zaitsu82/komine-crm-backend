@@ -23,20 +23,18 @@ export const validate = (schemas: ValidationSchemas) => {
         req.body = await schemas.body.parseAsync(req.body);
       }
 
-      // クエリパラメータのバリデーション（Express v5: req.query is read-only）
+      // クエリパラメータのバリデーション
+      // Express v5: req.query is a getter that re-parses the URL each time,
+      // so we override it with Object.defineProperty to return parsed values.
       if (schemas.query) {
-        const parsed = (await schemas.query.parseAsync(req.query)) as Record<string, any>;
-        for (const key of Object.keys(parsed)) {
-          (req.query as Record<string, any>)[key] = parsed[key];
-        }
+        const parsed = await schemas.query.parseAsync(req.query);
+        Object.defineProperty(req, 'query', { value: parsed, writable: true });
       }
 
-      // パスパラメータのバリデーション（Express v5: req.params is read-only）
+      // パスパラメータのバリデーション
       if (schemas.params) {
-        const parsed = (await schemas.params.parseAsync(req.params)) as Record<string, any>;
-        for (const key of Object.keys(parsed)) {
-          (req.params as Record<string, any>)[key] = parsed[key];
-        }
+        const parsed = await schemas.params.parseAsync(req.params);
+        Object.defineProperty(req, 'params', { value: parsed, writable: true });
       }
 
       next();

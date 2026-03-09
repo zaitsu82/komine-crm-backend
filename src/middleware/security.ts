@@ -148,14 +148,10 @@ export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) 
     req.body = sanitizeObject(req.body);
   }
 
-  // クエリパラメータのサニタイゼーション（Express v5: req.query is read-only）
+  // クエリパラメータのサニタイゼーション（Express v5: req.query is a getter）
   if (req.query) {
-    for (const key of Object.keys(req.query)) {
-      const val = req.query[key];
-      if (val !== undefined) {
-        (req.query as Record<string, any>)[key] = sanitizeObject(val);
-      }
-    }
+    const sanitized = sanitizeObject(req.query);
+    Object.defineProperty(req, 'query', { value: sanitized, writable: true });
   }
 
   next();
