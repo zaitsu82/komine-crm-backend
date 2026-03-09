@@ -23,14 +23,20 @@ export const validate = (schemas: ValidationSchemas) => {
         req.body = await schemas.body.parseAsync(req.body);
       }
 
-      // クエリパラメータのバリデーション
+      // クエリパラメータのバリデーション（Express v5: req.query is read-only）
       if (schemas.query) {
-        req.query = (await schemas.query.parseAsync(req.query)) as any;
+        const parsed = (await schemas.query.parseAsync(req.query)) as Record<string, any>;
+        for (const key of Object.keys(parsed)) {
+          (req.query as Record<string, any>)[key] = parsed[key];
+        }
       }
 
-      // パスパラメータのバリデーション
+      // パスパラメータのバリデーション（Express v5: req.params is read-only）
       if (schemas.params) {
-        req.params = (await schemas.params.parseAsync(req.params)) as any;
+        const parsed = (await schemas.params.parseAsync(req.params)) as Record<string, any>;
+        for (const key of Object.keys(parsed)) {
+          (req.params as Record<string, any>)[key] = parsed[key];
+        }
       }
 
       next();
