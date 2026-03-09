@@ -31,7 +31,7 @@ COPY prisma ./prisma/
 COPY prisma.config.ts ./
 
 # 本番用依存関係のみインストール
-# OpenSSL 3.0対応のため、Prisma binaryTargets に "linux-musl-openssl-3.0.x" が必要
+# Prisma v7: クライアントエンジンはJSベース（ネイティブバイナリ不要）
 # --ignore-scriptsでprepareスクリプト(husky)をスキップ（本番環境では不要）
 # --no-save prisma: preDeployCommand (prisma migrate deploy) 実行用にCLIを含める
 RUN npm ci --omit=dev --ignore-scripts && \
