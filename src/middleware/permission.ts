@@ -119,7 +119,7 @@ export const API_PERMISSIONS: Record<string, Role[]> = {
   'POST /documents/generate-pdf': ['operator', 'manager', 'admin'],
   'PUT /documents/*': ['operator', 'manager', 'admin'],
   'DELETE /documents/*': ['manager', 'admin'],
-  'POST /documents/*/upload': ['operator', 'manager', 'admin'],
+  'POST /documents/*/regenerate-pdf': ['operator', 'manager', 'admin'],
 };
 
 /**
@@ -245,7 +245,7 @@ export const checkResourceAction = (userRole: Role, resource: string, action: st
     'document:create': ['operator', 'manager', 'admin'],
     'document:update': ['operator', 'manager', 'admin'],
     'document:delete': ['manager', 'admin'],
-    'document:upload': ['operator', 'manager', 'admin'],
+    'document:regenerate-pdf': ['operator', 'manager', 'admin'],
     'document:generate-pdf': ['operator', 'manager', 'admin'],
 
     'system:admin': ['admin'],

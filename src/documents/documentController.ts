@@ -1,18 +1,17 @@
 /**
  * 書類管理コントローラー
+ *
+ * 設計方針:
+ * - PDFはオンデマンド生成してブラウザに直接返す（Base64）
+ * - DBにはメタデータ（template_data等）のみ保存
+ * - 再度必要な場合はtemplate_dataから再生成可能
+ * - ファイルストレージ（S3/ローカル）は使用しない
  */
 
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import {
-  uploadFile,
-  downloadFile,
-  deleteFile,
-  getDownloadUrl,
-  generateFileKey,
   generatePdfFromTemplate,
-  isAllowedMimeType,
-  isAllowedFileSize,
   TemplateType,
   InvoiceTemplateData,
   PostcardTemplateData,
@@ -24,7 +23,7 @@ import {
   recordDocumentDeleted,
 } from '../plots/services/historyService';
 
-// 型定義（Prisma生成後にenumからインポート可能）
+// 型定義
 type DocumentType = 'invoice' | 'postcard' | 'contract' | 'permit' | 'other';
 type DocumentStatus = 'draft' | 'generated' | 'sent' | 'archived';
 
@@ -149,9 +148,6 @@ export const getDocuments = async (req: Request, res: Response): Promise<void> =
       name: doc.name,
       description: doc.description,
       status: doc.status,
-      fileName: doc.file_name,
-      fileSize: doc.file_size,
-      mimeType: doc.mime_type,
       templateType: doc.template_type,
       generatedAt: doc.generated_at?.toISOString() || null,
       sentAt: doc.sent_at?.toISOString() || null,
@@ -258,10 +254,6 @@ export const getDocumentById = async (req: Request, res: Response): Promise<void
         name: document.name,
         description: document.description,
         status: document.status,
-        fileKey: document.file_key,
-        fileName: document.file_name,
-        fileSize: document.file_size,
-        mimeType: document.mime_type,
         templateType: document.template_type,
         templateData: document.template_data,
         generatedAt: document.generated_at?.toISOString() || null,
@@ -494,9 +486,6 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
         name: document.name,
         description: document.description,
         status: document.status,
-        fileName: document.file_name,
-        fileSize: document.file_size,
-        mimeType: document.mime_type,
         templateType: document.template_type,
         templateData: document.template_data,
         generatedAt: document.generated_at?.toISOString() || null,
@@ -540,15 +529,6 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // ストレージからファイルも削除
-    if (existingDocument.file_key) {
-      const deleteResult = await deleteFile(existingDocument.file_key);
-      if (!deleteResult.success) {
-        console.warn('Failed to delete file:', deleteResult.error);
-        // 削除失敗はログのみで続行
-      }
-    }
-
     await prisma.document.update({
       where: { id },
       data: { deleted_at: new Date() },
@@ -574,205 +554,9 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
 };
 
 /**
- * ファイルアップロード
- */
-export const uploadDocumentFile = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const id = req.params['id'] as string;
-    const file = req.file;
-
-    if (!id) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'IDが指定されていません',
-        },
-      });
-      return;
-    }
-
-    if (!file) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'ファイルが指定されていません',
-        },
-      });
-      return;
-    }
-
-    // MIMEタイプ検証
-    if (!isAllowedMimeType(file.mimetype)) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: '許可されていないファイル形式です',
-        },
-      });
-      return;
-    }
-
-    // ファイルサイズ検証
-    if (!isAllowedFileSize(file.size)) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'ファイルサイズが10MBを超えています',
-        },
-      });
-      return;
-    }
-
-    const document = await prisma.document.findFirst({
-      where: { id, deleted_at: null },
-    });
-
-    if (!document) {
-      res.status(404).json({
-        success: false,
-        error: {
-          code: 'NOT_FOUND',
-          message: '書類が見つかりません',
-        },
-      });
-      return;
-    }
-
-    // 古いファイルがあれば削除
-    if (document.file_key) {
-      await deleteFile(document.file_key);
-    }
-
-    // ストレージにアップロード
-    const fileKey = generateFileKey(id, file.originalname);
-    const uploadResult = await uploadFile(fileKey, file.buffer, file.mimetype, file.originalname);
-
-    if (!uploadResult.success) {
-      res.status(500).json({
-        success: false,
-        error: {
-          code: 'UPLOAD_ERROR',
-          message: uploadResult.error || 'ファイルのアップロードに失敗しました',
-        },
-      });
-      return;
-    }
-
-    // データベース更新
-    const updatedDocument = await prisma.document.update({
-      where: { id },
-      data: {
-        file_key: fileKey,
-        file_name: file.originalname,
-        file_size: file.size,
-        mime_type: file.mimetype,
-        status: 'generated',
-        generated_at: new Date(),
-      },
-    });
-
-    res.status(200).json({
-      success: true,
-      data: {
-        id: updatedDocument.id,
-        fileName: updatedDocument.file_name,
-        fileSize: updatedDocument.file_size,
-        mimeType: updatedDocument.mime_type,
-        status: updatedDocument.status,
-        generatedAt: updatedDocument.generated_at?.toISOString() || null,
-      },
-    });
-  } catch (error) {
-    console.error('Error uploading file:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'ファイルのアップロードに失敗しました',
-      },
-    });
-  }
-};
-
-/**
- * ダウンロードURL取得
- */
-export const getDocumentDownloadUrl = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { id } = req.params as Record<string, string>;
-
-    const document = await prisma.document.findFirst({
-      where: { id, deleted_at: null },
-    });
-
-    if (!document) {
-      res.status(404).json({
-        success: false,
-        error: {
-          code: 'NOT_FOUND',
-          message: '書類が見つかりません',
-        },
-      });
-      return;
-    }
-
-    if (!document.file_key) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'NO_FILE',
-          message: 'ファイルがアップロードされていません',
-        },
-      });
-      return;
-    }
-
-    // ベースURLを構築（ローカルストレージ用）
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const baseUrl = `${protocol}://${host}`;
-
-    const urlResult = await getDownloadUrl(document.file_key, baseUrl);
-
-    if (!urlResult.success) {
-      res.status(500).json({
-        success: false,
-        error: {
-          code: 'URL_GENERATION_ERROR',
-          message: urlResult.error || 'ダウンロードURLの生成に失敗しました',
-        },
-      });
-      return;
-    }
-
-    res.status(200).json({
-      success: true,
-      data: {
-        url: urlResult.url,
-        fileName: document.file_name,
-        mimeType: document.mime_type,
-        expiresIn: urlResult.storage === 's3' ? 900 : null, // S3のみ有効期限あり
-        storage: urlResult.storage,
-      },
-    });
-  } catch (error) {
-    console.error('Error getting download URL:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'ダウンロードURLの取得に失敗しました',
-      },
-    });
-  }
-};
-
-/**
- * PDF生成
+ * PDF生成（オンデマンド）
+ * テンプレートとデータからPDFを生成し、Base64で直接返す。
+ * DBにはメタデータのみ保存し、ファイルは保存しない。
  */
 export const generatePdf = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -820,7 +604,7 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // documentIdが指定されている場合は既存書類を更新
+    // documentIdが指定されている場合は既存書類のメタデータを更新
     if (documentId) {
       const existingDocument = await prisma.document.findFirst({
         where: { id: documentId, deleted_at: null },
@@ -837,32 +621,15 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
         return;
       }
 
-      // ストレージにアップロード
-      const fileName = `${existingDocument.name}_${Date.now()}.pdf`;
-      const fileKey = generateFileKey(documentId, fileName);
-      const uploadResult = await uploadFile(fileKey, pdfResult.buffer, 'application/pdf', fileName);
+      await prisma.document.update({
+        where: { id: documentId },
+        data: {
+          status: 'generated',
+          generated_at: new Date(),
+          template_data: templateData as unknown as Prisma.InputJsonValue,
+        },
+      });
 
-      if (uploadResult.success) {
-        // 古いファイルがあれば削除
-        if (existingDocument.file_key) {
-          await deleteFile(existingDocument.file_key);
-        }
-
-        await prisma.document.update({
-          where: { id: documentId },
-          data: {
-            file_key: fileKey,
-            file_name: fileName,
-            file_size: pdfResult.buffer.length,
-            mime_type: 'application/pdf',
-            status: 'generated',
-            generated_at: new Date(),
-            template_data: templateData as unknown as Prisma.InputJsonValue,
-          },
-        });
-      }
-
-      // PDFをBase64で返す
       res.status(200).json({
         success: true,
         data: {
@@ -875,7 +642,7 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // 新規書類を作成
+    // 新規書類メタデータを作成
     const documentType: DocumentType = templateType === 'invoice' ? 'invoice' : 'postcard';
     const documentName =
       name || `${templateType === 'invoice' ? '請求書' : 'はがき'}_${Date.now()}`;
@@ -895,21 +662,6 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
         created_by: req.user?.name || req.user?.email || 'system',
       },
     });
-
-    // ストレージにアップロード
-    const fileName = `${documentName}.pdf`;
-    const fileKey = generateFileKey(newDocument.id, fileName);
-    const uploadResult = await uploadFile(fileKey, pdfResult.buffer, 'application/pdf', fileName);
-
-    if (uploadResult.success) {
-      await prisma.document.update({
-        where: { id: newDocument.id },
-        data: {
-          file_key: fileKey,
-          file_name: fileName,
-        },
-      });
-    }
 
     res.status(201).json({
       success: true,
@@ -933,50 +685,84 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
 };
 
 /**
- * ローカルファイルダウンロード（ローカルストレージ用）
+ * 既存書類のPDFを再生成
+ * DBに保存されたtemplate_dataを使ってPDFをオンデマンド再生成する。
  */
-export const downloadLocalFile = async (req: Request, res: Response): Promise<void> => {
+export const regeneratePdf = async (req: Request, res: Response): Promise<void> => {
   try {
-    const fileKey = req.params['fileKey'] as string;
+    const { id } = req.params as Record<string, string>;
 
-    if (!fileKey) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'ファイルキーが指定されていません',
-        },
-      });
-      return;
-    }
+    const document = await prisma.document.findFirst({
+      where: { id, deleted_at: null },
+    });
 
-    const decodedFileKey = decodeURIComponent(fileKey);
-    const result = await downloadFile(decodedFileKey);
-
-    if (!result.success || !result.buffer) {
+    if (!document) {
       res.status(404).json({
         success: false,
         error: {
           code: 'NOT_FOUND',
-          message: result.error || 'ファイルが見つかりません',
+          message: '書類が見つかりません',
         },
       });
       return;
     }
 
-    // Content-Dispositionヘッダーでダウンロードを促す
-    const fileName = decodedFileKey.split('/').pop() || 'download';
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
-    res.setHeader('Content-Type', result.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Length', result.buffer.length);
-    res.send(result.buffer);
+    if (!document.template_type || !document.template_data) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'NO_TEMPLATE_DATA',
+          message: 'テンプレートデータが保存されていないため、再生成できません',
+        },
+      });
+      return;
+    }
+
+    // テンプレートタイプ検証
+    if (!['invoice', 'postcard'].includes(document.template_type)) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_TEMPLATE',
+          message: '無効なテンプレートタイプです',
+        },
+      });
+      return;
+    }
+
+    // PDF再生成
+    const pdfResult = await generatePdfFromTemplate(
+      document.template_type as TemplateType,
+      document.template_data as unknown as InvoiceTemplateData | PostcardTemplateData
+    );
+
+    if (!pdfResult.success || !pdfResult.buffer) {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'PDF_GENERATION_ERROR',
+          message: pdfResult.error || 'PDF再生成に失敗しました',
+        },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        documentId: document.id,
+        pdf: pdfResult.buffer.toString('base64'),
+        mimeType: 'application/pdf',
+        fileSize: pdfResult.buffer.length,
+      },
+    });
   } catch (error) {
-    console.error('Error downloading file:', error);
+    console.error('Error regenerating PDF:', error);
     res.status(500).json({
       success: false,
       error: {
         code: 'INTERNAL_SERVER_ERROR',
-        message: 'ファイルのダウンロードに失敗しました',
+        message: 'PDF再生成に失敗しました',
       },
     });
   }

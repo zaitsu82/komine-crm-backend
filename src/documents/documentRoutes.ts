@@ -3,7 +3,6 @@
  */
 
 import { Router } from 'express';
-import multer from 'multer';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission';
 import { withLogging } from '../middleware/controllerLogger';
@@ -13,40 +12,11 @@ import {
   createDocument,
   updateDocument,
   deleteDocument,
-  uploadDocumentFile,
-  getDocumentDownloadUrl,
   generatePdf,
-  downloadLocalFile,
+  regeneratePdf,
 } from './documentController';
 
 const router = Router();
-
-// multerの設定（メモリストレージ）
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
-  },
-  fileFilter: (_req, file, cb) => {
-    // 許可されるMIMEタイプ
-    const allowedMimeTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ];
-
-    if (allowedMimeTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('許可されていないファイル形式です'));
-    }
-  },
-});
 
 // 書類一覧取得
 router.get(
@@ -96,29 +66,12 @@ router.delete(
   withLogging('Documents', 'deleteDocument', deleteDocument)
 );
 
-// ファイルアップロード
+// PDF再生成（保存されたtemplate_dataからオンデマンド再生成）
 router.post(
-  '/:id/upload',
+  '/:id/regenerate-pdf',
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
-  upload.single('file'),
-  withLogging('Documents', 'uploadDocumentFile', uploadDocumentFile)
-);
-
-// ダウンロードURL取得
-router.get(
-  '/:id/download',
-  authenticate,
-  requirePermission(['viewer', 'operator', 'manager', 'admin']),
-  withLogging('Documents', 'getDocumentDownloadUrl', getDocumentDownloadUrl)
-);
-
-// ローカルファイルダウンロード（ローカルストレージ用）
-router.get(
-  '/file/:fileKey',
-  authenticate,
-  requirePermission(['viewer', 'operator', 'manager', 'admin']),
-  withLogging('Documents', 'downloadLocalFile', downloadLocalFile)
+  withLogging('Documents', 'regeneratePdf', regeneratePdf)
 );
 
 export default router;
