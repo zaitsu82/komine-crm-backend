@@ -53,9 +53,10 @@ export const getCorsOptions = (): CorsOptions => {
  * DDoS攻撃対策として、IPアドレスごとのリクエスト数を制限
  */
 export const createRateLimiter = () => {
+  const isTest = process.env['NODE_ENV'] === 'test' || process.env['E2E_TEST'] === 'true';
   return rateLimit({
     windowMs: 15 * 60 * 1000, // 15分
-    max: 100, // 15分間に100リクエストまで
+    max: isTest ? 10000 : 100, // テスト環境では実質無制限
     message: {
       success: false,
       error: {
@@ -75,9 +76,10 @@ export const createRateLimiter = () => {
  * ブルートフォース攻撃対策
  */
 export const createAuthRateLimiter = () => {
+  const isTest = process.env['NODE_ENV'] === 'test' || process.env['E2E_TEST'] === 'true';
   return rateLimit({
     windowMs: 15 * 60 * 1000, // 15分
-    max: 5, // 15分間に5リクエストまで
+    max: isTest ? 10000 : 5, // テスト環境では実質無制限
     message: {
       success: false,
       error: {
