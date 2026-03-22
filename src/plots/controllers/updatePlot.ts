@@ -12,6 +12,7 @@ import { updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 import { recordContractPlotUpdated, recordCustomerUpdated } from '../services/historyService';
+import { updateCollectiveBurialCount } from '../../collective-burials/utils';
 
 /**
  * 契約区画更新
@@ -46,6 +47,7 @@ export const updatePlot = async (
           },
           usageFee: true,
           managementFee: true,
+          collectiveBurial: true,
         },
       });
 
@@ -412,7 +414,148 @@ export const updatePlot = async (
         }
       }
 
-      // 9. 契約面積が変更された場合、物理区画のステータス更新
+      // 9. CollectiveBurialの更新/作成/削除
+      if (input.collectiveBurial !== undefined) {
+        const existingCB = existingContractPlot.collectiveBurial;
+
+        if (input.collectiveBurial === null) {
+          // 合祀設定を解除: ContractPlotのフィールドをnullに、CBレコードを論理削除
+          await tx.contractPlot.update({
+            where: { id },
+            data: {
+              burial_capacity: null,
+              validity_period_years: null,
+            },
+          });
+          if (existingCB && !existingCB.deleted_at) {
+            await tx.collectiveBurial.update({
+              where: { id: existingCB.id },
+              data: { deleted_at: new Date() },
+            });
+          }
+        } else {
+          // 合祀設定を更新/作成: ContractPlotのフィールドを更新
+          await tx.contractPlot.update({
+            where: { id },
+            data: {
+              burial_capacity: input.collectiveBurial.burialCapacity,
+              validity_period_years: input.collectiveBurial.validityPeriodYears,
+            },
+          });
+
+          if (existingCB && !existingCB.deleted_at) {
+            // 既存CBを更新
+            await tx.collectiveBurial.update({
+              where: { id: existingCB.id },
+              data: {
+                burial_capacity: input.collectiveBurial.burialCapacity,
+                validity_period_years: input.collectiveBurial.validityPeriodYears,
+                billing_amount: input.collectiveBurial.billingAmount ?? existingCB.billing_amount,
+                notes:
+                  input.collectiveBurial.notes !== undefined
+                    ? input.collectiveBurial.notes || null
+                    : existingCB.notes,
+              },
+            });
+          } else {
+            // 新規CB作成（論理削除済みの場合も復活）
+            const cbCapacity = input.collectiveBurial.burialCapacity;
+            const cbPeriod = input.collectiveBurial.validityPeriodYears;
+            if (!cbCapacity || !cbPeriod) {
+              throw new ValidationError(
+                '新規合祀設定には burialCapacity と validityPeriodYears が必須です'
+              );
+            }
+
+            if (existingCB?.deleted_at) {
+              await tx.collectiveBurial.update({
+                where: { id: existingCB.id },
+                data: {
+                  burial_capacity: cbCapacity,
+                  validity_period_years: cbPeriod,
+                  billing_amount: input.collectiveBurial.billingAmount ?? null,
+                  notes: input.collectiveBurial.notes || null,
+                  deleted_at: null,
+                },
+              });
+            } else {
+              await tx.collectiveBurial.create({
+                data: {
+                  contract_plot_id: id as string,
+                  burial_capacity: cbCapacity,
+                  validity_period_years: cbPeriod,
+                  billing_amount: input.collectiveBurial.billingAmount ?? null,
+                  notes: input.collectiveBurial.notes || null,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      // 10. 埋葬者の全置換（送信された配列で既存を置き換え）
+      if (input.buriedPersons !== undefined) {
+        // 既存の埋葬者を取得
+        const existingBuriedPersons = await tx.buriedPerson.findMany({
+          where: { contract_plot_id: id, deleted_at: null },
+        });
+        const existingIds = existingBuriedPersons.map((bp) => bp.id);
+        const inputIds = input.buriedPersons.filter((bp) => bp.id).map((bp) => bp.id as string);
+
+        // 送信されなかったIDは論理削除
+        const idsToDelete = existingIds.filter((eid) => !inputIds.includes(eid));
+        if (idsToDelete.length > 0) {
+          await tx.buriedPerson.updateMany({
+            where: { id: { in: idsToDelete } },
+            data: { deleted_at: new Date() },
+          });
+        }
+
+        // 各レコードを作成/更新
+        for (const bp of input.buriedPersons) {
+          const bpData = {
+            name: bp.name,
+            name_kana: bp.nameKana || null,
+            relationship: bp.relationship || null,
+            birth_date: bp.birthDate ? new Date(bp.birthDate) : null,
+            death_date: bp.deathDate ? new Date(bp.deathDate) : null,
+            age: bp.age ?? null,
+            gender: bp.gender || null,
+            burial_date: bp.burialDate ? new Date(bp.burialDate) : null,
+            posthumous_name: bp.posthumousName || null,
+            report_date: bp.reportDate ? new Date(bp.reportDate) : null,
+            religion: bp.religion || null,
+            notes: bp.notes || null,
+          };
+
+          if (bp.id && existingIds.includes(bp.id)) {
+            // 既存レコードを更新
+            await tx.buriedPerson.update({
+              where: { id: bp.id },
+              data: bpData,
+            });
+          } else {
+            // 新規作成
+            await tx.buriedPerson.create({
+              data: {
+                contract_plot_id: id as string,
+                ...bpData,
+              },
+            });
+          }
+        }
+
+        // 合祀自動チェック: burial_capacityが設定されている場合、埋葬数を同期
+        const contractPlotForCB = await tx.contractPlot.findUnique({
+          where: { id },
+          select: { burial_capacity: true },
+        });
+        if (contractPlotForCB?.burial_capacity) {
+          await updateCollectiveBurialCount(tx, id as string);
+        }
+      }
+
+      // 11. 契約面積が変更された場合、物理区画のステータス更新
       if (
         input.contractPlot?.contractAreaSqm !== undefined &&
         input.contractPlot.contractAreaSqm !== oldContractArea
@@ -530,6 +673,7 @@ export const updatePlot = async (
         },
         usageFee: true,
         managementFee: true,
+        collectiveBurial: true,
       },
     });
 
@@ -593,6 +737,21 @@ export const updatePlot = async (
               address: role.customer.address,
             },
           })) || [],
+
+        collectiveBurial:
+          updatedContractPlot?.collectiveBurial && !updatedContractPlot.collectiveBurial.deleted_at
+            ? {
+                id: updatedContractPlot.collectiveBurial.id,
+                burialCapacity: updatedContractPlot.collectiveBurial.burial_capacity,
+                currentBurialCount: updatedContractPlot.collectiveBurial.current_burial_count,
+                capacityReachedDate: updatedContractPlot.collectiveBurial.capacity_reached_date,
+                validityPeriodYears: updatedContractPlot.collectiveBurial.validity_period_years,
+                billingScheduledDate: updatedContractPlot.collectiveBurial.billing_scheduled_date,
+                billingStatus: updatedContractPlot.collectiveBurial.billing_status,
+                billingAmount: updatedContractPlot.collectiveBurial.billing_amount,
+                notes: updatedContractPlot.collectiveBurial.notes,
+              }
+            : null,
 
         updatedAt: updatedContractPlot?.updated_at,
       },

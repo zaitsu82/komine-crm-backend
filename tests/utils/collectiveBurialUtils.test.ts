@@ -66,7 +66,7 @@ describe('collectiveBurialUtils', () => {
 
       expect(result).toBeNull();
       expect(mockPrisma.collectiveBurial.findUnique).toHaveBeenCalledWith({
-        where: { plot_id: 'plot-1' },
+        where: { contract_plot_id: 'plot-1' },
       });
       expect(mockPrisma.buriedPerson.count).not.toHaveBeenCalled();
     });
@@ -86,7 +86,7 @@ describe('collectiveBurialUtils', () => {
     it('should update count without reaching capacity', async () => {
       const mockCollectiveBurial = {
         id: 'cb-1',
-        plot_id: 'plot-1',
+        contract_plot_id: 'plot-1',
         burial_capacity: 10,
         current_burial_count: 5,
         capacity_reached_date: null,
@@ -105,7 +105,7 @@ describe('collectiveBurialUtils', () => {
 
       expect(mockPrisma.buriedPerson.count).toHaveBeenCalledWith({
         where: {
-          plot_id: 'plot-1',
+          contract_plot_id: 'plot-1',
           deleted_at: null,
         },
       });
@@ -124,7 +124,7 @@ describe('collectiveBurialUtils', () => {
     it('should set capacity_reached_date when reaching capacity for first time', async () => {
       const mockCollectiveBurial = {
         id: 'cb-1',
-        plot_id: 'plot-1',
+        contract_plot_id: 'plot-1',
         burial_capacity: 10,
         current_burial_count: 9,
         capacity_reached_date: null, // 未到達
@@ -156,7 +156,7 @@ describe('collectiveBurialUtils', () => {
     it('should not update dates if already reached capacity', async () => {
       const mockCollectiveBurial = {
         id: 'cb-1',
-        plot_id: 'plot-1',
+        contract_plot_id: 'plot-1',
         burial_capacity: 10,
         current_burial_count: 10,
         capacity_reached_date: new Date('2024-01-01'), // 既に到達済み
@@ -181,7 +181,7 @@ describe('collectiveBurialUtils', () => {
     it('should reset dates when falling below capacity', async () => {
       const mockCollectiveBurial = {
         id: 'cb-1',
-        plot_id: 'plot-1',
+        contract_plot_id: 'plot-1',
         burial_capacity: 10,
         current_burial_count: 10,
         capacity_reached_date: new Date('2024-01-01'), // 到達済み
@@ -259,7 +259,7 @@ describe('collectiveBurialUtils', () => {
       const mockTargets = [
         {
           id: 'cb-1',
-          plot_id: 'plot-1',
+          contract_plot_id: 'plot-1',
           billing_status: 'pending',
           billing_scheduled_date: new Date('2024-01-01'),
           Plot: {
