@@ -353,6 +353,7 @@ export const updatePlotSchema = z.object({
   billingInfo: contractPlotBillingInfoSchema,
   usageFee: contractPlotUsageFeeSchema,
   managementFee: contractPlotManagementFeeSchema,
+  buriedPersons: z.array(buriedPersonSchema).optional(),
   collectiveBurial: collectiveBurialSchema,
 });
 
