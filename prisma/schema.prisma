@@ -154,6 +154,10 @@ model ContractPlot {
   contract_area_sqm    Decimal @db.Decimal(5, 2) // 契約された面積（例: 3.6, 1.8, 0.9）
   location_description String? @db.VarChar(200) // 物理区画内のどの位置か（例: 左半分、右側）
 
+  // 合祀設定（設定されている場合、この区画は合祀対象）
+  burial_capacity       Int? // 埋葬上限人数（nullの場合は合祀対象外）
+  validity_period_years Int? // 有効期間（年単位）
+
   // 販売契約情報
   contract_date      DateTime       @db.Date // 契約日
   price              Int // 販売価格（円単位）

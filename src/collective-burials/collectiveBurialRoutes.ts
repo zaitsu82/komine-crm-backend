@@ -44,6 +44,8 @@ router.get(
 );
 
 // 作成（admin）
+// @deprecated 合祀レコードは区画登録時にburial_capacity設定で自動管理される。
+// 将来的に廃止予定。区画API（POST/PUT /plots）経由で合祀設定を行うこと。
 router.post(
   '/',
   authenticate,
@@ -68,6 +70,8 @@ router.put(
 );
 
 // 埋葬人数同期（manager以上）
+// @deprecated 埋葬者CRUD（PUT /plots/:id）時に自動同期されるようになった。
+// 将来的に廃止予定。
 router.post(
   '/:id/sync-count',
   authenticate,

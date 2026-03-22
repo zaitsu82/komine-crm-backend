@@ -133,6 +133,9 @@ export const createPlot = async (
           physical_plot_id: physicalPlot.id,
           contract_area_sqm: new Prisma.Decimal(input.contractPlot.contractAreaSqm),
           location_description: input.contractPlot.locationDescription || null,
+          // 合祀設定
+          burial_capacity: input.collectiveBurial?.burialCapacity ?? null,
+          validity_period_years: input.collectiveBurial?.validityPeriodYears ?? null,
           // 販売契約情報（ContractPlotに統合済み）
           contract_date: new Date(input.saleContract.contractDate),
           price: input.saleContract.price,
@@ -153,6 +156,19 @@ export const createPlot = async (
           notes: input.saleContract.notes || null,
         },
       });
+
+      // 6.5. 合祀情報の作成（合祀設定がある場合）
+      if (input.collectiveBurial) {
+        await tx.collectiveBurial.create({
+          data: {
+            contract_plot_id: contractPlot.id,
+            burial_capacity: input.collectiveBurial.burialCapacity,
+            validity_period_years: input.collectiveBurial.validityPeriodYears,
+            billing_amount: input.collectiveBurial.billingAmount ?? null,
+            notes: input.collectiveBurial.notes || null,
+          },
+        });
+      }
 
       // 7. 契約における顧客役割の作成
       // 新方式: roles配列が指定されている場合
@@ -248,6 +264,7 @@ export const createPlot = async (
         },
         usageFee: true,
         managementFee: true,
+        collectiveBurial: true,
       },
     });
 
@@ -308,6 +325,20 @@ export const createPlot = async (
             address: role.customer.address,
           },
         })),
+
+        collectiveBurial: createdContractPlot?.collectiveBurial
+          ? {
+              id: createdContractPlot.collectiveBurial.id,
+              burialCapacity: createdContractPlot.collectiveBurial.burial_capacity,
+              currentBurialCount: createdContractPlot.collectiveBurial.current_burial_count,
+              capacityReachedDate: createdContractPlot.collectiveBurial.capacity_reached_date,
+              validityPeriodYears: createdContractPlot.collectiveBurial.validity_period_years,
+              billingScheduledDate: createdContractPlot.collectiveBurial.billing_scheduled_date,
+              billingStatus: createdContractPlot.collectiveBurial.billing_status,
+              billingAmount: createdContractPlot.collectiveBurial.billing_amount,
+              notes: createdContractPlot.collectiveBurial.notes,
+            }
+          : null,
 
         createdAt: createdContractPlot?.created_at,
         updatedAt: createdContractPlot?.updated_at,
