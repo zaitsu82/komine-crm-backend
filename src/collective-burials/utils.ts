@@ -27,7 +27,7 @@ export const updateCollectiveBurialCount = async (
 ): Promise<any | null> => {
   // 1. 合祀情報を取得
   const collectiveBurial = await prisma.collectiveBurial.findUnique({
-    where: { plot_id: plotId },
+    where: { contract_plot_id: plotId },
   });
 
   if (!collectiveBurial || collectiveBurial.deleted_at) {
@@ -37,7 +37,7 @@ export const updateCollectiveBurialCount = async (
   // 2. 現在の埋葬人数を計算（論理削除されていないBuriedPersonのみカウント）
   const currentCount = await prisma.buriedPerson.count({
     where: {
-      plot_id: plotId,
+      contract_plot_id: plotId,
       deleted_at: null,
     },
   });

@@ -314,6 +314,19 @@ const contractPlotManagementFeeSchema = z
   .or(z.null());
 
 /**
+ * 合祀設定のバリデーションスキーマ
+ */
+const collectiveBurialSchema = z
+  .object({
+    burialCapacity: z.number().int().positive('埋葬上限は1以上で入力してください'),
+    validityPeriodYears: z.number().int().positive('有効期間は1年以上で入力してください'),
+    billingAmount: z.number().nonnegative().optional().or(z.literal(null)),
+    notes: z.string().max(1000).optional().or(z.literal('')).or(z.literal(null)),
+  })
+  .optional()
+  .or(z.literal(null));
+
+/**
  * ContractPlot作成リクエストのバリデーションスキーマ
  */
 export const createPlotSchema = z.object({
@@ -325,6 +338,7 @@ export const createPlotSchema = z.object({
   billingInfo: contractPlotBillingInfoSchema,
   usageFee: contractPlotUsageFeeSchema,
   managementFee: contractPlotManagementFeeSchema,
+  collectiveBurial: collectiveBurialSchema,
 });
 
 /**
@@ -339,6 +353,7 @@ export const updatePlotSchema = z.object({
   billingInfo: contractPlotBillingInfoSchema,
   usageFee: contractPlotUsageFeeSchema,
   managementFee: contractPlotManagementFeeSchema,
+  collectiveBurial: collectiveBurialSchema,
 });
 
 /**
