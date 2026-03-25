@@ -208,6 +208,7 @@ const saleContractSchema = z.object({
   acceptanceNumber: z.string().max(50).optional().or(z.literal('')),
   acceptanceDate: dateSchema.optional().or(z.literal('')).or(z.null()),
   staffInCharge: z.string().max(100).optional().or(z.literal('')),
+  agentName: z.string().max(100).optional().or(z.literal('')),
   permitDate: dateSchema.optional().or(z.literal('')).or(z.null()),
   startDate: dateSchema.optional().or(z.literal('')).or(z.null()),
   uncollectedAmount: z
