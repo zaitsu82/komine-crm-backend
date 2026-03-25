@@ -77,6 +77,17 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
             },
           },
         },
+        {
+          buriedPersons: {
+            some: {
+              deleted_at: null,
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { name_kana: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
       ];
     }
 
@@ -182,8 +193,16 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
                   name_kana: true,
                   phone_number: true,
                   address: true,
+                  notes: true,
                 },
               },
+            },
+          },
+          buriedPersons: {
+            where: { deleted_at: null },
+            select: {
+              name: true,
+              name_kana: true,
             },
           },
           managementFee: true,
@@ -244,6 +263,17 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
               name: role.customer.name,
             },
           })) || [],
+
+        // 備考
+        contractNotes: contractPlot.notes || null,
+        customerNotes: primaryCustomer?.notes || null,
+
+        // 埋葬者名（一覧表示用）
+        buriedPersonNames:
+          contractPlot.buriedPersons?.map((bp: { name: string }) => bp.name).filter(Boolean) || [],
+
+        // 取扱（販売代理店）
+        agentName: contractPlot.agent_name || null,
 
         // 料金情報
         nextBillingDate,

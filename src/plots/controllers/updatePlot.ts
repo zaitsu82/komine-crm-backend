@@ -125,6 +125,9 @@ export const updatePlot = async (
         if (input.saleContract.staffInCharge !== undefined) {
           updateData.staff_in_charge = input.saleContract.staffInCharge;
         }
+        if (input.saleContract.agentName !== undefined) {
+          updateData.agent_name = input.saleContract.agentName;
+        }
         if (input.saleContract.permitDate !== undefined) {
           updateData.permit_date = input.saleContract.permitDate
             ? new Date(input.saleContract.permitDate)
