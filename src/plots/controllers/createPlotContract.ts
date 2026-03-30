@@ -116,6 +116,7 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
             ? new Date(input.saleContract.reservationDate)
             : null,
           acceptance_number: input.saleContract.acceptanceNumber || null,
+          permit_number: input.saleContract.permitNumber || null,
           permit_date: input.saleContract.permitDate
             ? new Date(input.saleContract.permitDate)
             : null,
@@ -236,6 +237,7 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
         reservationDate: createdContractPlot?.reservation_date,
         acceptanceNumber: createdContractPlot?.acceptance_number,
         permitDate: createdContractPlot?.permit_date,
+        permitNumber: createdContractPlot?.permit_number,
         startDate: createdContractPlot?.start_date,
         notes: createdContractPlot?.notes,
 
