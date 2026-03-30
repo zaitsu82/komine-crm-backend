@@ -149,6 +149,7 @@ export const createPlot = async (
             : null,
           staff_in_charge: input.saleContract.staffInCharge || null,
           agent_name: input.saleContract.agentName || null,
+          permit_number: input.saleContract.permitNumber || null,
           permit_date: input.saleContract.permitDate
             ? new Date(input.saleContract.permitDate)
             : null,
@@ -287,6 +288,7 @@ export const createPlot = async (
         reservationDate: createdContractPlot?.reservation_date,
         acceptanceNumber: createdContractPlot?.acceptance_number,
         permitDate: createdContractPlot?.permit_date,
+        permitNumber: createdContractPlot?.permit_number,
         startDate: createdContractPlot?.start_date,
         uncollectedAmount: createdContractPlot?.uncollected_amount,
         agentName: createdContractPlot?.agent_name,

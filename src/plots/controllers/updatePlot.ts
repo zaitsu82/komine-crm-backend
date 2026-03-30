@@ -128,6 +128,9 @@ export const updatePlot = async (
         if (input.saleContract.agentName !== undefined) {
           updateData.agent_name = input.saleContract.agentName;
         }
+        if (input.saleContract.permitNumber !== undefined) {
+          updateData.permit_number = input.saleContract.permitNumber || null;
+        }
         if (input.saleContract.permitDate !== undefined) {
           updateData.permit_date = input.saleContract.permitDate
             ? new Date(input.saleContract.permitDate)
@@ -700,6 +703,7 @@ export const updatePlot = async (
         reservationDate: updatedContractPlot?.reservation_date,
         acceptanceNumber: updatedContractPlot?.acceptance_number,
         permitDate: updatedContractPlot?.permit_date,
+        permitNumber: updatedContractPlot?.permit_number,
         startDate: updatedContractPlot?.start_date,
         uncollectedAmount: updatedContractPlot?.uncollected_amount,
         notes: updatedContractPlot?.notes,

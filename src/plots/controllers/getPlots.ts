@@ -275,6 +275,9 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
         // 取扱（販売代理店）
         agentName: contractPlot.agent_name || null,
 
+        // 許可番号
+        permitNumber: contractPlot.permit_number || null,
+
         // 料金情報
         nextBillingDate,
         managementFee: contractPlot.managementFee?.management_fee || null,

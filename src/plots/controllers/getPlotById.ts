@@ -102,6 +102,7 @@ export const getPlotById = async (
       staffInCharge: contractPlot.staff_in_charge,
       agentName: contractPlot.agent_name,
       permitDate: contractPlot.permit_date,
+      permitNumber: contractPlot.permit_number,
       startDate: contractPlot.start_date,
       uncollectedAmount: contractPlot.uncollected_amount,
       contractNotes: contractPlot.notes,
