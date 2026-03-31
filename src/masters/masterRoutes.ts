@@ -8,6 +8,7 @@ import {
   getAccountTypeMaster,
   getRecipientTypeMaster,
   getConstructionTypeMaster,
+  getSectionNameMaster,
   getAllMasters,
   createMaster,
   updateMaster,
@@ -89,6 +90,14 @@ router.get(
   authenticate,
   checkApiPermission(),
   withLogging('Masters', 'getConstructionTypeMaster', getConstructionTypeMaster)
+);
+
+// 区画名マスタ
+router.get(
+  '/section-name',
+  authenticate,
+  checkApiPermission(),
+  withLogging('Masters', 'getSectionNameMaster', getSectionNameMaster)
 );
 
 // マスタデータ CRUD（汎用）

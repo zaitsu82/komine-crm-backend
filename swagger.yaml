@@ -1303,6 +1303,61 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/masters/section-name:
+    get:
+      tags:
+        - Masters
+      summary: 区画名マスタ一覧取得
+      description: 有効な区画名マスタデータを表示順で取得
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 区画名マスタ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SectionNameMaster"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/masters/all:
+    get:
+      tags:
+        - Masters
+      summary: 全マスタデータ一括取得
+      description: 全マスタテーブルのデータを一括取得
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 全マスタデータ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      sectionName:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/SectionNameMaster"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1312,6 +1367,34 @@ components:
       description: Supabaseから発行されたJWTトークンを使用
 
   schemas:
+    # ==================== Master スキーマ ====================
+
+    SectionNameMaster:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: "1-A"
+        name:
+          type: string
+          example: "A"
+        period:
+          type: string
+          example: "第1期"
+        description:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          nullable: true
+          example: 1
+        isActive:
+          type: boolean
+          example: true
+
     # ==================== Document スキーマ ====================
 
     DocumentType:

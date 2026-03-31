@@ -83,6 +83,27 @@ const mockConstructionTypeData = [
   { id: 2, code: 'repair', name: '修繕', description: null, sort_order: 2, is_active: true },
 ];
 
+const mockSectionNameData = [
+  {
+    id: 1,
+    code: '1-A',
+    name: 'A',
+    period: '第1期',
+    description: null,
+    sort_order: 1,
+    is_active: true,
+  },
+  {
+    id: 2,
+    code: '2-1',
+    name: '1',
+    period: '第2期',
+    description: null,
+    sort_order: 18,
+    is_active: true,
+  },
+];
+
 const mockUpdateTypeData = [
   { id: 1, code: 'renewal', name: '更新', description: null, sort_order: 1, is_active: true },
   { id: 2, code: 'change', name: '変更', description: null, sort_order: 2, is_active: true },
@@ -114,6 +135,9 @@ const mockPrisma: any = {
   constructionTypeMaster: {
     findMany: jest.fn(),
   },
+  sectionNameMaster: {
+    findMany: jest.fn(),
+  },
 };
 
 // PrismaClientをモック化
@@ -131,6 +155,7 @@ import {
   getAccountTypeMaster,
   getRecipientTypeMaster,
   getConstructionTypeMaster,
+  getSectionNameMaster,
   getAllMasters,
 } from '../../src/masters/masterController';
 
@@ -555,6 +580,54 @@ describe('Master Controller', () => {
     });
   });
 
+  describe('getSectionNameMaster', () => {
+    it('区画名マスタデータを正しく取得・フォーマットすること', async () => {
+      mockPrisma.sectionNameMaster.findMany.mockResolvedValue(mockSectionNameData);
+
+      await getSectionNameMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: [
+          {
+            id: 1,
+            code: '1-A',
+            name: 'A',
+            period: '第1期',
+            description: null,
+            sortOrder: 1,
+            isActive: true,
+          },
+          {
+            id: 2,
+            code: '2-1',
+            name: '1',
+            period: '第2期',
+            description: null,
+            sortOrder: 18,
+            isActive: true,
+          },
+        ],
+      });
+    });
+
+    it('エラーが発生した場合、500エラーを返すこと', async () => {
+      mockPrisma.sectionNameMaster.findMany.mockRejectedValue(new Error('Database error'));
+
+      await getSectionNameMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '区画名マスタの取得に失敗しました',
+        },
+      });
+    });
+  });
+
   describe('getAllMasters', () => {
     it('全マスタデータを一括取得できること', async () => {
       // すべてのマスターテーブルのモックを設定
@@ -566,6 +639,7 @@ describe('Master Controller', () => {
       mockPrisma.accountTypeMaster.findMany.mockResolvedValue(mockAccountTypeData);
       mockPrisma.recipientTypeMaster.findMany.mockResolvedValue(mockRecipientTypeData);
       mockPrisma.constructionTypeMaster.findMany.mockResolvedValue(mockConstructionTypeData);
+      mockPrisma.sectionNameMaster.findMany.mockResolvedValue(mockSectionNameData);
 
       await getAllMasters(mockRequest as Request, mockResponse as Response);
 
@@ -582,9 +656,12 @@ describe('Master Controller', () => {
       expect(jsonCall.data.accountType).toHaveLength(2);
       expect(jsonCall.data.recipientType).toHaveLength(2);
       expect(jsonCall.data.constructionType).toHaveLength(2);
+      expect(jsonCall.data.sectionName).toHaveLength(2);
 
       // 特殊フィールドのテスト（taxRate）
       expect(jsonCall.data.taxType[0].taxRate).toBe('10');
+      // 特殊フィールドのテスト（period）
+      expect(jsonCall.data.sectionName[0].period).toBe('第1期');
     });
 
     it('エラーが発生した場合、500エラーを返すこと', async () => {
