@@ -675,6 +675,21 @@ model ConstructionTypeMaster {
   @@map("construction_type_master")
 }
 
+// 区画名マスタ
+model SectionNameMaster {
+  id          Int      @id @default(autoincrement()) // ID
+  code        String   @unique @db.VarChar(20) // 区画コード（例: "1-A", "4-RURIAN_TERRACE"）
+  name        String   @db.VarChar(50) // 表示名（例: "A", "るり庵テラス"）
+  period      String   @db.VarChar(20) // 期（例: "第1期", "第2期"）
+  description String?  @db.VarChar(200) // 説明
+  sort_order  Int? // 表示順序
+  is_active   Boolean  @default(true) // 有効フラグ
+  created_at  DateTime @default(now()) // 作成日時
+  updated_at  DateTime @updatedAt // 更新日時
+
+  @@map("section_name_master")
+}
+
 // =============================================================================
 // 書類管理
 // =============================================================================

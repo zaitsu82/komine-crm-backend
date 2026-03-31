@@ -12,6 +12,8 @@ import {
 } from '../../validations/inventoryValidation';
 
 // 期の定義
+// NOTE: これらはPhysicalPlot.area_nameの値に対応。区画名マスタ（SectionNameMaster）の
+// periodフィールド（"第1期"等）とは形式が異なる。将来的にマスタ参照への置換を検討。
 export const PERIODS: PlotPeriod[] = ['1期', '2期', '3期', '4期'];
 
 // Prisma Decimalまたは数値を数値に変換するヘルパー

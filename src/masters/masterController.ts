@@ -23,6 +23,10 @@ interface TaxTypeMasterData extends MasterData {
   taxRate?: string | null;
 }
 
+interface SectionNameMasterData extends MasterData {
+  period: string;
+}
+
 /**
  * 墓地タイプマスタ取得
  * GET /api/v1/masters/cemetery-type
@@ -313,6 +317,43 @@ export const getConstructionTypeMaster = async (_req: Request, res: Response) =>
 };
 
 /**
+ * 区画名マスタ取得
+ * GET /api/v1/masters/section-name
+ */
+export const getSectionNameMaster = async (_req: Request, res: Response) => {
+  try {
+    const data = await prisma.sectionNameMaster.findMany({
+      where: { is_active: true },
+      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+    });
+
+    const formatted: SectionNameMasterData[] = data.map((item) => ({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      period: item.period,
+      description: item.description,
+      sortOrder: item.sort_order,
+      isActive: item.is_active,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+    });
+  } catch (error) {
+    console.error('Error fetching section name master:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: '区画名マスタの取得に失敗しました',
+      },
+    });
+  }
+};
+
+/**
  * マスタタイプからPrismaモデルデリゲートを取得
  */
 const getMasterDelegate = (masterType: MasterType) => {
@@ -325,6 +366,7 @@ const getMasterDelegate = (masterType: MasterType) => {
     'account-type': prisma.accountTypeMaster,
     'recipient-type': prisma.recipientTypeMaster,
     'construction-type': prisma.constructionTypeMaster,
+    'section-name': prisma.sectionNameMaster,
   };
   return delegateMap[masterType];
 };
@@ -338,6 +380,7 @@ const masterTypeLabels: Record<MasterType, string> = {
   'account-type': '口座タイプ',
   'recipient-type': '受取人タイプ',
   'construction-type': '工事タイプ',
+  'section-name': '区画名',
 };
 
 /**
@@ -377,7 +420,7 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
 
   try {
     const delegate = getMasterDelegate(masterType);
-    const { taxRate, sortOrder, isActive, ...rest } = parsed.data;
+    const { taxRate, sortOrder, isActive, period, ...rest } = parsed.data;
 
     const createData: any = {
       ...rest,
@@ -387,6 +430,9 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
 
     if (masterType === 'tax-type' && taxRate !== undefined) {
       createData.tax_rate = taxRate;
+    }
+    if (masterType === 'section-name' && period !== undefined) {
+      createData.period = period;
     }
 
     const created = await delegate.create({ data: createData });
@@ -402,6 +448,9 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
     };
     if (masterType === 'tax-type' && 'tax_rate' in created) {
       formatted.taxRate = created.tax_rate?.toString() || null;
+    }
+    if (masterType === 'section-name' && 'period' in created) {
+      formatted.period = created.period;
     }
 
     res.status(201).json({
@@ -486,13 +535,16 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
 
   try {
     const delegate = getMasterDelegate(masterType);
-    const { taxRate, sortOrder, isActive, ...rest } = parsed.data;
+    const { taxRate, sortOrder, isActive, period, ...rest } = parsed.data;
 
     const updateData: any = { ...rest };
     if (sortOrder !== undefined) updateData.sort_order = sortOrder;
     if (isActive !== undefined) updateData.is_active = isActive;
     if (masterType === 'tax-type' && taxRate !== undefined) {
       updateData.tax_rate = taxRate;
+    }
+    if (masterType === 'section-name' && period !== undefined) {
+      updateData.period = period;
     }
 
     const updated = await delegate.update({
@@ -511,6 +563,9 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
     };
     if (masterType === 'tax-type' && 'tax_rate' in updated) {
       formatted.taxRate = updated.tax_rate?.toString() || null;
+    }
+    if (masterType === 'section-name' && 'period' in updated) {
+      formatted.period = updated.period;
     }
 
     res.status(200).json({
@@ -640,6 +695,7 @@ export const getAllMasters = async (_req: Request, res: Response) => {
       accountType,
       recipientType,
       constructionType,
+      sectionName,
     ] = await Promise.all([
       prisma.cemeteryTypeMaster.findMany({
         where: { is_active: true },
@@ -670,6 +726,10 @@ export const getAllMasters = async (_req: Request, res: Response) => {
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.constructionTypeMaster.findMany({
+        where: { is_active: true },
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      }),
+      prisma.sectionNameMaster.findMany({
         where: { is_active: true },
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
@@ -739,6 +799,15 @@ export const getAllMasters = async (_req: Request, res: Response) => {
           id: item.id,
           code: item.code,
           name: item.name,
+          description: item.description,
+          sortOrder: item.sort_order,
+          isActive: item.is_active,
+        })),
+        sectionName: sectionName.map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+          period: item.period,
           description: item.description,
           sortOrder: item.sort_order,
           isActive: item.is_active,
