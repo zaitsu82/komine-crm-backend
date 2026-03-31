@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const createMasterSchema = z.object({
-  code: z.string().min(1, 'コードは必須です').max(20, 'コードは20文字以内で入力してください'),
+  code: z.string().max(20, 'コードは20文字以内で入力してください').optional(),
   name: z.string().min(1, '名称は必須です').max(50, '名称は50文字以内で入力してください'),
   description: z.string().max(200, '説明は200文字以内で入力してください').nullable().optional(),
   sortOrder: z.number().int().nullable().optional(),

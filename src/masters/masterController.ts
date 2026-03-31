@@ -422,6 +422,11 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
     const delegate = getMasterDelegate(masterType);
     const { taxRate, sortOrder, isActive, period, ...rest } = parsed.data;
 
+    // Auto-generate code from name if not provided
+    if (!rest.code) {
+      rest.code = rest.name.substring(0, 20);
+    }
+
     const createData: any = {
       ...rest,
       sort_order: sortOrder ?? null,
