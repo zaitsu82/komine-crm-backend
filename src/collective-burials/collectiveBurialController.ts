@@ -120,6 +120,7 @@ export const getCollectiveBurialList = async (
         contractPlotId: item.contract_plot_id,
         plotNumber: item.contractPlot.physicalPlot.plot_number,
         areaName: item.contractPlot.physicalPlot.area_name,
+        contractDate: item.contractPlot.contract_date.toISOString().split('T')[0],
         applicantName: applicant?.name || null,
         applicantNameKana: applicant?.name_kana || null,
         burialCapacity: item.burial_capacity,
