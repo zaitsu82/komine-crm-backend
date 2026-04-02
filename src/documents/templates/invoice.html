@@ -199,10 +199,72 @@
       border: 1px dashed #ccc;
       margin-top: 10px;
     }
+
+    /* テキストの種（フロント textStylePreset と同期） */
+    body.doc-preset-mincho .invoice-container {
+      font-family: 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', 'MS Mincho', serif;
+    }
+
+    body.doc-preset-mincho .header h1 {
+      font-size: 26px;
+      letter-spacing: 12px;
+    }
+
+    body.doc-preset-mincho .customer-name {
+      font-size: 17px;
+    }
+
+    body.doc-preset-gothic_large .invoice-container {
+      font-size: 13px;
+    }
+
+    body.doc-preset-gothic_large .header h1 {
+      font-size: 32px;
+      letter-spacing: 10px;
+    }
+
+    body.doc-preset-gothic_large .customer-name {
+      font-size: 20px;
+    }
+
+    body.doc-preset-gothic_large .total-amount {
+      font-size: 28px;
+    }
+
+    body.doc-preset-gothic_large .invoice-meta td,
+    body.doc-preset-gothic_large .items-table td,
+    body.doc-preset-gothic_large .items-table th {
+      font-size: 12px;
+    }
+
+    body.doc-preset-compact .invoice-container {
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    body.doc-preset-compact .header h1 {
+      font-size: 22px;
+      letter-spacing: 4px;
+    }
+
+    body.doc-preset-compact .customer-name {
+      font-size: 16px;
+    }
+
+    body.doc-preset-compact .total-amount {
+      font-size: 20px;
+    }
+
+    body.doc-preset-compact .invoice-meta td,
+    body.doc-preset-compact .items-table td,
+    body.doc-preset-compact .items-table th {
+      font-size: 10px;
+      padding: 6px 5px;
+    }
   </style>
 </head>
 
-<body>
+<body{{textStyleBodyAttr}}>
   <div class="invoice-container">
     <div class="header">
       <h1>請 求 書</h1>
