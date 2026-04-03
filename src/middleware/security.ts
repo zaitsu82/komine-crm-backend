@@ -4,6 +4,12 @@ import helmet from 'helmet';
 import hpp from 'hpp';
 import { CorsOptions } from 'cors';
 
+// 開発環境で許可するオリジンパターン
+// - localhost/127.0.0.1 の任意のポート
+// - ローカルネットワーク (192.168.x.x, 10.x.x.x)
+const DEV_ORIGIN_PATTERN =
+  /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3})(:\d+)?$/;
+
 /**
  * CORS設定
  * 環境変数からオリジンを読み込み、厳格なCORS制御を実装
@@ -34,11 +40,16 @@ export const getCorsOptions = (): CorsOptions => {
 
       // 許可リストに含まれているか確認
       if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn(`CORS blocked: ${origin} is not in the allowed origins list`);
-        callback(new Error('CORS policy violation: Origin not allowed'));
+        return callback(null, true);
       }
+
+      // 開発環境: localhost/127.0.0.1 を許可（ブラウザの表記ゆれ対策）
+      if (process.env['NODE_ENV'] === 'development' && DEV_ORIGIN_PATTERN.test(origin)) {
+        return callback(null, true);
+      }
+
+      console.warn(`CORS blocked: ${origin} is not in the allowed origins list`);
+      callback(new Error('CORS policy violation: Origin not allowed'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
