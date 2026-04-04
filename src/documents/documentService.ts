@@ -15,6 +15,13 @@ import * as path from 'path';
 // テンプレートタイプ
 export type TemplateType = 'invoice' | 'postcard';
 
+const PDF_TEXT_STYLE_PRESETS = new Set(['default', 'mincho', 'gothic_large', 'compact']);
+
+function normalizePdfTextStylePreset(raw: unknown): string {
+  const s = String(raw ?? 'default');
+  return PDF_TEXT_STYLE_PRESETS.has(s) ? s : 'default';
+}
+
 // テンプレートデータ型
 export interface InvoiceTemplateData {
   invoiceNumber: string;
@@ -57,8 +64,14 @@ function loadAndRenderTemplate(templateType: TemplateType, data: Record<string, 
 
   let html = fs.readFileSync(templatePath, 'utf-8');
 
+  const preset = normalizePdfTextStylePreset(data['textStylePreset']);
+  const dataForTemplate: Record<string, unknown> = {
+    ...data,
+    textStyleBodyAttr: preset === 'default' ? '' : ` class="doc-preset-${preset}"`,
+  };
+
   // プレースホルダーを置換
-  const flattenData = flattenObject(data);
+  const flattenData = flattenObject(dataForTemplate);
   for (const [key, value] of Object.entries(flattenData)) {
     const placeholder = new RegExp(`{{\\s*${escapeRegex(key)}\\s*}}`, 'g');
     html = html.replace(placeholder, String(value ?? ''));

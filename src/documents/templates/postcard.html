@@ -143,10 +143,60 @@
       writing-mode: vertical-rl;
       text-orientation: upright;
     }
+
+    /* テキストの種 */
+    body.doc-preset-mincho .postcard-container {
+      font-family: 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', 'MS Mincho', serif;
+    }
+
+    body.doc-preset-mincho .postal-code {
+      font-size: 15px;
+    }
+
+    body.doc-preset-mincho .recipient-name {
+      font-size: 17px;
+    }
+
+    body.doc-preset-gothic_large .postcard-container {
+      font-size: 13px;
+    }
+
+    body.doc-preset-gothic_large .postal-code {
+      font-size: 18px;
+    }
+
+    body.doc-preset-gothic_large .recipient-address {
+      font-size: 12px;
+    }
+
+    body.doc-preset-gothic_large .recipient-name {
+      font-size: 20px;
+    }
+
+    body.doc-preset-gothic_large .sender-name {
+      font-size: 12px;
+    }
+
+    body.doc-preset-compact .postcard-container {
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    body.doc-preset-compact .postal-code {
+      font-size: 14px;
+    }
+
+    body.doc-preset-compact .recipient-address {
+      font-size: 10px;
+    }
+
+    body.doc-preset-compact .recipient-name {
+      font-size: 16px;
+    }
   </style>
 </head>
 
-<body>
+<body{{textStyleBodyAttr}}>
   <!-- 宛先面 -->
   <div class="postcard-container address-side">
     <div class="postal-code-area">
