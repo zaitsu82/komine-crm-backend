@@ -107,6 +107,28 @@ export const createAuthRateLimiter = () => {
 };
 
 /**
+ * パスワードリセットリクエスト用のRate Limiting
+ * メール列挙攻撃対策として厳格に制限
+ */
+export const createForgotPasswordRateLimiter = () => {
+  const isTest = process.env['NODE_ENV'] === 'test' || process.env['E2E_TEST'] === 'true';
+  return rateLimit({
+    windowMs: 15 * 60 * 1000, // 15分
+    max: isTest ? 10000 : 3, // テスト環境では実質無制限
+    message: {
+      success: false,
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message: 'パスワードリセットの試行回数が多すぎます。15分後に再試行してください。',
+        details: [],
+      },
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+};
+
+/**
  * Helmet設定
  * セキュリティヘッダーを設定してXSS、クリックジャッキング等を防止
  */

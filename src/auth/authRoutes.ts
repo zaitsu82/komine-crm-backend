@@ -1,10 +1,23 @@
 import { Router } from 'express';
-import { login, logout, getCurrentUser, changePassword, refreshToken } from './authController';
+import {
+  login,
+  logout,
+  getCurrentUser,
+  changePassword,
+  refreshToken,
+  forgotPassword,
+  resetPassword,
+} from './authController';
 import { authenticate } from '../middleware/auth';
-import { createAuthRateLimiter } from '../middleware/security';
+import { createAuthRateLimiter, createForgotPasswordRateLimiter } from '../middleware/security';
 import { validate } from '../middleware/validation';
 import { withLogging } from '../middleware/controllerLogger';
-import { loginSchema, changePasswordSchema } from '../validations/authValidation';
+import {
+  loginSchema,
+  changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from '../validations/authValidation';
 
 const router = Router();
 
@@ -31,6 +44,22 @@ router.put(
   authenticate,
   validate({ body: changePasswordSchema }),
   withLogging('Auth', 'changePassword', changePassword)
+);
+
+// パスワードリセットメール送信（認証不要、厳格なRate Limiting: 3回/15分）
+router.post(
+  '/forgot-password',
+  createForgotPasswordRateLimiter(),
+  validate({ body: forgotPasswordSchema }),
+  withLogging('Auth', 'forgotPassword', forgotPassword)
+);
+
+// パスワードリセット実行（認証不要 — 招待・リセット両方で使用）
+router.post(
+  '/reset-password',
+  createAuthRateLimiter(),
+  validate({ body: resetPasswordSchema }),
+  withLogging('Auth', 'resetPassword', resetPassword)
 );
 
 export default router;
