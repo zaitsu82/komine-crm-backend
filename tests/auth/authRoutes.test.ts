@@ -51,6 +51,7 @@ jest.mock('../../src/middleware/validation', () => {
 // Securityミドルウェアのモック
 jest.mock('../../src/middleware/security', () => ({
   createAuthRateLimiter: jest.fn(() => (req: any, res: any, next: any) => next()),
+  createForgotPasswordRateLimiter: jest.fn(() => (req: any, res: any, next: any) => next()),
 }));
 
 // Supabaseモック

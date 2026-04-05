@@ -2,6 +2,16 @@ import { z } from 'zod';
 import { emailSchema } from '../middleware/validation';
 
 /**
+ * パスワード強度バリデーション（共通）
+ * 8文字以上、128文字以下、大文字・小文字・数字を含む
+ */
+export const passwordSchema = z
+  .string()
+  .min(8, 'パスワードは8文字以上である必要があります')
+  .max(128, 'パスワードは128文字以下である必要があります')
+  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'パスワードは大文字、小文字、数字を含む必要があります');
+
+/**
  * ログインリクエストのバリデーションスキーマ
  */
 export const loginSchema = z.object({
@@ -15,14 +25,28 @@ export const loginSchema = z.object({
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, '現在のパスワードは必須です'),
-    newPassword: z
-      .string()
-      .min(8, 'パスワードは8文字以上である必要があります')
-      .max(128, 'パスワードは128文字以下である必要があります')
-      .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-        'パスワードは大文字、小文字、数字を含む必要があります'
-      ),
+    newPassword: passwordSchema,
+    confirmPassword: z.string().min(1, 'パスワード確認は必須です'),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'パスワードが一致しません',
+    path: ['confirmPassword'],
+  });
+
+/**
+ * パスワードリセットリクエスト（メール送信）のバリデーションスキーマ
+ */
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+});
+
+/**
+ * パスワードリセット（新パスワード設定）のバリデーションスキーマ
+ */
+export const resetPasswordSchema = z
+  .object({
+    code: z.string().min(1, '認証コードは必須です'),
+    newPassword: passwordSchema,
     confirmPassword: z.string().min(1, 'パスワード確認は必須です'),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -35,3 +59,5 @@ export const changePasswordSchema = z
  */
 export type LoginRequest = z.infer<typeof loginSchema>;
 export type ChangePasswordRequest = z.infer<typeof changePasswordSchema>;
+export type ForgotPasswordRequest = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordRequest = z.infer<typeof resetPasswordSchema>;

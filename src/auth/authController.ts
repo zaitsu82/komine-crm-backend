@@ -513,3 +513,138 @@ export const changePassword = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * パスワードリセットメール送信
+ * POST /api/v1/auth/forgot-password
+ */
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Supabase認証サービスが利用できません',
+          details: [],
+        },
+      });
+    }
+
+    const { email } = req.body;
+
+    console.info(`[Auth] Password reset request: email=${email}`);
+
+    const frontendUrl = process.env['FRONTEND_URL'] || 'http://localhost:3000';
+    const redirectTo = `${frontendUrl}/reset-password`;
+
+    // Supabaseでパスワードリセットメール送信
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo,
+    });
+
+    if (error) {
+      // エラーが発生してもセキュリティ上同一レスポンスを返す
+      console.warn(`[Auth] Password reset email failed: email=${email}, error=${error.message}`);
+    } else {
+      console.info(`[Auth] Password reset email sent: email=${email}`);
+    }
+
+    // メールアドレスの存在有無に関わらず同一レスポンス（メール列挙攻撃対策）
+    return res.status(200).json({
+      success: true,
+      data: {
+        message: 'パスワードリセット用のメールを送信しました。メールをご確認ください。',
+      },
+    });
+  } catch (error) {
+    console.error('[Auth] Forgot password error:', error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'パスワードリセット処理中にエラーが発生しました',
+        details: [],
+      },
+    });
+  }
+};
+
+/**
+ * パスワードリセット（新パスワード設定）
+ * POST /api/v1/auth/reset-password
+ * 招待メールからの初回パスワード設定、パスワードリセット両方に対応
+ */
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Supabase認証サービスが利用できません',
+          details: [],
+        },
+      });
+    }
+
+    const { code, newPassword } = req.body;
+
+    console.info('[Auth] Password reset attempt via code');
+
+    // Supabaseのコードをセッションに交換してユーザーを特定
+    const { data: sessionData, error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code);
+
+    if (exchangeError || !sessionData?.user) {
+      console.warn(
+        `[Auth] Password reset failed: reason=invalid_code, error=${exchangeError?.message || 'no user returned'}`
+      );
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_TOKEN',
+          message: '認証コードが無効または期限切れです。再度パスワードリセットをお試しください。',
+          details: [],
+        },
+      });
+    }
+
+    // Admin APIでパスワードを更新
+    const { error: updateError } = await supabase.auth.admin.updateUserById(sessionData.user.id, {
+      password: newPassword,
+    });
+
+    if (updateError) {
+      console.error(
+        `[Auth] Password reset failed: reason=update_error, user_id=${sessionData.user.id}, error=${updateError.message}`
+      );
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'パスワードの更新に失敗しました',
+          details: [],
+        },
+      });
+    }
+
+    console.info(`[Auth] Password reset success: user_id=${sessionData.user.id}`);
+    return res.status(200).json({
+      success: true,
+      data: {
+        message: 'パスワードを設定しました。ログインしてください。',
+      },
+    });
+  } catch (error) {
+    console.error('[Auth] Reset password error:', error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'パスワードリセット処理中にエラーが発生しました',
+        details: [],
+      },
+    });
+  }
+};
