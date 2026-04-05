@@ -4,6 +4,7 @@ import {
   logout,
   getCurrentUser,
   changePassword,
+  updateProfile,
   refreshToken,
   forgotPassword,
   resetPassword,
@@ -15,6 +16,7 @@ import { withLogging } from '../middleware/controllerLogger';
 import {
   loginSchema,
   changePasswordSchema,
+  updateProfileSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
 } from '../validations/authValidation';
@@ -44,6 +46,14 @@ router.put(
   authenticate,
   validate({ body: changePasswordSchema }),
   withLogging('Auth', 'changePassword', changePassword)
+);
+
+// プロフィール更新（認証必要、バリデーション）
+router.put(
+  '/profile',
+  authenticate,
+  validate({ body: updateProfileSchema }),
+  withLogging('Auth', 'updateProfile', updateProfile)
 );
 
 // パスワードリセットメール送信（認証不要、厳格なRate Limiting: 3回/15分）
