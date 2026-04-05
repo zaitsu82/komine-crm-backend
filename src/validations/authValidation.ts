@@ -55,9 +55,26 @@ export const resetPasswordSchema = z
   });
 
 /**
+ * プロフィール更新リクエストのバリデーションスキーマ
+ */
+export const updateProfileSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, '名前は必須です')
+      .max(100, '名前は100文字以下で入力してください')
+      .optional(),
+    email: emailSchema.optional(),
+  })
+  .refine((data) => data.name !== undefined || data.email !== undefined, {
+    message: '名前またはメールアドレスのいずれかは必須です',
+  });
+
+/**
  * 型エクスポート
  */
 export type LoginRequest = z.infer<typeof loginSchema>;
 export type ChangePasswordRequest = z.infer<typeof changePasswordSchema>;
 export type ForgotPasswordRequest = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordRequest = z.infer<typeof resetPasswordSchema>;
+export type UpdateProfileRequest = z.infer<typeof updateProfileSchema>;

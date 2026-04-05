@@ -515,6 +515,122 @@ export const changePassword = async (req: Request, res: Response) => {
 };
 
 /**
+ * プロフィール更新（名前・メールアドレス）
+ * PUT /api/v1/auth/profile
+ */
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Supabase認証サービスが利用できません',
+          details: [],
+        },
+      });
+    }
+
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: '認証が必要です',
+          details: [],
+        },
+      });
+    }
+
+    const { name, email } = req.body;
+
+    console.info(
+      `[Auth] Profile update attempt: staff_id=${req.user.id}, name=${name !== undefined}, email=${email !== undefined}`
+    );
+
+    // メールアドレス変更時: 他ユーザーとの重複チェック
+    if (email && email !== req.user.email) {
+      const existingStaff = await prisma.staff.findFirst({
+        where: {
+          email,
+          id: { not: req.user.id },
+        },
+      });
+
+      if (existingStaff) {
+        console.warn(
+          `[Auth] Profile update failed: reason=email_conflict, staff_id=${req.user.id}, email=${email}`
+        );
+        return res.status(409).json({
+          success: false,
+          error: {
+            code: 'CONFLICT',
+            message: 'このメールアドレスは既に使用されています',
+            details: [],
+          },
+        });
+      }
+
+      // Supabaseのメールアドレスを更新
+      const { error: supabaseError } = await supabase.auth.admin.updateUserById(
+        req.user.supabase_uid,
+        { email }
+      );
+
+      if (supabaseError) {
+        console.error(
+          `[Auth] Profile update failed: reason=supabase_email_update_error, staff_id=${req.user.id}, error=${supabaseError.message}`
+        );
+        return res.status(500).json({
+          success: false,
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'メールアドレスの更新に失敗しました',
+            details: [],
+          },
+        });
+      }
+    }
+
+    // Staffテーブルを更新
+    const updateData: { name?: string; email?: string } = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+
+    const updatedStaff = await prisma.staff.update({
+      where: { id: req.user.id },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        is_active: true,
+        supabase_uid: true,
+      },
+    });
+
+    console.info(`[Auth] Profile update success: staff_id=${req.user.id}`);
+    return res.status(200).json({
+      success: true,
+      data: {
+        user: updatedStaff,
+      },
+    });
+  } catch (error) {
+    console.error('[Auth] Profile update error:', error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'プロフィール更新中にエラーが発生しました',
+        details: [],
+      },
+    });
+  }
+};
+
+/**
  * パスワードリセットメール送信
  * POST /api/v1/auth/forgot-password
  */
