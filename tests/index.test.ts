@@ -219,16 +219,24 @@ describe('Server Index', () => {
   });
 
   it('should log server startup message with correct port', () => {
+    const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
     require('../src/index');
 
-    expect(mockLoggerInfo).toHaveBeenCalled();
-    // logger.info is called with (obj, message) — the message is the 2nd arg
-    const startupCall = mockLoggerInfo.mock.calls.find(
+    const bannerCall = stdoutSpy.mock.calls.find(
       (call: any[]) =>
-        typeof call[1] === 'string' && call[1].includes('Cemetery CRM Backend Server')
+        typeof call[0] === 'string' && call[0].includes('Cemetery CRM Backend Server')
     );
-    expect(startupCall).toBeTruthy();
-    expect(startupCall![1]).toContain('3001');
+    expect(bannerCall).toBeTruthy();
+    expect(bannerCall![0]).toContain('3001');
+
+    // logger.info also called with structured data
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      expect.objectContaining({ port: '3001' }),
+      'Server started'
+    );
+
+    stdoutSpy.mockRestore();
   });
 
   it('should register all middleware and routes correctly', () => {
@@ -519,11 +527,21 @@ describe('Server Index', () => {
   });
 
   describe('Server startup logging', () => {
-    const getStartupLogMessage = (): string => {
-      const call = mockLoggerInfo.mock.calls.find(
-        (c: any[]) => typeof c[1] === 'string' && c[1].includes('Cemetery CRM Backend Server')
+    let stdoutSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    });
+
+    afterEach(() => {
+      stdoutSpy.mockRestore();
+    });
+
+    const getBannerMessage = (): string => {
+      const call = stdoutSpy.mock.calls.find(
+        (c: any[]) => typeof c[0] === 'string' && c[0].includes('Cemetery CRM Backend Server')
       );
-      return call ? call[1] : '';
+      return call ? (call[0] as string) : '';
     };
 
     it('should log with development environment by default', () => {
@@ -531,7 +549,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = getStartupLogMessage();
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('development');
     });
 
@@ -540,7 +558,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = getStartupLogMessage();
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('production');
     });
 
@@ -549,7 +567,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = getStartupLogMessage();
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('http://localhost:5000');
       expect(logMessage).toContain('http://localhost:5000/health');
       expect(logMessage).toContain('http://localhost:5000/api-docs');
@@ -558,7 +576,7 @@ describe('Server Index', () => {
     it('should log API Docs URL on startup', () => {
       require('../src/index');
 
-      const logMessage = getStartupLogMessage();
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('API Docs:');
       expect(logMessage).toContain('/api-docs');
     });
@@ -568,7 +586,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = getStartupLogMessage();
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('https://api.example.com');
       expect(logMessage).toContain('https://api.example.com/health');
       expect(logMessage).toContain('https://api.example.com/api-docs');
@@ -580,7 +598,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = getStartupLogMessage();
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('https://komine-crm-backend.onrender.com');
       expect(logMessage).toContain('https://komine-crm-backend.onrender.com/health');
       expect(logMessage).toContain('https://komine-crm-backend.onrender.com/api-docs');
@@ -593,7 +611,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = getStartupLogMessage();
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('https://custom.example.com');
       expect(logMessage).not.toContain('onrender.com');
     });

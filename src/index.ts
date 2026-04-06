@@ -121,6 +121,7 @@ const server = app.listen(PORT, () => {
     process.env['BASE_URL'] || process.env['RENDER_EXTERNAL_URL'] || `http://localhost:${PORT}`;
   const env = process.env['NODE_ENV'] || 'development';
 
+  // 起動バナーはstdoutに直接出力（pino-prettyの改行処理・Windows文字化け回避）
   const title = 'Cemetery CRM Backend Server';
   const contentLines = [
     `Status: Running`,
@@ -131,14 +132,15 @@ const server = app.listen(PORT, () => {
     `API Docs: ${baseUrl}/api-docs`,
   ];
   const maxLen = Math.max(title.length, ...contentLines.map((l) => l.length));
-  const innerWidth = maxLen + 6;
-  const hr = '═'.repeat(innerWidth);
-  const pad = (s: string) => `║   ${s.padEnd(innerWidth - 3)}║`;
+  const w = maxLen + 6;
+  const hr = '-'.repeat(w);
+  const pad = (s: string) => `|   ${s.padEnd(w - 3)}|`;
 
-  logger.info(
-    { port: PORT, environment: env, url: baseUrl },
-    ['', `╔${hr}╗`, pad(title), `╠${hr}╣`, ...contentLines.map(pad), `╚${hr}╝`, ''].join('\n')
+  process.stdout.write(
+    ['', hr, pad(title), hr, ...contentLines.map(pad), hr, ''].join('\n') + '\n'
   );
+
+  logger.info({ port: PORT, environment: env, url: baseUrl }, 'Server started');
 });
 
 // グレースフルシャットダウン
