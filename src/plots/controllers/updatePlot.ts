@@ -561,7 +561,76 @@ export const updatePlot = async (
         }
       }
 
-      // 11. 契約面積が変更された場合、物理区画のステータス更新
+      // 11. 工事情報の全置換（送信された配列で既存を置き換え）
+      if (input.constructionInfos !== undefined) {
+        const existingConstructionInfos = await tx.constructionInfo.findMany({
+          where: { contract_plot_id: id, deleted_at: null },
+        });
+        const existingCiIds = existingConstructionInfos.map((ci) => ci.id);
+        const inputCiIds = input.constructionInfos
+          .filter((ci) => ci.id)
+          .map((ci) => ci.id as string);
+
+        // 送信されなかったIDは論理削除
+        const ciIdsToDelete = existingCiIds.filter((eid) => !inputCiIds.includes(eid));
+        if (ciIdsToDelete.length > 0) {
+          await tx.constructionInfo.updateMany({
+            where: { id: { in: ciIdsToDelete } },
+            data: { deleted_at: new Date() },
+          });
+        }
+
+        // 各レコードを作成/更新
+        for (const ci of input.constructionInfos) {
+          const ciData = {
+            construction_type: ci.constructionType || null,
+            start_date: ci.startDate ? new Date(ci.startDate) : null,
+            completion_date: ci.completionDate ? new Date(ci.completionDate) : null,
+            contractor: ci.contractor || null,
+            supervisor: ci.supervisor || null,
+            progress: ci.progress || null,
+            work_item_1: ci.workItem1 || null,
+            work_date_1: ci.workDate1 ? new Date(ci.workDate1) : null,
+            work_amount_1: ci.workAmount1 ?? null,
+            work_status_1: ci.workStatus1 || null,
+            work_item_2: ci.workItem2 || null,
+            work_date_2: ci.workDate2 ? new Date(ci.workDate2) : null,
+            work_amount_2: ci.workAmount2 ?? null,
+            work_status_2: ci.workStatus2 || null,
+            permit_number: ci.permitNumber || null,
+            application_date: ci.applicationDate ? new Date(ci.applicationDate) : null,
+            permit_date: ci.permitDate ? new Date(ci.permitDate) : null,
+            permit_status: ci.permitStatus || null,
+            payment_type_1: ci.paymentType1 || null,
+            payment_amount_1: ci.paymentAmount1 ?? null,
+            payment_date_1: ci.paymentDate1 ? new Date(ci.paymentDate1) : null,
+            payment_status_1: ci.paymentStatus1 || null,
+            payment_type_2: ci.paymentType2 || null,
+            payment_amount_2: ci.paymentAmount2 ?? null,
+            payment_date_2: ci.paymentScheduledDate2 ? new Date(ci.paymentScheduledDate2) : null,
+            payment_status_2: ci.paymentStatus2 || null,
+            scheduled_end_date: ci.scheduledEndDate ? new Date(ci.scheduledEndDate) : null,
+            construction_content: ci.constructionContent || null,
+            notes: ci.notes || null,
+          };
+
+          if (ci.id && existingCiIds.includes(ci.id)) {
+            await tx.constructionInfo.update({
+              where: { id: ci.id },
+              data: ciData,
+            });
+          } else {
+            await tx.constructionInfo.create({
+              data: {
+                contract_plot_id: id as string,
+                ...ciData,
+              },
+            });
+          }
+        }
+      }
+
+      // 12. 契約面積が変更された場合、物理区画のステータス更新
       if (
         input.contractPlot?.contractAreaSqm !== undefined &&
         input.contractPlot.contractAreaSqm !== oldContractArea
