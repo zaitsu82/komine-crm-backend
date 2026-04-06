@@ -1,3 +1,7 @@
+import { logger } from '../src/utils/logger';
+
+const mockLoggerInfo = (logger as unknown as { info: jest.Mock }).info;
+
 describe('Server Index', () => {
   let mockApp: any;
   let mockExpress: any;
@@ -8,9 +12,9 @@ describe('Server Index', () => {
   let mockInitializeSentry: jest.Mock;
   let mockRequestLogger: jest.Mock;
   let mockSecurityHeaders: jest.Mock;
+  let mockRequestIdMiddleware: jest.Mock;
   let mockErrorHandler: jest.Mock;
   let mockNotFoundHandler: jest.Mock;
-  let consoleSpy: jest.SpyInstance;
 
   beforeEach(() => {
     // すべてのモジュールをリセット
@@ -64,6 +68,7 @@ describe('Server Index', () => {
 
     mockRequestLogger = jest.fn((req: any, res: any, next: any) => next());
     mockSecurityHeaders = jest.fn((req: any, res: any, next: any) => next());
+    mockRequestIdMiddleware = jest.fn((req: any, res: any, next: any) => next());
     mockErrorHandler = jest.fn();
     mockNotFoundHandler = jest.fn();
 
@@ -123,6 +128,9 @@ describe('Server Index', () => {
       requestLogger: mockRequestLogger,
       securityHeaders: mockSecurityHeaders,
     }));
+    jest.doMock('../src/middleware/requestId', () => ({
+      requestIdMiddleware: mockRequestIdMiddleware,
+    }));
     jest.doMock('../src/middleware/security', () => ({
       getCorsOptions: jest.fn(() => ({})),
       createRateLimiter: jest.fn(() => jest.fn((req: any, res: any, next: any) => next())),
@@ -140,14 +148,10 @@ describe('Server Index', () => {
       },
     }));
 
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     process.env.PORT = '3001';
   });
 
   afterEach(() => {
-    if (consoleSpy) {
-      consoleSpy.mockRestore();
-    }
     delete process.env.PORT;
     delete process.env.NODE_ENV;
     delete process.env.BASE_URL;
@@ -217,20 +221,24 @@ describe('Server Index', () => {
   it('should log server startup message with correct port', () => {
     require('../src/index');
 
-    expect(consoleSpy).toHaveBeenCalled();
-    const logMessage = consoleSpy.mock.calls[0][0];
-    expect(logMessage).toContain('Cemetery CRM Backend Server');
-    expect(logMessage).toContain('3001');
+    expect(mockLoggerInfo).toHaveBeenCalled();
+    // logger.info is called with (obj, message) — the message is the 2nd arg
+    const startupCall = mockLoggerInfo.mock.calls.find(
+      (call: any[]) =>
+        typeof call[1] === 'string' && call[1].includes('Cemetery CRM Backend Server')
+    );
+    expect(startupCall).toBeTruthy();
+    expect(startupCall![1]).toContain('3001');
   });
 
   it('should register all middleware and routes correctly', () => {
     require('../src/index');
 
     // セキュリティミドルウェア（helmet, cors, hpp, json, urlencoded, cookieParser, sanitizeInput, rateLimiter）
-    // + ログミドルウェア（requestLogger, securityHeaders）
+    // + requestIdMiddleware + ログミドルウェア（requestLogger, securityHeaders）
     // + Swagger UI + 6 API routes (auth, plots, masters, staff, collective-burials, documents)
-    // + notFoundHandler + errorHandler = 19 use calls
-    expect(mockApp.use).toHaveBeenCalledTimes(19);
+    // + notFoundHandler + errorHandler = 20 use calls
+    expect(mockApp.use).toHaveBeenCalledTimes(20);
     // 1 health check endpoint
     expect(mockApp.get).toHaveBeenCalledTimes(1);
   });
@@ -511,12 +519,19 @@ describe('Server Index', () => {
   });
 
   describe('Server startup logging', () => {
+    const getStartupLogMessage = (): string => {
+      const call = mockLoggerInfo.mock.calls.find(
+        (c: any[]) => typeof c[1] === 'string' && c[1].includes('Cemetery CRM Backend Server')
+      );
+      return call ? call[1] : '';
+    };
+
     it('should log with development environment by default', () => {
       delete process.env.NODE_ENV;
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getStartupLogMessage();
       expect(logMessage).toContain('development');
     });
 
@@ -525,7 +540,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getStartupLogMessage();
       expect(logMessage).toContain('production');
     });
 
@@ -534,7 +549,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getStartupLogMessage();
       expect(logMessage).toContain('http://localhost:5000');
       expect(logMessage).toContain('http://localhost:5000/health');
       expect(logMessage).toContain('http://localhost:5000/api-docs');
@@ -543,7 +558,7 @@ describe('Server Index', () => {
     it('should log API Docs URL on startup', () => {
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getStartupLogMessage();
       expect(logMessage).toContain('API Docs:');
       expect(logMessage).toContain('/api-docs');
     });
@@ -553,7 +568,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getStartupLogMessage();
       expect(logMessage).toContain('https://api.example.com');
       expect(logMessage).toContain('https://api.example.com/health');
       expect(logMessage).toContain('https://api.example.com/api-docs');
@@ -565,7 +580,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getStartupLogMessage();
       expect(logMessage).toContain('https://komine-crm-backend.onrender.com');
       expect(logMessage).toContain('https://komine-crm-backend.onrender.com/health');
       expect(logMessage).toContain('https://komine-crm-backend.onrender.com/api-docs');
@@ -578,7 +593,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getStartupLogMessage();
       expect(logMessage).toContain('https://custom.example.com');
       expect(logMessage).not.toContain('onrender.com');
     });

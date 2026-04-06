@@ -3,6 +3,7 @@
  * スタッフ（ユーザー）管理のCRUD操作を提供
  */
 import { Request, Response, NextFunction } from 'express';
+import { getRequestLogger } from '../utils/logger';
 import { StaffRole } from '@prisma/client';
 import { z } from 'zod';
 import { NotFoundError, ConflictError, ValidationError } from '../middleware/errorHandler';
@@ -437,7 +438,7 @@ export const deleteStaff = async (
       supabaseDeleted = deleteResult.success;
       // Supabase削除が失敗してもDBの論理削除は続行
       if (!deleteResult.success) {
-        console.warn(`Supabaseユーザー削除失敗 (staff_id: ${staffId}): ${deleteResult.error}`);
+        getRequestLogger().warn({ staffId, error: deleteResult.error }, 'Supabaseユーザー削除失敗');
       }
     }
 

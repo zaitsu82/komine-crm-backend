@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { withLogging } from '../../src/middleware/controllerLogger';
+import { getRequestLogger } from '../../src/utils/logger';
 
 declare global {
   namespace Express {
@@ -16,13 +17,16 @@ declare global {
   }
 }
 
+const mockLog = getRequestLogger() as unknown as {
+  info: jest.Mock;
+  warn: jest.Mock;
+  error: jest.Mock;
+};
+
 describe('controllerLogger - withLogging', () => {
   let mockReq: any;
   let mockRes: any;
   let mockNext: jest.Mock;
-  let consoleInfoSpy: jest.SpyInstance;
-  let consoleWarnSpy: jest.SpyInstance;
-  let consoleErrorSpy: jest.SpyInstance;
 
   beforeEach(() => {
     mockReq = {
@@ -48,16 +52,6 @@ describe('controllerLogger - withLogging', () => {
     };
 
     mockNext = jest.fn();
-
-    consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation();
-    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-  });
-
-  afterEach(() => {
-    consoleInfoSpy.mockRestore();
-    consoleWarnSpy.mockRestore();
-    consoleErrorSpy.mockRestore();
   });
 
   describe('START log (entry)', () => {
@@ -69,11 +63,15 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Plots', 'getPlots', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[Plots] getPlots START: GET /api/v1/plots')
-      );
-      expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringContaining('staff_id=1, role=admin')
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          module: 'Plots',
+          action: 'getPlots',
+          method: 'GET',
+          path: '/api/v1/plots',
+          user: 'staff_id=1, role=admin',
+        }),
+        '[Plots] getPlots START'
       );
     });
 
@@ -86,7 +84,10 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Auth', 'login', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleInfoSpy).toHaveBeenCalledWith(expect.stringContaining('user={anonymous}'));
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.objectContaining({ user: 'anonymous' }),
+        expect.stringContaining('START')
+      );
     });
 
     it('should log request body keys', async () => {
@@ -99,8 +100,9 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Auth', 'login', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringContaining('body_keys=[email,password]')
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.objectContaining({ bodyKeys: 'email,password' }),
+        expect.stringContaining('START')
       );
     });
   });
@@ -115,10 +117,15 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Plots', 'getPlotById', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[Plots] getPlotById END: status=200')
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          module: 'Plots',
+          action: 'getPlotById',
+          status: 200,
+          success: true,
+        }),
+        '[Plots] getPlotById END'
       );
-      expect(consoleInfoSpy).toHaveBeenCalledWith(expect.stringContaining('success=true'));
     });
 
     it('should include duration in the end log', async () => {
@@ -129,12 +136,12 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Staff', 'getStaffList', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      // Check that END log contains duration pattern
-      const endLog = consoleInfoSpy.mock.calls.find(
-        (call: any[]) => typeof call[0] === 'string' && call[0].includes('END:')
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          duration: expect.any(Number),
+        }),
+        expect.stringContaining('END')
       );
-      expect(endLog).toBeTruthy();
-      expect(endLog![0]).toMatch(/duration=\d+ms/);
     });
   });
 
@@ -151,12 +158,15 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Plots', 'createPlot', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[Plots] createPlot END: status=400')
-      );
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('success=false'));
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('error_code=VALIDATION_ERROR')
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          module: 'Plots',
+          action: 'createPlot',
+          status: 400,
+          success: false,
+          errorCode: 'VALIDATION_ERROR',
+        }),
+        '[Plots] createPlot END'
       );
     });
 
@@ -169,7 +179,10 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Auth', 'login', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('error_code=UNKNOWN'));
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ errorCode: 'UNKNOWN' }),
+        expect.any(String)
+      );
     });
   });
 
@@ -182,13 +195,14 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Plots', 'createPlot', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[Plots] createPlot ERROR:')
+      expect(mockLog.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          module: 'Plots',
+          action: 'createPlot',
+          err: 'Database connection failed',
+        }),
+        '[Plots] createPlot ERROR'
       );
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('error=Database connection failed')
-      );
-      // Should call next(error) for Express error handler
       expect(mockNext).toHaveBeenCalledWith(expect.any(Error));
     });
 
@@ -200,8 +214,13 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Staff', 'createStaff', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[Staff] createStaff ERROR:')
+      expect(mockLog.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          module: 'Staff',
+          action: 'createStaff',
+          err: 'Async error',
+        }),
+        '[Staff] createStaff ERROR'
       );
       expect(mockNext).toHaveBeenCalledWith(expect.any(Error));
     });
@@ -216,13 +235,14 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Plots', 'updatePlot', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[Plots] updatePlot ERROR:')
+      expect(mockLog.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          module: 'Plots',
+          action: 'updatePlot',
+          err: 'Validation failed',
+        }),
+        '[Plots] updatePlot ERROR'
       );
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('error=Validation failed')
-      );
-      // Original next should be called
       expect(mockNext).toHaveBeenCalledWith(expect.any(Error));
     });
 
@@ -234,7 +254,7 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Auth', 'logout', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      expect(mockLog.error).not.toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalledWith(undefined);
     });
   });
@@ -243,15 +263,14 @@ describe('controllerLogger - withLogging', () => {
     it('should not log END twice if res.json is called multiple times', async () => {
       const controller = jest.fn((_req: Request, res: Response) => {
         res.json({ success: true, data: {} });
-        // Simulate accidental second call
         res.json({ success: true, data: {} });
       });
 
       const wrapped = withLogging('Masters', 'getAllMasters', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      const endLogs = consoleInfoSpy.mock.calls.filter(
-        (call: any[]) => typeof call[0] === 'string' && call[0].includes('END:')
+      const endLogs = mockLog.info.mock.calls.filter(
+        (call: any[]) => typeof call[1] === 'string' && call[1].includes('END')
       );
       expect(endLogs).toHaveLength(1);
     });
@@ -267,11 +286,13 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Plots', 'createPlot', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[Plots] createPlot START:')
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.objectContaining({ module: 'Plots', action: 'createPlot' }),
+        '[Plots] createPlot START'
       );
-      expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[Plots] createPlot END: status=201')
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.objectContaining({ module: 'Plots', action: 'createPlot', status: 201 }),
+        '[Plots] createPlot END'
       );
     });
 
@@ -284,11 +305,13 @@ describe('controllerLogger - withLogging', () => {
       const wrapped = withLogging('Staff', 'getStaffList', controller);
       await wrapped(mockReq, mockRes, mockNext);
 
-      expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[Staff] getStaffList START:')
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.objectContaining({ module: 'Staff', action: 'getStaffList' }),
+        '[Staff] getStaffList START'
       );
-      expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[Staff] getStaffList END: status=200')
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.objectContaining({ module: 'Staff', action: 'getStaffList', status: 200 }),
+        '[Staff] getStaffList END'
       );
     });
   });

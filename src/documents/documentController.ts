@@ -10,6 +10,7 @@
 
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { getRequestLogger } from '../utils/logger';
 import {
   generatePdfFromTemplate,
   TemplateType,
@@ -184,7 +185,7 @@ export const getDocuments = async (req: Request, res: Response): Promise<void> =
       },
     });
   } catch (error) {
-    console.error('Error fetching documents:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching documents');
     res.status(500).json({
       success: false,
       error: {
@@ -288,7 +289,7 @@ export const getDocumentById = async (req: Request, res: Response): Promise<void
       },
     });
   } catch (error) {
-    console.error('Error fetching document:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching document');
     res.status(500).json({
       success: false,
       error: {
@@ -399,7 +400,7 @@ export const createDocument = async (req: Request, res: Response): Promise<void>
       },
     });
   } catch (error) {
-    console.error('Error creating document:', error);
+    getRequestLogger().error({ err: error }, 'Error creating document');
     res.status(500).json({
       success: false,
       error: {
@@ -496,7 +497,7 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
       },
     });
   } catch (error) {
-    console.error('Error updating document:', error);
+    getRequestLogger().error({ err: error }, 'Error updating document');
     res.status(500).json({
       success: false,
       error: {
@@ -542,7 +543,7 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
       data: { message: '書類を削除しました' },
     });
   } catch (error) {
-    console.error('Error deleting document:', error);
+    getRequestLogger().error({ err: error }, 'Error deleting document');
     res.status(500).json({
       success: false,
       error: {
@@ -673,7 +674,7 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
       },
     });
   } catch (error) {
-    console.error('Error generating PDF:', error);
+    getRequestLogger().error({ err: error }, 'Error generating PDF');
     res.status(500).json({
       success: false,
       error: {
@@ -757,7 +758,7 @@ export const regeneratePdf = async (req: Request, res: Response): Promise<void> 
       },
     });
   } catch (error) {
-    console.error('Error regenerating PDF:', error);
+    getRequestLogger().error({ err: error }, 'Error regenerating PDF');
     res.status(500).json({
       success: false,
       error: {

@@ -7,6 +7,7 @@
 
 import { Request, Response } from 'express';
 import prisma from '../../db/prisma';
+import { getRequestLogger } from '../../utils/logger';
 
 /**
  * 物理区画の在庫状況取得
@@ -99,7 +100,7 @@ export const getPlotInventory = async (req: Request, res: Response): Promise<any
       },
     });
   } catch (error) {
-    console.error('Error getting plot inventory:', error);
+    getRequestLogger().error({ err: error }, 'Error getting plot inventory');
 
     res.status(500).json({
       success: false,

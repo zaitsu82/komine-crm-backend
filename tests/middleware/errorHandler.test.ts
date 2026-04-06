@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 // Import actual Prisma error classes, not mocked ones
 const { Prisma } = jest.requireActual('@prisma/client');
+import { getRequestLogger } from '../../src/utils/logger';
 import {
   errorHandler,
   notFoundHandler,
@@ -48,8 +49,6 @@ describe('Error Handler Middleware', () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
   let mockNext: NextFunction;
-  let consoleErrorSpy: jest.SpyInstance;
-
   beforeEach(() => {
     mockRequest = {
       path: '/test',
@@ -68,11 +67,6 @@ describe('Error Handler Middleware', () => {
       json: jest.fn().mockReturnThis(),
     };
     mockNext = jest.fn();
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-  });
-
-  afterEach(() => {
-    consoleErrorSpy.mockRestore();
   });
 
   describe('errorHandler', () => {
@@ -398,18 +392,19 @@ describe('Error Handler Middleware', () => {
         });
       });
 
-      it('エラーをコンソールに記録すること', () => {
+      it('エラーをログに記録すること', () => {
         const error = new Error('テストエラー');
+        const mockErrorLog = (getRequestLogger() as unknown as { error: jest.Mock }).error;
 
         errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
 
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          'Error occurred:',
+        expect(mockErrorLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            message: 'テストエラー',
+            err: error,
             path: '/test',
             method: 'GET',
-          })
+          }),
+          'Unhandled error'
         );
       });
 

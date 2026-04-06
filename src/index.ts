@@ -20,6 +20,7 @@ import collectiveBurialRoutes from './collective-burials/collectiveBurialRoutes'
 import documentRoutes from './documents/documentRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requestLogger, securityHeaders } from './middleware/logger';
+import { requestIdMiddleware } from './middleware/requestId';
 import {
   getCorsOptions,
   createRateLimiter,
@@ -28,6 +29,7 @@ import {
   sanitizeInput,
 } from './middleware/security';
 import { prisma } from './db/prisma';
+import { logger } from './utils/logger';
 
 const app = express();
 const PORT = process.env['PORT'] || 4000;
@@ -78,6 +80,9 @@ app.get('/health', async (_req, res) => {
 
 // Rate Limiting（全体）
 app.use(createRateLimiter());
+
+// リクエストID付与（requestLoggerの前に配置）
+app.use(requestIdMiddleware);
 
 // リクエストログ
 app.use(requestLogger);
@@ -130,29 +135,30 @@ const server = app.listen(PORT, () => {
   const hr = '═'.repeat(innerWidth);
   const pad = (s: string) => `║   ${s.padEnd(innerWidth - 3)}║`;
 
-  console.log(
+  logger.info(
+    { port: PORT, environment: env, url: baseUrl },
     ['', `╔${hr}╗`, pad(title), `╠${hr}╣`, ...contentLines.map(pad), `╚${hr}╝`, ''].join('\n')
   );
 });
 
 // グレースフルシャットダウン
 const gracefulShutdown = async (signal: string) => {
-  console.log(`\n${signal} received. Starting graceful shutdown...`);
+  logger.info({ signal }, 'Graceful shutdown started');
   server.close(async () => {
-    console.log('HTTP server closed.');
+    logger.info('HTTP server closed');
     try {
       await prisma.$disconnect();
-      console.log('Database connection closed.');
+      logger.info('Database connection closed');
     } catch {
-      console.error('Error disconnecting from database.');
+      logger.error('Error disconnecting from database');
     }
-    console.log('Server shut down gracefully.');
+    logger.info('Server shut down gracefully');
     process.exit(0);
   });
 
   // 30秒後に強制終了
   setTimeout(() => {
-    console.error('Forced shutdown due to timeout.');
+    logger.error('Forced shutdown due to timeout');
     process.exit(1);
   }, 30000);
 };

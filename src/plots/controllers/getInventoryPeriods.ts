@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getPeriodSummaries } from '../services/inventoryService';
 import { PlotPeriod } from '../../validations/inventoryValidation';
 import prisma from '../../db/prisma';
+import { getRequestLogger } from '../../utils/logger';
 
 /**
  * GET /plots/inventory/periods
@@ -20,7 +21,7 @@ export async function getInventoryPeriods(req: Request, res: Response): Promise<
       },
     });
   } catch (error) {
-    console.error('Error fetching inventory periods:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching inventory periods');
     res.status(500).json({
       success: false,
       error: {

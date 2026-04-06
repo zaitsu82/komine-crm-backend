@@ -53,9 +53,6 @@ const originalEnv = process.env;
 describe('Auth Controller', () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
-  let consoleErrorSpy: jest.SpyInstance;
-  let consoleWarnSpy: jest.SpyInstance;
-
   describe('Supabase環境変数が設定されている場合', () => {
     beforeAll(() => {
       // 環境変数を設定
@@ -82,14 +79,7 @@ describe('Auth Controller', () => {
         cookie: jest.fn().mockReturnThis(),
         clearCookie: jest.fn().mockReturnThis(),
       };
-      consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-      consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
       jest.clearAllMocks();
-    });
-
-    afterEach(() => {
-      consoleErrorSpy.mockRestore();
-      consoleWarnSpy.mockRestore();
     });
 
     describe('login', () => {
@@ -798,14 +788,7 @@ describe('Auth Controller', () => {
         cookie: jest.fn().mockReturnThis(),
         clearCookie: jest.fn().mockReturnThis(),
       };
-      consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-      consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
       jest.clearAllMocks();
-    });
-
-    afterEach(() => {
-      consoleErrorSpy.mockRestore();
-      consoleWarnSpy.mockRestore();
     });
 
     it('loginが503エラーを返すこと', async () => {

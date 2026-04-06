@@ -11,6 +11,7 @@
 import puppeteer from 'puppeteer';
 import * as fs from 'fs';
 import * as path from 'path';
+import { logger } from '../utils/logger';
 
 // テンプレートタイプ
 export type TemplateType = 'invoice' | 'postcard';
@@ -212,7 +213,7 @@ export async function generatePdfFromHtml(
 
     return { success: true, buffer: Buffer.from(pdfBuffer) };
   } catch (error) {
-    console.error('PDF generation error:', error);
+    logger.error({ err: error }, 'PDF generation error');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'PDF生成に失敗しました',
@@ -248,7 +249,7 @@ export async function generatePdfFromTemplate(
 
     return await generatePdfFromHtml(html, pdfOptions);
   } catch (error) {
-    console.error('Template PDF generation error:', error);
+    logger.error({ err: error }, 'Template PDF generation error');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'テンプレートPDF生成に失敗しました',

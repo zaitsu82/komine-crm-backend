@@ -1,18 +1,26 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/node';
+import { getRequestLogger } from '../utils/logger';
 
 /**
  * グローバルエラーハンドラー
  * すべてのエラーをキャッチして統一されたレスポンス形式で返す
  */
 export const errorHandler = (error: any, req: Request, res: Response, _next: NextFunction) => {
-  console.error('Error occurred:', {
-    message: error.message,
-    stack: error.stack,
-    path: req.path,
-    method: req.method,
-  });
+  const log = getRequestLogger();
+  log.error(
+    {
+      err: error,
+      path: req.path,
+      method: req.method,
+      query: req.query,
+      ...(error instanceof Prisma.PrismaClientKnownRequestError
+        ? { prismaCode: error.code, prismaMeta: error.meta }
+        : {}),
+    },
+    'Unhandled error'
+  );
 
   // Sentryにエラーを送信（ユーザー情報とリクエスト情報を含む）
   Sentry.withScope((scope) => {

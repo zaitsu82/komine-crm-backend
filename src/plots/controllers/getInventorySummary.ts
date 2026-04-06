@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getOverallSummary } from '../services/inventoryService';
 import prisma from '../../db/prisma';
+import { getRequestLogger } from '../../utils/logger';
 
 /**
  * GET /plots/inventory/summary
@@ -15,7 +16,7 @@ export async function getInventorySummary(_req: Request, res: Response): Promise
       data: summary,
     });
   } catch (error) {
-    console.error('Error fetching inventory summary:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching inventory summary');
     res.status(500).json({
       success: false,
       error: {
