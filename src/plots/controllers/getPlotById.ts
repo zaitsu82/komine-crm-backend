@@ -62,11 +62,22 @@ export const getPlotById = async (
 
     // 履歴情報取得（オプション）
     // 当該契約区画に紐づく全エンティティの履歴を返す（issue #51）
+    //
+    // 注意: physical_plot_id は分割販売時に他の契約区画と共有されるため、
+    // physical_plot_id で素朴に OR すると別契約の Customer / UsageFee 等の
+    // 履歴まで漏れてしまう。PhysicalPlot 自体の履歴のみ physical_plot_id で
+    // 拾い、それ以外は contract_plot_id 一致に絞る。
     let histories: any[] = [];
     if (includeHistory) {
       histories = await prisma.history.findMany({
         where: {
-          OR: [{ contract_plot_id: id }, { physical_plot_id: contractPlot.physical_plot_id }],
+          OR: [
+            { contract_plot_id: id },
+            {
+              entity_type: 'PhysicalPlot',
+              physical_plot_id: contractPlot.physical_plot_id,
+            },
+          ],
         },
         orderBy: {
           created_at: 'desc',
