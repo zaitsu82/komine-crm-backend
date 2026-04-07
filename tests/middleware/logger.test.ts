@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { EventEmitter } from 'events';
 import { requestLogger, securityHeaders } from '../../src/middleware/logger';
+import { getRequestLogger } from '../../src/utils/logger';
 
 // Express.Request型を拡張
 declare global {
@@ -18,13 +19,16 @@ declare global {
   }
 }
 
+const mockLog = getRequestLogger() as unknown as {
+  info: jest.Mock;
+  warn: jest.Mock;
+  error: jest.Mock;
+};
+
 describe('Logger Middleware', () => {
   let mockRequest: any;
   let mockResponse: any;
   let mockNext: NextFunction;
-  let consoleLogSpy: jest.SpyInstance;
-  let consoleWarnSpy: jest.SpyInstance;
-  let consoleErrorSpy: jest.SpyInstance;
 
   beforeEach(() => {
     mockRequest = {
@@ -45,15 +49,6 @@ describe('Logger Middleware', () => {
     });
 
     mockNext = jest.fn();
-    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation();
-    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-  });
-
-  afterEach(() => {
-    consoleLogSpy.mockRestore();
-    consoleWarnSpy.mockRestore();
-    consoleErrorSpy.mockRestore();
   });
 
   describe('requestLogger', () => {
@@ -62,26 +57,17 @@ describe('Logger Middleware', () => {
 
       expect(mockNext).toHaveBeenCalled();
 
-      // レスポンス完了イベントを発火
       mockResponse.emit('finish');
 
-      // 非同期処理の完了を待つ
       setImmediate(() => {
-        expect(consoleLogSpy).toHaveBeenCalledWith(
-          '[INFO]',
-          expect.stringContaining('"method":"GET"')
-        );
-        expect(consoleLogSpy).toHaveBeenCalledWith(
-          '[INFO]',
-          expect.stringContaining('"path":"/test"')
-        );
-        expect(consoleLogSpy).toHaveBeenCalledWith(
-          '[INFO]',
-          expect.stringContaining('"statusCode":200')
-        );
-        expect(consoleLogSpy).toHaveBeenCalledWith(
-          '[INFO]',
-          expect.stringContaining('"user":"anonymous"')
+        expect(mockLog.info).toHaveBeenCalledWith(
+          expect.objectContaining({
+            method: 'GET',
+            path: '/test',
+            statusCode: 200,
+            user: 'anonymous',
+          }),
+          'HTTP request completed'
         );
         done();
       });
@@ -102,9 +88,11 @@ describe('Logger Middleware', () => {
       mockResponse.emit('finish');
 
       setImmediate(() => {
-        expect(consoleLogSpy).toHaveBeenCalledWith(
-          '[INFO]',
-          expect.stringContaining('"user":"テストユーザー (test@example.com)"')
+        expect(mockLog.info).toHaveBeenCalledWith(
+          expect.objectContaining({
+            user: 'テストユーザー (test@example.com)',
+          }),
+          'HTTP request completed'
         );
         done();
       });
@@ -118,12 +106,12 @@ describe('Logger Middleware', () => {
       mockResponse.emit('finish');
 
       setImmediate(() => {
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          '[WARN]',
-          expect.stringContaining('"statusCode":404')
+        expect(mockLog.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ statusCode: 404 }),
+          'HTTP request completed with client error'
         );
-        expect(consoleLogSpy).not.toHaveBeenCalled();
-        expect(consoleErrorSpy).not.toHaveBeenCalled();
+        expect(mockLog.info).not.toHaveBeenCalled();
+        expect(mockLog.error).not.toHaveBeenCalled();
         done();
       });
     });
@@ -136,12 +124,12 @@ describe('Logger Middleware', () => {
       mockResponse.emit('finish');
 
       setImmediate(() => {
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          '[ERROR]',
-          expect.stringContaining('"statusCode":500')
+        expect(mockLog.error).toHaveBeenCalledWith(
+          expect.objectContaining({ statusCode: 500 }),
+          'HTTP request completed with server error'
         );
-        expect(consoleLogSpy).not.toHaveBeenCalled();
-        expect(consoleWarnSpy).not.toHaveBeenCalled();
+        expect(mockLog.info).not.toHaveBeenCalled();
+        expect(mockLog.warn).not.toHaveBeenCalled();
         done();
       });
     });
@@ -149,14 +137,15 @@ describe('Logger Middleware', () => {
     it('レスポンス時間を記録すること', (done) => {
       requestLogger(mockRequest as Request, mockResponse as Response, mockNext);
 
-      // 少し待ってからレスポンス完了
       setTimeout(() => {
         mockResponse.emit('finish');
 
         setImmediate(() => {
-          expect(consoleLogSpy).toHaveBeenCalledWith(
-            '[INFO]',
-            expect.stringMatching(/"duration":"\d+ms"/)
+          expect(mockLog.info).toHaveBeenCalledWith(
+            expect.objectContaining({
+              duration: expect.any(Number),
+            }),
+            expect.any(String)
           );
           done();
         });
@@ -169,9 +158,9 @@ describe('Logger Middleware', () => {
       mockResponse.emit('finish');
 
       setImmediate(() => {
-        expect(consoleLogSpy).toHaveBeenCalledWith(
-          '[INFO]',
-          expect.stringContaining('"ip":"127.0.0.1"')
+        expect(mockLog.info).toHaveBeenCalledWith(
+          expect.objectContaining({ ip: '127.0.0.1' }),
+          expect.any(String)
         );
         done();
       });
@@ -185,9 +174,9 @@ describe('Logger Middleware', () => {
       mockResponse.emit('finish');
 
       setImmediate(() => {
-        expect(consoleLogSpy).toHaveBeenCalledWith(
-          '[INFO]',
-          expect.stringContaining('"ip":"192.168.1.1"')
+        expect(mockLog.info).toHaveBeenCalledWith(
+          expect.objectContaining({ ip: '192.168.1.1' }),
+          expect.any(String)
         );
         done();
       });
@@ -199,9 +188,9 @@ describe('Logger Middleware', () => {
       mockResponse.emit('finish');
 
       setImmediate(() => {
-        expect(consoleLogSpy).toHaveBeenCalledWith(
-          '[INFO]',
-          expect.stringContaining('"userAgent":"test-agent"')
+        expect(mockLog.info).toHaveBeenCalledWith(
+          expect.objectContaining({ userAgent: 'test-agent' }),
+          expect.any(String)
         );
         done();
       });

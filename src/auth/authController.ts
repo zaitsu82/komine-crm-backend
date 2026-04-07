@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import prisma from '../db/prisma';
+import { getRequestLogger, logger } from '../utils/logger';
 
 // Cookie設定の定数
 const isProduction = process.env['NODE_ENV'] === 'production';
@@ -46,7 +47,7 @@ const supabaseUrl = process.env['SUPABASE_URL'] || '';
 const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || '';
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn('⚠️  SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in environment variables');
+  logger.warn('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in environment variables');
 }
 
 let supabase: SupabaseClient | null = null;
@@ -61,6 +62,7 @@ if (supabaseUrl && supabaseServiceKey) {
  * POST /api/v1/auth/login
  */
 export const login = async (req: Request, res: Response) => {
+  const log = getRequestLogger();
   try {
     if (!supabase) {
       return res.status(503).json({
@@ -87,15 +89,16 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Supabaseで認証
-    console.info(`[Auth] Login attempt: email=${email}`);
+    log.info({ email }, 'Auth: login attempt');
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error || !data.user) {
-      console.warn(
-        `[Auth] Login failed: email=${email}, reason=supabase_auth_error, error=${error?.message || 'no user returned'}, status=${error?.status || 'N/A'}`
+      log.warn(
+        { email, reason: 'supabase_auth_error', error: error?.message || 'no user returned' },
+        'Auth: login failed'
       );
       return res.status(401).json({
         success: false,
@@ -123,8 +126,9 @@ export const login = async (req: Request, res: Response) => {
     });
 
     if (!staff) {
-      console.warn(
-        `[Auth] Login failed: email=${email}, reason=staff_not_found, supabase_uid=${data.user.id}`
+      log.warn(
+        { email, reason: 'staff_not_found', supabaseUid: data.user.id },
+        'Auth: login failed'
       );
       return res.status(401).json({
         success: false,
@@ -137,9 +141,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     if (!staff.is_active) {
-      console.warn(
-        `[Auth] Login failed: email=${email}, reason=user_inactive, staff_id=${staff.id}`
-      );
+      log.warn({ email, reason: 'user_inactive', staffId: staff.id }, 'Auth: login failed');
       return res.status(401).json({
         success: false,
         error: {
@@ -161,7 +163,7 @@ export const login = async (req: Request, res: Response) => {
       setAuthCookies(res, data.session.access_token, data.session.refresh_token);
     }
 
-    console.info(`[Auth] Login success: email=${email}, staff_id=${staff.id}, role=${staff.role}`);
+    log.info({ email, staffId: staff.id, role: staff.role }, 'Auth: login success');
     return res.status(200).json({
       success: true,
       data: {
@@ -180,7 +182,7 @@ export const login = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    log.error({ err: error }, 'Auth: login error');
     return res.status(500).json({
       success: false,
       error: {
@@ -197,6 +199,7 @@ export const login = async (req: Request, res: Response) => {
  * POST /api/v1/auth/logout
  */
 export const logout = async (req: Request, res: Response) => {
+  const log = getRequestLogger();
   try {
     if (!supabase) {
       return res.status(503).json({
@@ -216,7 +219,7 @@ export const logout = async (req: Request, res: Response) => {
     const token = cookieToken || headerToken;
     const tokenSource = cookieToken ? 'cookie' : headerToken ? 'header' : 'none';
 
-    console.info(`[Auth] Logout attempt: token_source=${tokenSource}`);
+    log.info({ tokenSource }, 'Auth: logout attempt');
 
     if (token) {
       // Supabaseでログアウト
@@ -226,7 +229,7 @@ export const logout = async (req: Request, res: Response) => {
     // HttpOnly Cookieをクリア
     clearAuthCookies(res);
 
-    console.info(`[Auth] Logout success`);
+    log.info('Auth: logout success');
     return res.status(200).json({
       success: true,
       data: {
@@ -234,7 +237,7 @@ export const logout = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[Auth] Logout error:', error);
+    log.error({ err: error }, 'Auth: logout error');
     return res.status(500).json({
       success: false,
       error: {
@@ -299,7 +302,7 @@ export const getCurrentUser = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Get current user error:', error);
+    getRequestLogger().error({ err: error }, 'Auth: get current user error');
     return res.status(500).json({
       success: false,
       error: {
@@ -316,6 +319,7 @@ export const getCurrentUser = async (req: Request, res: Response) => {
  * POST /api/v1/auth/refresh
  */
 export const refreshToken = async (req: Request, res: Response) => {
+  const log = getRequestLogger();
   try {
     if (!supabase) {
       return res.status(503).json({
@@ -334,10 +338,10 @@ export const refreshToken = async (req: Request, res: Response) => {
     const refresh_token = cookieRefreshToken || bodyRefreshToken;
     const tokenSource = cookieRefreshToken ? 'cookie' : bodyRefreshToken ? 'body' : 'none';
 
-    console.info(`[Auth] Token refresh attempt: token_source=${tokenSource}`);
+    log.info({ tokenSource }, 'Auth: token refresh attempt');
 
     if (!refresh_token) {
-      console.warn(`[Auth] Token refresh failed: reason=no_refresh_token`);
+      log.warn({ reason: 'no_refresh_token' }, 'Auth: token refresh failed');
       return res.status(400).json({
         success: false,
         error: {
@@ -354,8 +358,9 @@ export const refreshToken = async (req: Request, res: Response) => {
     });
 
     if (error || !data.session) {
-      console.warn(
-        `[Auth] Token refresh failed: reason=supabase_error, error=${error?.message || 'no session returned'}`
+      log.warn(
+        { reason: 'supabase_error', error: error?.message || 'no session returned' },
+        'Auth: token refresh failed'
       );
       // リフレッシュ失敗時はCookieをクリア
       clearAuthCookies(res);
@@ -372,7 +377,7 @@ export const refreshToken = async (req: Request, res: Response) => {
     // 新しいトークンでCookieを更新
     setAuthCookies(res, data.session.access_token, data.session.refresh_token);
 
-    console.info(`[Auth] Token refresh success: expires_at=${data.session.expires_at}`);
+    log.info({ expiresAt: data.session.expires_at }, 'Auth: token refresh success');
     return res.status(200).json({
       success: true,
       data: {
@@ -383,7 +388,7 @@ export const refreshToken = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[Auth] Token refresh error:', error);
+    log.error({ err: error }, 'Auth: token refresh error');
     return res.status(500).json({
       success: false,
       error: {
@@ -400,6 +405,7 @@ export const refreshToken = async (req: Request, res: Response) => {
  * PUT /api/v1/auth/password
  */
 export const changePassword = async (req: Request, res: Response) => {
+  const log = getRequestLogger();
   try {
     if (!supabase) {
       return res.status(503).json({
@@ -425,12 +431,10 @@ export const changePassword = async (req: Request, res: Response) => {
 
     const { currentPassword, newPassword } = req.body;
 
-    console.info(
-      `[Auth] Password change attempt: staff_id=${req.user.id}, email=${req.user.email}`
-    );
+    log.info({ staffId: req.user.id }, 'Auth: password change attempt');
 
     if (!currentPassword || !newPassword) {
-      console.warn(`[Auth] Password change failed: reason=missing_fields, staff_id=${req.user.id}`);
+      log.warn({ staffId: req.user.id, reason: 'missing_fields' }, 'Auth: password change failed');
       return res.status(400).json({
         success: false,
         error: {
@@ -442,8 +446,9 @@ export const changePassword = async (req: Request, res: Response) => {
     }
 
     if (newPassword.length < 8) {
-      console.warn(
-        `[Auth] Password change failed: reason=password_too_short, staff_id=${req.user.id}`
+      log.warn(
+        { staffId: req.user.id, reason: 'password_too_short' },
+        'Auth: password change failed'
       );
       return res.status(400).json({
         success: false,
@@ -462,8 +467,9 @@ export const changePassword = async (req: Request, res: Response) => {
     });
 
     if (signInError) {
-      console.warn(
-        `[Auth] Password change failed: reason=current_password_invalid, staff_id=${req.user.id}`
+      log.warn(
+        { staffId: req.user.id, reason: 'current_password_invalid' },
+        'Auth: password change failed'
       );
       return res.status(401).json({
         success: false,
@@ -481,8 +487,9 @@ export const changePassword = async (req: Request, res: Response) => {
     });
 
     if (updateError) {
-      console.error(
-        `[Auth] Password change failed: reason=supabase_update_error, staff_id=${req.user.id}, error=${updateError.message}`
+      log.error(
+        { staffId: req.user.id, reason: 'supabase_update_error', error: updateError.message },
+        'Auth: password change failed'
       );
       return res.status(500).json({
         success: false,
@@ -494,7 +501,7 @@ export const changePassword = async (req: Request, res: Response) => {
       });
     }
 
-    console.info(`[Auth] Password change success: staff_id=${req.user.id}`);
+    log.info({ staffId: req.user.id }, 'Auth: password change success');
     return res.status(200).json({
       success: true,
       data: {
@@ -502,7 +509,7 @@ export const changePassword = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[Auth] Password change error:', error);
+    log.error({ err: error }, 'Auth: password change error');
     return res.status(500).json({
       success: false,
       error: {
@@ -519,6 +526,7 @@ export const changePassword = async (req: Request, res: Response) => {
  * PUT /api/v1/auth/profile
  */
 export const updateProfile = async (req: Request, res: Response) => {
+  const log = getRequestLogger();
   try {
     if (!supabase) {
       return res.status(503).json({
@@ -544,8 +552,9 @@ export const updateProfile = async (req: Request, res: Response) => {
 
     const { name, email } = req.body;
 
-    console.info(
-      `[Auth] Profile update attempt: staff_id=${req.user.id}, name=${name !== undefined}, email=${email !== undefined}`
+    log.info(
+      { staffId: req.user.id, hasName: name !== undefined, hasEmail: email !== undefined },
+      'Auth: profile update attempt'
     );
 
     // メールアドレス変更時: 他ユーザーとの重複チェック
@@ -558,9 +567,7 @@ export const updateProfile = async (req: Request, res: Response) => {
       });
 
       if (existingStaff) {
-        console.warn(
-          `[Auth] Profile update failed: reason=email_conflict, staff_id=${req.user.id}, email=${email}`
-        );
+        log.warn({ staffId: req.user.id, reason: 'email_conflict' }, 'Auth: profile update failed');
         return res.status(409).json({
           success: false,
           error: {
@@ -578,8 +585,13 @@ export const updateProfile = async (req: Request, res: Response) => {
       );
 
       if (supabaseError) {
-        console.error(
-          `[Auth] Profile update failed: reason=supabase_email_update_error, staff_id=${req.user.id}, error=${supabaseError.message}`
+        log.error(
+          {
+            staffId: req.user.id,
+            reason: 'supabase_email_update_error',
+            error: supabaseError.message,
+          },
+          'Auth: profile update failed'
         );
         return res.status(500).json({
           success: false,
@@ -610,7 +622,7 @@ export const updateProfile = async (req: Request, res: Response) => {
       },
     });
 
-    console.info(`[Auth] Profile update success: staff_id=${req.user.id}`);
+    log.info({ staffId: req.user.id }, 'Auth: profile update success');
     return res.status(200).json({
       success: true,
       data: {
@@ -618,7 +630,7 @@ export const updateProfile = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[Auth] Profile update error:', error);
+    log.error({ err: error }, 'Auth: profile update error');
     return res.status(500).json({
       success: false,
       error: {
@@ -635,6 +647,7 @@ export const updateProfile = async (req: Request, res: Response) => {
  * POST /api/v1/auth/forgot-password
  */
 export const forgotPassword = async (req: Request, res: Response) => {
+  const log = getRequestLogger();
   try {
     if (!supabase) {
       return res.status(503).json({
@@ -649,7 +662,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
     const { email } = req.body;
 
-    console.info(`[Auth] Password reset request: email=${email}`);
+    log.info({ email }, 'Auth: password reset request');
 
     const frontendUrl = process.env['FRONTEND_URL'] || 'http://localhost:3000';
     const redirectTo = `${frontendUrl}/reset-password`;
@@ -661,9 +674,9 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
     if (error) {
       // エラーが発生してもセキュリティ上同一レスポンスを返す
-      console.warn(`[Auth] Password reset email failed: email=${email}, error=${error.message}`);
+      log.warn({ email, error: error.message }, 'Auth: password reset email failed');
     } else {
-      console.info(`[Auth] Password reset email sent: email=${email}`);
+      log.info({ email }, 'Auth: password reset email sent');
     }
 
     // メールアドレスの存在有無に関わらず同一レスポンス（メール列挙攻撃対策）
@@ -674,7 +687,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[Auth] Forgot password error:', error);
+    log.error({ err: error }, 'Auth: forgot password error');
     return res.status(500).json({
       success: false,
       error: {
@@ -692,6 +705,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
  * 招待メールからの初回パスワード設定、パスワードリセット両方に対応
  */
 export const resetPassword = async (req: Request, res: Response) => {
+  const log = getRequestLogger();
   try {
     if (!supabase) {
       return res.status(503).json({
@@ -706,15 +720,16 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     const { code, newPassword } = req.body;
 
-    console.info('[Auth] Password reset attempt via code');
+    log.info('Auth: password reset attempt via code');
 
     // Supabaseのコードをセッションに交換してユーザーを特定
     const { data: sessionData, error: exchangeError } =
       await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError || !sessionData?.user) {
-      console.warn(
-        `[Auth] Password reset failed: reason=invalid_code, error=${exchangeError?.message || 'no user returned'}`
+      log.warn(
+        { reason: 'invalid_code', error: exchangeError?.message || 'no user returned' },
+        'Auth: password reset failed'
       );
       return res.status(400).json({
         success: false,
@@ -732,8 +747,9 @@ export const resetPassword = async (req: Request, res: Response) => {
     });
 
     if (updateError) {
-      console.error(
-        `[Auth] Password reset failed: reason=update_error, user_id=${sessionData.user.id}, error=${updateError.message}`
+      log.error(
+        { userId: sessionData.user.id, reason: 'update_error', error: updateError.message },
+        'Auth: password reset failed'
       );
       return res.status(500).json({
         success: false,
@@ -745,7 +761,7 @@ export const resetPassword = async (req: Request, res: Response) => {
       });
     }
 
-    console.info(`[Auth] Password reset success: user_id=${sessionData.user.id}`);
+    log.info({ userId: sessionData.user.id }, 'Auth: password reset success');
     return res.status(200).json({
       success: true,
       data: {
@@ -753,7 +769,7 @@ export const resetPassword = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[Auth] Reset password error:', error);
+    log.error({ err: error }, 'Auth: reset password error');
     return res.status(500).json({
       success: false,
       error: {

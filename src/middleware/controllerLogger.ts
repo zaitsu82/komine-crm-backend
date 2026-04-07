@@ -12,6 +12,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { getRequestLogger } from '../utils/logger';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ControllerFn = (req: Request, res: Response, next: NextFunction) => any;
@@ -27,6 +28,7 @@ export const withLogging = (
   fn: ControllerFn | ((req: Request, res: Response) => any)
 ): ControllerFn => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const log = getRequestLogger();
     const startTime = Date.now();
     const method = req.method;
     const path = req.originalUrl || req.path;
@@ -34,9 +36,7 @@ export const withLogging = (
     const bodyKeys =
       req.body && typeof req.body === 'object' ? Object.keys(req.body).join(',') : '';
 
-    console.info(
-      `[${module}] ${action} START: ${method} ${path}, user={${user}}, body_keys=[${bodyKeys}]`
-    );
+    log.info({ module, action, method, path, user, bodyKeys }, `[${module}] ${action} START`);
 
     // res.json()をインターセプトしてレスポンス情報をキャプチャ
     const originalJson = res.json.bind(res);
@@ -50,13 +50,15 @@ export const withLogging = (
         const success = body?.success !== undefined ? body.success : status < 400;
 
         if (success) {
-          console.info(
-            `[${module}] ${action} END: status=${status}, duration=${duration}ms, success=true`
+          log.info(
+            { module, action, status, duration, success: true },
+            `[${module}] ${action} END`
           );
         } else {
           const errorCode = body?.error?.code || 'UNKNOWN';
-          console.warn(
-            `[${module}] ${action} END: status=${status}, duration=${duration}ms, success=false, error_code=${errorCode}`
+          log.warn(
+            { module, action, status, duration, success: false, errorCode },
+            `[${module}] ${action} END`
           );
         }
       }
@@ -68,8 +70,9 @@ export const withLogging = (
       if (err && !logged) {
         logged = true;
         const duration = Date.now() - startTime;
-        console.error(
-          `[${module}] ${action} ERROR: duration=${duration}ms, error=${err instanceof Error ? err.message : String(err)}`
+        log.error(
+          { module, action, duration, err: err instanceof Error ? err.message : String(err) },
+          `[${module}] ${action} ERROR`
         );
       }
       next(err);
@@ -81,8 +84,9 @@ export const withLogging = (
       if (!logged) {
         logged = true;
         const duration = Date.now() - startTime;
-        console.error(
-          `[${module}] ${action} ERROR: duration=${duration}ms, error=${error instanceof Error ? error.message : String(error)}`
+        log.error(
+          { module, action, duration, err: error instanceof Error ? error.message : String(error) },
+          `[${module}] ${action} ERROR`
         );
       }
       next(error);

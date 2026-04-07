@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import hpp from 'hpp';
 import { CorsOptions } from 'cors';
+import { logger } from '../utils/logger';
 
 // 開発環境で許可するオリジンパターン
 // - localhost/127.0.0.1 の任意のポート
@@ -48,7 +49,7 @@ export const getCorsOptions = (): CorsOptions => {
         return callback(null, true);
       }
 
-      console.warn(`CORS blocked: ${origin} is not in the allowed origins list`);
+      logger.warn({ origin }, 'CORS blocked: origin not in allowed list');
       callback(new Error('CORS policy violation: Origin not allowed'));
     },
     credentials: true,

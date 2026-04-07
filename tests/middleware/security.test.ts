@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../../src/utils/logger';
 import {
   getCorsOptions,
   sanitizeInput,
@@ -81,17 +82,16 @@ describe('Security Middleware', () => {
 
       const corsOptions = getCorsOptions();
       const callback = jest.fn();
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      const mockWarn = (logger as unknown as { warn: jest.Mock }).warn;
 
       if (typeof corsOptions.origin === 'function') {
         corsOptions.origin('https://malicious.com', callback);
         expect(callback).toHaveBeenCalledWith(expect.any(Error));
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('CORS blocked: https://malicious.com')
+        expect(mockWarn).toHaveBeenCalledWith(
+          expect.objectContaining({ origin: 'https://malicious.com' }),
+          expect.stringContaining('CORS blocked')
         );
       }
-
-      consoleWarnSpy.mockRestore();
     });
 
     it('オリジンが指定されていない場合（サーバー間通信）、リクエストを許可すること', () => {

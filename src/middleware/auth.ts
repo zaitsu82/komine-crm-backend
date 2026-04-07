@@ -1,13 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import prisma from '../db/prisma';
+import { getRequestLogger, logger } from '../utils/logger';
 
 // Supabaseクライアントの初期化
 const supabaseUrl = process.env['SUPABASE_URL'] || '';
 const supabaseServiceKey = process.env['SUPABASE_SERVICE_ROLE_KEY'] || '';
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn('⚠️  SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in environment variables');
+  logger.warn('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set in environment variables');
 }
 
 let supabase: SupabaseClient | null = null;
@@ -64,6 +65,8 @@ export const authenticate = async (
   res: Response,
   next: NextFunction
 ): Promise<any> => {
+  const log = getRequestLogger();
+
   try {
     if (!supabase) {
       return res.status(503).json({
@@ -85,7 +88,7 @@ export const authenticate = async (
         : 'none';
 
     if (!token) {
-      console.warn(`[Auth] Middleware: no token provided, path=${req.method} ${req.path}`);
+      log.warn({ method: req.method, path: req.path }, 'Auth: no token provided');
       return res.status(401).json({
         success: false,
         error: {
@@ -103,8 +106,14 @@ export const authenticate = async (
     } = await supabase.auth.getUser(token);
 
     if (error || !user) {
-      console.warn(
-        `[Auth] Middleware: invalid token, path=${req.method} ${req.path}, token_source=${tokenSource}, error=${error?.message || 'no user returned'}`
+      log.warn(
+        {
+          method: req.method,
+          path: req.path,
+          tokenSource,
+          error: error?.message || 'no user returned',
+        },
+        'Auth: invalid token'
       );
       return res.status(401).json({
         success: false,
@@ -132,8 +141,9 @@ export const authenticate = async (
     });
 
     if (!staff) {
-      console.warn(
-        `[Auth] Middleware: staff not found, path=${req.method} ${req.path}, supabase_uid=${user.id}`
+      log.warn(
+        { method: req.method, path: req.path, supabaseUid: user.id },
+        'Auth: staff not found'
       );
       return res.status(401).json({
         success: false,
@@ -146,9 +156,7 @@ export const authenticate = async (
     }
 
     if (!staff.is_active) {
-      console.warn(
-        `[Auth] Middleware: user inactive, path=${req.method} ${req.path}, staff_id=${staff.id}`
-      );
+      log.warn({ method: req.method, path: req.path, staffId: staff.id }, 'Auth: user inactive');
       return res.status(401).json({
         success: false,
         error: {
@@ -169,6 +177,11 @@ export const authenticate = async (
       supabase_uid: staff.supabase_uid!,
     };
 
+    log.debug(
+      { staffId: staff.id, role: staff.role, method: req.method, path: req.path },
+      'Auth: authenticated successfully'
+    );
+
     // last_login_atを更新
     await prisma.staff.update({
       where: { id: staff.id },
@@ -177,7 +190,7 @@ export const authenticate = async (
 
     next();
   } catch (error) {
-    console.error('[Auth] Middleware: authentication error:', error);
+    log.error({ err: error, method: req.method, path: req.path }, 'Auth: authentication error');
     return res.status(401).json({
       success: false,
       error: {

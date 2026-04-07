@@ -9,6 +9,7 @@ import { Request, Response } from 'express';
 import { Prisma, PaymentStatus, ContractRole } from '@prisma/client';
 import { validateContractArea, updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
+import { getRequestLogger } from '../../utils/logger';
 
 /**
  * 物理区画に新規契約追加
@@ -282,7 +283,7 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
       },
     });
   } catch (error) {
-    console.error('Error creating plot contract:', error);
+    getRequestLogger().error({ err: error }, 'Error creating plot contract');
 
     if (error instanceof Error && error.message) {
       return res.status(400).json({

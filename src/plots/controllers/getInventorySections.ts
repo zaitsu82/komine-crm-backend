@@ -7,6 +7,7 @@ import {
   SortOrder,
 } from '../../validations/inventoryValidation';
 import prisma from '../../db/prisma';
+import { getRequestLogger } from '../../utils/logger';
 
 /**
  * GET /plots/inventory/sections
@@ -47,7 +48,7 @@ export async function getInventorySections(req: Request, res: Response): Promise
       },
     });
   } catch (error) {
-    console.error('Error fetching inventory sections:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching inventory sections');
     res.status(500).json({
       success: false,
       error: {

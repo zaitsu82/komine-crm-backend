@@ -20,6 +20,7 @@ import collectiveBurialRoutes from './collective-burials/collectiveBurialRoutes'
 import documentRoutes from './documents/documentRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requestLogger, securityHeaders } from './middleware/logger';
+import { requestIdMiddleware } from './middleware/requestId';
 import {
   getCorsOptions,
   createRateLimiter,
@@ -28,6 +29,7 @@ import {
   sanitizeInput,
 } from './middleware/security';
 import { prisma } from './db/prisma';
+import { logger } from './utils/logger';
 
 const app = express();
 const PORT = process.env['PORT'] || 4000;
@@ -79,6 +81,9 @@ app.get('/health', async (_req, res) => {
 // Rate Limiting（全体）
 app.use(createRateLimiter());
 
+// リクエストID付与（requestLoggerの前に配置）
+app.use(requestIdMiddleware);
+
 // リクエストログ
 app.use(requestLogger);
 app.use(securityHeaders); // 追加のセキュリティヘッダー
@@ -116,6 +121,7 @@ const server = app.listen(PORT, () => {
     process.env['BASE_URL'] || process.env['RENDER_EXTERNAL_URL'] || `http://localhost:${PORT}`;
   const env = process.env['NODE_ENV'] || 'development';
 
+  // 起動バナーはstdoutに直接出力（pino-prettyの改行処理・Windows文字化け回避）
   const title = 'Cemetery CRM Backend Server';
   const contentLines = [
     `Status: Running`,
@@ -126,33 +132,35 @@ const server = app.listen(PORT, () => {
     `API Docs: ${baseUrl}/api-docs`,
   ];
   const maxLen = Math.max(title.length, ...contentLines.map((l) => l.length));
-  const innerWidth = maxLen + 6;
-  const hr = '═'.repeat(innerWidth);
-  const pad = (s: string) => `║   ${s.padEnd(innerWidth - 3)}║`;
+  const w = maxLen + 6;
+  const hr = '-'.repeat(w);
+  const pad = (s: string) => `|   ${s.padEnd(w - 3)}|`;
 
-  console.log(
-    ['', `╔${hr}╗`, pad(title), `╠${hr}╣`, ...contentLines.map(pad), `╚${hr}╝`, ''].join('\n')
+  process.stdout.write(
+    ['', hr, pad(title), hr, ...contentLines.map(pad), hr, ''].join('\n') + '\n'
   );
+
+  logger.info({ port: PORT, environment: env, url: baseUrl }, 'Server started');
 });
 
 // グレースフルシャットダウン
 const gracefulShutdown = async (signal: string) => {
-  console.log(`\n${signal} received. Starting graceful shutdown...`);
+  logger.info({ signal }, 'Graceful shutdown started');
   server.close(async () => {
-    console.log('HTTP server closed.');
+    logger.info('HTTP server closed');
     try {
       await prisma.$disconnect();
-      console.log('Database connection closed.');
+      logger.info('Database connection closed');
     } catch {
-      console.error('Error disconnecting from database.');
+      logger.error('Error disconnecting from database');
     }
-    console.log('Server shut down gracefully.');
+    logger.info('Server shut down gracefully');
     process.exit(0);
   });
 
   // 30秒後に強制終了
   setTimeout(() => {
-    console.error('Forced shutdown due to timeout.');
+    logger.error('Forced shutdown due to timeout');
     process.exit(1);
   }, 30000);
 };

@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
+import { logger } from './logger';
 
 /**
  * Sentry初期化
@@ -10,7 +11,7 @@ export const initializeSentry = (): void => {
 
   // DSNが設定されていない場合は初期化しない（開発環境など）
   if (!dsn) {
-    console.log('Sentry DSN not configured. Skipping Sentry initialization.');
+    logger.info('Sentry DSN not configured. Skipping Sentry initialization.');
     return;
   }
 
@@ -37,7 +38,7 @@ export const initializeSentry = (): void => {
     beforeSend(event) {
       // 開発環境ではSentryに送信しない（ログのみ）
       if (environment === 'development') {
-        console.log('Sentry event (not sent in development):', event);
+        logger.debug({ event }, 'Sentry event (not sent in development)');
         return null;
       }
 
@@ -62,9 +63,7 @@ export const initializeSentry = (): void => {
     },
   });
 
-  console.log(
-    `Sentry initialized (environment: ${environment}, tracesSampleRate: ${tracesSampleRate})`
-  );
+  logger.info({ environment, tracesSampleRate }, 'Sentry initialized');
 };
 
 /**

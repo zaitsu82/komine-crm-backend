@@ -1,3 +1,7 @@
+import { logger } from '../src/utils/logger';
+
+const mockLoggerInfo = (logger as unknown as { info: jest.Mock }).info;
+
 describe('Server Index', () => {
   let mockApp: any;
   let mockExpress: any;
@@ -8,9 +12,9 @@ describe('Server Index', () => {
   let mockInitializeSentry: jest.Mock;
   let mockRequestLogger: jest.Mock;
   let mockSecurityHeaders: jest.Mock;
+  let mockRequestIdMiddleware: jest.Mock;
   let mockErrorHandler: jest.Mock;
   let mockNotFoundHandler: jest.Mock;
-  let consoleSpy: jest.SpyInstance;
 
   beforeEach(() => {
     // すべてのモジュールをリセット
@@ -64,6 +68,7 @@ describe('Server Index', () => {
 
     mockRequestLogger = jest.fn((req: any, res: any, next: any) => next());
     mockSecurityHeaders = jest.fn((req: any, res: any, next: any) => next());
+    mockRequestIdMiddleware = jest.fn((req: any, res: any, next: any) => next());
     mockErrorHandler = jest.fn();
     mockNotFoundHandler = jest.fn();
 
@@ -123,6 +128,9 @@ describe('Server Index', () => {
       requestLogger: mockRequestLogger,
       securityHeaders: mockSecurityHeaders,
     }));
+    jest.doMock('../src/middleware/requestId', () => ({
+      requestIdMiddleware: mockRequestIdMiddleware,
+    }));
     jest.doMock('../src/middleware/security', () => ({
       getCorsOptions: jest.fn(() => ({})),
       createRateLimiter: jest.fn(() => jest.fn((req: any, res: any, next: any) => next())),
@@ -140,14 +148,10 @@ describe('Server Index', () => {
       },
     }));
 
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     process.env.PORT = '3001';
   });
 
   afterEach(() => {
-    if (consoleSpy) {
-      consoleSpy.mockRestore();
-    }
     delete process.env.PORT;
     delete process.env.NODE_ENV;
     delete process.env.BASE_URL;
@@ -215,22 +219,34 @@ describe('Server Index', () => {
   });
 
   it('should log server startup message with correct port', () => {
+    const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
     require('../src/index');
 
-    expect(consoleSpy).toHaveBeenCalled();
-    const logMessage = consoleSpy.mock.calls[0][0];
-    expect(logMessage).toContain('Cemetery CRM Backend Server');
-    expect(logMessage).toContain('3001');
+    const bannerCall = stdoutSpy.mock.calls.find(
+      (call: any[]) =>
+        typeof call[0] === 'string' && call[0].includes('Cemetery CRM Backend Server')
+    );
+    expect(bannerCall).toBeTruthy();
+    expect(bannerCall![0]).toContain('3001');
+
+    // logger.info also called with structured data
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      expect.objectContaining({ port: '3001' }),
+      'Server started'
+    );
+
+    stdoutSpy.mockRestore();
   });
 
   it('should register all middleware and routes correctly', () => {
     require('../src/index');
 
     // セキュリティミドルウェア（helmet, cors, hpp, json, urlencoded, cookieParser, sanitizeInput, rateLimiter）
-    // + ログミドルウェア（requestLogger, securityHeaders）
+    // + requestIdMiddleware + ログミドルウェア（requestLogger, securityHeaders）
     // + Swagger UI + 6 API routes (auth, plots, masters, staff, collective-burials, documents)
-    // + notFoundHandler + errorHandler = 19 use calls
-    expect(mockApp.use).toHaveBeenCalledTimes(19);
+    // + notFoundHandler + errorHandler = 20 use calls
+    expect(mockApp.use).toHaveBeenCalledTimes(20);
     // 1 health check endpoint
     expect(mockApp.get).toHaveBeenCalledTimes(1);
   });
@@ -511,12 +527,29 @@ describe('Server Index', () => {
   });
 
   describe('Server startup logging', () => {
+    let stdoutSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    });
+
+    afterEach(() => {
+      stdoutSpy.mockRestore();
+    });
+
+    const getBannerMessage = (): string => {
+      const call = stdoutSpy.mock.calls.find(
+        (c: any[]) => typeof c[0] === 'string' && c[0].includes('Cemetery CRM Backend Server')
+      );
+      return call ? (call[0] as string) : '';
+    };
+
     it('should log with development environment by default', () => {
       delete process.env.NODE_ENV;
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('development');
     });
 
@@ -525,7 +558,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('production');
     });
 
@@ -534,7 +567,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('http://localhost:5000');
       expect(logMessage).toContain('http://localhost:5000/health');
       expect(logMessage).toContain('http://localhost:5000/api-docs');
@@ -543,7 +576,7 @@ describe('Server Index', () => {
     it('should log API Docs URL on startup', () => {
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('API Docs:');
       expect(logMessage).toContain('/api-docs');
     });
@@ -553,7 +586,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('https://api.example.com');
       expect(logMessage).toContain('https://api.example.com/health');
       expect(logMessage).toContain('https://api.example.com/api-docs');
@@ -565,7 +598,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('https://komine-crm-backend.onrender.com');
       expect(logMessage).toContain('https://komine-crm-backend.onrender.com/health');
       expect(logMessage).toContain('https://komine-crm-backend.onrender.com/api-docs');
@@ -578,7 +611,7 @@ describe('Server Index', () => {
 
       require('../src/index');
 
-      const logMessage = consoleSpy.mock.calls[0][0];
+      const logMessage = getBannerMessage();
       expect(logMessage).toContain('https://custom.example.com');
       expect(logMessage).not.toContain('onrender.com');
     });

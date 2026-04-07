@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../db/prisma';
+import { getRequestLogger } from '../utils/logger';
 import {
   createMasterSchema,
   updateMasterSchema,
@@ -52,7 +53,7 @@ export const getCemeteryTypeMaster = async (_req: Request, res: Response) => {
       data: formatted,
     });
   } catch (error) {
-    console.error('Error fetching cemetery type master:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching cemetery type master');
     res.status(500).json({
       success: false,
       error: {
@@ -88,7 +89,7 @@ export const getPaymentMethodMaster = async (_req: Request, res: Response) => {
       data: formatted,
     });
   } catch (error) {
-    console.error('Error fetching payment method master:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching payment method master');
     res.status(500).json({
       success: false,
       error: {
@@ -125,7 +126,7 @@ export const getTaxTypeMaster = async (_req: Request, res: Response) => {
       data: formatted,
     });
   } catch (error) {
-    console.error('Error fetching tax type master:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching tax type master');
     res.status(500).json({
       success: false,
       error: {
@@ -161,7 +162,7 @@ export const getCalcTypeMaster = async (_req: Request, res: Response) => {
       data: formatted,
     });
   } catch (error) {
-    console.error('Error fetching calc type master:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching calc type master');
     res.status(500).json({
       success: false,
       error: {
@@ -197,7 +198,7 @@ export const getBillingTypeMaster = async (_req: Request, res: Response) => {
       data: formatted,
     });
   } catch (error) {
-    console.error('Error fetching billing type master:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching billing type master');
     res.status(500).json({
       success: false,
       error: {
@@ -233,7 +234,7 @@ export const getAccountTypeMaster = async (_req: Request, res: Response) => {
       data: formatted,
     });
   } catch (error) {
-    console.error('Error fetching account type master:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching account type master');
     res.status(500).json({
       success: false,
       error: {
@@ -269,7 +270,7 @@ export const getRecipientTypeMaster = async (_req: Request, res: Response) => {
       data: formatted,
     });
   } catch (error) {
-    console.error('Error fetching recipient type master:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching recipient type master');
     res.status(500).json({
       success: false,
       error: {
@@ -305,7 +306,7 @@ export const getConstructionTypeMaster = async (_req: Request, res: Response) =>
       data: formatted,
     });
   } catch (error) {
-    console.error('Error fetching construction type master:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching construction type master');
     res.status(500).json({
       success: false,
       error: {
@@ -342,7 +343,7 @@ export const getSectionNameMaster = async (_req: Request, res: Response) => {
       data: formatted,
     });
   } catch (error) {
-    console.error('Error fetching section name master:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching section name master');
     res.status(500).json({
       success: false,
       error: {
@@ -478,7 +479,7 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    console.error(`Error creating ${masterType} master:`, error);
+    getRequestLogger().error({ err: error, masterType }, 'Error creating master');
     res.status(500).json({
       success: false,
       error: {
@@ -605,7 +606,7 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    console.error(`Error updating ${masterType} master:`, error);
+    getRequestLogger().error({ err: error, masterType }, 'Error updating master');
     res.status(500).json({
       success: false,
       error: {
@@ -674,7 +675,7 @@ export const deleteMaster = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    console.error(`Error deleting ${masterType} master:`, error);
+    getRequestLogger().error({ err: error, masterType }, 'Error deleting master');
     res.status(500).json({
       success: false,
       error: {
@@ -820,7 +821,7 @@ export const getAllMasters = async (_req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching all masters:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching all masters');
     res.status(500).json({
       success: false,
       error: {

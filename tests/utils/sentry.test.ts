@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import { logger } from '../../src/utils/logger';
 import {
   initializeSentry,
   setSentryUser,
@@ -24,20 +25,16 @@ jest.mock('@sentry/profiling-node', () => ({
   nodeProfilingIntegration: jest.fn(() => 'profiling-integration'),
 }));
 
-describe('Sentry Utilities', () => {
-  let consoleLogSpy: jest.SpyInstance;
+const mockLoggerInfo = (logger as unknown as { info: jest.Mock }).info;
+const mockLoggerDebug = (logger as unknown as { debug: jest.Mock }).debug;
 
+describe('Sentry Utilities', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     delete process.env['SENTRY_DSN'];
     delete process.env['SENTRY_ENVIRONMENT'];
     delete process.env['NODE_ENV'];
     delete process.env['SENTRY_TRACES_SAMPLE_RATE'];
-  });
-
-  afterEach(() => {
-    consoleLogSpy.mockRestore();
   });
 
   describe('initializeSentry', () => {
@@ -45,7 +42,7 @@ describe('Sentry Utilities', () => {
       initializeSentry();
 
       expect(Sentry.init).not.toHaveBeenCalled();
-      expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect(mockLoggerInfo).toHaveBeenCalledWith(
         'Sentry DSN not configured. Skipping Sentry initialization.'
       );
     });
@@ -148,7 +145,10 @@ describe('Sentry Utilities', () => {
       const result = beforeSend(event, {});
 
       expect(result).toBeNull();
-      expect(consoleLogSpy).toHaveBeenCalledWith('Sentry event (not sent in development):', event);
+      expect(mockLoggerDebug).toHaveBeenCalledWith(
+        { event },
+        'Sentry event (not sent in development)'
+      );
     });
   });
 

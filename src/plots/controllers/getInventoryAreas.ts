@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getAreaInventory } from '../services/inventoryService';
 import { PlotPeriod, AreaSortKey, SortOrder } from '../../validations/inventoryValidation';
 import prisma from '../../db/prisma';
+import { getRequestLogger } from '../../utils/logger';
 
 /**
  * GET /plots/inventory/areas
@@ -40,7 +41,7 @@ export async function getInventoryAreas(req: Request, res: Response): Promise<vo
       },
     });
   } catch (error) {
-    console.error('Error fetching inventory areas:', error);
+    getRequestLogger().error({ err: error }, 'Error fetching inventory areas');
     res.status(500).json({
       success: false,
       error: {
