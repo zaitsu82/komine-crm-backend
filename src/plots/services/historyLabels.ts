@@ -245,12 +245,26 @@ export function formatHistoryWithLabels(history: {
   const entityType = history.entity_type;
   const entityLabel = getEntityLabel(entityType);
 
-  // changed_fields に含まれるフィールド名から日本語ラベルマップを構築
+  // 日本語ラベルマップを構築
+  // - UPDATE: changed_fields のキーから
+  // - CREATE: after_record のキーから
+  // - DELETE: before_record のキーから
   const fieldLabels: Record<string, string> = {};
-  if (history.changed_fields && typeof history.changed_fields === 'object') {
-    for (const fieldName of Object.keys(history.changed_fields as Record<string, unknown>)) {
-      fieldLabels[fieldName] = getFieldLabel(entityType, fieldName);
+  const collectLabels = (record: unknown): void => {
+    if (record && typeof record === 'object') {
+      for (const fieldName of Object.keys(record as Record<string, unknown>)) {
+        if (fieldName === 'id') continue;
+        fieldLabels[fieldName] = getFieldLabel(entityType, fieldName);
+      }
     }
+  };
+  if (history.changed_fields && typeof history.changed_fields === 'object') {
+    collectLabels(history.changed_fields);
+  }
+  if (history.action_type === 'CREATE') {
+    collectLabels(history.after_record);
+  } else if (history.action_type === 'DELETE') {
+    collectLabels(history.before_record);
   }
 
   return {

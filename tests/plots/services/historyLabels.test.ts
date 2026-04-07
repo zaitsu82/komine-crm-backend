@@ -77,7 +77,7 @@ describe('historyLabels', () => {
         action_type: 'CREATE',
         changed_fields: null,
         before_record: null,
-        after_record: { name: '田中' },
+        after_record: null,
         changed_by: 'system',
         change_reason: null,
         ip_address: 'unknown',
@@ -87,6 +87,50 @@ describe('historyLabels', () => {
       const result = formatHistoryWithLabels(history);
       expect(result['fieldLabels']).toEqual({});
       expect(result['entityLabel']).toBe('顧客');
+    });
+
+    it('CREATE時はafter_recordのキーからfieldLabelsを補完する (issue #63)', () => {
+      const history = {
+        id: 'h-1',
+        entity_type: 'BuriedPerson',
+        entity_id: 'bp-1',
+        action_type: 'CREATE',
+        changed_fields: null,
+        before_record: null,
+        after_record: { id: 'bp-1', name: '田中', death_date: '2024-01-01' },
+        changed_by: 'system',
+        change_reason: null,
+        ip_address: 'unknown',
+        created_at: new Date(),
+      };
+
+      const result = formatHistoryWithLabels(history);
+      expect(result['fieldLabels']).toEqual({
+        name: '氏名',
+        death_date: '死亡日',
+      });
+    });
+
+    it('DELETE時はbefore_recordのキーからfieldLabelsを補完する (issue #63)', () => {
+      const history = {
+        id: 'h-1',
+        entity_type: 'WorkInfo',
+        entity_id: 'wi-1',
+        action_type: 'DELETE',
+        changed_fields: null,
+        before_record: { id: 'wi-1', company_name: 'A社', work_address: '東京' },
+        after_record: null,
+        changed_by: 'system',
+        change_reason: null,
+        ip_address: 'unknown',
+        created_at: new Date(),
+      };
+
+      const result = formatHistoryWithLabels(history);
+      expect(result['fieldLabels']).toEqual({
+        company_name: '勤務先名称',
+        work_address: '勤務先住所',
+      });
     });
   });
 });

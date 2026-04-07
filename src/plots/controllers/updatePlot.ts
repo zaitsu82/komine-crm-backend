@@ -64,6 +64,51 @@ export const updatePlot = async (
       const physicalPlotId = existingContractPlot.physical_plot_id;
       const oldContractArea = existingContractPlot.contract_area_sqm.toNumber();
 
+      // 1.5. 物理区画情報の更新（issue #62）
+      // フロントから input.physicalPlot が送られてきた場合のみ更新
+      const physicalPlotInput = (input as { physicalPlot?: Record<string, unknown> }).physicalPlot;
+      if (physicalPlotInput) {
+        const ppUpdateData: Record<string, unknown> = {};
+        if (physicalPlotInput['plotNumber'] !== undefined)
+          ppUpdateData['plot_number'] = physicalPlotInput['plotNumber'];
+        if (physicalPlotInput['areaName'] !== undefined)
+          ppUpdateData['area_name'] = physicalPlotInput['areaName'];
+        if (physicalPlotInput['areaSqm'] !== undefined)
+          ppUpdateData['area_sqm'] = new Prisma.Decimal(physicalPlotInput['areaSqm'] as number);
+        if (physicalPlotInput['status'] !== undefined)
+          ppUpdateData['status'] = physicalPlotInput['status'];
+        if (physicalPlotInput['notes'] !== undefined)
+          ppUpdateData['notes'] = physicalPlotInput['notes'];
+
+        if (Object.keys(ppUpdateData).length > 0) {
+          const beforePp = existingContractPlot.physicalPlot;
+          const updatedPp = await tx.physicalPlot.update({
+            where: { id: physicalPlotId },
+            data: ppUpdateData,
+          });
+          await recordEntityUpdated(tx, {
+            entityType: 'PhysicalPlot',
+            entityId: physicalPlotId,
+            physicalPlotId,
+            beforeRecord: {
+              plot_number: beforePp.plot_number,
+              area_name: beforePp.area_name,
+              area_sqm: beforePp.area_sqm.toString(),
+              status: beforePp.status,
+              notes: beforePp.notes,
+            },
+            afterRecord: {
+              plot_number: updatedPp.plot_number,
+              area_name: updatedPp.area_name,
+              area_sqm: updatedPp.area_sqm.toString(),
+              status: updatedPp.status,
+              notes: updatedPp.notes,
+            },
+            req,
+          });
+        }
+      }
+
       // 2. ContractPlot（販売契約情報統合済み）の更新
       const updateData: any = {};
 
