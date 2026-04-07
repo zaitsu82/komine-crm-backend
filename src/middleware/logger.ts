@@ -7,10 +7,14 @@ import { getRequestLogger } from '../utils/logger';
  */
 export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
   const startTime = Date.now();
+  // finishコールバック内ではAsyncLocalStorageのコンテキストが失われる場合があるため、
+  // ミドルウェア実行時点でロガーをキャプチャしておく
+  const log = getRequestLogger();
+
+  log.debug({ method: req.method, path: req.path }, 'HTTP request received');
 
   // レスポンス完了時にログを出力
   res.on('finish', () => {
-    const log = getRequestLogger();
     const duration = Date.now() - startTime;
     const logData = {
       method: req.method,
