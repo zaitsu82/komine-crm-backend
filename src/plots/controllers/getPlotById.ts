@@ -6,6 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../../db/prisma';
 import { NotFoundError } from '../../middleware/errorHandler';
+import { formatHistoryWithLabels } from '../services/historyLabels';
 
 /**
  * 契約区画詳細取得（ContractPlot中心）
@@ -60,12 +61,12 @@ export const getPlotById = async (
     }
 
     // 履歴情報取得（オプション）
+    // 当該契約区画に紐づく全エンティティの履歴を返す（issue #51）
     let histories: any[] = [];
     if (includeHistory) {
       histories = await prisma.history.findMany({
         where: {
-          entity_type: 'ContractPlot',
-          entity_id: id,
+          OR: [{ contract_plot_id: id }, { physical_plot_id: contractPlot.physical_plot_id }],
         },
         orderBy: {
           created_at: 'desc',
@@ -244,8 +245,8 @@ export const getPlotById = async (
           }
         : null,
 
-      // 履歴情報
-      histories: includeHistory ? histories : undefined,
+      // 履歴情報（日本語ラベル付与）
+      histories: includeHistory ? histories.map(formatHistoryWithLabels) : undefined,
     };
 
     // 主契約者（role='contractor'）を取得（後方互換性のため）

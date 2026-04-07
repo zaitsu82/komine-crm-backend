@@ -8,6 +8,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../../db/prisma';
 import { NotFoundError } from '../../middleware/errorHandler';
+import { formatHistoryWithLabels } from '../services/historyLabels';
 
 interface HistoryQueryParams {
   page?: string;
@@ -63,20 +64,8 @@ export const getPlotHistory = async (
       prisma.history.count({ where: whereCondition }),
     ]);
 
-    // レスポンスの整形
-    const formattedHistories = histories.map((history) => ({
-      id: history.id,
-      entityType: history.entity_type,
-      entityId: history.entity_id,
-      actionType: history.action_type,
-      changedFields: history.changed_fields,
-      beforeRecord: history.before_record,
-      afterRecord: history.after_record,
-      changedBy: history.changed_by,
-      changeReason: history.change_reason,
-      ipAddress: history.ip_address,
-      createdAt: history.created_at,
-    }));
+    // レスポンスの整形（日本語ラベル付与）
+    const formattedHistories = histories.map(formatHistoryWithLabels);
 
     res.status(200).json({
       success: true,

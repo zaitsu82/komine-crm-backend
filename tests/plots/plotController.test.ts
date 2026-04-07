@@ -103,6 +103,9 @@ jest.mock('../../src/plots/services/historyService', () => ({
   recordCustomerCreated: jest.fn(),
   recordContractPlotUpdated: jest.fn(),
   recordCustomerUpdated: jest.fn(),
+  recordEntityCreated: jest.fn(),
+  recordEntityUpdated: jest.fn(),
+  recordEntityDeleted: jest.fn(),
 }));
 
 import {

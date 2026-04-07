@@ -11,7 +11,13 @@ import { UpdatePlotRequest } from '@komine/types';
 import { updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
-import { recordContractPlotUpdated, recordCustomerUpdated } from '../services/historyService';
+import {
+  recordContractPlotUpdated,
+  recordCustomerUpdated,
+  recordEntityCreated,
+  recordEntityUpdated,
+  recordEntityDeleted,
+} from '../services/historyService';
 import { updateCollectiveBurialCount } from '../../collective-burials/utils';
 
 /**
@@ -159,6 +165,14 @@ export const updatePlot = async (
 
       // 3. 顧客役割の更新
       if (input.saleContract?.roles !== undefined) {
+        // 既存役割を退避
+        const existingRoles = await tx.saleContractRole.findMany({
+          where: {
+            contract_plot_id: id,
+            deleted_at: null,
+          },
+        });
+
         // 既存の役割を論理削除
         await tx.saleContractRole.updateMany({
           where: {
@@ -169,6 +183,20 @@ export const updatePlot = async (
             deleted_at: new Date(),
           },
         });
+        for (const oldRole of existingRoles) {
+          await recordEntityDeleted(tx, {
+            entityType: 'SaleContractRole',
+            entityId: oldRole.id,
+            physicalPlotId,
+            contractPlotId: id as string,
+            beforeRecord: {
+              id: oldRole.id,
+              role: oldRole.role,
+              customer_id: oldRole.customer_id,
+            },
+            req,
+          });
+        }
 
         // 新しい役割を作成
         for (const roleData of input.saleContract.roles) {
@@ -177,7 +205,7 @@ export const updatePlot = async (
             throw new ValidationError('役割更新時は customerId が必須です');
           }
 
-          await tx.saleContractRole.create({
+          const created = await tx.saleContractRole.create({
             data: {
               contract_plot_id: existingContractPlot.id, // sale_contract_id → contract_plot_idに変更
               customer_id: roleData.customerId,
@@ -186,6 +214,18 @@ export const updatePlot = async (
               role_end_date: roleData.roleEndDate ? new Date(roleData.roleEndDate) : null,
               notes: roleData.notes || null,
             },
+          });
+          await recordEntityCreated(tx, {
+            entityType: 'SaleContractRole',
+            entityId: created.id,
+            physicalPlotId,
+            contractPlotId: id as string,
+            afterRecord: {
+              id: created.id,
+              role: created.role,
+              customer_id: created.customer_id,
+            },
+            req,
           });
         }
       }
@@ -240,6 +280,19 @@ export const updatePlot = async (
                 await tx.workInfo.delete({
                   where: { id: existingWorkInfo.id },
                 });
+                await recordEntityDeleted(tx, {
+                  entityType: 'WorkInfo',
+                  entityId: existingWorkInfo.id,
+                  physicalPlotId,
+                  contractPlotId: id as string,
+                  beforeRecord: {
+                    id: existingWorkInfo.id,
+                    company_name: existingWorkInfo.company_name,
+                    work_address: existingWorkInfo.work_address,
+                    work_phone_number: existingWorkInfo.work_phone_number,
+                  },
+                  req,
+                });
               }
             } else {
               // 更新または作成
@@ -262,16 +315,55 @@ export const updatePlot = async (
 
               if (Object.keys(workInfoData).length > 0) {
                 if (existingWorkInfo) {
-                  await tx.workInfo.update({
+                  const updated = await tx.workInfo.update({
                     where: { id: existingWorkInfo.id },
                     data: workInfoData,
                   });
+                  await recordEntityUpdated(tx, {
+                    entityType: 'WorkInfo',
+                    entityId: existingWorkInfo.id,
+                    physicalPlotId,
+                    contractPlotId: id as string,
+                    beforeRecord: {
+                      company_name: existingWorkInfo.company_name,
+                      company_name_kana: existingWorkInfo.company_name_kana,
+                      work_postal_code: existingWorkInfo.work_postal_code,
+                      work_address: existingWorkInfo.work_address,
+                      work_phone_number: existingWorkInfo.work_phone_number,
+                      dm_setting: existingWorkInfo.dm_setting,
+                      address_type: existingWorkInfo.address_type,
+                      notes: existingWorkInfo.notes,
+                    },
+                    afterRecord: {
+                      company_name: updated.company_name,
+                      company_name_kana: updated.company_name_kana,
+                      work_postal_code: updated.work_postal_code,
+                      work_address: updated.work_address,
+                      work_phone_number: updated.work_phone_number,
+                      dm_setting: updated.dm_setting,
+                      address_type: updated.address_type,
+                      notes: updated.notes,
+                    },
+                    req,
+                  });
                 } else {
-                  await tx.workInfo.create({
+                  const created = await tx.workInfo.create({
                     data: {
                       customer_id: customerId,
                       ...workInfoData,
                     },
+                  });
+                  await recordEntityCreated(tx, {
+                    entityType: 'WorkInfo',
+                    entityId: created.id,
+                    physicalPlotId,
+                    contractPlotId: id as string,
+                    afterRecord: {
+                      id: created.id,
+                      customer_id: customerId,
+                      ...workInfoData,
+                    },
+                    req,
                   });
                 }
               }
@@ -287,6 +379,19 @@ export const updatePlot = async (
               if (existingBillingInfo) {
                 await tx.billingInfo.delete({
                   where: { id: existingBillingInfo.id },
+                });
+                await recordEntityDeleted(tx, {
+                  entityType: 'BillingInfo',
+                  entityId: existingBillingInfo.id,
+                  physicalPlotId,
+                  contractPlotId: id as string,
+                  beforeRecord: {
+                    id: existingBillingInfo.id,
+                    billing_type: existingBillingInfo.billing_type,
+                    bank_name: existingBillingInfo.bank_name,
+                    branch_name: existingBillingInfo.branch_name,
+                  },
+                  req,
                 });
               }
             } else {
@@ -307,16 +412,51 @@ export const updatePlot = async (
 
               if (Object.keys(billingInfoData).length > 0) {
                 if (existingBillingInfo) {
-                  await tx.billingInfo.update({
+                  const updated = await tx.billingInfo.update({
                     where: { id: existingBillingInfo.id },
                     data: billingInfoData,
                   });
+                  await recordEntityUpdated(tx, {
+                    entityType: 'BillingInfo',
+                    entityId: existingBillingInfo.id,
+                    physicalPlotId,
+                    contractPlotId: id as string,
+                    beforeRecord: {
+                      billing_type: existingBillingInfo.billing_type,
+                      bank_name: existingBillingInfo.bank_name,
+                      branch_name: existingBillingInfo.branch_name,
+                      account_type: existingBillingInfo.account_type,
+                      account_number: existingBillingInfo.account_number,
+                      account_holder: existingBillingInfo.account_holder,
+                    },
+                    afterRecord: {
+                      billing_type: updated.billing_type,
+                      bank_name: updated.bank_name,
+                      branch_name: updated.branch_name,
+                      account_type: updated.account_type,
+                      account_number: updated.account_number,
+                      account_holder: updated.account_holder,
+                    },
+                    req,
+                  });
                 } else {
-                  await tx.billingInfo.create({
+                  const created = await tx.billingInfo.create({
                     data: {
                       customer_id: customerId,
                       ...billingInfoData,
                     },
+                  });
+                  await recordEntityCreated(tx, {
+                    entityType: 'BillingInfo',
+                    entityId: created.id,
+                    physicalPlotId,
+                    contractPlotId: id as string,
+                    afterRecord: {
+                      id: created.id,
+                      customer_id: customerId,
+                      ...billingInfoData,
+                    },
+                    req,
                   });
                 }
               }
@@ -330,8 +470,25 @@ export const updatePlot = async (
         if (input.usageFee === null) {
           // 削除
           if (existingContractPlot.usageFee) {
+            const before = existingContractPlot.usageFee;
             await tx.usageFee.delete({
-              where: { id: existingContractPlot.usageFee.id },
+              where: { id: before.id },
+            });
+            await recordEntityDeleted(tx, {
+              entityType: 'UsageFee',
+              entityId: before.id,
+              physicalPlotId,
+              contractPlotId: id as string,
+              beforeRecord: {
+                id: before.id,
+                calculation_type: before.calculation_type,
+                tax_type: before.tax_type,
+                usage_fee: before.usage_fee,
+                area: before.area,
+                unit_price: before.unit_price,
+                payment_method: before.payment_method,
+              },
+              req,
             });
           }
         } else {
@@ -351,18 +508,58 @@ export const updatePlot = async (
 
           if (Object.keys(usageFeeData).length > 0) {
             if (existingContractPlot.usageFee) {
-              await tx.usageFee.update({
-                where: { id: existingContractPlot.usageFee.id },
+              const before = existingContractPlot.usageFee;
+              const updated = await tx.usageFee.update({
+                where: { id: before.id },
                 data: usageFeeData,
               });
+              await recordEntityUpdated(tx, {
+                entityType: 'UsageFee',
+                entityId: before.id,
+                physicalPlotId,
+                contractPlotId: id as string,
+                beforeRecord: {
+                  calculation_type: before.calculation_type,
+                  tax_type: before.tax_type,
+                  usage_fee: before.usage_fee,
+                  area: before.area,
+                  unit_price: before.unit_price,
+                  payment_method: before.payment_method,
+                },
+                afterRecord: {
+                  calculation_type: updated.calculation_type,
+                  tax_type: updated.tax_type,
+                  usage_fee: updated.usage_fee,
+                  area: updated.area,
+                  unit_price: updated.unit_price,
+                  payment_method: updated.payment_method,
+                },
+                req,
+              });
             } else {
-              await tx.usageFee.create({
+              const created = await tx.usageFee.create({
                 data: {
                   contract_plot_id: id,
                   billing_type: 'onetime',
                   billing_years: '1',
                   ...usageFeeData,
                 },
+              });
+              await recordEntityCreated(tx, {
+                entityType: 'UsageFee',
+                entityId: created.id,
+                physicalPlotId,
+                contractPlotId: id as string,
+                afterRecord: {
+                  id: created.id,
+                  calculation_type: created.calculation_type,
+                  tax_type: created.tax_type,
+                  usage_fee: created.usage_fee,
+                  area: created.area,
+                  unit_price: created.unit_price,
+                  payment_method: created.payment_method,
+                },
+                req,
               });
             }
           }
@@ -374,8 +571,22 @@ export const updatePlot = async (
         if (input.managementFee === null) {
           // 削除
           if (existingContractPlot.managementFee) {
+            const before = existingContractPlot.managementFee;
             await tx.managementFee.delete({
-              where: { id: existingContractPlot.managementFee.id },
+              where: { id: before.id },
+            });
+            await recordEntityDeleted(tx, {
+              entityType: 'ManagementFee',
+              entityId: before.id,
+              physicalPlotId,
+              contractPlotId: id as string,
+              beforeRecord: {
+                id: before.id,
+                management_fee: before.management_fee,
+                billing_type: before.billing_type,
+                billing_years: before.billing_years,
+              },
+              req,
             });
           }
         } else {
@@ -404,16 +615,59 @@ export const updatePlot = async (
 
           if (Object.keys(managementFeeData).length > 0) {
             if (existingContractPlot.managementFee) {
-              await tx.managementFee.update({
-                where: { id: existingContractPlot.managementFee.id },
+              const before = existingContractPlot.managementFee;
+              const updated = await tx.managementFee.update({
+                where: { id: before.id },
                 data: managementFeeData,
               });
+              await recordEntityUpdated(tx, {
+                entityType: 'ManagementFee',
+                entityId: before.id,
+                physicalPlotId,
+                contractPlotId: id as string,
+                beforeRecord: {
+                  calculation_type: before.calculation_type,
+                  tax_type: before.tax_type,
+                  billing_type: before.billing_type,
+                  billing_years: before.billing_years,
+                  area: before.area,
+                  billing_month: before.billing_month,
+                  management_fee: before.management_fee,
+                  unit_price: before.unit_price,
+                  last_billing_month: before.last_billing_month,
+                  payment_method: before.payment_method,
+                },
+                afterRecord: {
+                  calculation_type: updated.calculation_type,
+                  tax_type: updated.tax_type,
+                  billing_type: updated.billing_type,
+                  billing_years: updated.billing_years,
+                  area: updated.area,
+                  billing_month: updated.billing_month,
+                  management_fee: updated.management_fee,
+                  unit_price: updated.unit_price,
+                  last_billing_month: updated.last_billing_month,
+                  payment_method: updated.payment_method,
+                },
+                req,
+              });
             } else {
-              await tx.managementFee.create({
+              const created = await tx.managementFee.create({
                 data: {
                   contract_plot_id: id,
                   ...managementFeeData,
                 },
+              });
+              await recordEntityCreated(tx, {
+                entityType: 'ManagementFee',
+                entityId: created.id,
+                physicalPlotId,
+                contractPlotId: id as string,
+                afterRecord: {
+                  id: created.id,
+                  ...managementFeeData,
+                },
+                req,
               });
             }
           }
@@ -438,6 +692,20 @@ export const updatePlot = async (
               where: { id: existingCB.id },
               data: { deleted_at: new Date() },
             });
+            await recordEntityDeleted(tx, {
+              entityType: 'CollectiveBurial',
+              entityId: existingCB.id,
+              physicalPlotId,
+              contractPlotId: id as string,
+              beforeRecord: {
+                id: existingCB.id,
+                burial_capacity: existingCB.burial_capacity,
+                validity_period_years: existingCB.validity_period_years,
+                billing_amount: existingCB.billing_amount,
+                notes: existingCB.notes,
+              },
+              req,
+            });
           }
         } else {
           // 合祀設定を更新/作成: ContractPlotのフィールドを更新
@@ -451,7 +719,7 @@ export const updatePlot = async (
 
           if (existingCB && !existingCB.deleted_at) {
             // 既存CBを更新
-            await tx.collectiveBurial.update({
+            const updated = await tx.collectiveBurial.update({
               where: { id: existingCB.id },
               data: {
                 burial_capacity: input.collectiveBurial.burialCapacity,
@@ -463,6 +731,25 @@ export const updatePlot = async (
                     : existingCB.notes,
               },
             });
+            await recordEntityUpdated(tx, {
+              entityType: 'CollectiveBurial',
+              entityId: existingCB.id,
+              physicalPlotId,
+              contractPlotId: id as string,
+              beforeRecord: {
+                burial_capacity: existingCB.burial_capacity,
+                validity_period_years: existingCB.validity_period_years,
+                billing_amount: existingCB.billing_amount,
+                notes: existingCB.notes,
+              },
+              afterRecord: {
+                burial_capacity: updated.burial_capacity,
+                validity_period_years: updated.validity_period_years,
+                billing_amount: updated.billing_amount,
+                notes: updated.notes,
+              },
+              req,
+            });
           } else {
             // 新規CB作成（論理削除済みの場合も復活）
             const cbCapacity = input.collectiveBurial.burialCapacity;
@@ -473,8 +760,9 @@ export const updatePlot = async (
               );
             }
 
+            let cbCreated: { id: string };
             if (existingCB?.deleted_at) {
-              await tx.collectiveBurial.update({
+              cbCreated = await tx.collectiveBurial.update({
                 where: { id: existingCB.id },
                 data: {
                   burial_capacity: cbCapacity,
@@ -485,7 +773,7 @@ export const updatePlot = async (
                 },
               });
             } else {
-              await tx.collectiveBurial.create({
+              cbCreated = await tx.collectiveBurial.create({
                 data: {
                   contract_plot_id: id as string,
                   burial_capacity: cbCapacity,
@@ -495,6 +783,20 @@ export const updatePlot = async (
                 },
               });
             }
+            await recordEntityCreated(tx, {
+              entityType: 'CollectiveBurial',
+              entityId: cbCreated.id,
+              physicalPlotId,
+              contractPlotId: id as string,
+              afterRecord: {
+                id: cbCreated.id,
+                burial_capacity: cbCapacity,
+                validity_period_years: cbPeriod,
+                billing_amount: input.collectiveBurial.billingAmount ?? null,
+                notes: input.collectiveBurial.notes || null,
+              },
+              req,
+            });
           }
         }
       }
@@ -506,6 +808,7 @@ export const updatePlot = async (
           where: { contract_plot_id: id, deleted_at: null },
         });
         const existingIds = existingBuriedPersons.map((bp) => bp.id);
+        const existingMap = new Map(existingBuriedPersons.map((bp) => [bp.id, bp]));
         const inputIds = input.buriedPersons.filter((bp) => bp.id).map((bp) => bp.id as string);
 
         // 送信されなかったIDは論理削除
@@ -515,6 +818,22 @@ export const updatePlot = async (
             where: { id: { in: idsToDelete } },
             data: { deleted_at: new Date() },
           });
+          for (const delId of idsToDelete) {
+            const before = existingMap.get(delId)!;
+            await recordEntityDeleted(tx, {
+              entityType: 'BuriedPerson',
+              entityId: delId,
+              physicalPlotId,
+              contractPlotId: id as string,
+              beforeRecord: {
+                id: before.id,
+                name: before.name,
+                death_date: before.death_date?.toISOString() ?? null,
+                burial_date: before.burial_date?.toISOString() ?? null,
+              },
+              req,
+            });
+          }
         }
 
         // 各レコードを作成/更新
@@ -534,19 +853,66 @@ export const updatePlot = async (
             notes: bp.notes || null,
           };
 
+          // 履歴用のシリアライズ可能な before/after
+          const serialize = (data: typeof bpData) => ({
+            name: data.name,
+            name_kana: data.name_kana,
+            relationship: data.relationship,
+            birth_date: data.birth_date?.toISOString() ?? null,
+            death_date: data.death_date?.toISOString() ?? null,
+            age: data.age,
+            gender: data.gender,
+            burial_date: data.burial_date?.toISOString() ?? null,
+            posthumous_name: data.posthumous_name,
+            report_date: data.report_date?.toISOString() ?? null,
+            religion: data.religion,
+            notes: data.notes,
+          });
+
           if (bp.id && existingIds.includes(bp.id)) {
             // 既存レコードを更新
+            const before = existingMap.get(bp.id)!;
             await tx.buriedPerson.update({
               where: { id: bp.id },
               data: bpData,
             });
+            await recordEntityUpdated(tx, {
+              entityType: 'BuriedPerson',
+              entityId: bp.id,
+              physicalPlotId,
+              contractPlotId: id as string,
+              beforeRecord: {
+                name: before.name,
+                name_kana: before.name_kana,
+                relationship: before.relationship,
+                birth_date: before.birth_date?.toISOString() ?? null,
+                death_date: before.death_date?.toISOString() ?? null,
+                age: before.age,
+                gender: before.gender,
+                burial_date: before.burial_date?.toISOString() ?? null,
+                posthumous_name: before.posthumous_name,
+                report_date: before.report_date?.toISOString() ?? null,
+                religion: before.religion,
+                notes: before.notes,
+              },
+              afterRecord: serialize(bpData),
+              req,
+            });
           } else {
             // 新規作成
-            await tx.buriedPerson.create({
+            const created = await tx.buriedPerson.create({
               data: {
                 contract_plot_id: id as string,
                 ...bpData,
               },
+            });
+            await recordEntityCreated(tx, {
+              entityType: 'BuriedPerson',
+              entityId: created.id,
+              physicalPlotId,
+              contractPlotId: id as string,
+              afterRecord: { id: created.id, ...serialize(bpData) },
+              req,
             });
           }
         }
@@ -567,6 +933,7 @@ export const updatePlot = async (
           where: { contract_plot_id: id, deleted_at: null },
         });
         const existingCiIds = existingConstructionInfos.map((ci) => ci.id);
+        const existingCiMap = new Map(existingConstructionInfos.map((ci) => [ci.id, ci]));
         const inputCiIds = input.constructionInfos
           .filter((ci) => ci.id)
           .map((ci) => ci.id as string);
@@ -578,6 +945,23 @@ export const updatePlot = async (
             where: { id: { in: ciIdsToDelete } },
             data: { deleted_at: new Date() },
           });
+          for (const delId of ciIdsToDelete) {
+            const before = existingCiMap.get(delId)!;
+            await recordEntityDeleted(tx, {
+              entityType: 'ConstructionInfo',
+              entityId: delId,
+              physicalPlotId,
+              contractPlotId: id as string,
+              beforeRecord: {
+                id: before.id,
+                construction_type: before.construction_type,
+                contractor: before.contractor,
+                start_date: before.start_date?.toISOString() ?? null,
+                completion_date: before.completion_date?.toISOString() ?? null,
+              },
+              req,
+            });
+          }
         }
 
         // 各レコードを作成/更新
@@ -614,17 +998,50 @@ export const updatePlot = async (
             notes: ci.notes || null,
           };
 
+          // 履歴用にDate→ISOへシリアライズ
+          const serializeCi = (data: typeof ciData) => {
+            const result: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(data)) {
+              result[k] = v instanceof Date ? v.toISOString() : v;
+            }
+            return result;
+          };
+
           if (ci.id && existingCiIds.includes(ci.id)) {
+            const before = existingCiMap.get(ci.id)!;
             await tx.constructionInfo.update({
               where: { id: ci.id },
               data: ciData,
             });
+            // beforeをciDataと同じ形にシリアライズ
+            const beforeSerialized: Record<string, unknown> = {};
+            for (const key of Object.keys(ciData)) {
+              const v = (before as any)[key];
+              beforeSerialized[key] = v instanceof Date ? v.toISOString() : v;
+            }
+            await recordEntityUpdated(tx, {
+              entityType: 'ConstructionInfo',
+              entityId: ci.id,
+              physicalPlotId,
+              contractPlotId: id as string,
+              beforeRecord: beforeSerialized,
+              afterRecord: serializeCi(ciData),
+              req,
+            });
           } else {
-            await tx.constructionInfo.create({
+            const created = await tx.constructionInfo.create({
               data: {
                 contract_plot_id: id as string,
                 ...ciData,
               },
+            });
+            await recordEntityCreated(tx, {
+              entityType: 'ConstructionInfo',
+              entityId: created.id,
+              physicalPlotId,
+              contractPlotId: id as string,
+              afterRecord: { id: created.id, ...serializeCi(ciData) },
+              req,
             });
           }
         }
