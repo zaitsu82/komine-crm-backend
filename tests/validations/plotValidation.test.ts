@@ -493,6 +493,41 @@ describe('Plot Validation (ContractPlot Model)', () => {
       expect(() => updatePlotSchema.parse(validData)).not.toThrow();
     });
 
+    // フロントが各フィールドを null として送信するため null 許容が必須
+    it('UsageFee の各フィールドが null を受け入れること', () => {
+      const data = {
+        usageFee: {
+          calculationType: null,
+          taxType: null,
+          billingType: null,
+          billingYears: null,
+          area: null,
+          unitPrice: null,
+          usageFee: null,
+          paymentMethod: null,
+        },
+      };
+      expect(() => updatePlotSchema.parse(data)).not.toThrow();
+    });
+
+    it('ManagementFee の各フィールドが null を受け入れること', () => {
+      const data = {
+        managementFee: {
+          calculationType: null,
+          taxType: null,
+          billingType: null,
+          billingYears: null,
+          area: null,
+          billingMonth: null,
+          managementFee: null,
+          unitPrice: null,
+          lastBillingMonth: null,
+          paymentMethod: null,
+        },
+      };
+      expect(() => updatePlotSchema.parse(data)).not.toThrow();
+    });
+
     it('ManagementFee更新が可能であること', () => {
       const validData = {
         managementFee: {
@@ -501,6 +536,71 @@ describe('Plot Validation (ContractPlot Model)', () => {
       };
 
       expect(() => updatePlotSchema.parse(validData)).not.toThrow();
+    });
+
+    // issue #62: physicalPlot / constructionInfos が Zod により黙ってstripされていた問題の回帰テスト
+    describe('physicalPlot 更新（issue #62）', () => {
+      it('physicalPlot.notes のみ更新が可能であること', () => {
+        const data = { physicalPlot: { notes: '備考メモ' } };
+        const parsed = updatePlotSchema.parse(data);
+        expect(parsed.physicalPlot?.notes).toBe('備考メモ');
+      });
+
+      it('physicalPlot の全フィールド更新が可能であること', () => {
+        const data = {
+          physicalPlot: {
+            plotNumber: 'A-100',
+            areaName: '北区域',
+            areaSqm: 3.6,
+            status: 'available',
+            notes: 'メモ',
+          },
+        };
+        const parsed = updatePlotSchema.parse(data);
+        expect(parsed.physicalPlot).toEqual(data.physicalPlot);
+      });
+
+      it('physicalPlot.areaSqm に文字列を渡すとバリデーションエラーになること', () => {
+        const data = { physicalPlot: { areaSqm: 'invalid' as unknown as number } };
+        expect(() => updatePlotSchema.parse(data)).toThrow();
+      });
+
+      it('physicalPlot.notes に null を許容すること', () => {
+        const data = { physicalPlot: { notes: null } };
+        expect(() => updatePlotSchema.parse(data)).not.toThrow();
+      });
+    });
+
+    describe('constructionInfos 更新（issue #62）', () => {
+      it('constructionInfos の配列が parse 結果に保持されること', () => {
+        const data = {
+          constructionInfos: [
+            {
+              id: '550e8400-e29b-41d4-a716-446655440000',
+              constructionType: '建立',
+              contractor: '〇〇石材',
+              notes: '工事メモ',
+            },
+          ],
+        };
+        const parsed = updatePlotSchema.parse(data);
+        expect(parsed.constructionInfos).toHaveLength(1);
+        expect(parsed.constructionInfos?.[0].id).toBe('550e8400-e29b-41d4-a716-446655440000');
+        expect(parsed.constructionInfos?.[0].notes).toBe('工事メモ');
+      });
+
+      it('id 無しの新規工事情報も受け入れること', () => {
+        const data = {
+          constructionInfos: [{ contractor: '新規業者' }],
+        };
+        const parsed = updatePlotSchema.parse(data);
+        expect(parsed.constructionInfos?.[0].contractor).toBe('新規業者');
+      });
+
+      it('空配列も許容すること', () => {
+        const data = { constructionInfos: [] };
+        expect(() => updatePlotSchema.parse(data)).not.toThrow();
+      });
     });
   });
 
