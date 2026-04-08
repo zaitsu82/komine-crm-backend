@@ -117,14 +117,18 @@ export async function getOverallSummary(prisma: DbClient): Promise<InventorySumm
     }
   }
 
-  const remainingCount = totalCount - usedCount;
+  // 丸め整合性のため、usedCountを先に丸めてremainingCountをそこから導出する
+  // （別経路でMath.roundするとused + remaining ≠ totalになるケースがある）
+  const roundedTotalCount = Math.round(totalCount);
+  const roundedUsedCount = Math.round(usedCount);
+  const remainingCount = roundedTotalCount - roundedUsedCount;
   const remainingAreaSqm = totalAreaSqm - usedAreaSqm;
   const usageRate = totalCount > 0 ? (usedCount / totalCount) * 100 : 0;
 
   return {
-    totalCount: Math.round(totalCount),
-    usedCount: Math.round(usedCount),
-    remainingCount: Math.round(remainingCount),
+    totalCount: roundedTotalCount,
+    usedCount: roundedUsedCount,
+    remainingCount,
     usageRate: Math.round(usageRate * 10) / 10,
     totalAreaSqm: Math.round(totalAreaSqm * 100) / 100,
     remainingAreaSqm: Math.round(remainingAreaSqm * 100) / 100,
@@ -187,14 +191,17 @@ export async function getPeriodSummaries(
   // 結果を配列に変換
   const results: PeriodSummaryItem[] = periodsToQuery.map((p) => {
     const data = plotsByPeriod.get(p)!;
-    const remainingCount = data.totalCount - data.usedCount;
+    // 丸め整合性のため、usedCountを先に丸めてremainingCountをそこから導出
+    const roundedTotalCount = Math.round(data.totalCount);
+    const roundedUsedCount = Math.round(data.usedCount);
+    const remainingCount = roundedTotalCount - roundedUsedCount;
     const usageRate = data.totalCount > 0 ? (data.usedCount / data.totalCount) * 100 : 0;
 
     return {
       period: p,
-      totalCount: Math.round(data.totalCount),
-      usedCount: Math.round(data.usedCount),
-      remainingCount: Math.round(remainingCount),
+      totalCount: roundedTotalCount,
+      usedCount: roundedUsedCount,
+      remainingCount,
       usageRate: Math.round(usageRate * 10) / 10,
     };
   });
@@ -288,15 +295,18 @@ export async function getSectionInventory(
 
   // 結果を配列に変換
   let items: SectionInventoryItem[] = Array.from(sectionMap.values()).map((item) => {
-    const remainingCount = item.totalCount - item.usedCount;
+    // 丸め整合性のため、usedCountを先に丸めてremainingCountをそこから導出
+    const roundedTotalCount = Math.round(item.totalCount);
+    const roundedUsedCount = Math.round(item.usedCount);
+    const remainingCount = roundedTotalCount - roundedUsedCount;
     const usageRate = item.totalCount > 0 ? (item.usedCount / item.totalCount) * 100 : 0;
 
     return {
       period: item.period,
       section: item.section,
-      totalCount: Math.round(item.totalCount),
-      usedCount: Math.round(item.usedCount),
-      remainingCount: Math.round(remainingCount),
+      totalCount: roundedTotalCount,
+      usedCount: roundedUsedCount,
+      remainingCount,
       usageRate: Math.round(usageRate * 10) / 10,
       category: item.category,
     };
@@ -434,15 +444,18 @@ export async function getAreaInventory(
 
   // 結果を配列に変換
   let items: AreaInventoryItem[] = Array.from(areaMap.values()).map((item) => {
-    const remainingCount = item.totalCount - item.usedCount;
+    // 丸め整合性のため、usedCountを先に丸めてremainingCountをそこから導出
+    const roundedTotalCount = Math.round(item.totalCount);
+    const roundedUsedCount = Math.round(item.usedCount);
+    const remainingCount = roundedTotalCount - roundedUsedCount;
     const remainingAreaSqm = item.totalAreaSqm - item.usedAreaSqm;
 
     return {
       period: item.period,
       areaSqm: item.areaSqm,
-      totalCount: Math.round(item.totalCount),
-      usedCount: Math.round(item.usedCount),
-      remainingCount: Math.round(remainingCount),
+      totalCount: roundedTotalCount,
+      usedCount: roundedUsedCount,
+      remainingCount,
       remainingAreaSqm: Math.round(remainingAreaSqm * 100) / 100,
       plotType: item.plotType,
     };

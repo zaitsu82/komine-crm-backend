@@ -121,11 +121,51 @@ describe('inventoryService', () => {
       const result = await getOverallSummary(mockPrisma);
 
       expect(result.totalCount).toBe(3);
-      expect(result.usedCount).toBe(2); // 1 sold_out + 0.5 partially_sold → rounds to 2
-      expect(result.remainingCount).toBe(2); // 3 - 1.5 = 1.5 → rounds to 2
+      expect(result.usedCount).toBe(2); // 1 sold_out + 0.5 partially_sold = 1.5 → Math.round → 2
+      // 整合性を保つため、remainingCount は totalCount - roundedUsedCount で導出
+      expect(result.remainingCount).toBe(1); // 3 - 2 = 1
+      expect(result.usedCount + result.remainingCount).toBe(result.totalCount);
       expect(result.totalAreaSqm).toBe(10.8);
       expect(result.usageRate).toBeCloseTo(50, 0);
       expect(result.lastUpdated).toBeDefined();
+    });
+
+    it('按分による丸めが発生してもusedCount + remainingCount === totalCountを満たすこと', async () => {
+      // 100区画中、50区画がsold_outで、もう1区画がpartially_soldで0.5使用
+      // → usedCount = 50.5 → Math.round → 51
+      // → 修正前: remainingCount = Math.round(49.5) = 50, sum = 101 ≠ 100 ✗
+      // → 修正後: remainingCount = 100 - 51 = 49, sum = 100 ✓
+      const plots = [
+        ...Array.from({ length: 50 }, (_, i) => ({
+          id: `sold-${i}`,
+          plot_number: `A-${i}`,
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'sold_out',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
+        })),
+        {
+          id: 'partial',
+          plot_number: 'A-50',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'partially_sold',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+        },
+        ...Array.from({ length: 49 }, (_, i) => ({
+          id: `available-${i}`,
+          plot_number: `A-${100 + i}`,
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'available',
+          contractPlots: [],
+        })),
+      ];
+      mockPrisma.physicalPlot.findMany.mockResolvedValue(plots);
+
+      const result = await getOverallSummary(mockPrisma);
+
+      expect(result.totalCount).toBe(100);
+      expect(result.usedCount).toBe(51);
+      expect(result.remainingCount).toBe(49);
+      expect(result.usedCount + result.remainingCount).toBe(result.totalCount);
     });
 
     it('区画が存在しない場合、0を返すこと', async () => {
@@ -210,6 +250,40 @@ describe('inventoryService', () => {
       expect(result[0].usedCount).toBe(1);
       expect(result[0].remainingCount).toBe(1);
       expect(result[0].usageRate).toBe(50);
+    });
+
+    it('按分による丸めが発生してもusedCount + remainingCount === totalCountを満たすこと', async () => {
+      const plots = [
+        ...Array.from({ length: 50 }, (_, i) => ({
+          id: `sold-${i}`,
+          area_name: '1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'sold_out',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
+        })),
+        {
+          id: 'partial',
+          area_name: '1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'partially_sold',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+        },
+        ...Array.from({ length: 49 }, (_, i) => ({
+          id: `available-${i}`,
+          area_name: '1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'available',
+          contractPlots: [],
+        })),
+      ];
+      mockPrisma.physicalPlot.findMany.mockResolvedValue(plots);
+
+      const result = await getPeriodSummaries(mockPrisma, '1期');
+
+      expect(result[0].totalCount).toBe(100);
+      expect(result[0].usedCount).toBe(51);
+      expect(result[0].remainingCount).toBe(49);
+      expect(result[0].usedCount + result[0].remainingCount).toBe(result[0].totalCount);
     });
   });
 
@@ -375,6 +449,46 @@ describe('inventoryService', () => {
       expect(result.items.length).toBeLessThanOrEqual(10);
       expect(result.total).toBeGreaterThan(10);
     });
+
+    it('按分による丸めが発生してもusedCount + remainingCount === totalCountを満たすこと', async () => {
+      // セクションA, 1期, 100区画中50.5使用
+      const plots = [
+        ...Array.from({ length: 50 }, (_, i) => ({
+          id: `sold-${i}`,
+          plot_number: `A-${i}`,
+          area_name: '1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'sold_out',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
+        })),
+        {
+          id: 'partial',
+          plot_number: 'A-50',
+          area_name: '1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'partially_sold',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+        },
+        ...Array.from({ length: 49 }, (_, i) => ({
+          id: `available-${i}`,
+          plot_number: `A-${100 + i}`,
+          area_name: '1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'available',
+          contractPlots: [],
+        })),
+      ];
+      mockPrisma.physicalPlot.findMany.mockResolvedValue(plots);
+
+      const result = await getSectionInventory(mockPrisma);
+      const sectionA = result.items.find((i) => i.section === 'A');
+
+      expect(sectionA).toBeDefined();
+      expect(sectionA!.totalCount).toBe(100);
+      expect(sectionA!.usedCount).toBe(51);
+      expect(sectionA!.remainingCount).toBe(49);
+      expect(sectionA!.usedCount + sectionA!.remainingCount).toBe(sectionA!.totalCount);
+    });
   });
 
   describe('getAreaInventory', () => {
@@ -493,6 +607,46 @@ describe('inventoryService', () => {
 
       const jiyuu = result.items.find((i) => i.plotType === '自由');
       expect(jiyuu).toBeDefined();
+    });
+
+    it('按分による丸めが発生してもusedCount + remainingCount === totalCountを満たすこと', async () => {
+      // 1期, 3.6㎡, 自由タイプの100区画中50.5使用
+      const plots = [
+        ...Array.from({ length: 50 }, (_, i) => ({
+          id: `sold-${i}`,
+          plot_number: `A-${i}`,
+          area_name: '1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'sold_out',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
+        })),
+        {
+          id: 'partial',
+          plot_number: 'A-50',
+          area_name: '1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'partially_sold',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
+        },
+        ...Array.from({ length: 49 }, (_, i) => ({
+          id: `available-${i}`,
+          plot_number: `A-${100 + i}`,
+          area_name: '1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'available',
+          contractPlots: [],
+        })),
+      ];
+      mockPrisma.physicalPlot.findMany.mockResolvedValue(plots);
+
+      const result = await getAreaInventory(mockPrisma);
+      const item = result.items.find((i) => i.areaSqm === 3.6 && i.plotType === '自由');
+
+      expect(item).toBeDefined();
+      expect(item!.totalCount).toBe(100);
+      expect(item!.usedCount).toBe(51);
+      expect(item!.remainingCount).toBe(49);
+      expect(item!.usedCount + item!.remainingCount).toBe(item!.totalCount);
     });
   });
 });
