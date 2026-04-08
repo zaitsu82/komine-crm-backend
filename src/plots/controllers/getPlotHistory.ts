@@ -8,6 +8,7 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../../db/prisma';
 import { NotFoundError } from '../../middleware/errorHandler';
+import { formatHistoryWithLabels } from '../services/historyLabels';
 
 interface HistoryQueryParams {
   page?: string;
@@ -43,8 +44,17 @@ export const getPlotHistory = async (
     }
 
     // 履歴の検索条件
+    // physical_plot_id は分割販売時に他の契約区画と共有されるため、
+    // PhysicalPlot 自体の履歴のみ physical_plot_id で拾い、
+    // それ以外は contract_plot_id 一致に絞る（他契約への漏れ防止）。
     const whereCondition: any = {
-      OR: [{ contract_plot_id: id }, { physical_plot_id: contractPlot.physical_plot_id }],
+      OR: [
+        { contract_plot_id: id },
+        {
+          entity_type: 'PhysicalPlot',
+          physical_plot_id: contractPlot.physical_plot_id,
+        },
+      ],
     };
 
     // エンティティタイプでフィルタ
@@ -63,20 +73,8 @@ export const getPlotHistory = async (
       prisma.history.count({ where: whereCondition }),
     ]);
 
-    // レスポンスの整形
-    const formattedHistories = histories.map((history) => ({
-      id: history.id,
-      entityType: history.entity_type,
-      entityId: history.entity_id,
-      actionType: history.action_type,
-      changedFields: history.changed_fields,
-      beforeRecord: history.before_record,
-      afterRecord: history.after_record,
-      changedBy: history.changed_by,
-      changeReason: history.change_reason,
-      ipAddress: history.ip_address,
-      createdAt: history.created_at,
-    }));
+    // レスポンスの整形（日本語ラベル付与）
+    const formattedHistories = histories.map(formatHistoryWithLabels);
 
     res.status(200).json({
       success: true,

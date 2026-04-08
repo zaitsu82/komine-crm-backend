@@ -21,10 +21,29 @@ interface AuthenticatedRequest extends Request {
 }
 
 /**
+ * 履歴記録対象のエンティティ種別
+ */
+export type HistoryEntityType =
+  | 'PhysicalPlot'
+  | 'ContractPlot'
+  | 'Customer'
+  | 'SaleContractRole'
+  | 'Document'
+  | 'WorkInfo'
+  | 'BillingInfo'
+  | 'UsageFee'
+  | 'ManagementFee'
+  | 'BuriedPerson'
+  | 'ConstructionInfo'
+  | 'CollectiveBurial'
+  | 'GravestoneInfo'
+  | 'FamilyContact';
+
+/**
  * 履歴レコード作成のための入力パラメータ
  */
 export interface CreateHistoryInput {
-  entityType: 'PhysicalPlot' | 'ContractPlot' | 'Customer' | 'SaleContractRole' | 'Document';
+  entityType: HistoryEntityType;
   entityId: string;
   physicalPlotId?: string | null;
   contractPlotId?: string | null;
@@ -284,5 +303,95 @@ export async function recordDocumentDeleted(
       name: document.name,
     },
     req,
+  });
+}
+
+// =====================================================================
+// 汎用ヘルパー（issue #51: 履歴記録対象の拡大）
+// =====================================================================
+
+/**
+ * 任意エンティティのCREATE履歴を記録する
+ */
+export async function recordEntityCreated(
+  tx: Prisma.TransactionClient | PrismaClient,
+  params: {
+    entityType: HistoryEntityType;
+    entityId: string;
+    physicalPlotId?: string | null;
+    contractPlotId?: string | null;
+    afterRecord: Record<string, unknown>;
+    req: Request;
+    changeReason?: string;
+  }
+): Promise<void> {
+  await createHistory(tx, {
+    entityType: params.entityType,
+    entityId: params.entityId,
+    physicalPlotId: params.physicalPlotId ?? null,
+    contractPlotId: params.contractPlotId ?? null,
+    actionType: 'CREATE',
+    afterRecord: params.afterRecord,
+    changeReason: params.changeReason ?? null,
+    req: params.req,
+  });
+}
+
+/**
+ * 任意エンティティのUPDATE履歴を記録する
+ *
+ * before/after 双方を渡し、フィールド差分があれば履歴を作成する
+ * （差分が無ければ何も書き込まない）
+ */
+export async function recordEntityUpdated(
+  tx: Prisma.TransactionClient | PrismaClient,
+  params: {
+    entityType: HistoryEntityType;
+    entityId: string;
+    physicalPlotId?: string | null;
+    contractPlotId?: string | null;
+    beforeRecord: Record<string, unknown>;
+    afterRecord: Record<string, unknown>;
+    req: Request;
+    changeReason?: string;
+  }
+): Promise<void> {
+  await createHistory(tx, {
+    entityType: params.entityType,
+    entityId: params.entityId,
+    physicalPlotId: params.physicalPlotId ?? null,
+    contractPlotId: params.contractPlotId ?? null,
+    actionType: 'UPDATE',
+    beforeRecord: params.beforeRecord,
+    afterRecord: params.afterRecord,
+    changeReason: params.changeReason ?? null,
+    req: params.req,
+  });
+}
+
+/**
+ * 任意エンティティのDELETE履歴を記録する
+ */
+export async function recordEntityDeleted(
+  tx: Prisma.TransactionClient | PrismaClient,
+  params: {
+    entityType: HistoryEntityType;
+    entityId: string;
+    physicalPlotId?: string | null;
+    contractPlotId?: string | null;
+    beforeRecord: Record<string, unknown>;
+    req: Request;
+    changeReason?: string;
+  }
+): Promise<void> {
+  await createHistory(tx, {
+    entityType: params.entityType,
+    entityId: params.entityId,
+    physicalPlotId: params.physicalPlotId ?? null,
+    contractPlotId: params.contractPlotId ?? null,
+    actionType: 'DELETE',
+    beforeRecord: params.beforeRecord,
+    changeReason: params.changeReason ?? null,
+    req: params.req,
   });
 }

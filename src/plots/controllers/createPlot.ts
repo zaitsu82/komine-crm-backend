@@ -12,7 +12,11 @@ import { CreatePlotRequest } from '@komine/types';
 import { validateContractArea, updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
-import { recordContractPlotCreated, recordCustomerCreated } from '../services/historyService';
+import {
+  recordContractPlotCreated,
+  recordCustomerCreated,
+  recordEntityCreated,
+} from '../services/historyService';
 
 /**
  * 新規契約作成（ContractPlot + SaleContract + Customer）
@@ -96,8 +100,9 @@ export const createPlot = async (
       });
 
       // 4. 勤務先情報の作成（オプション）
+      let workInfo: { id: string } | null = null;
       if (input.workInfo) {
-        await tx.workInfo.create({
+        workInfo = await tx.workInfo.create({
           data: {
             customer_id: customer.id,
             company_name: input.workInfo.companyName,
@@ -113,8 +118,9 @@ export const createPlot = async (
       }
 
       // 5. 請求情報の作成（オプション）
+      let billingInfo: { id: string } | null = null;
       if (input.billingInfo) {
-        await tx.billingInfo.create({
+        billingInfo = await tx.billingInfo.create({
           data: {
             customer_id: customer.id,
             billing_type: input.billingInfo.billingType,
@@ -160,8 +166,9 @@ export const createPlot = async (
       });
 
       // 6.5. 合祀情報の作成（合祀設定がある場合）
+      let collectiveBurial: { id: string } | null = null;
       if (input.collectiveBurial) {
-        await tx.collectiveBurial.create({
+        collectiveBurial = await tx.collectiveBurial.create({
           data: {
             contract_plot_id: contractPlot.id,
             burial_capacity: input.collectiveBurial.burialCapacity,
@@ -174,9 +181,10 @@ export const createPlot = async (
 
       // 7. 契約における顧客役割の作成
       // 新方式: roles配列が指定されている場合
+      const createdRoles: { id: string; role: string; customer_id: string }[] = [];
       if (input.saleContract.roles && input.saleContract.roles.length > 0) {
         for (const roleData of input.saleContract.roles) {
-          await tx.saleContractRole.create({
+          const created = await tx.saleContractRole.create({
             data: {
               contract_plot_id: contractPlot.id, // sale_contract_id → contract_plot_idに変更
               customer_id: roleData.customerId || customer.id, // 指定がなければ作成した顧客を使用
@@ -186,21 +194,28 @@ export const createPlot = async (
               notes: roleData.notes || null,
             },
           });
+          createdRoles.push({
+            id: created.id,
+            role: created.role,
+            customer_id: created.customer_id,
+          });
         }
       } else {
         // 旧方式（後方互換性）: customerとcustomerRoleから1つの役割を作成
-        await tx.saleContractRole.create({
+        const created = await tx.saleContractRole.create({
           data: {
             contract_plot_id: contractPlot.id, // sale_contract_id → contract_plot_idに変更
             customer_id: customer.id,
             role: (input.saleContract.customerRole as ContractRole) || ContractRole.contractor,
           },
         });
+        createdRoles.push({ id: created.id, role: created.role, customer_id: created.customer_id });
       }
 
       // 8. 使用料情報の作成（オプション）
+      let usageFee: { id: string } | null = null;
       if (input.usageFee) {
-        await tx.usageFee.create({
+        usageFee = await tx.usageFee.create({
           data: {
             contract_plot_id: contractPlot.id,
             calculation_type: input.usageFee.calculationType || '',
@@ -216,8 +231,9 @@ export const createPlot = async (
       }
 
       // 9. 管理料情報の作成（オプション）
+      let managementFee: { id: string } | null = null;
       if (input.managementFee) {
-        await tx.managementFee.create({
+        managementFee = await tx.managementFee.create({
           data: {
             contract_plot_id: contractPlot.id,
             calculation_type: input.managementFee.calculationType || '',
@@ -238,8 +254,95 @@ export const createPlot = async (
       await updatePhysicalPlotStatus(tx as any, physicalPlot.id);
 
       // 10. 履歴の自動記録
+      // 新規物理区画を作成した場合のみ PhysicalPlot の CREATE 履歴を残す
+      if (!input.physicalPlot.id) {
+        await recordEntityCreated(tx, {
+          entityType: 'PhysicalPlot',
+          entityId: physicalPlot.id,
+          physicalPlotId: physicalPlot.id,
+          afterRecord: {
+            id: physicalPlot.id,
+            plot_number: physicalPlot.plot_number,
+            area_name: physicalPlot.area_name,
+            area_sqm: physicalPlot.area_sqm.toString(),
+            status: physicalPlot.status,
+            notes: physicalPlot.notes,
+          },
+          req,
+        });
+      }
       await recordContractPlotCreated(tx, contractPlot, req);
       await recordCustomerCreated(tx, customer, contractPlot.id, physicalPlot.id, req);
+      if (workInfo) {
+        await recordEntityCreated(tx, {
+          entityType: 'WorkInfo',
+          entityId: workInfo.id,
+          physicalPlotId: physicalPlot.id,
+          contractPlotId: contractPlot.id,
+          afterRecord: { id: workInfo.id, customer_id: customer.id, ...input.workInfo! },
+          req,
+        });
+      }
+      if (billingInfo) {
+        await recordEntityCreated(tx, {
+          entityType: 'BillingInfo',
+          entityId: billingInfo.id,
+          physicalPlotId: physicalPlot.id,
+          contractPlotId: contractPlot.id,
+          afterRecord: { id: billingInfo.id, customer_id: customer.id, ...input.billingInfo! },
+          req,
+        });
+      }
+      if (usageFee) {
+        await recordEntityCreated(tx, {
+          entityType: 'UsageFee',
+          entityId: usageFee.id,
+          physicalPlotId: physicalPlot.id,
+          contractPlotId: contractPlot.id,
+          afterRecord: { id: usageFee.id, ...input.usageFee! },
+          req,
+        });
+      }
+      if (managementFee) {
+        await recordEntityCreated(tx, {
+          entityType: 'ManagementFee',
+          entityId: managementFee.id,
+          physicalPlotId: physicalPlot.id,
+          contractPlotId: contractPlot.id,
+          afterRecord: { id: managementFee.id, ...input.managementFee! },
+          req,
+        });
+      }
+      if (collectiveBurial) {
+        await recordEntityCreated(tx, {
+          entityType: 'CollectiveBurial',
+          entityId: collectiveBurial.id,
+          physicalPlotId: physicalPlot.id,
+          contractPlotId: contractPlot.id,
+          afterRecord: {
+            id: collectiveBurial.id,
+            burial_capacity: input.collectiveBurial!.burialCapacity,
+            validity_period_years: input.collectiveBurial!.validityPeriodYears,
+            billing_amount: input.collectiveBurial!.billingAmount ?? null,
+            notes: input.collectiveBurial!.notes || null,
+          },
+          req,
+        });
+      }
+      for (const role of createdRoles) {
+        await recordEntityCreated(tx, {
+          entityType: 'SaleContractRole',
+          entityId: role.id,
+          physicalPlotId: physicalPlot.id,
+          contractPlotId: contractPlot.id,
+          afterRecord: {
+            id: role.id,
+            role: role.role,
+            customer_id: role.customer_id,
+          },
+          req,
+        });
+      }
 
       return {
         contractPlot,

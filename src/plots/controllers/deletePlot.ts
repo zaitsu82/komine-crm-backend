@@ -10,6 +10,7 @@ import { Request, Response, NextFunction } from 'express';
 import { updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { NotFoundError } from '../../middleware/errorHandler';
+import { recordEntityDeleted } from '../services/historyService';
 
 /**
  * ContractPlot削除（論理削除）
@@ -21,7 +22,7 @@ export const deletePlot = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id } = req.params as Record<string, string>;
+    const id = (req.params as Record<string, string>)['id'] as string;
 
     // ContractPlotの存在確認
     const contractPlot = await prisma.contractPlot.findUnique({
@@ -58,12 +59,37 @@ export const deletePlot = async (
         where: { id },
         data: { deleted_at: now },
       });
+      await recordEntityDeleted(tx, {
+        entityType: 'ContractPlot',
+        entityId: id,
+        physicalPlotId,
+        contractPlotId: id,
+        beforeRecord: {
+          id: contractPlot.id,
+          contract_area_sqm: contractPlot.contract_area_sqm.toString(),
+          contract_date: contractPlot.contract_date?.toISOString(),
+          price: contractPlot.price,
+          payment_status: contractPlot.payment_status,
+        },
+        req,
+      });
 
       // 2. UsageFeeを論理削除
       if (contractPlot.usageFee) {
         await tx.usageFee.update({
           where: { id: contractPlot.usageFee.id },
           data: { deleted_at: now },
+        });
+        await recordEntityDeleted(tx, {
+          entityType: 'UsageFee',
+          entityId: contractPlot.usageFee.id,
+          physicalPlotId,
+          contractPlotId: id,
+          beforeRecord: {
+            id: contractPlot.usageFee.id,
+            usage_fee: contractPlot.usageFee.usage_fee,
+          },
+          req,
         });
       }
 
@@ -72,6 +98,17 @@ export const deletePlot = async (
         await tx.managementFee.update({
           where: { id: contractPlot.managementFee.id },
           data: { deleted_at: now },
+        });
+        await recordEntityDeleted(tx, {
+          entityType: 'ManagementFee',
+          entityId: contractPlot.managementFee.id,
+          physicalPlotId,
+          contractPlotId: id,
+          beforeRecord: {
+            id: contractPlot.managementFee.id,
+            management_fee: contractPlot.managementFee.management_fee,
+          },
+          req,
         });
       }
 
@@ -87,6 +124,17 @@ export const deletePlot = async (
               where: { id: customer.workInfo.id },
               data: { deleted_at: now },
             });
+            await recordEntityDeleted(tx, {
+              entityType: 'WorkInfo',
+              entityId: customer.workInfo.id,
+              physicalPlotId,
+              contractPlotId: id,
+              beforeRecord: {
+                id: customer.workInfo.id,
+                company_name: customer.workInfo.company_name,
+              },
+              req,
+            });
           }
 
           // BillingInfoを論理削除（存在する場合）
@@ -94,6 +142,17 @@ export const deletePlot = async (
             await tx.billingInfo.update({
               where: { id: customer.billingInfo.id },
               data: { deleted_at: now },
+            });
+            await recordEntityDeleted(tx, {
+              entityType: 'BillingInfo',
+              entityId: customer.billingInfo.id,
+              physicalPlotId,
+              contractPlotId: id,
+              beforeRecord: {
+                id: customer.billingInfo.id,
+                bank_name: customer.billingInfo.bank_name,
+              },
+              req,
             });
           }
 
@@ -111,6 +170,17 @@ export const deletePlot = async (
             await tx.customer.update({
               where: { id: customer.id },
               data: { deleted_at: now },
+            });
+            await recordEntityDeleted(tx, {
+              entityType: 'Customer',
+              entityId: customer.id,
+              physicalPlotId,
+              contractPlotId: id,
+              beforeRecord: {
+                id: customer.id,
+                name: customer.name,
+              },
+              req,
             });
           }
         }
