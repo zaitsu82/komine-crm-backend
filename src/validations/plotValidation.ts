@@ -57,6 +57,23 @@ const physicalPlotSchema = z.object({
 });
 
 /**
+ * 物理区画情報の更新バリデーションスキーマ
+ * PUT /plots/:id の input.physicalPlot で利用
+ * 全フィールドオプショナル（部分更新）
+ */
+const physicalPlotUpdateSchema = z.object({
+  plotNumber: z
+    .string()
+    .max(50, '区画番号は50文字以内で入力してください')
+    .regex(/^[A-Z0-9-]+$/, '区画番号は大文字英数字とハイフンのみ使用できます')
+    .optional(),
+  areaName: z.string().max(100, '区域名は100文字以内で入力してください').optional(),
+  areaSqm: z.number().positive('面積は正の数値で入力してください').optional(),
+  status: z.string().max(20).optional(),
+  notes: z.string().max(1000).optional().nullable().or(z.literal('')),
+});
+
+/**
  * 家族連絡先のバリデーションスキーマ
  * 将来的に家族連絡先管理エンドポイントで使用予定
  */
@@ -173,6 +190,45 @@ export const constructionInfoSchema = z
     constructionNotes: z.string().max(500).optional().or(z.literal('')),
   })
   .optional();
+
+/**
+ * 工事情報の更新バリデーションスキーマ
+ * PUT /plots/:id の input.constructionInfos[] で利用
+ * - id: 既存レコード識別用（無ければ新規作成）
+ * - notes: フロントから送られる備考フィールド（既存 constructionInfoSchema は constructionNotes だが、フロントは notes を使う）
+ */
+const constructionInfoUpdateSchema = z.object({
+  id: uuidSchema.optional(),
+  constructionType: z.string().max(100).optional().nullable().or(z.literal('')),
+  startDate: dateSchema.optional().nullable().or(z.literal('')),
+  completionDate: dateSchema.optional().nullable().or(z.literal('')),
+  contractor: z.string().max(100).optional().nullable().or(z.literal('')),
+  supervisor: z.string().max(100).optional().nullable().or(z.literal('')),
+  progress: z.string().max(100).optional().nullable().or(z.literal('')),
+  workItem1: z.string().max(100).optional().nullable().or(z.literal('')),
+  workDate1: dateSchema.optional().nullable().or(z.literal('')),
+  workAmount1: z.number().nonnegative().optional().nullable(),
+  workStatus1: z.string().max(50).optional().nullable().or(z.literal('')),
+  workItem2: z.string().max(100).optional().nullable().or(z.literal('')),
+  workDate2: dateSchema.optional().nullable().or(z.literal('')),
+  workAmount2: z.number().nonnegative().optional().nullable(),
+  workStatus2: z.string().max(50).optional().nullable().or(z.literal('')),
+  permitNumber: z.string().max(50).optional().nullable().or(z.literal('')),
+  applicationDate: dateSchema.optional().nullable().or(z.literal('')),
+  permitDate: dateSchema.optional().nullable().or(z.literal('')),
+  permitStatus: z.string().max(50).optional().nullable().or(z.literal('')),
+  paymentType1: z.string().max(50).optional().nullable().or(z.literal('')),
+  paymentAmount1: z.number().nonnegative().optional().nullable(),
+  paymentDate1: dateSchema.optional().nullable().or(z.literal('')),
+  paymentStatus1: z.string().max(50).optional().nullable().or(z.literal('')),
+  paymentType2: z.string().max(50).optional().nullable().or(z.literal('')),
+  paymentAmount2: z.number().nonnegative().optional().nullable(),
+  paymentScheduledDate2: dateSchema.optional().nullable().or(z.literal('')),
+  paymentStatus2: z.string().max(50).optional().nullable().or(z.literal('')),
+  scheduledEndDate: dateSchema.optional().nullable().or(z.literal('')),
+  constructionContent: z.string().max(2000).optional().nullable().or(z.literal('')),
+  notes: z.string().max(2000).optional().nullable().or(z.literal('')),
+});
 
 /**
  * 契約区画情報のバリデーションスキーマ
@@ -347,6 +403,7 @@ export const createPlotSchema = z.object({
  * すべてのフィールドがオプション
  */
 export const updatePlotSchema = z.object({
+  physicalPlot: physicalPlotUpdateSchema.optional(),
   contractPlot: contractPlotSchema.partial().optional(),
   saleContract: saleContractSchema.partial().optional(),
   customer: customerSchema.partial().optional(),
@@ -355,6 +412,7 @@ export const updatePlotSchema = z.object({
   usageFee: contractPlotUsageFeeSchema,
   managementFee: contractPlotManagementFeeSchema,
   buriedPersons: z.array(buriedPersonSchema).optional(),
+  constructionInfos: z.array(constructionInfoUpdateSchema).optional(),
   collectiveBurial: collectiveBurialSchema,
 });
 

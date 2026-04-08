@@ -66,19 +66,18 @@ export const updatePlot = async (
 
       // 1.5. 物理区画情報の更新（issue #62）
       // フロントから input.physicalPlot が送られてきた場合のみ更新
-      const physicalPlotInput = (input as { physicalPlot?: Record<string, unknown> }).physicalPlot;
+      const physicalPlotInput = input.physicalPlot;
       if (physicalPlotInput) {
         const ppUpdateData: Record<string, unknown> = {};
-        if (physicalPlotInput['plotNumber'] !== undefined)
-          ppUpdateData['plot_number'] = physicalPlotInput['plotNumber'];
-        if (physicalPlotInput['areaName'] !== undefined)
-          ppUpdateData['area_name'] = physicalPlotInput['areaName'];
-        if (physicalPlotInput['areaSqm'] !== undefined)
-          ppUpdateData['area_sqm'] = new Prisma.Decimal(physicalPlotInput['areaSqm'] as number);
-        if (physicalPlotInput['status'] !== undefined)
-          ppUpdateData['status'] = physicalPlotInput['status'];
-        if (physicalPlotInput['notes'] !== undefined)
-          ppUpdateData['notes'] = physicalPlotInput['notes'];
+        if (physicalPlotInput.plotNumber !== undefined)
+          ppUpdateData['plot_number'] = physicalPlotInput.plotNumber;
+        if (physicalPlotInput.areaName !== undefined)
+          ppUpdateData['area_name'] = physicalPlotInput.areaName;
+        if (physicalPlotInput.areaSqm !== undefined)
+          ppUpdateData['area_sqm'] = new Prisma.Decimal(physicalPlotInput.areaSqm);
+        if (physicalPlotInput.status !== undefined)
+          ppUpdateData['status'] = physicalPlotInput.status;
+        if (physicalPlotInput.notes !== undefined) ppUpdateData['notes'] = physicalPlotInput.notes;
 
         if (Object.keys(ppUpdateData).length > 0) {
           const beforePp = existingContractPlot.physicalPlot;
