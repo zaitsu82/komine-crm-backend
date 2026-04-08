@@ -493,6 +493,41 @@ describe('Plot Validation (ContractPlot Model)', () => {
       expect(() => updatePlotSchema.parse(validData)).not.toThrow();
     });
 
+    // フロントが各フィールドを null として送信するため null 許容が必須
+    it('UsageFee の各フィールドが null を受け入れること', () => {
+      const data = {
+        usageFee: {
+          calculationType: null,
+          taxType: null,
+          billingType: null,
+          billingYears: null,
+          area: null,
+          unitPrice: null,
+          usageFee: null,
+          paymentMethod: null,
+        },
+      };
+      expect(() => updatePlotSchema.parse(data)).not.toThrow();
+    });
+
+    it('ManagementFee の各フィールドが null を受け入れること', () => {
+      const data = {
+        managementFee: {
+          calculationType: null,
+          taxType: null,
+          billingType: null,
+          billingYears: null,
+          area: null,
+          billingMonth: null,
+          managementFee: null,
+          unitPrice: null,
+          lastBillingMonth: null,
+          paymentMethod: null,
+        },
+      };
+      expect(() => updatePlotSchema.parse(data)).not.toThrow();
+    });
+
     it('ManagementFee更新が可能であること', () => {
       const validData = {
         managementFee: {

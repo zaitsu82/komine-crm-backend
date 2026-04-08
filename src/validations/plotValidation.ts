@@ -336,36 +336,38 @@ const contractPlotBillingInfoSchema = z
 
 /**
  * 使用料情報のバリデーションスキーマ（ContractPlot用）
+ * フロントが各フィールドを null として送信する場合があるため nullable
  */
 const contractPlotUsageFeeSchema = z
   .object({
-    calculationType: z.string().max(20).optional().or(z.literal('')),
-    taxType: z.string().max(20).optional().or(z.literal('')),
-    billingType: z.string().max(20).optional().or(z.literal('')),
-    billingYears: z.string().max(20).optional().or(z.literal('')),
-    area: z.string().max(50).optional().or(z.literal('')),
-    unitPrice: z.string().max(50).optional().or(z.literal('')),
-    usageFee: z.string().max(50).optional().or(z.literal('')),
-    paymentMethod: z.string().max(20).optional().or(z.literal('')),
+    calculationType: z.string().max(20).optional().nullable().or(z.literal('')),
+    taxType: z.string().max(20).optional().nullable().or(z.literal('')),
+    billingType: z.string().max(20).optional().nullable().or(z.literal('')),
+    billingYears: z.string().max(20).optional().nullable().or(z.literal('')),
+    area: z.string().max(50).optional().nullable().or(z.literal('')),
+    unitPrice: z.string().max(50).optional().nullable().or(z.literal('')),
+    usageFee: z.string().max(50).optional().nullable().or(z.literal('')),
+    paymentMethod: z.string().max(20).optional().nullable().or(z.literal('')),
   })
   .optional()
   .or(z.null());
 
 /**
  * 管理料情報のバリデーションスキーマ（ContractPlot用）
+ * フロントが各フィールドを null として送信する場合があるため nullable
  */
 const contractPlotManagementFeeSchema = z
   .object({
-    calculationType: z.string().max(20).optional().or(z.literal('')),
-    taxType: z.string().max(20).optional().or(z.literal('')),
-    billingType: z.string().max(20).optional().or(z.literal('')),
-    billingYears: z.string().max(20).optional().or(z.literal('')),
-    area: z.string().max(50).optional().or(z.literal('')),
-    billingMonth: z.string().max(20).optional().or(z.literal('')),
-    managementFee: z.string().max(50).optional().or(z.literal('')),
-    unitPrice: z.string().max(50).optional().or(z.literal('')),
-    lastBillingMonth: yearMonthSchema,
-    paymentMethod: z.string().max(20).optional().or(z.literal('')),
+    calculationType: z.string().max(20).optional().nullable().or(z.literal('')),
+    taxType: z.string().max(20).optional().nullable().or(z.literal('')),
+    billingType: z.string().max(20).optional().nullable().or(z.literal('')),
+    billingYears: z.string().max(20).optional().nullable().or(z.literal('')),
+    area: z.string().max(50).optional().nullable().or(z.literal('')),
+    billingMonth: z.string().max(20).optional().nullable().or(z.literal('')),
+    managementFee: z.string().max(50).optional().nullable().or(z.literal('')),
+    unitPrice: z.string().max(50).optional().nullable().or(z.literal('')),
+    lastBillingMonth: yearMonthSchema.nullable(),
+    paymentMethod: z.string().max(20).optional().nullable().or(z.literal('')),
   })
   .optional()
   .or(z.null());
