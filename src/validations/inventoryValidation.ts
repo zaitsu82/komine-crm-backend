@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-// 期の定義
-export const PlotPeriodEnum = z.enum(['1期', '2期', '3期', '4期']);
+// 期の定義（区画名一覧.md / SectionNameMasterのperiodに準拠）
+export const PlotPeriodEnum = z.enum(['第1期', '第2期', '第3期', '第3期樹林部', '第4期']);
 export type PlotPeriod = z.infer<typeof PlotPeriodEnum>;
 
 // ステータスの定義

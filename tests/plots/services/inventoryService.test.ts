@@ -160,14 +160,14 @@ describe('inventoryService', () => {
       mockPrisma.physicalPlot.findMany.mockResolvedValue([
         {
           id: 'plot-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
         },
         {
           id: 'plot-2',
-          area_name: '2期',
+          area_name: '第2期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
@@ -176,11 +176,11 @@ describe('inventoryService', () => {
 
       const result = await getPeriodSummaries(mockPrisma);
 
-      expect(result).toHaveLength(4);
-      expect(result[0].period).toBe('1期');
+      expect(result).toHaveLength(5);
+      expect(result[0].period).toBe('第1期');
       expect(result[0].totalCount).toBe(1);
       expect(result[0].remainingCount).toBe(1);
-      expect(result[1].period).toBe('2期');
+      expect(result[1].period).toBe('第2期');
       expect(result[1].usedCount).toBe(1);
     });
 
@@ -188,24 +188,24 @@ describe('inventoryService', () => {
       mockPrisma.physicalPlot.findMany.mockResolvedValue([
         {
           id: 'plot-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
         },
         {
           id: 'plot-2',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
         },
       ]);
 
-      const result = await getPeriodSummaries(mockPrisma, '1期');
+      const result = await getPeriodSummaries(mockPrisma, '第1期');
 
       expect(result).toHaveLength(1);
-      expect(result[0].period).toBe('1期');
+      expect(result[0].period).toBe('第1期');
       expect(result[0].totalCount).toBe(2);
       expect(result[0].usedCount).toBe(1);
       expect(result[0].remainingCount).toBe(1);
@@ -233,7 +233,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-1',
           plot_number: 'A-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
@@ -241,7 +241,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-2',
           plot_number: 'A-2',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
@@ -249,7 +249,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-3',
           plot_number: 'B-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
@@ -279,18 +279,18 @@ describe('inventoryService', () => {
         {
           id: 'plot-1',
           plot_number: 'A-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
         },
       ]);
 
-      await getSectionInventory(mockPrisma, { period: '1期' });
+      await getSectionInventory(mockPrisma, { period: '第1期' });
 
       expect(mockPrisma.physicalPlot.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ area_name: '1期' }),
+          where: expect.objectContaining({ area_name: '第1期' }),
         })
       );
     });
@@ -300,7 +300,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-1',
           plot_number: '吉相-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
@@ -308,7 +308,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-2',
           plot_number: 'A-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
@@ -326,7 +326,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-1',
           plot_number: 'A-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
@@ -334,7 +334,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-2',
           plot_number: 'B-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
@@ -362,7 +362,7 @@ describe('inventoryService', () => {
       const plots = Array.from({ length: 30 }, (_, i) => ({
         id: `plot-${i}`,
         plot_number: `${String.fromCharCode(65 + (i % 26))}-${Math.floor(i / 26) + 1}`,
-        area_name: '1期',
+        area_name: '第1期',
         area_sqm: { toNumber: () => 3.6 },
         status: 'available',
         contractPlots: [],
@@ -397,7 +397,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-1',
           plot_number: 'A-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
@@ -405,7 +405,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-2',
           plot_number: 'A-2',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 1.8 },
           status: 'sold_out',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
@@ -431,11 +431,11 @@ describe('inventoryService', () => {
     it('期でフィルタリングできること', async () => {
       mockPrisma.physicalPlot.findMany.mockResolvedValue([]);
 
-      await getAreaInventory(mockPrisma, { period: '2期' });
+      await getAreaInventory(mockPrisma, { period: '第2期' });
 
       expect(mockPrisma.physicalPlot.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ area_name: '2期' }),
+          where: expect.objectContaining({ area_name: '第2期' }),
         })
       );
     });
@@ -445,7 +445,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-1',
           plot_number: 'A-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
@@ -453,7 +453,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-2',
           plot_number: 'A-2',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
@@ -471,7 +471,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-1',
           plot_number: '吉相-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
@@ -479,7 +479,7 @@ describe('inventoryService', () => {
         {
           id: 'plot-2',
           plot_number: 'A-1',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],

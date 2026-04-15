@@ -106,8 +106,8 @@ describe('Inventory Controllers', () => {
       };
 
       const mockPeriods = [
-        { period: '1期', totalCount: 50, usedCount: 40, remainingCount: 10, usageRate: 80.0 },
-        { period: '2期', totalCount: 30, usedCount: 25, remainingCount: 5, usageRate: 83.3 },
+        { period: '第1期', totalCount: 50, usedCount: 40, remainingCount: 10, usageRate: 80.0 },
+        { period: '第2期', totalCount: 30, usedCount: 25, remainingCount: 5, usageRate: 83.3 },
       ];
 
       (inventoryService.getPeriodSummaries as jest.Mock).mockResolvedValue(mockPeriods);
@@ -125,18 +125,18 @@ describe('Inventory Controllers', () => {
 
     it('特定期のサマリーを返すこと', async () => {
       mockRequest = {
-        query: { period: '1期' },
+        query: { period: '第1期' },
       };
 
       const mockPeriods = [
-        { period: '1期', totalCount: 50, usedCount: 40, remainingCount: 10, usageRate: 80.0 },
+        { period: '第1期', totalCount: 50, usedCount: 40, remainingCount: 10, usageRate: 80.0 },
       ];
 
       (inventoryService.getPeriodSummaries as jest.Mock).mockResolvedValue(mockPeriods);
 
       await getInventoryPeriods(mockRequest as Request, mockResponse as Response);
 
-      expect(inventoryService.getPeriodSummaries).toHaveBeenCalledWith(expect.anything(), '1期');
+      expect(inventoryService.getPeriodSummaries).toHaveBeenCalledWith(expect.anything(), '第1期');
       expect(statusMock).toHaveBeenCalledWith(200);
     });
 
@@ -163,7 +163,7 @@ describe('Inventory Controllers', () => {
 
       const mockItems = [
         {
-          period: '1期',
+          period: '第1期',
           section: 'A',
           totalCount: 10,
           usedCount: 8,
@@ -197,7 +197,7 @@ describe('Inventory Controllers', () => {
     it('フィルタリングパラメータを正しく渡すこと', async () => {
       mockRequest = {
         query: {
-          period: '1期',
+          period: '第1期',
           status: 'available',
           search: 'A',
           sortBy: 'usageRate',
@@ -215,7 +215,7 @@ describe('Inventory Controllers', () => {
       await getInventorySections(mockRequest as Request, mockResponse as Response);
 
       expect(inventoryService.getSectionInventory).toHaveBeenCalledWith(expect.anything(), {
-        period: '1期',
+        period: '第1期',
         status: 'available',
         search: 'A',
         sortBy: 'usageRate',
@@ -277,7 +277,7 @@ describe('Inventory Controllers', () => {
 
       const mockItems = [
         {
-          period: '1期',
+          period: '第1期',
           areaSqm: 3.6,
           totalCount: 10,
           usedCount: 8,
@@ -312,7 +312,7 @@ describe('Inventory Controllers', () => {
     it('フィルタリングパラメータを正しく渡すこと', async () => {
       mockRequest = {
         query: {
-          period: '2期',
+          period: '第2期',
           search: '3.6',
           sortBy: 'areaSqm',
           sortOrder: 'asc',
@@ -329,7 +329,7 @@ describe('Inventory Controllers', () => {
       await getInventoryAreas(mockRequest as Request, mockResponse as Response);
 
       expect(inventoryService.getAreaInventory).toHaveBeenCalledWith(expect.anything(), {
-        period: '2期',
+        period: '第2期',
         search: '3.6',
         sortBy: 'areaSqm',
         sortOrder: 'asc',
