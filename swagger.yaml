@@ -429,7 +429,7 @@ paths:
       tags:
         - Plots
       summary: 期別サマリー取得
-      description: 期別（1期〜4期）の在庫サマリーを取得。特定の期のみ取得も可能。
+      description: 期別（第1期〜第4期）の在庫サマリーを取得。特定の期のみ取得も可能。
       security:
         - bearerAuth: []
       parameters:
@@ -438,7 +438,7 @@ paths:
           description: 期（指定しない場合は全期）
           schema:
             type: string
-            enum: ["1期", "2期", "3期", "4期"]
+            enum: ["第1期", "第2期", "第3期", "第3期樹林部", "第4期"]
       responses:
         "200":
           description: 取得成功
@@ -476,7 +476,7 @@ paths:
           description: 期でフィルタ
           schema:
             type: string
-            enum: ["1期", "2期", "3期", "4期"]
+            enum: ["第1期", "第2期", "第3期", "第3期樹林部", "第4期"]
         - name: status
           in: query
           description: ステータスでフィルタ
@@ -493,7 +493,15 @@ paths:
           description: ソートキー
           schema:
             type: string
-            enum: ["period", "section", "totalCount", "usedCount", "remainingCount", "usageRate"]
+            enum:
+              [
+                "period",
+                "section",
+                "totalCount",
+                "usedCount",
+                "remainingCount",
+                "usageRate",
+              ]
             default: "period"
         - name: sortOrder
           in: query
@@ -556,7 +564,7 @@ paths:
           description: 期でフィルタ
           schema:
             type: string
-            enum: ["1期", "2期", "3期", "4期"]
+            enum: ["第1期", "第2期", "第3期", "第3期樹林部", "第4期"]
         - name: search
           in: query
           description: 面積・タイプで検索
@@ -567,7 +575,16 @@ paths:
           description: ソートキー
           schema:
             type: string
-            enum: ["period", "areaSqm", "totalCount", "usedCount", "remainingCount", "remainingAreaSqm", "plotType"]
+            enum:
+              [
+                "period",
+                "areaSqm",
+                "totalCount",
+                "usedCount",
+                "remainingCount",
+                "remainingAreaSqm",
+                "plotType",
+              ]
             default: "period"
         - name: sortOrder
           in: query
@@ -1944,7 +1961,7 @@ components:
         area_name:
           type: string
           description: 区域（期）
-          example: 1期
+          example: 第1期
         area_name_detail:
           type: string
           description: 区域（詳細）
@@ -2478,7 +2495,7 @@ components:
               type: string
               description: 区画（期）
               maxLength: 100
-              example: 2期
+              example: 第2期
             areaNameDetail:
               type: string
               description: 区画（詳細）
@@ -3483,9 +3500,9 @@ components:
       properties:
         period:
           type: string
-          description: 期（1期〜4期）
-          enum: ["1期", "2期", "3期", "4期"]
-          example: "1期"
+          description: 期（第1期〜第4期）
+          enum: ["第1期", "第2期", "第3期", "第3期樹林部", "第4期"]
+          example: "第1期"
         totalCount:
           type: integer
           description: 総区画数
@@ -3511,7 +3528,7 @@ components:
         period:
           type: string
           description: 期
-          example: "1期"
+          example: "第1期"
         section:
           type: string
           description: セクション（A, B, 吉相など）
@@ -3546,7 +3563,7 @@ components:
         period:
           type: string
           description: 期
-          example: "1期"
+          example: "第1期"
         areaSqm:
           type: number
           format: float

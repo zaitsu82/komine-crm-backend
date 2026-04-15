@@ -142,7 +142,7 @@ describe('bulkCreatePlots', () => {
     });
 
     it('areaSqmが未指定の場合デフォルト値3.6が使用されること', async () => {
-      const items = [{ plotNumber: 'B-1', areaName: '2期' }];
+      const items = [{ plotNumber: 'B-1', areaName: '第2期' }];
       mockRequest = {
         body: { items },
       };
@@ -150,7 +150,7 @@ describe('bulkCreatePlots', () => {
       mockPhysicalPlotCreate.mockResolvedValueOnce({
         id: 'uuid-0',
         plot_number: 'B-1',
-        area_name: '2期',
+        area_name: '第2期',
         area_sqm: { toNumber: () => 3.6 },
         status: 'available',
         notes: null,
@@ -176,7 +176,7 @@ describe('bulkCreatePlots', () => {
       expect(mockPhysicalPlotCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
           plot_number: 'B-1',
-          area_name: '2期',
+          area_name: '第2期',
           status: 'available',
           notes: null,
         }),
@@ -184,7 +184,7 @@ describe('bulkCreatePlots', () => {
     });
 
     it('notesが未指定の場合nullが設定されること', async () => {
-      const items = [{ plotNumber: 'C-1', areaName: '3期', areaSqm: 1.8 }];
+      const items = [{ plotNumber: 'C-1', areaName: '第3期', areaSqm: 1.8 }];
       mockRequest = {
         body: { items },
       };
@@ -192,7 +192,7 @@ describe('bulkCreatePlots', () => {
       mockPhysicalPlotCreate.mockResolvedValueOnce({
         id: 'uuid-0',
         plot_number: 'C-1',
-        area_name: '3期',
+        area_name: '第3期',
         area_sqm: { toNumber: () => 1.8 },
         status: 'available',
         notes: null,
@@ -214,7 +214,7 @@ describe('bulkCreatePlots', () => {
 
   describe('バリデーションエラー', () => {
     it('plotNumberが欠けている場合エラーを返すこと', async () => {
-      const items = [{ areaName: '1期', areaSqm: 3.6 }];
+      const items = [{ areaName: '第1期', areaSqm: 3.6 }];
       mockRequest = {
         body: { items },
       };
@@ -307,9 +307,9 @@ describe('bulkCreatePlots', () => {
   describe('重複チェック', () => {
     it('バッチ内で区画番号が重複している場合エラーを返すこと', async () => {
       const items = [
-        { plotNumber: 'A-1', areaName: '1期', areaSqm: 3.6 },
-        { plotNumber: 'A-2', areaName: '1期', areaSqm: 3.6 },
-        { plotNumber: 'A-1', areaName: '1期', areaSqm: 3.6 }, // duplicate
+        { plotNumber: 'A-1', areaName: '第1期', areaSqm: 3.6 },
+        { plotNumber: 'A-2', areaName: '第1期', areaSqm: 3.6 },
+        { plotNumber: 'A-1', areaName: '第1期', areaSqm: 3.6 }, // duplicate
       ];
       mockRequest = {
         body: { items },
@@ -336,9 +336,9 @@ describe('bulkCreatePlots', () => {
 
     it('データベースに既存の区画番号がある場合エラーを返すこと', async () => {
       const items = [
-        { plotNumber: 'A-1', areaName: '1期', areaSqm: 3.6 },
-        { plotNumber: 'A-2', areaName: '1期', areaSqm: 3.6 },
-        { plotNumber: 'A-3', areaName: '1期', areaSqm: 3.6 },
+        { plotNumber: 'A-1', areaName: '第1期', areaSqm: 3.6 },
+        { plotNumber: 'A-2', areaName: '第1期', areaSqm: 3.6 },
+        { plotNumber: 'A-3', areaName: '第1期', areaSqm: 3.6 },
       ];
       mockRequest = {
         body: { items },
@@ -379,7 +379,7 @@ describe('bulkCreatePlots', () => {
 
   describe('トランザクションエラー', () => {
     it('トランザクション中にエラーが発生した場合nextにエラーが渡されること', async () => {
-      const items = [{ plotNumber: 'A-1', areaName: '1期', areaSqm: 3.6 }];
+      const items = [{ plotNumber: 'A-1', areaName: '第1期', areaSqm: 3.6 }];
       mockRequest = {
         body: { items },
       };
