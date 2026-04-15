@@ -5,9 +5,62 @@
  * UI表示用の日本語ラベルにマッピングする。
  *
  * issue #51 Phase 3: 履歴の表示改善
+ * issue #69: フィールド名・値の日本語化・整形
  */
 
 import { HistoryEntityType } from './historyService';
+
+/**
+ * UUID形式の正規表現
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * 値がUUID形式かどうか判定する
+ */
+export function isUuidValue(value: unknown): boolean {
+  return typeof value === 'string' && UUID_REGEX.test(value);
+}
+
+/**
+ * 表示対象から除外するフィールド名
+ *
+ * - 主キー（id）
+ * - タイムスタンプ系（created_at, updated_at, deleted_at）
+ * - 外部キー（*_id）
+ *
+ * issue #69: システムフィールド・FK・UUIDを非表示にする
+ */
+export const HIDDEN_FIELDS: ReadonlySet<string> = new Set([
+  // 主キー
+  'id',
+  // タイムスタンプ
+  'created_at',
+  'updated_at',
+  'deleted_at',
+  // 外部キー
+  'physical_plot_id',
+  'contract_plot_id',
+  'sale_contract_id',
+  'customer_id',
+  'work_info_id',
+  'billing_info_id',
+  'usage_fee_id',
+  'management_fee_id',
+  'gravestone_info_id',
+  'construction_info_id',
+  'collective_burial_id',
+  'buried_person_id',
+  'family_contact_id',
+  'document_id',
+]);
+
+/**
+ * フィールドを表示対象から除外すべきか判定する
+ */
+export function isHiddenField(fieldName: string): boolean {
+  return HIDDEN_FIELDS.has(fieldName);
+}
 
 /**
  * エンティティ種別ごとのフィールド名→日本語ラベルマップ
@@ -245,26 +298,51 @@ export function formatHistoryWithLabels(history: {
   const entityType = history.entity_type;
   const entityLabel = getEntityLabel(entityType);
 
-  // 日本語ラベルマップを構築
+  // issue #69: 非表示フィールドを除外したレコードを構築
+  const filterRecord = (record: unknown): Record<string, unknown> | null => {
+    if (!record || typeof record !== 'object') return null;
+    const filtered: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(record as Record<string, unknown>)) {
+      if (isHiddenField(key)) continue;
+      filtered[key] = value;
+    }
+    return Object.keys(filtered).length > 0 ? filtered : null;
+  };
+
+  // changed_fields から非表示フィールドを除外
+  const filterChangedFields = (fields: unknown): Record<string, unknown> | null => {
+    if (!fields || typeof fields !== 'object') return null;
+    const filtered: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(fields as Record<string, unknown>)) {
+      if (isHiddenField(key)) continue;
+      filtered[key] = value;
+    }
+    return Object.keys(filtered).length > 0 ? filtered : null;
+  };
+
+  const filteredChangedFields = filterChangedFields(history.changed_fields);
+  const filteredBeforeRecord = filterRecord(history.before_record);
+  const filteredAfterRecord = filterRecord(history.after_record);
+
+  // 日本語ラベルマップを構築（フィルタ後のキーから）
   // - UPDATE: changed_fields のキーから
   // - CREATE: after_record のキーから
   // - DELETE: before_record のキーから
   const fieldLabels: Record<string, string> = {};
-  const collectLabels = (record: unknown): void => {
-    if (record && typeof record === 'object') {
-      for (const fieldName of Object.keys(record as Record<string, unknown>)) {
-        if (fieldName === 'id') continue;
+  const collectLabels = (record: Record<string, unknown> | null): void => {
+    if (record) {
+      for (const fieldName of Object.keys(record)) {
         fieldLabels[fieldName] = getFieldLabel(entityType, fieldName);
       }
     }
   };
-  if (history.changed_fields && typeof history.changed_fields === 'object') {
-    collectLabels(history.changed_fields);
+  if (filteredChangedFields) {
+    collectLabels(filteredChangedFields);
   }
   if (history.action_type === 'CREATE') {
-    collectLabels(history.after_record);
+    collectLabels(filteredAfterRecord);
   } else if (history.action_type === 'DELETE') {
-    collectLabels(history.before_record);
+    collectLabels(filteredBeforeRecord);
   }
 
   return {
@@ -273,10 +351,10 @@ export function formatHistoryWithLabels(history: {
     entityLabel,
     entityId: history.entity_id,
     actionType: history.action_type,
-    changedFields: history.changed_fields,
+    changedFields: filteredChangedFields,
     fieldLabels,
-    beforeRecord: history.before_record,
-    afterRecord: history.after_record,
+    beforeRecord: filteredBeforeRecord,
+    afterRecord: filteredAfterRecord,
     changedBy: history.changed_by,
     changeReason: history.change_reason,
     ipAddress: history.ip_address,
