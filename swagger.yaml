@@ -183,6 +183,235 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /api/v1/plots/bulk:
+    post:
+      tags:
+        - Plots
+      summary: 区画情報一括登録
+      description: |
+        複数の区画を一括登録します。1件登録（POST /plots）と同等のフィールド構成で、
+        最大500件まで一度に登録できます。全件が1つのトランザクションで実行され、
+        1件でもエラーがあれば全件ロールバックします。
+        manager または admin 権限が必要です。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - items
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  items:
+                    type: object
+                    description: |
+                      CreatePlot リクエスト（物理区画 + 契約区画 + 販売契約 + 顧客 + オプション）+
+                      familyContacts[] / buriedPersons[] / constructionInfos[] / gravestoneInfo
+                    properties:
+                      physicalPlot:
+                        type: object
+                      contractPlot:
+                        type: object
+                      saleContract:
+                        type: object
+                      customer:
+                        type: object
+                      workInfo:
+                        type: object
+                      billingInfo:
+                        type: object
+                      usageFee:
+                        type: object
+                      managementFee:
+                        type: object
+                      collectiveBurial:
+                        type: object
+                      familyContacts:
+                        type: array
+                        items:
+                          type: object
+                      buriedPersons:
+                        type: array
+                        items:
+                          type: object
+                      constructionInfos:
+                        type: array
+                        items:
+                          type: object
+                      gravestoneInfo:
+                        type: object
+      responses:
+        "201":
+          description: 一括登録成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      totalRequested:
+                        type: integer
+                        example: 10
+                      created:
+                        type: integer
+                        example: 10
+                      results:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            row:
+                              type: integer
+                            id:
+                              type: string
+                              format: uuid
+                            physicalPlotId:
+                              type: string
+                              format: uuid
+                            plotNumber:
+                              type: string
+                              nullable: true
+        "400":
+          description: バリデーションエラー / バッチ内重複 / 既存区画番号と衝突
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+                      details:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            row:
+                              type: integer
+                            field:
+                              type: string
+                            message:
+                              type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags:
+        - Plots
+      summary: 区画情報一括編集
+      description: |
+        既存の契約区画を plotNumber（区画番号）でマッチングして一括更新します。
+        未指定フィールドは変更されず、null 明示フィールドはクリアされます。
+        最大500件まで一度に編集可能。トランザクションで all-or-nothing 処理。
+        manager または admin 権限が必要です。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - items
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  items:
+                    type: object
+                    required:
+                      - plotNumber
+                    description: |
+                      plotNumber（マッチングキー、必須）+ UpdatePlot 準拠の部分更新フィールド。
+                      空欄（未指定）= 変更しない、null 明示 = クリア。
+                    properties:
+                      plotNumber:
+                        type: string
+                        description: マッチングキーとなる区画番号
+                      physicalPlot:
+                        type: object
+                      contractPlot:
+                        type: object
+                      saleContract:
+                        type: object
+                      customer:
+                        type: object
+                      workInfo:
+                        type: object
+                      billingInfo:
+                        type: object
+                      usageFee:
+                        type: object
+                      managementFee:
+                        type: object
+                      buriedPersons:
+                        type: array
+                        items:
+                          type: object
+                      constructionInfos:
+                        type: array
+                        items:
+                          type: object
+                      collectiveBurial:
+                        type: object
+      responses:
+        "200":
+          description: 一括編集成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      totalRequested:
+                        type: integer
+                      updated:
+                        type: integer
+                      results:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            row:
+                              type: integer
+                            id:
+                              type: string
+                              format: uuid
+                            plotNumber:
+                              type: string
+        "400":
+          description: バリデーションエラー / バッチ内重複 / 区画番号が DB に存在しない
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/v1/plots/{id}:
     get:
       tags:
