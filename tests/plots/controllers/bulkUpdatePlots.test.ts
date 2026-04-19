@@ -1,6 +1,8 @@
 /**
  * 区画一括編集コントローラーのテスト
  * PUT /api/v1/plots/bulk
+ *
+ * Phase 1 (issue #76): 1 件ごと独立 tx・部分成功レスポンス対応
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -101,7 +103,8 @@ describe('bulkUpdatePlots', () => {
         success: true,
         data: {
           totalRequested: 2,
-          updated: 2,
+          succeeded: 2,
+          failed: [],
           results: [
             { row: 0, id: 'cp-1', plotNumber: 'A-1' },
             { row: 1, id: 'cp-2', plotNumber: 'A-2' },
@@ -109,6 +112,8 @@ describe('bulkUpdatePlots', () => {
         },
       });
       expect(mockUpdatePlotCore).toHaveBeenCalledTimes(2);
+      // 1 件ごと独立 tx: transaction が items 数ぶん呼ばれる
+      expect(mockTransaction).toHaveBeenCalledTimes(2);
     });
 
     it('未指定フィールドは updatePlotCore に undefined として渡されること（部分更新仕様）', async () => {
@@ -169,28 +174,32 @@ describe('bulkUpdatePlots', () => {
     });
   });
 
-  describe('マッチングエラー', () => {
-    it('バッチ内で plotNumber が重複している場合エラーを返すこと', async () => {
+  describe('部分成功（Phase 1）', () => {
+    it('バッチ内で plotNumber が重複している場合、後続出現行のみ failed に入る', async () => {
+      mockPhysicalPlotFindMany.mockResolvedValue([
+        { plot_number: 'A-1', contractPlots: [{ id: 'cp-1' }] },
+      ]);
       mockRequest = {
         body: { items: [buildValidItem('A-1'), buildValidItem('A-1')] },
       };
 
       await bulkUpdatePlots(mockRequest as Request, mockResponse as Response, mockNext);
 
-      const error = mockNext.mock.calls[0]![0] as any;
-      expect(error.name).toBe('ValidationError');
-      expect(error.details).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            field: 'plotNumber',
-            message: expect.stringContaining('A-1'),
-          }),
-        ])
-      );
-      expect(mockTransaction).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+      const payload = jsonMock.mock.calls[0]![0];
+      expect(payload.data.totalRequested).toBe(2);
+      expect(payload.data.succeeded).toBe(1);
+      expect(payload.data.failed).toEqual([
+        expect.objectContaining({
+          row: 1,
+          plotNumber: 'A-1',
+          error: expect.objectContaining({ message: expect.stringContaining('A-1') }),
+        }),
+      ]);
+      expect(mockUpdatePlotCore).toHaveBeenCalledTimes(1);
     });
 
-    it('DB に plotNumber が存在しない場合エラーを返すこと', async () => {
+    it('DB に plotNumber が存在しない場合、該当行のみ failed に入り他行は成功', async () => {
       mockPhysicalPlotFindMany.mockResolvedValue([
         { plot_number: 'A-1', contractPlots: [{ id: 'cp-1' }] },
       ]);
@@ -200,39 +209,41 @@ describe('bulkUpdatePlots', () => {
 
       await bulkUpdatePlots(mockRequest as Request, mockResponse as Response, mockNext);
 
-      const error = mockNext.mock.calls[0]![0] as any;
-      expect(error.name).toBe('ValidationError');
-      expect(error.details).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            field: 'plotNumber',
-            message: expect.stringContaining('A-2'),
-          }),
-        ])
-      );
-      expect(mockTransaction).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+      const payload = jsonMock.mock.calls[0]![0];
+      expect(payload.data.totalRequested).toBe(2);
+      expect(payload.data.succeeded).toBe(1);
+      expect(payload.data.failed).toEqual([
+        expect.objectContaining({
+          row: 1,
+          plotNumber: 'A-2',
+          error: expect.objectContaining({ message: expect.stringContaining('A-2') }),
+        }),
+      ]);
     });
 
-    it('PhysicalPlot はあるが有効な契約が無い場合エラーを返すこと', async () => {
+    it('PhysicalPlot はあるが有効な契約が無い場合、該当行のみ failed に入る', async () => {
       mockPhysicalPlotFindMany.mockResolvedValue([{ plot_number: 'A-1', contractPlots: [] }]);
       mockRequest = { body: { items: [buildValidItem('A-1')] } };
 
       await bulkUpdatePlots(mockRequest as Request, mockResponse as Response, mockNext);
 
-      const error = mockNext.mock.calls[0]![0] as any;
-      expect(error.name).toBe('ValidationError');
-      expect(error.details).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
+      expect(mockNext).not.toHaveBeenCalled();
+      const payload = jsonMock.mock.calls[0]![0];
+      expect(payload.data.succeeded).toBe(0);
+      expect(payload.data.failed).toEqual([
+        expect.objectContaining({
+          row: 0,
+          plotNumber: 'A-1',
+          error: expect.objectContaining({
             message: expect.stringContaining('有効な契約区画'),
           }),
-        ])
-      );
+        }),
+      ]);
+      expect(mockUpdatePlotCore).not.toHaveBeenCalled();
     });
-  });
 
-  describe('トランザクションエラー', () => {
-    it('updatePlotCore が ValidationError を投げた場合、行番号付きで再スローされること', async () => {
+    it('updatePlotCore が ValidationError を投げた場合、該当行のみ failed に入り他行は成功', async () => {
       mockPhysicalPlotFindMany.mockResolvedValue([
         { plot_number: 'A-1', contractPlots: [{ id: 'cp-1' }] },
         { plot_number: 'A-2', contractPlots: [{ id: 'cp-2' }] },
@@ -250,24 +261,47 @@ describe('bulkUpdatePlots', () => {
 
       await bulkUpdatePlots(mockRequest as Request, mockResponse as Response, mockNext);
 
-      const error = mockNext.mock.calls[0]![0] as any;
-      expect(error.name).toBe('ValidationError');
-      expect(error.message).toContain('行 1');
-      expect(error.details).toEqual(expect.arrayContaining([expect.objectContaining({ row: 1 })]));
+      expect(mockNext).not.toHaveBeenCalled();
+      const payload = jsonMock.mock.calls[0]![0];
+      expect(payload.data.succeeded).toBe(1);
+      expect(payload.data.failed).toEqual([
+        expect.objectContaining({
+          row: 1,
+          plotNumber: 'A-2',
+          error: expect.objectContaining({
+            message: expect.stringContaining('契約面積'),
+          }),
+        }),
+      ]);
     });
 
-    it('DB エラーが発生した場合 next にエラーが渡されること', async () => {
+    it('予期しないランタイムエラーも failed に記録され、他行は継続される', async () => {
       mockPhysicalPlotFindMany.mockResolvedValue([
         { plot_number: 'A-1', contractPlots: [{ id: 'cp-1' }] },
+        { plot_number: 'A-2', contractPlots: [{ id: 'cp-2' }] },
       ]);
-      mockRequest = { body: { items: [buildValidItem('A-1')] } };
+      mockRequest = {
+        body: { items: [buildValidItem('A-1'), buildValidItem('A-2')] },
+      };
 
-      const dbError = new Error('Database connection lost');
-      mockTransaction.mockRejectedValue(dbError);
+      mockTransaction
+        .mockImplementationOnce(async () => {
+          throw new Error('DB接続喪失');
+        })
+        .mockImplementationOnce(async (callback: any) => callback({}));
 
       await bulkUpdatePlots(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockNext).toHaveBeenCalledWith(dbError);
+      expect(mockNext).not.toHaveBeenCalled();
+      const payload = jsonMock.mock.calls[0]![0];
+      expect(payload.data.succeeded).toBe(1);
+      expect(payload.data.failed).toEqual([
+        expect.objectContaining({
+          row: 0,
+          plotNumber: 'A-1',
+          error: expect.objectContaining({ message: 'DB接続喪失' }),
+        }),
+      ]);
     });
   });
 });

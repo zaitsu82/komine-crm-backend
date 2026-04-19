@@ -192,8 +192,9 @@ paths:
       summary: 区画情報一括登録
       description: |
         複数の区画を一括登録します。1件登録（POST /plots）と同等のフィールド構成で、
-        最大500件まで一度に登録できます。全件が1つのトランザクションで実行され、
-        1件でもエラーがあれば全件ロールバックします。
+        最大500件まで一度に登録できます。各行は独立したトランザクションで処理され、
+        1行の失敗が他行に波及しない部分成功モデル（issue #76 Phase 1）。
+        レスポンスの `succeeded` / `failed[]` で成否を判定してください。
         manager または admin 権限が必要です。
       security:
         - bearerAuth: []
@@ -250,7 +251,9 @@ paths:
                         type: object
       responses:
         "201":
-          description: 一括登録成功
+          description: |
+            一括登録処理が完了（部分成功を含む）。
+            全行失敗の場合も 201 を返し、`failed[]` に詳細が入ります。
           content:
             application/json:
               schema:
@@ -264,12 +267,40 @@ paths:
                     properties:
                       totalRequested:
                         type: integer
+                        description: リクエストされた総件数
                         example: 10
-                      created:
+                      succeeded:
                         type: integer
-                        example: 10
+                        description: 成功件数
+                        example: 9
+                      failed:
+                        type: array
+                        description: 失敗行の詳細（バッチ内重複・DB重複・行ごとの処理エラーを含む）
+                        items:
+                          type: object
+                          properties:
+                            row:
+                              type: integer
+                            plotNumber:
+                              type: string
+                              nullable: true
+                            error:
+                              type: object
+                              properties:
+                                message:
+                                  type: string
+                                details:
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      field:
+                                        type: string
+                                      message:
+                                        type: string
                       results:
                         type: array
+                        description: 成功行の詳細
                         items:
                           type: object
                           properties:
@@ -285,7 +316,7 @@ paths:
                               type: string
                               nullable: true
         "400":
-          description: バリデーションエラー / バッチ内重複 / 既存区画番号と衝突
+          description: リクエスト自体のスキーマ不正 / 空配列 / 上限超過
           content:
             application/json:
               schema:
@@ -323,7 +354,9 @@ paths:
       description: |
         既存の契約区画を plotNumber（区画番号）でマッチングして一括更新します。
         未指定フィールドは変更されず、null 明示フィールドはクリアされます。
-        最大500件まで一度に編集可能。トランザクションで all-or-nothing 処理。
+        最大500件まで一度に編集可能。各行は独立したトランザクションで処理され、
+        1行の失敗が他行に波及しない部分成功モデル（issue #76 Phase 1）。
+        レスポンスの `succeeded` / `failed[]` で成否を判定してください。
         manager または admin 権限が必要です。
       security:
         - bearerAuth: []
@@ -379,7 +412,9 @@ paths:
                         type: object
       responses:
         "200":
-          description: 一括編集成功
+          description: |
+            一括編集処理が完了（部分成功を含む）。
+            全行失敗の場合も 200 を返し、`failed[]` に詳細が入ります。
           content:
             application/json:
               schema:
@@ -393,8 +428,33 @@ paths:
                     properties:
                       totalRequested:
                         type: integer
-                      updated:
+                      succeeded:
                         type: integer
+                      failed:
+                        type: array
+                        description: 失敗行の詳細（マッチング失敗・行ごとの処理エラーを含む）
+                        items:
+                          type: object
+                          properties:
+                            row:
+                              type: integer
+                            plotNumber:
+                              type: string
+                              nullable: true
+                            error:
+                              type: object
+                              properties:
+                                message:
+                                  type: string
+                                details:
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      field:
+                                        type: string
+                                      message:
+                                        type: string
                       results:
                         type: array
                         items:
@@ -408,7 +468,7 @@ paths:
                             plotNumber:
                               type: string
         "400":
-          description: バリデーションエラー / バッチ内重複 / 区画番号が DB に存在しない
+          description: リクエスト自体のスキーマ不正 / 空配列 / 上限超過
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

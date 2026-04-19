@@ -4,7 +4,12 @@
  *
  * 既存の ContractPlot を plotNumber でマッチングして一括更新します。
  * 未指定フィールド = 変更しない、null 明示 = クリア（updatePlotCore 仕様）。
- * トランザクションによる all-or-nothing 処理。
+ *
+ * Phase 1 対応 (issue #76):
+ * - 全件 1 トランザクション → 1 件ごとの独立トランザクション
+ * - 存在しない plotNumber / 契約なしは「リクエスト全体エラー」から
+ *   「該当行のみ failed」に変更
+ * - 部分成功レスポンス { totalRequested, succeeded, failed[], results[] }
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -35,6 +40,40 @@ const bulkUpdateRequestSchema = z.object({
 
 export type BulkUpdateItem = z.infer<typeof bulkUpdateItemSchema>;
 
+type BulkFailure = {
+  row: number;
+  plotNumber?: string | null;
+  error: {
+    message: string;
+    details?: Array<{ field?: string; message: string }>;
+  };
+};
+
+type BulkSuccess = {
+  row: number;
+  id: string;
+  plotNumber: string;
+};
+
+/**
+ * 1件分の更新処理（独立トランザクション）
+ */
+async function updateSingleItem(
+  item: BulkUpdateItem,
+  contractPlotId: string,
+  req: Request
+): Promise<void> {
+  const { plotNumber, ...updateInput } = item;
+  void plotNumber;
+
+  await prisma.$transaction(
+    async (tx) => {
+      await updatePlotCore(tx, contractPlotId, updateInput as UpdatePlotRequest, req);
+    },
+    { maxWait: 10000, timeout: 30000 }
+  );
+}
+
 /**
  * 区画一括編集
  * PUT /api/v1/plots/bulk
@@ -63,30 +102,30 @@ export const bulkUpdatePlots = async (
 
     const { items } = parseResult.data;
 
-    // 2. バッチ内の plotNumber 重複チェック
-    const plotNumbers = items.map((item) => item.plotNumber);
-    const duplicatesInBatch = plotNumbers.filter(
-      (num, index) => plotNumbers.indexOf(num) !== index
-    );
+    const failures: BulkFailure[] = [];
+    const skipRows = new Set<number>();
 
-    if (duplicatesInBatch.length > 0) {
-      const uniqueDuplicates = [...new Set(duplicatesInBatch)];
-      const details = uniqueDuplicates.map((plotNumber) => {
-        const rows = items
-          .map((item, index) => (item.plotNumber === plotNumber ? index : -1))
-          .filter((index) => index !== -1);
-        return {
-          row: rows[1],
-          field: 'plotNumber',
-          message: `区画番号「${plotNumber}」がバッチ内で重複しています（行 ${rows.join(', ')}）`,
-        };
-      });
-
-      throw new ValidationError('一括編集でエラーが発生しました', details);
+    // 2. バッチ内の plotNumber 重複 — 後続出現は failed に
+    const seenPlotNumbers = new Map<string, number>();
+    for (let i = 0; i < items.length; i++) {
+      const pn = items[i]!.plotNumber;
+      if (seenPlotNumbers.has(pn)) {
+        failures.push({
+          row: i,
+          plotNumber: pn,
+          error: {
+            message: `区画番号「${pn}」がバッチ内で重複しています（行 ${seenPlotNumbers.get(pn)} と同じ）`,
+            details: [{ field: 'plotNumber', message: `行 ${seenPlotNumbers.get(pn)} と重複` }],
+          },
+        });
+        skipRows.add(i);
+      } else {
+        seenPlotNumbers.set(pn, i);
+      }
     }
 
     // 3. DB 上で plotNumber → 最新 ContractPlot.id をマッピング
-    //   1つの PhysicalPlot に複数契約がある場合は最新（created_at DESC）を選択
+    const plotNumbers = Array.from(seenPlotNumbers.keys());
     const existingPlots = await prisma.physicalPlot.findMany({
       where: {
         plot_number: { in: plotNumbers },
@@ -103,87 +142,89 @@ export const bulkUpdatePlots = async (
     });
 
     const plotNumberToContractId = new Map<string, string>();
-    const plotNumbersWithoutContract: string[] = [];
+    const plotNumbersWithoutContract = new Set<string>();
     for (const pp of existingPlots) {
       const contract = pp.contractPlots[0];
       if (contract) {
         plotNumberToContractId.set(pp.plot_number, contract.id);
       } else {
-        plotNumbersWithoutContract.push(pp.plot_number);
+        plotNumbersWithoutContract.add(pp.plot_number);
       }
     }
 
-    const missingPlotNumbers = plotNumbers.filter(
-      (num) => !plotNumberToContractId.has(num) && !plotNumbersWithoutContract.includes(num)
-    );
+    // 該当する ContractPlot が引けない行を failed に
+    for (let i = 0; i < items.length; i++) {
+      if (skipRows.has(i)) continue;
+      const pn = items[i]!.plotNumber;
+      if (plotNumberToContractId.has(pn)) continue;
 
-    if (missingPlotNumbers.length > 0 || plotNumbersWithoutContract.length > 0) {
-      const details: Array<{ row?: number; field: string; message: string }> = [];
-      for (const num of missingPlotNumbers) {
-        const row = items.findIndex((item) => item.plotNumber === num);
-        details.push({
-          row,
-          field: 'plotNumber',
-          message: `区画番号「${num}」はデータベースに存在しません`,
+      if (plotNumbersWithoutContract.has(pn)) {
+        failures.push({
+          row: i,
+          plotNumber: pn,
+          error: {
+            message: `区画番号「${pn}」に有効な契約区画が存在しません`,
+            details: [{ field: 'plotNumber', message: '契約区画なし' }],
+          },
+        });
+      } else {
+        failures.push({
+          row: i,
+          plotNumber: pn,
+          error: {
+            message: `区画番号「${pn}」はデータベースに存在しません`,
+            details: [{ field: 'plotNumber', message: '区画が見つかりません' }],
+          },
         });
       }
-      for (const num of plotNumbersWithoutContract) {
-        const row = items.findIndex((item) => item.plotNumber === num);
-        details.push({
-          row,
-          field: 'plotNumber',
-          message: `区画番号「${num}」に有効な契約区画が存在しません`,
-        });
-      }
-      throw new ValidationError('一括編集でエラーが発生しました', details);
+      skipRows.add(i);
     }
 
-    // 4. トランザクションで一括更新
-    const updatedPlots = await prisma.$transaction(
-      async (tx) => {
-        const results: Array<{ row: number; id: string; plotNumber: string }> = [];
+    // 4. 1件ずつ独立 tx で処理
+    const successes: BulkSuccess[] = [];
 
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i]!;
-          const contractPlotId = plotNumberToContractId.get(item.plotNumber)!;
+    for (let i = 0; i < items.length; i++) {
+      if (skipRows.has(i)) continue;
 
-          // plotNumber を分離して updatePlotSchema 準拠の input にする
-          const { plotNumber, ...updateInput } = item;
-          void plotNumber;
+      const item = items[i]!;
+      const contractPlotId = plotNumberToContractId.get(item.plotNumber)!;
 
-          try {
-            await updatePlotCore(tx, contractPlotId, updateInput as UpdatePlotRequest, req);
-
-            results.push({
-              row: i,
-              id: contractPlotId,
-              plotNumber: item.plotNumber,
-            });
-          } catch (error) {
-            if (error instanceof ValidationError) {
-              const details = error.details?.length
-                ? error.details.map((d) => ({ ...d, row: i }))
-                : [{ row: i, message: error.message }];
-              throw new ValidationError(`行 ${i} でエラー: ${error.message}`, details);
-            }
-            throw error;
-          }
+      try {
+        await updateSingleItem(item, contractPlotId, req);
+        successes.push({ row: i, id: contractPlotId, plotNumber: item.plotNumber });
+      } catch (error) {
+        if (error instanceof ValidationError) {
+          failures.push({
+            row: i,
+            plotNumber: item.plotNumber,
+            error: {
+              message: error.message,
+              details: error.details as Array<{ field?: string; message: string }> | undefined,
+            },
+          });
+        } else if (error instanceof Error) {
+          failures.push({
+            row: i,
+            plotNumber: item.plotNumber,
+            error: { message: error.message },
+          });
+        } else {
+          failures.push({
+            row: i,
+            plotNumber: item.plotNumber,
+            error: { message: '不明なエラーが発生しました' },
+          });
         }
-
-        return results;
-      },
-      {
-        maxWait: 10000,
-        timeout: 60000,
       }
-    );
+    }
 
     res.status(200).json({
       success: true,
       data: {
         totalRequested: items.length,
-        updated: updatedPlots.length,
-        results: updatedPlots,
+        succeeded: successes.length,
+        failed: failures,
+        results: successes,
       },
     });
   } catch (error) {
