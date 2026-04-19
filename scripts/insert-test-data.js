@@ -221,7 +221,8 @@ async function insertTestData() {
         location_description: null,
         contract_date: new Date('2024-03-01'),
         price: 800000,
-        payment_status: 'paid',
+        contract_status: 'active',
+        payment_status: 'unpaid',
         reservation_date: new Date('2024-02-01'),
         acceptance_number: 'C-2024-001',
         permit_date: new Date('2024-02-15'),
@@ -239,6 +240,7 @@ async function insertTestData() {
         location_description: null,
         contract_date: new Date('2025-01-15'),
         price: 1000000,
+        contract_status: 'active',
         payment_status: 'partial_paid',
         reservation_date: new Date('2024-12-10'),
         acceptance_number: 'C-2025-003',
@@ -256,7 +258,8 @@ async function insertTestData() {
         location_description: '左半分',
         contract_date: new Date('2024-06-01'),
         price: 720000,
-        payment_status: 'paid',
+        contract_status: 'active',
+        payment_status: 'unpaid',
         reservation_date: new Date('2024-05-15'),
         acceptance_number: 'C-2024-010',
         permit_date: new Date('2024-05-25'),
@@ -274,6 +277,7 @@ async function insertTestData() {
         location_description: '右半分',
         contract_date: new Date('2024-09-01'),
         price: 720000,
+        contract_status: 'active',
         payment_status: 'unpaid',
         reservation_date: new Date('2024-08-20'),
         acceptance_number: 'C-2024-015',
@@ -370,11 +374,47 @@ async function insertTestData() {
       data: {
         customer_id: customer1.id,
         billing_type: 'bank_transfer',
-        bank_name: 'みずほ銀行',
-        branch_name: '新宿支店',
+        bank_name: 'ゆうちょ銀行',
+        branch_name: '〇一八', // 記号10180 → 支店コード018
         account_type: 'ordinary',
-        account_number: '1234567',
-        account_holder: '山田太郎',
+        account_number: '12345671', // ゆうちょ番号（方式A: そのまま格納）
+        account_holder: 'ヤマダタロウ',
+      },
+    });
+
+    await prisma.billingInfo.create({
+      data: {
+        customer_id: customer3.id,
+        billing_type: 'bank_transfer',
+        bank_name: 'ゆうちょ銀行',
+        branch_name: '〇二八', // 記号10280 → 支店コード028
+        account_type: 'ordinary',
+        account_number: '23456782',
+        account_holder: 'サトウケンイチ',
+      },
+    });
+
+    await prisma.billingInfo.create({
+      data: {
+        customer_id: customer4.id,
+        billing_type: 'bank_transfer',
+        bank_name: 'ゆうちょ銀行',
+        branch_name: '〇三八', // 記号10380 → 支店コード038
+        account_type: 'ordinary',
+        account_number: '34567893',
+        account_holder: 'スズキイチロウ',
+      },
+    });
+
+    await prisma.billingInfo.create({
+      data: {
+        customer_id: customer5.id,
+        billing_type: 'bank_transfer',
+        bank_name: 'ゆうちょ銀行',
+        branch_name: '〇四八', // 記号10480 → 支店コード048
+        account_type: 'ordinary',
+        account_number: '45678904',
+        account_holder: 'タナカミサキ',
       },
     });
 
@@ -408,10 +448,55 @@ async function insertTestData() {
         billing_type: '年次請求',
         billing_years: '毎年',
         area: '3.6㎡',
-        billing_month: '4月',
+        billing_month: '5月',
         management_fee: '24,000円',
         unit_price: '24,000円',
         last_billing_month: '2025年4月',
+        payment_method: '口座振替',
+      },
+    });
+
+    await prisma.managementFee.create({
+      data: {
+        contract_plot_id: contractPlot2.id,
+        calculation_type: '面積単価',
+        tax_type: '消費税10%',
+        billing_type: '年次請求',
+        billing_years: '毎年',
+        area: '5.0㎡',
+        billing_month: '5月',
+        management_fee: '35,000円',
+        unit_price: '7,000円/㎡',
+        payment_method: '口座振替',
+      },
+    });
+
+    await prisma.managementFee.create({
+      data: {
+        contract_plot_id: contractPlot3.id,
+        calculation_type: '一律料金',
+        tax_type: '消費税10%',
+        billing_type: '年次請求',
+        billing_years: '毎年',
+        area: '3.6㎡',
+        billing_month: '5月',
+        management_fee: '18,000円',
+        unit_price: '18,000円',
+        payment_method: '口座振替',
+      },
+    });
+
+    await prisma.managementFee.create({
+      data: {
+        contract_plot_id: contractPlot4.id,
+        calculation_type: '一律料金',
+        tax_type: '消費税10%',
+        billing_type: '年次請求',
+        billing_years: '毎年',
+        area: '3.6㎡',
+        billing_month: '5月',
+        management_fee: '18,000円',
+        unit_price: '18,000円',
         payment_method: '口座振替',
       },
     });
@@ -577,8 +662,23 @@ async function insertTestData() {
         burial_capacity: 6,
         current_burial_count: 2,
         validity_period_years: 33,
+        billing_scheduled_date: new Date('2026-05-15'),
         billing_status: 'pending',
+        billing_amount: 50000,
         notes: '永代供養墓（33年契約）',
+      },
+    });
+
+    await prisma.collectiveBurial.create({
+      data: {
+        contract_plot_id: contractPlot3.id,
+        burial_capacity: 4,
+        current_burial_count: 1,
+        validity_period_years: 13,
+        billing_scheduled_date: new Date('2026-05-20'),
+        billing_status: 'pending',
+        billing_amount: 30000,
+        notes: '合祀料金（13年契約）',
       },
     });
 
