@@ -7,7 +7,14 @@ RUN apk add --no-cache git
 
 WORKDIR /packages/types
 
-RUN git clone --depth 1 https://github.com/zaitsu82/komine-types.git . && \
+# TYPES_REF: ビルドする @komine/types の git ref (commit SHA / tag / branch)
+# Docker layer cache対策: このARGを変更することで types 再取得を強制できる。
+# Render側で Build Arg として最新 SHA を渡すか、Dockerfile を更新すること。
+# 詳細: zaitsu82/komine-crm-backend#60
+ARG TYPES_REF=main
+
+RUN git clone https://github.com/zaitsu82/komine-types.git . && \
+    git checkout ${TYPES_REF} && \
     npm ci && \
     npm run build
 
@@ -33,8 +40,10 @@ COPY prisma.config.ts ./
 # 本番用依存関係のみインストール
 # Prisma v7: クライアントエンジンはJSベース（ネイティブバイナリ不要）
 # --ignore-scriptsでprepareスクリプト(husky)をスキップ（本番環境では不要）
+# --install-links: file:依存（@komine/types）をsymlinkでなく実体コピーでインストール
+#   → production ステージで /packages/types を持たなくても解決できる
 # --no-save prisma: preDeployCommand (prisma migrate deploy) 実行用にCLIを含める
-RUN npm ci --omit=dev --ignore-scripts && \
+RUN npm ci --omit=dev --ignore-scripts --install-links && \
     npm install --no-save prisma && \
     npx prisma generate && \
     npm cache clean --force
@@ -53,10 +62,11 @@ WORKDIR /app
 COPY --from=types /packages/types /packages/types
 
 # 依存関係のインストール（devDependenciesを含む）
+# --install-links: file:依存（@komine/types）をsymlinkでなく実体コピーでインストール
 COPY package*.json ./
 COPY prisma ./prisma/
 COPY prisma.config.ts ./
-RUN npm ci && \
+RUN npm ci --install-links && \
     npx prisma generate
 
 # ソースコードをコピー
