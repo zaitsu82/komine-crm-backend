@@ -114,7 +114,7 @@ describe('bulkCreatePlots', () => {
     customer: {
       name: '田中太郎',
       nameKana: 'タナカタロウ',
-      postalCode: '160-0000',
+      postalCode: '1600000',
       address: '東京都新宿区...',
       phoneNumber: '09012345678',
     },

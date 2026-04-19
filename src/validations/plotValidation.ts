@@ -1,13 +1,23 @@
 import { z } from 'zod';
 import {
+  customerSchema as sharedCustomerSchema,
+  familyContactSchema as sharedFamilyContactSchema,
+  buriedPersonSchema as sharedBuriedPersonSchema,
+  gravestoneInfoSchema as sharedGravestoneInfoSchema,
+  constructionInfoSchema as sharedConstructionInfoSchema,
+  collectiveBurialSchema as sharedCollectiveBurialSchema,
+  usageFeeSchema as sharedUsageFeeSchema,
+  managementFeeSchema as sharedManagementFeeSchema,
+  saleContractSchema as sharedSaleContractSchema,
+  contractPlotSchema as sharedContractPlotSchema,
+  physicalPlotSchema as sharedPhysicalPlotSchema,
+} from '@komine/types';
+import {
   uuidSchema,
   dateSchema,
-  emailSchema,
+  optionalDateSchema,
   phoneSchema,
-  requiredPhoneSchema,
   paginationSchema,
-  katakanaSchema,
-  yearMonthSchema,
 } from '../middleware/validation';
 
 /**
@@ -42,64 +52,47 @@ export const plotIdParamsSchema = z.object({
 });
 
 /**
- * 物理区画情報のバリデーションスキーマ
+ * 物理区画情報のバリデーションスキーマ（作成用）
+ * 共有スキーマ（@komine/types/validations）をベースに、作成時のid任意付与に対応。
  */
-const physicalPlotSchema = z.object({
-  id: uuidSchema.optional(),
-  plotNumber: z
-    .string()
-    .max(50, '区画番号は50文字以内で入力してください')
-    .regex(/^[A-Z0-9-]+$/, '区画番号は大文字英数字とハイフンのみ使用できます')
-    .optional(),
-  areaName: z.string().max(100, '区域名は100文字以内で入力してください').optional(),
-  areaSqm: z.number().positive('面積は正の数値で入力してください').optional(),
-  notes: z.string().max(1000).optional().or(z.literal('')),
-});
+const physicalPlotSchema = sharedPhysicalPlotSchema
+  .extend({
+    id: uuidSchema.optional(),
+  })
+  .partial({
+    // 作成時は既存動作との互換性のためフィールドを任意化
+    plotNumber: true,
+    areaName: true,
+    areaSqm: true,
+  });
 
 /**
  * 物理区画情報の更新バリデーションスキーマ
  * PUT /plots/:id の input.physicalPlot で利用
  * 全フィールドオプショナル（部分更新）
  */
-const physicalPlotUpdateSchema = z.object({
-  plotNumber: z
-    .string()
-    .max(50, '区画番号は50文字以内で入力してください')
-    .regex(/^[A-Z0-9-]+$/, '区画番号は大文字英数字とハイフンのみ使用できます')
-    .optional(),
-  areaName: z.string().max(100, '区域名は100文字以内で入力してください').optional(),
-  areaSqm: z.number().positive('面積は正の数値で入力してください').optional(),
-  status: z.string().max(20).optional(),
-  notes: z.string().max(1000).optional().nullable().or(z.literal('')),
-});
+const physicalPlotUpdateSchema = sharedPhysicalPlotSchema
+  .extend({
+    status: z.string().max(20).optional(),
+  })
+  .partial();
 
 /**
  * 家族連絡先のバリデーションスキーマ
- * 将来的に家族連絡先管理エンドポイントで使用予定
+ * 共有スキーマをベースに、バックエンド固有フィールド（_delete, customerId, useWorkContact 等）を追加。
+ * バルク登録でのスキップ判定（controller 側が必須フィールド欠落行をスキップ）と整合させるため、
+ * 共有スキーマで必須になっている name / relationship / address / phoneNumber を任意化する。
  */
-export const familyContactSchema = z.object({
+export const familyContactSchema = sharedFamilyContactSchema.extend({
   id: uuidSchema.optional(),
   _delete: z.boolean().optional(),
   customerId: uuidSchema.optional(),
-  name: z.string().max(100).optional().or(z.literal('')),
-  nameKana: z.string().max(100).optional().or(z.literal('')),
-  birthDate: dateSchema.optional().or(z.literal('')),
-  relationship: z.string().max(50).optional().or(z.literal('')),
-  address: z.string().max(200).optional().or(z.literal('')),
-  phoneNumber: requiredPhoneSchema,
-  phoneNumber2: z.string().max(15).optional().or(z.literal('')),
-  faxNumber: phoneSchema,
-  email: emailSchema.optional().or(z.literal('')),
-  registeredAddress: z.string().max(200).optional().or(z.literal('')),
-  mailingType: z.string().max(50).optional().or(z.literal('')),
-  workCompanyName: z.string().max(100).optional().or(z.literal('')),
-  workCompanyNameKana: z.string().max(100).optional().or(z.literal('')),
-  workAddress: z.string().max(200).optional().or(z.literal('')),
-  workPhoneNumber: z.string().max(15).optional().or(z.literal('')),
-  contactMethod: z.string().max(50).optional().or(z.literal('')),
   useWorkContact: z.boolean().optional(),
   workContactNotes: z.string().max(200).optional().or(z.literal('')),
-  notes: z.string().max(500).optional().or(z.literal('')),
+  name: z.string().max(100).optional().or(z.literal('')),
+  relationship: z.string().max(50).optional().or(z.literal('')),
+  address: z.string().max(200).optional().or(z.literal('')),
+  phoneNumber: z.string().max(20).optional().or(z.literal('')),
 });
 
 /**
@@ -116,128 +109,41 @@ export const emergencyContactSchema = z
 
 /**
  * 埋葬者情報のバリデーションスキーマ
- * 将来的に埋葬者管理エンドポイントで使用予定
+ * 共有スキーマをベースに、バックエンド固有フィールド（_delete, graveNumber）を追加。
+ * 共有スキーマで必須になっている name は、バルク登録でのスキップ判定のため任意化する。
  */
-export const buriedPersonSchema = z.object({
+export const buriedPersonSchema = sharedBuriedPersonSchema.extend({
   id: uuidSchema.optional(),
   _delete: z.boolean().optional(),
-  name: z.string().max(100).optional().or(z.literal('')),
-  nameKana: z.string().max(100).optional().or(z.literal('')),
-  relationship: z.string().max(50).optional().or(z.literal('')),
-  birthDate: dateSchema.optional().or(z.literal('')).or(z.null()),
-  deathDate: dateSchema.optional().or(z.literal('')),
-  age: z.number().int().nonnegative().optional().or(z.literal(null)),
-  gender: z.enum(['male', 'female', 'other']).optional().or(z.literal('')),
-  burialDate: dateSchema.optional().or(z.literal('')),
-  posthumousName: z.string().max(200).optional().or(z.literal('')),
-  reportDate: dateSchema.optional().or(z.literal('')).or(z.null()),
-  religion: z.string().max(50).optional().or(z.literal('')),
   graveNumber: z.string().max(50).optional().or(z.literal('')),
-  notes: z.string().max(500).optional().or(z.literal('')),
+  name: z.string().max(100).optional().or(z.literal('')),
 });
 
 /**
  * 墓石情報のバリデーションスキーマ
- * 将来的に墓石情報管理エンドポイントで使用予定
+ * 共有スキーマをベースに、ルートが optional な APIペイロード形式に合わせる。
  */
-export const gravestoneInfoSchema = z
-  .object({
-    gravestoneBase: z.string().max(100).optional().or(z.literal('')),
-    enclosurePosition: z.string().max(100).optional().or(z.literal('')),
-    gravestoneDealer: z.string().max(100).optional().or(z.literal('')),
-    gravestoneType: z.string().max(100).optional().or(z.literal('')),
-    surroundingArea: z.string().max(100).optional().or(z.literal('')),
-    gravestoneCost: z.number().nonnegative().optional().or(z.literal(null)),
-    establishmentDeadline: dateSchema.optional().or(z.literal('')),
-    establishmentDate: dateSchema.optional().or(z.literal('')),
-  })
-  .optional();
+export const gravestoneInfoSchema = sharedGravestoneInfoSchema.optional();
 
 /**
  * 工事情報のバリデーションスキーマ
- * 将来的に工事情報管理エンドポイントで使用予定
+ * 共有スキーマをベースに、optional 配列要素として使用。
  */
-export const constructionInfoSchema = z
-  .object({
-    constructionType: z.string().max(100).optional().or(z.literal('')),
-    startDate: dateSchema.optional().or(z.literal('')),
-    completionDate: dateSchema.optional().or(z.literal('')),
-    contractor: z.string().max(100).optional().or(z.literal('')),
-    supervisor: z.string().max(100).optional().or(z.literal('')),
-    progress: z.string().max(100).optional().or(z.literal('')),
-    workItem1: z.string().max(100).optional().or(z.literal('')),
-    workDate1: dateSchema.optional().or(z.literal('')),
-    workAmount1: z.number().nonnegative().optional().or(z.literal(null)),
-    workStatus1: z.string().max(50).optional().or(z.literal('')),
-    workItem2: z.string().max(100).optional().or(z.literal('')),
-    workDate2: dateSchema.optional().or(z.literal('')),
-    workAmount2: z.number().nonnegative().optional().or(z.literal(null)),
-    workStatus2: z.string().max(50).optional().or(z.literal('')),
-    permitNumber: z.string().max(50).optional().or(z.literal('')),
-    applicationDate: dateSchema.optional().or(z.literal('')),
-    permitDate: dateSchema.optional().or(z.literal('')),
-    permitStatus: z.string().max(50).optional().or(z.literal('')),
-    paymentType1: z.string().max(50).optional().or(z.literal('')),
-    paymentAmount1: z.number().nonnegative().optional().or(z.literal(null)),
-    paymentDate1: dateSchema.optional().or(z.literal('')),
-    paymentStatus1: z.string().max(50).optional().or(z.literal('')),
-    paymentType2: z.string().max(50).optional().or(z.literal('')),
-    paymentAmount2: z.number().nonnegative().optional().or(z.literal(null)),
-    paymentScheduledDate2: dateSchema.optional().or(z.literal('')),
-    paymentStatus2: z.string().max(50).optional().or(z.literal('')),
-    scheduledEndDate: dateSchema.optional().or(z.literal('')).or(z.null()),
-    constructionContent: z.string().max(2000).optional().or(z.literal('')),
-    constructionNotes: z.string().max(500).optional().or(z.literal('')),
-  })
-  .optional();
+export const constructionInfoSchema = sharedConstructionInfoSchema.optional();
 
 /**
  * 工事情報の更新バリデーションスキーマ
  * PUT /plots/:id の input.constructionInfos[] で利用
- * - id: 既存レコード識別用（無ければ新規作成）
- * - notes: フロントから送られる備考フィールド（既存 constructionInfoSchema は constructionNotes だが、フロントは notes を使う）
  */
-const constructionInfoUpdateSchema = z.object({
+const constructionInfoUpdateSchema = sharedConstructionInfoSchema.extend({
   id: uuidSchema.optional(),
-  constructionType: z.string().max(100).optional().nullable().or(z.literal('')),
-  startDate: dateSchema.optional().nullable().or(z.literal('')),
-  completionDate: dateSchema.optional().nullable().or(z.literal('')),
-  contractor: z.string().max(100).optional().nullable().or(z.literal('')),
-  supervisor: z.string().max(100).optional().nullable().or(z.literal('')),
-  progress: z.string().max(100).optional().nullable().or(z.literal('')),
-  workItem1: z.string().max(100).optional().nullable().or(z.literal('')),
-  workDate1: dateSchema.optional().nullable().or(z.literal('')),
-  workAmount1: z.number().nonnegative().optional().nullable(),
-  workStatus1: z.string().max(50).optional().nullable().or(z.literal('')),
-  workItem2: z.string().max(100).optional().nullable().or(z.literal('')),
-  workDate2: dateSchema.optional().nullable().or(z.literal('')),
-  workAmount2: z.number().nonnegative().optional().nullable(),
-  workStatus2: z.string().max(50).optional().nullable().or(z.literal('')),
-  permitNumber: z.string().max(50).optional().nullable().or(z.literal('')),
-  applicationDate: dateSchema.optional().nullable().or(z.literal('')),
-  permitDate: dateSchema.optional().nullable().or(z.literal('')),
-  permitStatus: z.string().max(50).optional().nullable().or(z.literal('')),
-  paymentType1: z.string().max(50).optional().nullable().or(z.literal('')),
-  paymentAmount1: z.number().nonnegative().optional().nullable(),
-  paymentDate1: dateSchema.optional().nullable().or(z.literal('')),
-  paymentStatus1: z.string().max(50).optional().nullable().or(z.literal('')),
-  paymentType2: z.string().max(50).optional().nullable().or(z.literal('')),
-  paymentAmount2: z.number().nonnegative().optional().nullable(),
-  paymentScheduledDate2: dateSchema.optional().nullable().or(z.literal('')),
-  paymentStatus2: z.string().max(50).optional().nullable().or(z.literal('')),
-  scheduledEndDate: dateSchema.optional().nullable().or(z.literal('')),
-  constructionContent: z.string().max(2000).optional().nullable().or(z.literal('')),
-  notes: z.string().max(2000).optional().nullable().or(z.literal('')),
 });
 
 /**
  * 契約区画情報のバリデーションスキーマ
- * 販売契約情報がContractPlotに統合されたため、saleStatusフィールドは削除
+ * 共有スキーマをベース。
  */
-const contractPlotSchema = z.object({
-  contractAreaSqm: z.number().positive('契約面積は正の数値で入力してください'),
-  locationDescription: z.string().max(200).optional().or(z.literal('')),
-});
+const contractPlotSchema = sharedContractPlotSchema;
 
 /**
  * 顧客役割情報における役割のバリデーションスキーマ
@@ -246,69 +152,36 @@ const saleContractRoleSchema = z.object({
   customerId: uuidSchema.optional(), // 既存顧客を参照する場合（新規顧客の場合は不要）
   role: z.string().max(20, '役割は20文字以内で入力してください'), // applicant, contractor, heir, co_contractor など
   isPrimary: z.boolean().optional(), // 主たる役割かどうか
-  roleStartDate: dateSchema.optional().or(z.literal('')).or(z.null()),
-  roleEndDate: dateSchema.optional().or(z.literal('')).or(z.null()),
+  roleStartDate: optionalDateSchema.nullable(),
+  roleEndDate: optionalDateSchema.nullable(),
   notes: z.string().max(500).optional().or(z.literal('')),
 });
 
 /**
  * 販売契約情報のバリデーションスキーマ
+ * 共有スキーマをベースに、バックエンド固有フィールド（customerRole, roles, uncollectedAmount）を追加。
+ * paymentStatus は既存API互換性のため string を受け付ける（shared は nativeEnum）。
  */
-const saleContractSchema = z.object({
-  contractDate: dateSchema,
-  price: z.number().nonnegative('価格は0以上の数値で入力してください'),
+const saleContractSchema = sharedSaleContractSchema.omit({ paymentStatus: true }).extend({
   paymentStatus: z.string().max(50).optional().or(z.literal('')),
   customerRole: z.string().max(50).optional().or(z.literal('')), // 後方互換性のため残す（deprecated）
   roles: z.array(saleContractRoleSchema).optional(), // 複数役割サポート（新方式）
-  reservationDate: dateSchema.optional().or(z.literal('')).or(z.null()),
-  acceptanceNumber: z.string().max(50).optional().or(z.literal('')),
-  acceptanceDate: dateSchema.optional().or(z.literal('')).or(z.null()),
-  staffInCharge: z.string().max(100).optional().or(z.literal('')),
-  agentName: z.string().max(100).optional().or(z.literal('')),
-  permitDate: dateSchema.optional().or(z.literal('')).or(z.null()),
-  startDate: dateSchema.optional().or(z.literal('')).or(z.null()),
   uncollectedAmount: z
     .number()
     .int()
     .nonnegative('未集金額は0以上の整数で入力してください')
     .optional(),
-  notes: z.string().max(1000).optional().or(z.literal('')),
 });
 
 /**
  * 顧客情報のバリデーションスキーマ
+ * 共有スキーマをベースに、バックエンド固有の要件（role は saleContract.roles で管理）に合わせる。
  */
-const customerSchema = z.object({
-  name: z.string().min(1, '顧客名は必須です').max(100, '顧客名は100文字以内で入力してください'),
-  nameKana: katakanaSchema('顧客名（カナ）').max(
-    100,
-    '顧客名（カナ）は100文字以内で入力してください'
-  ),
-  birthDate: dateSchema.optional().or(z.literal('')).or(z.null()),
-  gender: z.enum(['male', 'female', 'other']).optional().or(z.literal('')),
-  postalCode: z
-    .string()
-    .min(1, '郵便番号は必須です')
-    .max(10, '郵便番号は10文字以内で入力してください'),
-  address: z.string().min(1, '住所は必須です').max(200, '住所は200文字以内で入力してください'),
-  addressLine2: z
-    .string()
-    .max(200, '住所2は200文字以内で入力してください')
-    .optional()
-    .or(z.literal('')),
-  registeredAddress: z
-    .string()
-    .max(200, '本籍地は200文字以内で入力してください')
-    .optional()
-    .or(z.literal('')),
-  phoneNumber: requiredPhoneSchema,
-  faxNumber: phoneSchema,
-  email: emailSchema.optional().or(z.literal('')),
-  notes: z.string().max(1000).optional().or(z.literal('')),
-});
+const customerSchema = sharedCustomerSchema.omit({ role: true });
 
 /**
  * 勤務先情報のバリデーションスキーマ
+ * バックエンドでは最小サブセットのみ受け付ける（shared workInfoSchema と構造が異なるため独自定義）。
  */
 const workInfoSchema = z
   .object({
@@ -336,54 +209,21 @@ const contractPlotBillingInfoSchema = z
 
 /**
  * 使用料情報のバリデーションスキーマ（ContractPlot用）
- * フロントが各フィールドを null として送信する場合があるため nullable
+ * 共有スキーマをベースに、フロントが各フィールドを null/空文字として送信するケースを許容。
  */
-const contractPlotUsageFeeSchema = z
-  .object({
-    calculationType: z.string().max(20).optional().nullable().or(z.literal('')),
-    taxType: z.string().max(20).optional().nullable().or(z.literal('')),
-    billingType: z.string().max(20).optional().nullable().or(z.literal('')),
-    billingYears: z.string().max(20).optional().nullable().or(z.literal('')),
-    area: z.string().max(50).optional().nullable().or(z.literal('')),
-    unitPrice: z.string().max(50).optional().nullable().or(z.literal('')),
-    usageFee: z.string().max(50).optional().nullable().or(z.literal('')),
-    paymentMethod: z.string().max(20).optional().nullable().or(z.literal('')),
-  })
-  .optional()
-  .or(z.null());
+const contractPlotUsageFeeSchema = sharedUsageFeeSchema.optional().or(z.null());
 
 /**
  * 管理料情報のバリデーションスキーマ（ContractPlot用）
- * フロントが各フィールドを null として送信する場合があるため nullable
+ * 共有スキーマをベースに、フロントが各フィールドを null/空文字として送信するケースを許容。
  */
-const contractPlotManagementFeeSchema = z
-  .object({
-    calculationType: z.string().max(20).optional().nullable().or(z.literal('')),
-    taxType: z.string().max(20).optional().nullable().or(z.literal('')),
-    billingType: z.string().max(20).optional().nullable().or(z.literal('')),
-    billingYears: z.string().max(20).optional().nullable().or(z.literal('')),
-    area: z.string().max(50).optional().nullable().or(z.literal('')),
-    billingMonth: z.string().max(20).optional().nullable().or(z.literal('')),
-    managementFee: z.string().max(50).optional().nullable().or(z.literal('')),
-    unitPrice: z.string().max(50).optional().nullable().or(z.literal('')),
-    lastBillingMonth: yearMonthSchema.nullable(),
-    paymentMethod: z.string().max(20).optional().nullable().or(z.literal('')),
-  })
-  .optional()
-  .or(z.null());
+const contractPlotManagementFeeSchema = sharedManagementFeeSchema.optional().or(z.null());
 
 /**
  * 合祀設定のバリデーションスキーマ
+ * 共有スキーマをベースに、ルート optional/null を許容。
  */
-const collectiveBurialSchema = z
-  .object({
-    burialCapacity: z.number().int().positive('埋葬上限は1以上で入力してください'),
-    validityPeriodYears: z.number().int().positive('有効期間は1年以上で入力してください'),
-    billingAmount: z.number().nonnegative().optional().or(z.literal(null)),
-    notes: z.string().max(1000).optional().or(z.literal('')).or(z.literal(null)),
-  })
-  .optional()
-  .or(z.literal(null));
+const collectiveBurialSchema = sharedCollectiveBurialSchema.optional().or(z.literal(null));
 
 /**
  * ContractPlot作成リクエストのバリデーションスキーマ
@@ -441,3 +281,6 @@ export type PlotIdParams = z.infer<typeof plotIdParamsSchema>;
 export type CreatePlotRequest = z.infer<typeof createPlotSchema>;
 export type UpdatePlotRequest = z.infer<typeof updatePlotSchema>;
 export type CreatePlotContractRequest = z.infer<typeof createPlotContractSchema>;
+
+// dateSchema も従来通り再エクスポート（他モジュールからの参照互換性維持）
+export { dateSchema };

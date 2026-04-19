@@ -92,7 +92,7 @@ describe('Plot Validation (ContractPlot Model)', () => {
         nameKana: 'ヤマダタロウ',
         birthDate: '1980-01-01',
         gender: 'male',
-        postalCode: '150-0001',
+        postalCode: '1500001',
         address: '東京都渋谷区',
         registeredAddress: '東京都渋谷区',
         phoneNumber: '0312345678',
@@ -319,7 +319,7 @@ describe('Plot Validation (ContractPlot Model)', () => {
       const dataWithWorkInfo = {
         ...validCreatePlotData,
         workInfo: {
-          workPostalCode: '150-0001',
+          workPostalCode: '1500001',
           workAddress: '東京都渋谷区',
           workPhoneNumber: '0312345678',
           workFaxNumber: '',
@@ -620,7 +620,7 @@ describe('Plot Validation (ContractPlot Model)', () => {
       customer: {
         name: '田中花子',
         nameKana: 'タナカハナコ',
-        postalCode: '150-0002',
+        postalCode: '1500002',
         address: '東京都渋谷区',
         phoneNumber: '09012345678',
         faxNumber: '',
