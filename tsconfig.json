@@ -42,7 +42,10 @@
     "allowJs": false,                                    /* JavaScript ファイルのコンパイルを許可しない */
     "checkJs": false,                                    /* JavaScript ファイルの型チェックを無効化 */
     "isolatedModules": true,                             /* 各ファイルを個別のモジュールとして扱う */
-    "noEmitOnError": true                                /* エラーがある場合は出力しない */
+    "noEmitOnError": true,                               /* エラーがある場合は出力しない */
+
+    /* 一時的な非推奨警告の抑制 — 別途 node16 への移行 issue あり */
+    "ignoreDeprecations": "5.0"
   },
   "include": [
     "src/**/*"
