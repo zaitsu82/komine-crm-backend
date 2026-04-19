@@ -7,11 +7,11 @@ RUN apk add --no-cache git
 
 WORKDIR /packages/types
 
-# TYPES_REF: ビルドする @komine/types の git ref (commit SHA / tag / branch)
-# Docker layer cache対策: このARGを変更することで types 再取得を強制できる。
-# Render側で Build Arg として最新 SHA を渡すか、Dockerfile を更新すること。
+# TYPES_REF: ビルドする @komine/types の git ref (commit SHA 固定)
+# セキュリティ: main 追従だとリポジトリ汚染が即本番到達するため、commit SHA で固定。
+# types 更新時はこの値を明示的に更新する。
 # 詳細: zaitsu82/komine-crm-backend#60
-ARG TYPES_REF=main
+ARG TYPES_REF=982404c67ecb6270fd2e3cfcba662da430ddfc93
 
 RUN git clone https://github.com/zaitsu82/komine-types.git . && \
     git checkout ${TYPES_REF} && \
@@ -29,6 +29,12 @@ RUN apk add --no-cache git
 # 作業ディレクトリの設定
 WORKDIR /app
 
+# npm_config_install_links: file:依存（@komine/types）を常に実体コピーで解決する。
+# フラグ指定だと後続の `npm install` が symlink に戻してしまうため、
+# 環境変数で全 npm 実行に適用して一貫性を確保する。
+# 詳細: zaitsu82/komine-crm-backend#60
+ENV npm_config_install_links=true
+
 # @komine/types パッケージを配置（file:../packages/types の解決用）
 COPY --from=types /packages/types /packages/types
 
@@ -40,10 +46,8 @@ COPY prisma.config.ts ./
 # 本番用依存関係のみインストール
 # Prisma v7: クライアントエンジンはJSベース（ネイティブバイナリ不要）
 # --ignore-scriptsでprepareスクリプト(husky)をスキップ（本番環境では不要）
-# --install-links: file:依存（@komine/types）をsymlinkでなく実体コピーでインストール
-#   → production ステージで /packages/types を持たなくても解決できる
 # --no-save prisma: preDeployCommand (prisma migrate deploy) 実行用にCLIを含める
-RUN npm ci --omit=dev --ignore-scripts --install-links && \
+RUN npm ci --omit=dev --ignore-scripts && \
     npm install --no-save prisma && \
     npx prisma generate && \
     npm cache clean --force
@@ -58,15 +62,17 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
+# file:依存（@komine/types）を常に実体コピーで解決（deps ステージと同じ）
+ENV npm_config_install_links=true
+
 # @komine/types パッケージを配置（file:../packages/types の解決用）
 COPY --from=types /packages/types /packages/types
 
 # 依存関係のインストール（devDependenciesを含む）
-# --install-links: file:依存（@komine/types）をsymlinkでなく実体コピーでインストール
 COPY package*.json ./
 COPY prisma ./prisma/
 COPY prisma.config.ts ./
-RUN npm ci --install-links && \
+RUN npm ci && \
     npx prisma generate
 
 # ソースコードをコピー
