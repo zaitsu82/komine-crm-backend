@@ -131,6 +131,9 @@ src/
 - **Auth** - Authentication system (`/api/v1/auth`)
   - Supabase-based JWT authentication
   - Login, logout, current user info, password change
+- **Yucho** - ゆうちょ連携 (`/api/v1/yucho`)
+  - `GET /yucho/billing` - 管理料・合祀料金の請求対象データ集約
+  - `GET /yucho/export` - 全銀協フォーマット(120バイト固定長)CSV生成
 
 ### Planned Business Entities
 The following entities are defined in the database schema but routes not yet implemented:

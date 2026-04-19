@@ -118,6 +118,10 @@ describe('Server Index', () => {
       __esModule: true,
       default: 'document-routes',
     }));
+    jest.doMock('../src/yucho/yuchoRoutes', () => ({
+      __esModule: true,
+      default: 'yucho-routes',
+    }));
 
     // ミドルウェアのモック
     jest.doMock('../src/middleware/errorHandler', () => ({
@@ -244,9 +248,9 @@ describe('Server Index', () => {
 
     // セキュリティミドルウェア（helmet, cors, hpp, json, urlencoded, cookieParser, sanitizeInput, rateLimiter）
     // + requestIdMiddleware + ログミドルウェア（requestLogger, securityHeaders）
-    // + Swagger UI + 6 API routes (auth, plots, masters, staff, collective-burials, documents)
-    // + notFoundHandler + errorHandler = 20 use calls
-    expect(mockApp.use).toHaveBeenCalledTimes(20);
+    // + Swagger UI + 7 API routes (auth, plots, masters, staff, collective-burials, documents, yucho)
+    // + notFoundHandler + errorHandler = 21 use calls
+    expect(mockApp.use).toHaveBeenCalledTimes(21);
     // 1 health check endpoint
     expect(mockApp.get).toHaveBeenCalledTimes(1);
   });

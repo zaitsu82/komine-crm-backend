@@ -23,6 +23,8 @@ tags:
     description: スタッフ管理
   - name: Documents
     description: 書類管理（PDF生成・ファイルアップロード）
+  - name: Yucho
+    description: ゆうちょ連携（自動払込み用CSV生成）
 
 paths:
   /api/v1/auth/login:
@@ -452,7 +454,8 @@ paths:
       tags:
         - Plots
       summary: 契約区画更新
-      description: 契約区画情報を更新。部分更新をサポート（contractPlot, saleContract, customer, workInfo, billingInfo, usageFee, managementFee）。
+      description: 契約区画情報を更新。部分更新をサポート（contractPlot, saleContract, customer, workInfo,
+        billingInfo, usageFee, managementFee）。
       security:
         - bearerAuth: []
       parameters:
@@ -667,7 +670,7 @@ paths:
           description: 期（指定しない場合は全期）
           schema:
             type: string
-            enum: ["第1期", "第2期", "第3期", "第3期樹林部", "第4期"]
+            enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期" ]
       responses:
         "200":
           description: 取得成功
@@ -705,13 +708,13 @@ paths:
           description: 期でフィルタ
           schema:
             type: string
-            enum: ["第1期", "第2期", "第3期", "第3期樹林部", "第4期"]
+            enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期" ]
         - name: status
           in: query
           description: ステータスでフィルタ
           schema:
             type: string
-            enum: ["available", "partially_sold", "sold_out"]
+            enum: [ "available", "partially_sold", "sold_out" ]
         - name: search
           in: query
           description: セクション名で検索
@@ -737,7 +740,7 @@ paths:
           description: ソート順
           schema:
             type: string
-            enum: ["asc", "desc"]
+            enum: [ "asc", "desc" ]
             default: "asc"
         - name: page
           in: query
@@ -793,7 +796,7 @@ paths:
           description: 期でフィルタ
           schema:
             type: string
-            enum: ["第1期", "第2期", "第3期", "第3期樹林部", "第4期"]
+            enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期" ]
         - name: search
           in: query
           description: 面積・タイプで検索
@@ -820,7 +823,7 @@ paths:
           description: ソート順
           schema:
             type: string
-            enum: ["asc", "desc"]
+            enum: [ "asc", "desc" ]
             default: "asc"
         - name: page
           in: query
@@ -927,7 +930,7 @@ paths:
           description: 役割でフィルタ
           schema:
             type: string
-            enum: [viewer, operator, manager, admin]
+            enum: [ viewer, operator, manager, admin ]
         - name: is_active
           in: query
           description: アクティブ状態でフィルタ
@@ -1193,14 +1196,14 @@ paths:
           description: ソート項目
           schema:
             type: string
-            enum: [created_at, updated_at, name, type, status]
+            enum: [ created_at, updated_at, name, type, status ]
             default: created_at
         - name: sortOrder
           in: query
           description: ソート順
           schema:
             type: string
-            enum: [asc, desc]
+            enum: [ asc, desc ]
             default: desc
       responses:
         "200":
@@ -1604,6 +1607,234 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/yucho/billing:
+    get:
+      tags:
+        - Yucho
+      summary: ゆうちょ請求対象データ取得
+      description: |
+        指定期間の管理料・合祀料金の請求対象データを集約して返す。
+        各レコードには契約区画情報、顧客情報、口座情報、請求金額が含まれる。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1900
+            maximum: 2999
+          description: 対象年（西暦）
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+          description: 対象月。指定なしの場合は年単位で集計
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ management, collective, all ]
+            default: all
+          description: 請求対象カテゴリ
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ unbilled, billed, paid, all ]
+            default: unbilled
+          description: 請求ステータスフィルタ
+      responses:
+        "200":
+          description: 請求対象データ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      period:
+                        type: object
+                        properties:
+                          year:
+                            type: integer
+                          month:
+                            type: integer
+                            nullable: true
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            category:
+                              type: string
+                              enum: [ management, collective ]
+                            sourceId:
+                              type: string
+                            contractPlotId:
+                              type: string
+                            plotNumber:
+                              type: string
+                            areaName:
+                              type: string
+                            customerId:
+                              type: string
+                              nullable: true
+                            customerName:
+                              type: string
+                              nullable: true
+                            customerNameKana:
+                              type: string
+                              nullable: true
+                            billingAmount:
+                              type: integer
+                            billingStatus:
+                              type: string
+                            scheduledDate:
+                              type: string
+                              nullable: true
+                            billingMonth:
+                              type: integer
+                              nullable: true
+                            billingInfo:
+                              type: object
+                              nullable: true
+                              properties:
+                                bankName:
+                                  type: string
+                                  nullable: true
+                                branchName:
+                                  type: string
+                                  nullable: true
+                                accountType:
+                                  type: string
+                                  nullable: true
+                                accountNumber:
+                                  type: string
+                                  nullable: true
+                                accountHolder:
+                                  type: string
+                                  nullable: true
+                      summary:
+                        type: object
+                        properties:
+                          totalCount:
+                            type: integer
+                          totalAmount:
+                            type: integer
+                          byCategory:
+                            type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/yucho/export:
+    get:
+      tags:
+        - Yucho
+      summary: ゆうちょ自動払込み用CSV出力
+      description: |
+        全銀協フォーマット（120バイト固定長レコード）のCSVを生成して返す。
+        ヘッダー(1) + データ(2) + トレーラー(8) + エンド(9) の構成。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ management, collective, all ]
+            default: all
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ unbilled, billed, paid, all ]
+            default: unbilled
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ zengin ]
+            default: zengin
+        - name: transferDate
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+          description: 引落日 (YYYY-MM-DD)
+        - name: clientCode
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^\\d{1,10}$"
+          description: 委託者コード（最大10桁）
+        - name: clientName
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 40
+          description: 委託者名（半角40文字以内）
+        - name: bankCode
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^\\d{4}$"
+            default: "9900"
+          description: 取引銀行コード（4桁、デフォルト 9900 = ゆうちょ）
+        - name: branchCode
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^\\d{3}$"
+            default: "000"
+          description: 取引支店コード（3桁）
+      responses:
+        "200":
+          description: 全銀協フォーマット CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1890,7 +2121,7 @@ components:
       properties:
         templateType:
           type: string
-          enum: [invoice, postcard]
+          enum: [ invoice, postcard ]
           description: テンプレートタイプ
         templateData:
           type: object
@@ -1958,7 +2189,7 @@ components:
         role:
           type: string
           description: 役割
-          enum: [viewer, operator, manager, admin]
+          enum: [ viewer, operator, manager, admin ]
           example: operator
         is_active:
           type: boolean
@@ -2001,7 +2232,7 @@ components:
         role:
           type: string
           description: 役割
-          enum: [viewer, operator, manager, admin]
+          enum: [ viewer, operator, manager, admin ]
           example: operator
         is_active:
           type: boolean
@@ -2028,7 +2259,7 @@ components:
         role:
           type: string
           description: 役割
-          enum: [viewer, operator, manager, admin]
+          enum: [ viewer, operator, manager, admin ]
           example: operator
         is_active:
           type: boolean
@@ -2081,7 +2312,7 @@ components:
         role:
           type: string
           description: 役割
-          enum: [viewer, operator, manager, admin]
+          enum: [ viewer, operator, manager, admin ]
           example: operator
         is_active:
           type: boolean
@@ -2108,7 +2339,7 @@ components:
         role:
           type: string
           description: 役割
-          enum: [viewer, operator, manager, admin]
+          enum: [ viewer, operator, manager, admin ]
           example: manager
         is_active:
           type: boolean
@@ -2146,7 +2377,7 @@ components:
         saleStatus:
           type: string
           description: 物理区画の契約状況（契約面積に基づいて計算）
-          enum: [fully_contracted, partially_contracted, available]
+          enum: [ fully_contracted, partially_contracted, available ]
           example: fully_contracted
         contractDate:
           type: string
@@ -2327,7 +2558,7 @@ components:
           nullable: true
         gender:
           type: string
-          enum: [male, female, other]
+          enum: [ male, female, other ]
           nullable: true
         postalCode:
           type: string
@@ -2508,7 +2739,7 @@ components:
           nullable: true
         gender:
           type: string
-          enum: [male, female, other]
+          enum: [ male, female, other ]
           nullable: true
         burialDate:
           type: string
@@ -2594,7 +2825,7 @@ components:
               example: 3.6
             status:
               type: string
-              enum: [available, partial, sold_out]
+              enum: [ available, partial, sold_out ]
         contracts:
           type: array
           items:
@@ -2674,7 +2905,7 @@ components:
               example: 50.0
             status:
               type: string
-              enum: [available, partial, sold_out]
+              enum: [ available, partial, sold_out ]
               description: 在庫ステータス
               example: partial
         contracts:
@@ -2838,7 +3069,7 @@ components:
             nameKana:
               type: string
               description: 申込者氏名カナ（カタカナのみ）
-              pattern: '^[ァ-ヶー\s]+$'
+              pattern: "^[ァ-ヶー\\s]+$"
               maxLength: 100
               example: ヤマダハナコ
             postalCode:
@@ -2850,7 +3081,7 @@ components:
             phoneNumber:
               type: string
               description: 電話番号
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
               example: "03-1234-5678"
             address:
@@ -2877,7 +3108,7 @@ components:
             nameKana:
               type: string
               description: 契約者氏名カナ（カタカナのみ）
-              pattern: '^[ァ-ヶー\s]+$'
+              pattern: "^[ァ-ヶー\\s]+$"
               maxLength: 100
               example: ヤマダタロウ
             birthDate:
@@ -2889,7 +3120,7 @@ components:
             gender:
               type: string
               description: 性別
-              enum: [male, female, other]
+              enum: [ male, female, other ]
               nullable: true
             postalCode:
               type: string
@@ -2912,13 +3143,13 @@ components:
             phoneNumber:
               type: string
               description: 電話番号
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
               example: "03-1234-5678"
             faxNumber:
               type: string
               description: ファックス
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
               example: "03-1234-5679"
             email:
@@ -2945,7 +3176,7 @@ components:
             companyNameKana:
               type: string
               description: 勤務先仮名（カタカナのみ）
-              pattern: '^[ァ-ヶー\s]+$'
+              pattern: "^[ァ-ヶー\\s]+$"
               maxLength: 100
               nullable: true
               example: カブシキガイシャサンプル
@@ -2958,7 +3189,7 @@ components:
             workPhoneNumber:
               type: string
               description: 電話番号
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
               example: "03-1234-5678"
             workAddress:
@@ -2970,19 +3201,19 @@ components:
             workFaxNumber:
               type: string
               description: ファックス
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
               example: "03-1234-5679"
             dmSetting:
               type: string
               description: DM送信設定
-              enum: [allow, deny, limited]
+              enum: [ allow, deny, limited ]
               nullable: true
               example: allow
             addressType:
               type: string
               description: 宛先区分（連絡先タイプ）
-              enum: [home, work, other]
+              enum: [ home, work, other ]
               nullable: true
               example: home
             notes:
@@ -3092,7 +3323,7 @@ components:
               nullable: true
             lastBillingMonth:
               type: string
-              pattern: '^\d{4}年\d{1,2}月$'
+              pattern: "^\\d{4}年\\d{1,2}月$"
               nullable: true
               example: "2024年3月"
             paymentMethod:
@@ -3188,12 +3419,12 @@ components:
               phoneNumber:
                 type: string
                 description: 電話番号
-                pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+                pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
                 example: "03-1234-5678"
               faxNumber:
                 type: string
                 description: ファックス
-                pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+                pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
                 nullable: true
                 example: "03-1234-5679"
               email:
@@ -3211,7 +3442,7 @@ components:
               mailingType:
                 type: string
                 description: 郵送先タイプ
-                enum: [home, work, other]
+                enum: [ home, work, other ]
                 nullable: true
                 example: home
               notes:
@@ -3234,7 +3465,7 @@ components:
               nameKana:
                 type: string
                 description: 氏名カナ（カタカナのみ）
-                pattern: '^[ァ-ヶー\s]+$'
+                pattern: "^[ァ-ヶー\\s]+$"
                 maxLength: 100
                 nullable: true
                 example: ヤマダサブロウ
@@ -3258,7 +3489,7 @@ components:
               gender:
                 type: string
                 description: 性別
-                enum: [male, female, other]
+                enum: [ male, female, other ]
                 nullable: true
                 example: male
               burialDate:
@@ -3340,7 +3571,7 @@ components:
               maxLength: 100
             nameKana:
               type: string
-              pattern: '^[ァ-ヶー\s]+$'
+              pattern: "^[ァ-ヶー\\s]+$"
               maxLength: 100
             birthDate:
               type: string
@@ -3348,7 +3579,7 @@ components:
               nullable: true
             gender:
               type: string
-              enum: [male, female, other]
+              enum: [ male, female, other ]
               nullable: true
             postalCode:
               type: string
@@ -3362,11 +3593,11 @@ components:
               nullable: true
             phoneNumber:
               type: string
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
             faxNumber:
               type: string
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
             email:
               type: string
@@ -3390,7 +3621,7 @@ components:
             companyNameKana:
               type: string
               description: 勤務先仮名（カタカナのみ）
-              pattern: '^[ァ-ヶー\s]+$'
+              pattern: "^[ァ-ヶー\\s]+$"
               maxLength: 100
               nullable: true
               example: カブシキガイシャサンプル
@@ -3403,7 +3634,7 @@ components:
             workPhoneNumber:
               type: string
               description: 電話番号
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
               example: "03-1234-5678"
             workAddress:
@@ -3415,19 +3646,19 @@ components:
             workFaxNumber:
               type: string
               description: ファックス
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
               example: "03-1234-5679"
             dmSetting:
               type: string
               description: DM送信設定
-              enum: [allow, deny, limited]
+              enum: [ allow, deny, limited ]
               nullable: true
               example: allow
             addressType:
               type: string
               description: 宛先区分（連絡先タイプ）
-              enum: [home, work, other]
+              enum: [ home, work, other ]
               nullable: true
               example: home
             notes:
@@ -3537,7 +3768,7 @@ components:
               nullable: true
             lastBillingMonth:
               type: string
-              pattern: '^\d{4}年\d{1,2}月$'
+              pattern: "^\\d{4}年\\d{1,2}月$"
               nullable: true
             paymentMethod:
               type: string
@@ -3631,7 +3862,7 @@ components:
               example: 田中花子
             nameKana:
               type: string
-              pattern: '^[ァ-ヶー\s]+$'
+              pattern: "^[ァ-ヶー\\s]+$"
               maxLength: 100
               example: タナカハナコ
             birthDate:
@@ -3640,7 +3871,7 @@ components:
               nullable: true
             gender:
               type: string
-              enum: [male, female, other]
+              enum: [ male, female, other ]
               nullable: true
             postalCode:
               type: string
@@ -3658,11 +3889,11 @@ components:
               nullable: true
             phoneNumber:
               type: string
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
             faxNumber:
               type: string
-              pattern: '^0\d{1,4}-?\d{1,4}-?\d{4}$'
+              pattern: "^0\\d{1,4}-?\\d{1,4}-?\\d{4}$"
               nullable: true
             email:
               type: string
@@ -3730,7 +3961,7 @@ components:
         period:
           type: string
           description: 期（第1期〜第4期）
-          enum: ["第1期", "第2期", "第3期", "第3期樹林部", "第4期"]
+          enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期" ]
           example: "第1期"
         totalCount:
           type: integer
