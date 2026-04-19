@@ -265,19 +265,21 @@ describe('Validation Middleware', () => {
     });
 
     describe('postalCodeSchema', () => {
-      it('有効な郵便番号でバリデーションが成功すること', () => {
-        expect(() => postalCodeSchema.parse('123-4567')).not.toThrow();
+      it('有効な郵便番号（7桁数字・ハイフンなし）でバリデーションが成功すること', () => {
         expect(() => postalCodeSchema.parse('1234567')).not.toThrow();
-        expect(() => postalCodeSchema.parse('')).not.toThrow();
+        expect(() => postalCodeSchema.parse('0000000')).not.toThrow();
       });
 
-      it('無効な郵便番号でエラーが発生すること', () => {
+      it('ハイフン付きや桁数不正の郵便番号でエラーが発生すること', () => {
+        expect(() => postalCodeSchema.parse('123-4567')).toThrow();
         expect(() => postalCodeSchema.parse('12-3456')).toThrow();
         expect(() => postalCodeSchema.parse('abcd-efgh')).toThrow();
+        expect(() => postalCodeSchema.parse('12345')).toThrow();
       });
 
-      it('未定義でも許可されること', () => {
-        expect(() => postalCodeSchema.parse(undefined)).not.toThrow();
+      it('空文字や未定義はエラーになること（共有スキーマは必須）', () => {
+        expect(() => postalCodeSchema.parse('')).toThrow();
+        expect(() => postalCodeSchema.parse(undefined)).toThrow();
       });
     });
 

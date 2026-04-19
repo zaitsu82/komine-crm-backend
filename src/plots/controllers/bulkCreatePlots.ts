@@ -242,7 +242,7 @@ export const bulkCreatePlots = async (
                     payment_status_2: ci.paymentStatus2 || null,
                     scheduled_end_date: ci.scheduledEndDate ? new Date(ci.scheduledEndDate) : null,
                     construction_content: ci.constructionContent || null,
-                    notes: ci.constructionNotes || null,
+                    notes: ci.notes || null,
                   },
                 });
                 await recordEntityCreated(tx, {

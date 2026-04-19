@@ -22,19 +22,28 @@ jest.mock('../../src/middleware/permission', () => ({
   requirePermission: (roles: string[]) => (req: any, res: any, next: any) => next(),
 }));
 
-jest.mock('../../src/middleware/validation', () => ({
-  validate: (schemas: any) => (req: any, res: any, next: any) => next(),
-  uuidSchema: require('zod').z.string().uuid(),
-  dateSchema: require('zod').z.string(),
-  emailSchema: require('zod').z.string().email(),
-  phoneSchema: require('zod').z.string().optional().or(require('zod').z.literal('')),
-  paginationSchema: require('zod').z.object({
-    page: require('zod').z.string().optional(),
-    limit: require('zod').z.string().optional(),
-  }),
-  katakanaSchema: (fieldName?: string) => require('zod').z.string(),
-  yearMonthSchema: require('zod').z.string().optional().or(require('zod').z.literal('')),
-}));
+jest.mock('../../src/middleware/validation', () => {
+  const { z } = require('zod');
+  return {
+    validate: (schemas: any) => (req: any, res: any, next: any) => next(),
+    uuidSchema: z.string().uuid(),
+    dateSchema: z.string(),
+    optionalDateSchema: z.string().optional().or(z.literal('')),
+    emailSchema: z.string().email(),
+    optionalEmailSchema: z.string().email().optional().or(z.literal('')),
+    phoneSchema: z.string().optional().or(z.literal('')),
+    requiredPhoneSchema: z.string(),
+    postalCodeSchema: z.string(),
+    paginationSchema: z.object({
+      page: z.string().optional(),
+      limit: z.string().optional(),
+    }),
+    katakanaSchema: (_fieldName?: string) => z.string(),
+    yearMonthSchema: z.string().optional().or(z.literal('')),
+    optionalNonnegativeNumber: z.preprocess((v: any) => v ?? null, z.number().nullable()),
+    optionalNonnegativeInt: z.preprocess((v: any) => v ?? null, z.number().nullable()),
+  };
+});
 
 // モックコントローラー
 jest.mock('../../src/plots/controllers', () => ({
