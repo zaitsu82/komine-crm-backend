@@ -6,7 +6,8 @@
   "include": [
     "src/**/*",
     "scripts/**/*.ts",
-    "prisma/scripts/**/*.ts"
+    "prisma/scripts/**/*.ts",
+    "prisma/seed.ts"
   ],
   "exclude": [
     "node_modules",

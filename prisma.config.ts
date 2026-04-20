@@ -8,4 +8,7 @@ export default defineConfig({
     url: process.env['DATABASE_URL'] ?? 'postgresql://',
     directUrl: process.env['DIRECT_URL'],
   },
+  migrations: {
+    seed: 'ts-node --transpile-only prisma/seed.ts',
+  },
 });
