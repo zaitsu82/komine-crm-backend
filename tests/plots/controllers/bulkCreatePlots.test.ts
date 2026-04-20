@@ -1,6 +1,8 @@
 /**
  * 区画一括登録コントローラーのテスト
  * POST /api/v1/plots/bulk
+ *
+ * Phase 1 (issue #76): 1 件ごと独立 tx・部分成功レスポンス対応
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -78,6 +80,19 @@ describe('bulkCreatePlots', () => {
   let jsonMock: jest.Mock;
   let statusMock: jest.Mock;
 
+  const buildTxMock = (extras: Record<string, any> = {}) => ({
+    familyContact: {
+      createManyAndReturn: jest.fn().mockResolvedValue([{ id: 'fc-1', name: 'test' }]),
+    },
+    buriedPerson: {
+      createManyAndReturn: jest.fn().mockResolvedValue([{ id: 'bp-1', name: 'test' }]),
+    },
+    constructionInfo: {
+      createManyAndReturn: jest.fn().mockResolvedValue([{ id: 'ci-1', construction_type: null }]),
+    },
+    ...extras,
+  });
+
   beforeEach(() => {
     jsonMock = jest.fn().mockReturnThis();
     statusMock = jest.fn().mockReturnValue({ json: jsonMock });
@@ -87,16 +102,9 @@ describe('bulkCreatePlots', () => {
 
     mockPhysicalPlotFindMany.mockResolvedValue([]);
 
-    // Default transaction: run the callback with a bare tx mock (child entity mocks added per-test)
+    // 各 item が独立 tx を開くため、tx は複数回呼ばれうる
     mockTransaction.mockImplementation(async (callback: any) => {
-      const txMock = {
-        familyContact: { create: jest.fn().mockResolvedValue({ id: 'fc-1', name: 'test' }) },
-        buriedPerson: { create: jest.fn().mockResolvedValue({ id: 'bp-1', name: 'test' }) },
-        constructionInfo: {
-          create: jest.fn().mockResolvedValue({ id: 'ci-1', construction_type: null }),
-        },
-      };
-      return callback(txMock);
+      return callback(buildTxMock());
     });
 
     // Default: createPlotCore returns IDs
@@ -134,7 +142,8 @@ describe('bulkCreatePlots', () => {
         success: true,
         data: {
           totalRequested: 3,
-          created: 3,
+          succeeded: 3,
+          failed: [],
           results: expect.arrayContaining([
             expect.objectContaining({ row: 0, plotNumber: 'A-1' }),
             expect.objectContaining({ row: 1, plotNumber: 'A-2' }),
@@ -143,20 +152,21 @@ describe('bulkCreatePlots', () => {
         },
       });
       expect(mockCreatePlotCore).toHaveBeenCalledTimes(3);
+      // 1 件ごと独立 tx: transaction が items 数ぶん呼ばれる
+      expect(mockTransaction).toHaveBeenCalledTimes(3);
     });
 
     it('familyContacts / buriedPersons / constructionInfos を含む複合登録ができること', async () => {
-      const fcCreateSpy = jest.fn().mockResolvedValue({ id: 'fc-1', name: '家族' });
-      const bpCreateSpy = jest.fn().mockResolvedValue({ id: 'bp-1', name: '埋葬' });
-      const ciCreateSpy = jest.fn().mockResolvedValue({ id: 'ci-1', construction_type: '工事' });
+      const fcCreateSpy = jest.fn().mockResolvedValue([{ id: 'fc-1', name: '家族' }]);
+      const bpCreateSpy = jest.fn().mockResolvedValue([{ id: 'bp-1', name: '埋葬' }]);
+      const ciCreateSpy = jest.fn().mockResolvedValue([{ id: 'ci-1', construction_type: '工事' }]);
 
       mockTransaction.mockImplementation(async (callback: any) => {
-        const txMock = {
-          familyContact: { create: fcCreateSpy },
-          buriedPerson: { create: bpCreateSpy },
-          constructionInfo: { create: ciCreateSpy },
-        };
-        return callback(txMock);
+        return callback({
+          familyContact: { createManyAndReturn: fcCreateSpy },
+          buriedPerson: { createManyAndReturn: bpCreateSpy },
+          constructionInfo: { createManyAndReturn: ciCreateSpy },
+        });
       });
 
       const item = buildValidItem('A-1', {
@@ -177,20 +187,16 @@ describe('bulkCreatePlots', () => {
 
       expect(mockNext).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(201);
+      // createManyAndReturn は 1 件でも呼ばれる（引数に 1 要素の配列）
       expect(fcCreateSpy).toHaveBeenCalledTimes(1);
       expect(bpCreateSpy).toHaveBeenCalledTimes(1);
       expect(ciCreateSpy).toHaveBeenCalledTimes(1);
     });
 
     it('familyContacts で必須フィールド欠如の行はスキップされること', async () => {
-      const fcCreateSpy = jest.fn().mockResolvedValue({ id: 'fc-1', name: '家族' });
+      const fcCreateSpy = jest.fn().mockResolvedValue([{ id: 'fc-1', name: '田中花子' }]);
       mockTransaction.mockImplementation(async (callback: any) => {
-        const txMock = {
-          familyContact: { create: fcCreateSpy },
-          buriedPerson: { create: jest.fn() },
-          constructionInfo: { create: jest.fn() },
-        };
-        return callback(txMock);
+        return callback(buildTxMock({ familyContact: { createManyAndReturn: fcCreateSpy } }));
       });
 
       const item = buildValidItem('A-1', {
@@ -211,7 +217,10 @@ describe('bulkCreatePlots', () => {
       await bulkCreatePlots(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockNext).not.toHaveBeenCalled();
+      // createManyAndReturn は 1 回呼ばれ、data は 1 件のみ
       expect(fcCreateSpy).toHaveBeenCalledTimes(1);
+      const call = fcCreateSpy.mock.calls[0]![0] as { data: unknown[] };
+      expect(call.data).toHaveLength(1);
     });
   });
 
@@ -254,27 +263,32 @@ describe('bulkCreatePlots', () => {
     });
   });
 
-  describe('重複チェック', () => {
-    it('バッチ内で区画番号が重複している場合エラーを返すこと', async () => {
+  describe('部分成功（Phase 1）', () => {
+    it('バッチ内で区画番号が重複している場合、後続出現行が failed に入る', async () => {
       const items = [buildValidItem('A-1'), buildValidItem('A-2'), buildValidItem('A-1')];
       mockRequest = { body: { items } };
 
       await bulkCreatePlots(mockRequest as Request, mockResponse as Response, mockNext);
 
-      const error = mockNext.mock.calls[0]![0] as any;
-      expect(error.name).toBe('ValidationError');
-      expect(error.details).toEqual(
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(statusMock).toHaveBeenCalledWith(201);
+      const payload = jsonMock.mock.calls[0]![0];
+      expect(payload.data.totalRequested).toBe(3);
+      expect(payload.data.succeeded).toBe(2); // 行0, 行1 成功
+      expect(payload.data.failed).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            field: 'plotNumber',
-            message: expect.stringContaining('A-1'),
+            row: 2,
+            plotNumber: 'A-1',
+            error: expect.objectContaining({ message: expect.stringContaining('A-1') }),
           }),
         ])
       );
-      expect(mockTransaction).not.toHaveBeenCalled();
+      // 1 件目 (A-1), 2 件目 (A-2) のみ tx 実行
+      expect(mockCreatePlotCore).toHaveBeenCalledTimes(2);
     });
 
-    it('DB に既存の区画番号がある場合エラーを返すこと', async () => {
+    it('DB に既存の区画番号がある場合、該当行のみ failed に入る（他行は成功）', async () => {
       const items = ['A-1', 'A-2', 'A-3'].map((pn) => buildValidItem(pn));
       mockRequest = { body: { items } };
 
@@ -282,43 +296,30 @@ describe('bulkCreatePlots', () => {
 
       await bulkCreatePlots(mockRequest as Request, mockResponse as Response, mockNext);
 
-      const error = mockNext.mock.calls[0]![0] as any;
-      expect(error.name).toBe('ValidationError');
-      expect(error.details).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            row: 1,
-            field: 'plotNumber',
-            message: expect.stringContaining('A-2'),
-          }),
-        ])
-      );
-      expect(mockTransaction).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('トランザクションエラー', () => {
-    it('DB エラーが発生した場合 next にエラーが渡されること', async () => {
-      mockRequest = { body: { items: [buildValidItem('A-1')] } };
-
-      const dbError = new Error('Database connection lost');
-      mockTransaction.mockRejectedValue(dbError);
-
-      await bulkCreatePlots(mockRequest as Request, mockResponse as Response, mockNext);
-
-      expect(mockNext).toHaveBeenCalledWith(dbError);
+      expect(mockNext).not.toHaveBeenCalled();
+      const payload = jsonMock.mock.calls[0]![0];
+      expect(payload.data.totalRequested).toBe(3);
+      expect(payload.data.succeeded).toBe(2);
+      expect(payload.data.failed).toEqual([
+        expect.objectContaining({
+          row: 1,
+          plotNumber: 'A-2',
+          error: expect.objectContaining({ message: expect.stringContaining('A-2') }),
+        }),
+      ]);
+      // A-2 はスキップされるので createPlotCore は 2 回のみ
+      expect(mockCreatePlotCore).toHaveBeenCalledTimes(2);
     });
 
-    it('createPlotCore が ValidationError を投げた場合、行番号付きで再スローされること', async () => {
+    it('createPlotCore が ValidationError を投げた場合、該当行のみ failed に入り他行は成功', async () => {
       mockRequest = { body: { items: [buildValidItem('A-1'), buildValidItem('A-2')] } };
 
       const { ValidationError } = jest.requireActual('../../../src/middleware/errorHandler');
       mockCreatePlotCore
-        .mockImplementationOnce(async (_tx: any, item: any) => ({
+        .mockImplementationOnce(async () => ({
           contractPlotId: 'cp-1',
           physicalPlotId: 'pp-1',
           customerId: 'cu-1',
-          _item: item,
         }))
         .mockImplementationOnce(async () => {
           throw new ValidationError('契約面積エラー', [
@@ -328,11 +329,49 @@ describe('bulkCreatePlots', () => {
 
       await bulkCreatePlots(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockNext).toHaveBeenCalledTimes(1);
-      const error = mockNext.mock.calls[0]![0] as any;
-      expect(error.name).toBe('ValidationError');
-      expect(error.message).toContain('行 1');
-      expect(error.details).toEqual(expect.arrayContaining([expect.objectContaining({ row: 1 })]));
+      expect(mockNext).not.toHaveBeenCalled();
+      const payload = jsonMock.mock.calls[0]![0];
+      expect(payload.data.totalRequested).toBe(2);
+      expect(payload.data.succeeded).toBe(1);
+      expect(payload.data.failed).toEqual([
+        expect.objectContaining({
+          row: 1,
+          plotNumber: 'A-2',
+          error: expect.objectContaining({
+            message: expect.stringContaining('契約面積'),
+            details: expect.arrayContaining([
+              expect.objectContaining({ field: 'contractAreaSqm' }),
+            ]),
+          }),
+        }),
+      ]);
+    });
+
+    it('予期しないランタイムエラーも failed に記録され、他行は継続される', async () => {
+      mockRequest = { body: { items: [buildValidItem('A-1'), buildValidItem('A-2')] } };
+
+      mockCreatePlotCore
+        .mockImplementationOnce(async () => {
+          throw new Error('DB接続喪失');
+        })
+        .mockImplementationOnce(async () => ({
+          contractPlotId: 'cp-2',
+          physicalPlotId: 'pp-2',
+          customerId: 'cu-2',
+        }));
+
+      await bulkCreatePlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      const payload = jsonMock.mock.calls[0]![0];
+      expect(payload.data.succeeded).toBe(1);
+      expect(payload.data.failed).toEqual([
+        expect.objectContaining({
+          row: 0,
+          plotNumber: 'A-1',
+          error: expect.objectContaining({ message: 'DB接続喪失' }),
+        }),
+      ]);
     });
   });
 });
