@@ -161,6 +161,15 @@ Comprehensive master data tables for:
   - `optionalAuthenticate` - Allows unauthenticated requests but populates user if token provided
 - When Supabase environment variables are not set, authentication endpoints return 503 (Service Unavailable)
 
+#### 認証方針（重要）
+
+本CRMは霊園スタッフ用の社内ツールで、センシティブデータ（顧客個人情報・契約・埋葬記録）を扱うため、以下のポリシーを厳守する。詳細は `SETUP.md` の「認証・ユーザー管理方針」セクションを参照。
+
+- **パブリック signup は提供しない** — `/signup` 等のエンドポイント・画面を実装しないこと。Supabase Auth の `signUp` もフロントエンドから呼ばない。
+- **ユーザー追加は admin による招待フローのみ** — `POST /api/v1/staff`（admin 権限必須）。一括登録は `POST /api/v1/staff/bulk`。
+- **最初の admin は bootstrap script で作成** — `npm run bootstrap:admin`（冪等・atomic）。本番では `ALLOW_BOOTSTRAP_IN_PRODUCTION=true` が必要。
+- **権限階層 viewer → operator → manager → admin のロール変更は admin のみ** — `PUT /api/v1/staff/:id` およびマスタ・権限マトリクス変更系は admin 専用。
+
 ## Database Architecture
 
 ### Key Design Patterns
