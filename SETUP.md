@@ -7,8 +7,9 @@ Cemetery CRM Backend の環境構築・設定ガイド
 1. [環境変数の設定](#環境変数の設定)
 2. [Dockerセットアップ](#dockerセットアップ)
 3. [Supabase認証](#supabase認証)
-4. [CI/CDセットアップ](#cicdセットアップ)
-5. [本番環境デプロイ](#本番環境デプロイ)
+4. [顧客環境への初回デプロイ手順](#顧客環境への初回デプロイ手順)
+5. [CI/CDセットアップ](#cicdセットアップ)
+6. [本番環境デプロイ](#本番環境デプロイ)
 
 ---
 
@@ -97,7 +98,13 @@ docker compose -f docker-compose.dev.yml exec app npx prisma migrate dev
    - Project URL → `SUPABASE_URL`
    - service_role key → `SUPABASE_SERVICE_ROLE_KEY`
 
-### ユーザー作成
+### 初期 admin の作成
+
+顧客環境への初回デプロイ時は [顧客環境への初回デプロイ手順](#顧客環境への初回デプロイ手順) の bootstrap スクリプトを使用してください。
+
+運用中の追加ユーザー作成は admin アカウントでログインし `POST /api/v1/staff` から行います。
+
+### （参考）手動でユーザーを追加する場合
 
 1. Supabaseダッシュボード → **Authentication** → **Users**
 2. **Add user** でユーザー作成（Auto Confirm: ON）
@@ -120,6 +127,82 @@ fetch('/api/v1/plots', {
   headers: { 'Authorization': `Bearer ${data.session.access_token}` }
 });
 ```
+
+---
+
+## 顧客環境への初回デプロイ手順
+
+新規の顧客環境に CRM を立ち上げる際の標準手順。以下の順番で実施してください。
+
+### 1. Supabaseプロジェクトの作成
+
+1. [Supabase](https://supabase.com/) にログインし、新規プロジェクトを作成
+2. **Settings** → **API** から以下を控える
+   - `Project URL` → `SUPABASE_URL`
+   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY`
+3. **Settings** → **Database** から接続情報（DATABASE_URL / DIRECT_URL）を取得
+   - Render / Vercel 等の IPv6 非対応環境では Session Pooler（port 5432）を使用
+
+### 2. 環境変数の設定
+
+`.env`（またはデプロイ先のシークレットマネージャ）に以下を設定:
+
+| 変数名 | 必須 | 用途 |
+|--------|------|------|
+| `DATABASE_URL` | ✅ | Prisma / アプリ本体のDB接続 |
+| `DIRECT_URL` | ▲ | マイグレーション用（Supabase Session Pooler 使用時）|
+| `SUPABASE_URL` | ✅ | bootstrap / auth で使用 |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | bootstrap / auth で使用 |
+| `ALLOWED_ORIGINS` | ✅ | 本番フロントエンドのURLを指定 |
+| `NODE_ENV` | ✅ | `production` |
+| `INITIAL_ADMIN_EMAIL` | ✅ | 初期adminのメールアドレス |
+| `INITIAL_ADMIN_PASSWORD` | ✅ | 初期adminのパスワード（8文字以上）|
+| `INITIAL_ADMIN_NAME` | ✅ | 初期adminの表示名 |
+| `ALLOW_BOOTSTRAP_IN_PRODUCTION` | ▲ | `NODE_ENV=production` で bootstrap を実行する場合のみ `true` を指定 |
+
+### 3. マイグレーションの実行
+
+```bash
+npx prisma migrate deploy
+```
+
+### 4. 初期adminの作成（bootstrap）
+
+```bash
+# 本番環境では ALLOW_BOOTSTRAP_IN_PRODUCTION=true が必要
+npm run bootstrap:admin
+# または
+npx prisma db seed
+```
+
+スクリプトの動作:
+
+- Supabase Auth にユーザーを作成（`email_confirm: true` でメール確認スキップ）
+- Staff テーブルに `role=admin` で登録
+- **冪等**: 既に admin が Staff テーブルに存在する場合は skip
+- **atomic**: Staff 登録に失敗した場合は Supabase ユーザーをロールバック
+- Supabase 未設定時は明示的なエラーメッセージで終了
+- `NODE_ENV=production` かつ `ALLOW_BOOTSTRAP_IN_PRODUCTION` が未指定の場合は誤実行防止のためブロック
+
+### 5. ログイン確認
+
+```bash
+curl -X POST https://yourdomain.com/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"<INITIAL_ADMIN_EMAIL>","password":"<INITIAL_ADMIN_PASSWORD>"}'
+```
+
+200 が返れば完了。以降、追加ユーザーは admin アカウントでログイン後に `POST /api/v1/staff` から招待できます。
+
+### トラブルシューティング
+
+| エラー | 原因 / 対処 |
+|--------|------------|
+| `Supabase Admin が利用できません` | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` を確認 |
+| `必須環境変数が未設定です` | `INITIAL_ADMIN_*` 3変数をすべて設定 |
+| `NODE_ENV=production での実行はブロックされました` | `ALLOW_BOOTSTRAP_IN_PRODUCTION=true` を明示的に設定 |
+| `メールアドレス XXX の Staff が既に存在します` | 別のメールアドレスを指定、または既存レコードを確認 |
+| `既に admin が存在するため skip` | 正常動作（冪等性）。追加 admin は API 経由で作成してください |
 
 ---
 
