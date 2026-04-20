@@ -9,7 +9,10 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
-    "noUncheckedIndexedAccess": false
+    "noUncheckedIndexedAccess": false,
+    /* ts-jest が dynamic import() を require に降格できるよう CJS に戻す */
+    "module": "CommonJS",
+    "moduleResolution": "node10"
   },
   "include": [
     "src/**/*",
