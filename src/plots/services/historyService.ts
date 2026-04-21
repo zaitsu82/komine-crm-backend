@@ -395,3 +395,49 @@ export async function recordEntityDeleted(
     req: params.req,
   });
 }
+
+// =====================================================================
+// バッチ記録ヘルパー（issue #66: updatePlot トランザクション短縮）
+// 配列同期で多数の履歴を記録するケースで、INSERT を 1 発にまとめる
+// =====================================================================
+
+/**
+ * UPDATE 系エントリ（before/after を持つ）は差分 0 件ならスキップ（既存挙動を踏襲）
+ */
+export async function recordHistoryBatch(
+  tx: Prisma.TransactionClient | PrismaClient,
+  entries: CreateHistoryInput[]
+): Promise<void> {
+  if (entries.length === 0) return;
+
+  const rows: Prisma.HistoryCreateManyInput[] = [];
+  for (const input of entries) {
+    let changedFields: ChangedFields | null = null;
+    if (input.actionType === 'UPDATE' && input.beforeRecord && input.afterRecord) {
+      changedFields = detectChangedFields(input.beforeRecord, input.afterRecord);
+      if (Object.keys(changedFields).length === 0) continue;
+    }
+    rows.push({
+      entity_type: input.entityType,
+      entity_id: input.entityId,
+      physical_plot_id: input.physicalPlotId || null,
+      contract_plot_id: input.contractPlotId || null,
+      action_type: input.actionType,
+      before_record: input.beforeRecord
+        ? (input.beforeRecord as Prisma.InputJsonValue)
+        : Prisma.DbNull,
+      after_record: input.afterRecord
+        ? (input.afterRecord as Prisma.InputJsonValue)
+        : Prisma.DbNull,
+      changed_fields: changedFields
+        ? (changedFields as unknown as Prisma.InputJsonValue)
+        : Prisma.DbNull,
+      changed_by: getChangedBy(input.req as AuthenticatedRequest),
+      change_reason: input.changeReason || null,
+      ip_address: getIpAddress(input.req),
+    });
+  }
+
+  if (rows.length === 0) return;
+  await tx.history.createMany({ data: rows });
+}
