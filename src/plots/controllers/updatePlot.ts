@@ -17,6 +17,8 @@ import {
   recordEntityCreated,
   recordEntityUpdated,
   recordEntityDeleted,
+  recordHistoryBatch,
+  type CreateHistoryInput,
 } from '../services/historyService';
 import { updateCollectiveBurialCount } from '../../collective-burials/utils';
 
@@ -190,8 +192,11 @@ export async function updatePlotCore(
     }
   }
 
+  // issue #66: update 戻り値を保持し section 13 で再取得しないようにする
+  let updatedContractPlotRecord: Awaited<ReturnType<typeof tx.contractPlot.update>> | null = null;
+  let updatedCustomerRecord: Awaited<ReturnType<typeof tx.customer.update>> | null = null;
   if (Object.keys(updateData).length > 0) {
-    await tx.contractPlot.update({
+    updatedContractPlotRecord = await tx.contractPlot.update({
       where: { id },
       data: updateData,
     });
@@ -215,12 +220,17 @@ export async function updatePlotCore(
         deleted_at: new Date(),
       },
     });
+
+    // バッチ用履歴エントリ（issue #66）
+    const roleHistoryEntries: CreateHistoryInput[] = [];
+
     for (const oldRole of existingRoles) {
-      await recordEntityDeleted(tx, {
+      roleHistoryEntries.push({
         entityType: 'SaleContractRole',
         entityId: oldRole.id,
         physicalPlotId,
         contractPlotId: id,
+        actionType: 'DELETE',
         beforeRecord: {
           id: oldRole.id,
           role: oldRole.role,
@@ -245,11 +255,12 @@ export async function updatePlotCore(
           notes: roleData.notes || null,
         },
       });
-      await recordEntityCreated(tx, {
+      roleHistoryEntries.push({
         entityType: 'SaleContractRole',
         entityId: created.id,
         physicalPlotId,
         contractPlotId: id,
+        actionType: 'CREATE',
         afterRecord: {
           id: created.id,
           role: created.role,
@@ -258,6 +269,8 @@ export async function updatePlotCore(
         req,
       });
     }
+
+    await recordHistoryBatch(tx, roleHistoryEntries);
   }
 
   // 4. Customerの更新
@@ -293,8 +306,9 @@ export async function updatePlotCore(
       if (input.customer.email !== undefined) customerUpdateData.email = input.customer.email;
       if (input.customer.notes !== undefined) customerUpdateData.notes = input.customer.notes;
 
+      // issue #66: update 戻り値を保持し section 13 で再取得しないようにする
       if (Object.keys(customerUpdateData).length > 0) {
-        await tx.customer.update({
+        updatedCustomerRecord = await tx.customer.update({
           where: { id: customerId },
           data: customerUpdateData,
         });
@@ -827,6 +841,9 @@ export async function updatePlotCore(
     const existingMap = new Map(existingBuriedPersons.map((bp) => [bp.id, bp]));
     const inputIds = input.buriedPersons.filter((bp) => bp.id).map((bp) => bp.id as string);
 
+    // バッチ用履歴エントリ（このセクション終わりに createMany で一括 INSERT）
+    const bpHistoryEntries: CreateHistoryInput[] = [];
+
     const idsToDelete = existingIds.filter((eid) => !inputIds.includes(eid));
     if (idsToDelete.length > 0) {
       await tx.buriedPerson.updateMany({
@@ -835,11 +852,12 @@ export async function updatePlotCore(
       });
       for (const delId of idsToDelete) {
         const before = existingMap.get(delId)!;
-        await recordEntityDeleted(tx, {
+        bpHistoryEntries.push({
           entityType: 'BuriedPerson',
           entityId: delId,
           physicalPlotId,
           contractPlotId: id,
+          actionType: 'DELETE',
           beforeRecord: {
             id: before.id,
             name: before.name,
@@ -888,11 +906,12 @@ export async function updatePlotCore(
           where: { id: bp.id },
           data: bpData,
         });
-        await recordEntityUpdated(tx, {
+        bpHistoryEntries.push({
           entityType: 'BuriedPerson',
           entityId: bp.id,
           physicalPlotId,
           contractPlotId: id,
+          actionType: 'UPDATE',
           beforeRecord: {
             name: before.name,
             name_kana: before.name_kana,
@@ -917,16 +936,20 @@ export async function updatePlotCore(
             ...bpData,
           },
         });
-        await recordEntityCreated(tx, {
+        bpHistoryEntries.push({
           entityType: 'BuriedPerson',
           entityId: created.id,
           physicalPlotId,
           contractPlotId: id,
+          actionType: 'CREATE',
           afterRecord: { id: created.id, ...serialize(bpData) },
           req,
         });
       }
     }
+
+    // 履歴エントリをまとめて INSERT（issue #66: N 件の個別 INSERT を 1 回に）
+    await recordHistoryBatch(tx, bpHistoryEntries);
 
     const contractPlotForCB = await tx.contractPlot.findUnique({
       where: { id },
@@ -946,6 +969,9 @@ export async function updatePlotCore(
     const existingCiMap = new Map(existingConstructionInfos.map((ci) => [ci.id, ci]));
     const inputCiIds = input.constructionInfos.filter((ci) => ci.id).map((ci) => ci.id as string);
 
+    // バッチ用履歴エントリ（issue #66）
+    const ciHistoryEntries: CreateHistoryInput[] = [];
+
     const ciIdsToDelete = existingCiIds.filter((eid) => !inputCiIds.includes(eid));
     if (ciIdsToDelete.length > 0) {
       await tx.constructionInfo.updateMany({
@@ -954,11 +980,12 @@ export async function updatePlotCore(
       });
       for (const delId of ciIdsToDelete) {
         const before = existingCiMap.get(delId)!;
-        await recordEntityDeleted(tx, {
+        ciHistoryEntries.push({
           entityType: 'ConstructionInfo',
           entityId: delId,
           physicalPlotId,
           contractPlotId: id,
+          actionType: 'DELETE',
           beforeRecord: {
             id: before.id,
             construction_type: before.construction_type,
@@ -1023,11 +1050,12 @@ export async function updatePlotCore(
           const v = (before as any)[key];
           beforeSerialized[key] = v instanceof Date ? v.toISOString() : v;
         }
-        await recordEntityUpdated(tx, {
+        ciHistoryEntries.push({
           entityType: 'ConstructionInfo',
           entityId: ci.id,
           physicalPlotId,
           contractPlotId: id,
+          actionType: 'UPDATE',
           beforeRecord: beforeSerialized,
           afterRecord: serializeCi(ciData),
           req,
@@ -1039,16 +1067,20 @@ export async function updatePlotCore(
             ...ciData,
           },
         });
-        await recordEntityCreated(tx, {
+        ciHistoryEntries.push({
           entityType: 'ConstructionInfo',
           entityId: created.id,
           physicalPlotId,
           contractPlotId: id,
+          actionType: 'CREATE',
           afterRecord: { id: created.id, ...serializeCi(ciData) },
           req,
         });
       }
     }
+
+    // 履歴エントリをまとめて INSERT（issue #66）
+    await recordHistoryBatch(tx, ciHistoryEntries);
   }
 
   // 12. 契約面積が変更された場合、物理区画のステータス更新
@@ -1075,7 +1107,8 @@ export async function updatePlotCore(
       notes: existingContractPlot.notes,
     };
 
-    const updatedCp = await tx.contractPlot.findUnique({ where: { id } });
+    // issue #66: section 2 の update 戻り値を再利用（findUnique 1 クエリ削減）
+    const updatedCp = updatedContractPlotRecord;
     const afterContractPlotData = updatedCp
       ? {
           contract_area_sqm: updatedCp.contract_area_sqm.toString(),
@@ -1120,9 +1153,8 @@ export async function updatePlotCore(
         email: existingCustomer.email,
       };
 
-      const updatedCustomer = await tx.customer.findUnique({
-        where: { id: existingCustomer.id },
-      });
+      // issue #66: section 4 の update 戻り値を再利用（findUnique 1 クエリ削減）
+      const updatedCustomer = updatedCustomerRecord;
       const afterCustomerData = updatedCustomer
         ? {
             name: updatedCustomer.name,
@@ -1162,15 +1194,14 @@ export const updatePlot = async (
     const { id } = req.params as Record<string, string>;
     const input: UpdatePlotRequest = req.body;
 
-    // updatePlot は履歴記録を含む多数の sequential query を 1 トランザクションで実行するため
-    // デフォルトの 5 秒タイムアウトでは P2028 が発生する。30 秒に延長。
+    // 履歴記録の createMany バッチ化・不要な findUnique 削減（issue #66）で
+    // クエリ数は線形増加から定数的な増加に抑制。暫定 30 秒から 10 秒に短縮。
     await prisma.$transaction(
       async (tx) => {
         await updatePlotCore(tx, id as string, input, req);
       },
       {
-        maxWait: 10000,
-        timeout: 30000,
+        timeout: 10000,
       }
     );
 
