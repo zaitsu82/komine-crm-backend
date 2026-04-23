@@ -748,6 +748,10 @@ export const regeneratePdf = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const baseName =
+      (document.name || 'document').replace(/[/\\?%*:|"<>]/g, '_').trim() || 'document';
+    const fileName = baseName.toLowerCase().endsWith('.pdf') ? baseName : `${baseName}.pdf`;
+
     res.status(200).json({
       success: true,
       data: {
@@ -755,6 +759,7 @@ export const regeneratePdf = async (req: Request, res: Response): Promise<void> 
         pdf: pdfResult.buffer.toString('base64'),
         mimeType: 'application/pdf',
         fileSize: pdfResult.buffer.length,
+        fileName,
       },
     });
   } catch (error) {
