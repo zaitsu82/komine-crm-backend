@@ -95,11 +95,10 @@ export const getCollectiveBurialList = async (
             include: {
               physicalPlot: true,
               saleContractRoles: {
-                where: { deleted_at: null, role: 'applicant' },
+                where: { deleted_at: null, role: { in: ['applicant', 'contractor'] } },
                 include: {
                   customer: true,
                 },
-                take: 1,
               },
               buriedPersons: {
                 where: { deleted_at: null },
@@ -114,7 +113,10 @@ export const getCollectiveBurialList = async (
 
     // レスポンス形式に変換
     const formattedItems = items.map((item) => {
-      const applicant = item.contractPlot.saleContractRoles[0]?.customer;
+      const roles = item.contractPlot.saleContractRoles;
+      const applicant = (
+        roles.find((r) => r.role === 'applicant') ?? roles.find((r) => r.role === 'contractor')
+      )?.customer;
       return {
         id: item.id,
         contractPlotId: item.contract_plot_id,
@@ -198,8 +200,9 @@ export const getCollectiveBurialById = async (
       throw new NotFoundError('合祀情報が見つかりません');
     }
 
-    const applicant = collectiveBurial.contractPlot.saleContractRoles.find(
-      (r) => r.role === 'applicant'
+    const roles = collectiveBurial.contractPlot.saleContractRoles;
+    const applicant = (
+      roles.find((r) => r.role === 'applicant') ?? roles.find((r) => r.role === 'contractor')
     )?.customer;
 
     res.status(200).json({
