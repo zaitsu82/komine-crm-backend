@@ -35,6 +35,13 @@ describe('inventoryService', () => {
       expect(extractSection('10-2')).toBe('10');
     });
 
+    // issue #64 項目 #1 暫定仕様: 第4期の小数点セクションも想定
+    it('小数点を含むセクション名を抽出できること', () => {
+      expect(extractSection('1.5-3')).toBe('1.5');
+      expect(extractSection('2.4-12')).toBe('2.4');
+      expect(extractSection('8.4-1')).toBe('8.4');
+    });
+
     it('ハイフンがない場合はそのまま返すこと', () => {
       expect(extractSection('A')).toBe('A');
       expect(extractSection('吉相')).toBe('吉相');
@@ -69,6 +76,12 @@ describe('inventoryService', () => {
     it('特別区を正しく判定すること', () => {
       expect(determinePlotType('憩', 3.6)).toBe('特別区');
       expect(determinePlotType('恵', 1.8)).toBe('特別区');
+    });
+
+    // issue #64 項目 #6 暫定仕様: 第4期「想」は「るり庵」カテゴリに分類
+    it('「想」はるり庵として分類されること', () => {
+      expect(determinePlotType('想', 3.6)).toBe('るり庵');
+      expect(determinePlotType('想', 1.8)).toBe('るり庵');
     });
 
     it('通常区画は自由タイプを返すこと', () => {
