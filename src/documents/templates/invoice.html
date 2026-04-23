@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>請求書</title>
+  <title>護持費のお知らせ</title>
   <style>
     * {
       margin: 0;
@@ -14,333 +14,217 @@
 
     body {
       font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif;
-      font-size: 12px;
-      line-height: 1.6;
-      color: #333;
+      font-size: 13px;
+      line-height: 1.9;
+      color: #222;
       background: white;
     }
 
-    .invoice-container {
+    .notice-container {
       max-width: 210mm;
       margin: 0 auto;
-      padding: 20mm;
+      padding: 20mm 22mm;
     }
 
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-
-    .header h1 {
-      font-size: 28px;
-      font-weight: bold;
-      letter-spacing: 8px;
-      border-bottom: 3px double #333;
-      display: inline-block;
-      padding-bottom: 5px;
-    }
-
-    .invoice-info {
+    .top-recipient {
       display: flex;
-      justify-content: space-between;
-      margin-bottom: 30px;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 15px;
+      margin-bottom: 28px;
     }
 
-    .customer-info {
-      width: 55%;
+    .top-recipient .name {
+      min-width: 160px;
+      border-bottom: 1px solid #222;
+      padding: 2px 8px;
     }
 
-    .customer-name {
-      font-size: 18px;
-      font-weight: bold;
-      border-bottom: 1px solid #333;
-      padding-bottom: 5px;
-      margin-bottom: 10px;
-    }
-
-    .customer-name::after {
-      content: " 様";
+    .notice-title {
+      text-align: center;
+      font-size: 22px;
+      letter-spacing: 10px;
+      margin-bottom: 32px;
       font-weight: normal;
     }
 
-    .customer-address {
-      font-size: 11px;
-      color: #555;
+    .greeting {
+      margin-bottom: 18px;
     }
 
-    .invoice-meta {
-      width: 40%;
+    .greeting p {
+      margin-bottom: 4px;
+    }
+
+    .keigu {
       text-align: right;
+      margin: 14px 8px 34px 0;
     }
 
-    .invoice-meta table {
-      margin-left: auto;
-      border-collapse: collapse;
-    }
-
-    .invoice-meta td {
-      padding: 3px 8px;
-      font-size: 11px;
-    }
-
-    .invoice-meta .label {
-      text-align: right;
-      color: #666;
-    }
-
-    .total-box {
-      background: #f8f8f8;
-      border: 2px solid #333;
-      padding: 15px 20px;
-      margin-bottom: 30px;
+    .statement {
+      margin-bottom: 22px;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 4px;
     }
 
-    .total-label {
-      font-size: 14px;
-      font-weight: bold;
+    .statement .prefix {
+      margin-right: 8px;
     }
 
-    .total-amount {
-      font-size: 24px;
-      font-weight: bold;
+    .statement .name {
+      min-width: 140px;
+      border-bottom: 1px solid #222;
+      padding: 0 6px;
+      text-align: center;
     }
 
-    .total-amount::before {
-      content: "\\A5 ";
-      font-size: 18px;
+    .payment-block {
+      margin: 6px 0 28px 18px;
     }
 
-    .items-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
+    .payment-row {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
     }
 
-    .items-table th,
-    .items-table td {
-      border: 1px solid #ddd;
-      padding: 10px 8px;
-      text-align: left;
-    }
-
-    .items-table th {
-      background: #f5f5f5;
-      font-weight: bold;
-      font-size: 11px;
-    }
-
-    .items-table td {
-      font-size: 11px;
-    }
-
-    .text-right {
-      text-align: right !important;
-    }
-
-    .text-center {
-      text-align: center !important;
-    }
-
-    .summary-table {
-      width: 250px;
-      margin-left: auto;
-      border-collapse: collapse;
-    }
-
-    .summary-table td {
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-    }
-
-    .summary-table .label {
-      background: #f5f5f5;
-      font-weight: bold;
-      width: 100px;
-    }
-
-    .summary-table .total-row td {
-      border: 2px solid #333;
-      font-weight: bold;
-      font-size: 14px;
-    }
-
-    .notes {
-      margin-top: 30px;
-      padding: 15px;
-      background: #fafafa;
-      border: 1px solid #eee;
-      font-size: 11px;
-    }
-
-    .notes-title {
-      font-weight: bold;
-      margin-bottom: 5px;
-    }
-
-    .company-info {
-      margin-top: 40px;
-      text-align: right;
-      font-size: 11px;
-    }
-
-    .company-name {
-      font-size: 14px;
-      font-weight: bold;
-      margin-bottom: 5px;
-    }
-
-    .stamp-area {
+    .payment-row .field-num {
       display: inline-block;
-      width: 60px;
-      height: 60px;
-      border: 1px dashed #ccc;
-      margin-top: 10px;
+      min-width: 44px;
+      text-align: center;
+      border-bottom: 1px solid #222;
+      padding: 0 6px;
+    }
+
+    .payment-row .field-amount {
+      display: inline-block;
+      min-width: 120px;
+      text-align: center;
+      border-bottom: 1px solid #222;
+      padding: 0 6px;
+      letter-spacing: 2px;
+      font-weight: bold;
+    }
+
+    .note-line {
+      margin-bottom: 14px;
+    }
+
+    .bullet-list {
+      list-style: none;
+      padding: 0;
+      margin: 10px 0 6px 8px;
+    }
+
+    .bullet-list li {
+      padding-left: 16px;
+      text-indent: -16px;
+      margin-bottom: 6px;
+    }
+
+    .bullet-list li::before {
+      content: "・";
+    }
+
+    .signature {
+      margin-top: 48px;
+      text-align: right;
+      line-height: 1.8;
+    }
+
+    .signature .org {
+      margin-bottom: 2px;
+    }
+
+    .signature .tel {
+      letter-spacing: 1px;
     }
 
     /* テキストの種（フロント textStylePreset と同期） */
-    body.doc-preset-mincho .invoice-container {
+    body.doc-preset-mincho .notice-container {
       font-family: 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', 'MS Mincho', serif;
     }
 
-    body.doc-preset-mincho .header h1 {
+    body.doc-preset-mincho .notice-title {
+      letter-spacing: 14px;
+    }
+
+    body.doc-preset-gothic_large .notice-container {
+      font-size: 14px;
+    }
+
+    body.doc-preset-gothic_large .notice-title {
       font-size: 26px;
-      letter-spacing: 12px;
     }
 
-    body.doc-preset-mincho .customer-name {
-      font-size: 17px;
-    }
-
-    body.doc-preset-gothic_large .invoice-container {
-      font-size: 13px;
-    }
-
-    body.doc-preset-gothic_large .header h1 {
-      font-size: 32px;
-      letter-spacing: 10px;
-    }
-
-    body.doc-preset-gothic_large .customer-name {
-      font-size: 20px;
-    }
-
-    body.doc-preset-gothic_large .total-amount {
-      font-size: 28px;
-    }
-
-    body.doc-preset-gothic_large .invoice-meta td,
-    body.doc-preset-gothic_large .items-table td,
-    body.doc-preset-gothic_large .items-table th {
+    body.doc-preset-compact .notice-container {
       font-size: 12px;
+      line-height: 1.7;
     }
 
-    body.doc-preset-compact .invoice-container {
-      font-size: 11px;
-      line-height: 1.45;
-    }
-
-    body.doc-preset-compact .header h1 {
-      font-size: 22px;
-      letter-spacing: 4px;
-    }
-
-    body.doc-preset-compact .customer-name {
-      font-size: 16px;
-    }
-
-    body.doc-preset-compact .total-amount {
-      font-size: 20px;
-    }
-
-    body.doc-preset-compact .invoice-meta td,
-    body.doc-preset-compact .items-table td,
-    body.doc-preset-compact .items-table th {
-      font-size: 10px;
-      padding: 6px 5px;
+    body.doc-preset-compact .notice-title {
+      font-size: 19px;
+      letter-spacing: 6px;
     }
   </style>
 </head>
 
 <body{{textStyleBodyAttr}}>
-  <div class="invoice-container">
-    <div class="header">
-      <h1>請 求 書</h1>
+  <div class="notice-container">
+    <div class="top-recipient">
+      <span class="name">{{ customerName }}</span>
+      <span>様</span>
     </div>
 
-    <div class="invoice-info">
-      <div class="customer-info">
-        <div class="customer-name">{{ customerName }}</div>
-        <div class="customer-address">{{ customerAddress }}</div>
+    <h1 class="notice-title">護 持 費 の お 知 ら せ</h1>
+
+    <div class="greeting">
+      <p>拝啓 {{ seasonGreeting }}、貴家におかれましては益々ご健勝のこととお慶び申し上げます。</p>
+      <p>平素はひとかたならぬご厚情を賜り心よりお礼申し上げます。</p>
+      <p>さて表題の件につきましてご案内いたしますので、何卒よろしくお願い致します。</p>
+    </div>
+
+    <div class="keigu">敬具</div>
+
+    <div class="statement">
+      <span class="prefix">この度、</span>
+      <span class="name">{{ customerName }}</span>
+      <span>様の今回のお支払金額をお知らせ致します。</span>
+    </div>
+
+    <div class="payment-block">
+      <div class="payment-row">
+        <span>護持費の更新として</span>
+        <span class="field-num">{{ yearCount }}</span>
+        <span>年分</span>
       </div>
-      <div class="invoice-meta">
-        <table>
-          <tr>
-            <td class="label">請求書番号:</td>
-            <td>{{ invoiceNumber }}</td>
-          </tr>
-          <tr>
-            <td class="label">発行日:</td>
-            <td>{{ issueDate }}</td>
-          </tr>
-          <tr>
-            <td class="label">お支払期限:</td>
-            <td>{{ dueDate }}</td>
-          </tr>
-        </table>
+      <div class="payment-row">
+        <span>お支払は</span>
+        <span>￥</span>
+        <span class="field-amount">{{ amountFormatted }}</span>
+        <span>となります。</span>
       </div>
     </div>
 
-    <div class="total-box">
-      <div class="total-label">ご請求金額（税込）</div>
-      <div class="total-amount">{{ total }}</div>
+    <div class="note-line">
+      尚、次回の{{ nextNoticeDate }}には、{{ yearCount }}年間分をお預かり致しますので、<br>
+      よろしくお願い申し上げます。
     </div>
 
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th style="width: 50%">品目・内容</th>
-          <th style="width: 15%" class="text-center">数量</th>
-          <th style="width: 17.5%" class="text-right">単価</th>
-          <th style="width: 17.5%" class="text-right">金額</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#items}}
-        <!-- Items will be inserted here -->
-        {{/items}}
-      </tbody>
-    </table>
+    <ul class="bullet-list">
+      <li>お支払方法は別紙金融機関をご利用下さい。</li>
+      <li>又、ご不明な点は、小嶺霊園 管理事務所へお問い合わせ下さいませ。</li>
+    </ul>
 
-    <table class="summary-table">
-      <tr>
-        <td class="label">小計</td>
-        <td class="text-right">{{ subtotal }}</td>
-      </tr>
-      <tr>
-        <td class="label">消費税</td>
-        <td class="text-right">{{ tax }}</td>
-      </tr>
-      <tr class="total-row">
-        <td class="label">合計</td>
-        <td class="text-right">{{ total }}</td>
-      </tr>
-    </table>
-
-    <div class="notes">
-      <div class="notes-title">備考</div>
-      <div>{{ notes }}</div>
-    </div>
-
-    <div class="company-info">
-      <div class="company-name">小嶺霊園管理事務所</div>
-      <div>〒XXX-XXXX</div>
-      <div>○○県○○市○○町X-X-X</div>
-      <div>TEL: XXX-XXX-XXXX</div>
-      <div>FAX: XXX-XXX-XXXX</div>
-      <div class="stamp-area"></div>
+    <div class="signature">
+      <div class="org">宗教法人　長谷寺</div>
+      <div class="org">黒崎小嶺霊園　管理事務所</div>
+      <div class="tel">TEL　093-613-3868</div>
+      <div class="tel">FAX　093-613-3893</div>
     </div>
   </div>
 </body>

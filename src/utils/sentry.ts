@@ -1,6 +1,25 @@
+import { createRequire } from 'node:module';
 import * as Sentry from '@sentry/node';
-import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { logger } from './logger';
+
+const requireNode = createRequire(__filename);
+
+function tryLoadProfilingIntegration(): ReturnType<
+  typeof import('@sentry/profiling-node').nodeProfilingIntegration
+> | null {
+  try {
+    const { nodeProfilingIntegration } = requireNode(
+      '@sentry/profiling-node'
+    ) as typeof import('@sentry/profiling-node');
+    return nodeProfilingIntegration();
+  } catch (err) {
+    logger.warn(
+      { err: err instanceof Error ? err.message : err },
+      'Sentry CPU profiling native module unavailable; continuing without profiling.'
+    );
+    return null;
+  }
+}
 
 /**
  * Sentry初期化
@@ -17,6 +36,11 @@ export const initializeSentry = (): void => {
 
   const environment = process.env['SENTRY_ENVIRONMENT'] || process.env['NODE_ENV'] || 'development';
   const tracesSampleRate = parseFloat(process.env['SENTRY_TRACES_SAMPLE_RATE'] || '1.0');
+  const profilingIntegration = tryLoadProfilingIntegration();
+  const integrations = [
+    Sentry.expressIntegration(),
+    ...(profilingIntegration ? [profilingIntegration] : []),
+  ];
 
   Sentry.init({
     dsn,
@@ -25,11 +49,11 @@ export const initializeSentry = (): void => {
     // パフォーマンストレーシング設定
     tracesSampleRate,
 
-    // Express統合とプロファイリング統合
-    integrations: [Sentry.expressIntegration(), nodeProfilingIntegration()],
+    // Express統合とプロファイリング統合（ネイティブモジュールが無い環境ではプロファイラのみ省略）
+    integrations,
 
     // プロファイリングのサンプリングレート
-    profilesSampleRate: 1.0,
+    ...(profilingIntegration ? { profilesSampleRate: 1.0 } : {}),
 
     // リリースバージョン（package.jsonから取得）
     release: process.env['npm_package_version'] || 'unknown',
@@ -100,14 +124,14 @@ export const setSentryTag = (key: string, value: string): void => {
 /**
  * カスタムコンテキストを追加
  */
-export const setSentryContext = (name: string, context: Record<string, any>): void => {
+export const setSentryContext = (name: string, context: Record<string, unknown>): void => {
   Sentry.setContext(name, context);
 };
 
 /**
  * 手動でエラーをキャプチャ
  */
-export const captureException = (error: Error, context?: Record<string, any>): void => {
+export const captureException = (error: Error, context?: Record<string, unknown>): void => {
   if (context) {
     Sentry.withScope((scope) => {
       Object.entries(context).forEach(([key, value]) => {

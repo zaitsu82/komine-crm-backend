@@ -16,7 +16,9 @@ import {
   TemplateType,
   InvoiceTemplateData,
   PostcardTemplateData,
+  PaymentGuideTemplateData,
 } from './documentService';
+import type { PermitTemplateData } from './templates/permit/fieldLayouts';
 import prisma from '../db/prisma';
 import {
   recordDocumentCreated,
@@ -61,7 +63,11 @@ interface DocumentListQuery {
 
 interface GeneratePdfBody {
   templateType: TemplateType;
-  templateData: InvoiceTemplateData | PostcardTemplateData;
+  templateData:
+    | InvoiceTemplateData
+    | PostcardTemplateData
+    | PermitTemplateData
+    | PaymentGuideTemplateData;
   documentId?: string;
   name?: string;
   contractPlotId?: string;
@@ -577,12 +583,13 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
     }
 
     // テンプレートタイプ検証
-    if (!['invoice', 'postcard'].includes(templateType)) {
+    if (!['invoice', 'postcard', 'permit', 'payment-guide'].includes(templateType)) {
       res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: '無効なテンプレートタイプです。invoice または postcard を指定してください。',
+          message:
+            '無効なテンプレートタイプです。invoice / postcard / permit / payment-guide を指定してください。',
         },
       });
       return;
@@ -591,7 +598,11 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
     // PDF生成
     const pdfResult = await generatePdfFromTemplate(
       templateType,
-      templateData as InvoiceTemplateData | PostcardTemplateData
+      templateData as
+        | InvoiceTemplateData
+        | PostcardTemplateData
+        | PermitTemplateData
+        | PaymentGuideTemplateData
     );
 
     if (!pdfResult.success || !pdfResult.buffer) {
@@ -644,9 +655,20 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
     }
 
     // 新規書類メタデータを作成
-    const documentType: DocumentType = templateType === 'invoice' ? 'invoice' : 'postcard';
-    const documentName =
-      name || `${templateType === 'invoice' ? '請求書' : 'はがき'}_${Date.now()}`;
+    const templateTypeToDocType: Record<string, DocumentType> = {
+      invoice: 'invoice',
+      postcard: 'postcard',
+      permit: 'permit',
+      'payment-guide': 'other',
+    };
+    const documentType: DocumentType = templateTypeToDocType[templateType] || 'other';
+    const templateTypeToName: Record<string, string> = {
+      invoice: '護持費のお知らせ',
+      postcard: 'はがき',
+      permit: '許可証',
+      'payment-guide': 'お支払い方法のご案内',
+    };
+    const documentName = name || `${templateTypeToName[templateType] || '書類'}_${Date.now()}`;
 
     const newDocument = await prisma.document.create({
       data: {
@@ -720,7 +742,7 @@ export const regeneratePdf = async (req: Request, res: Response): Promise<void> 
     }
 
     // テンプレートタイプ検証
-    if (!['invoice', 'postcard'].includes(document.template_type)) {
+    if (!['invoice', 'postcard', 'permit', 'payment-guide'].includes(document.template_type)) {
       res.status(400).json({
         success: false,
         error: {
@@ -734,7 +756,11 @@ export const regeneratePdf = async (req: Request, res: Response): Promise<void> 
     // PDF再生成
     const pdfResult = await generatePdfFromTemplate(
       document.template_type as TemplateType,
-      document.template_data as unknown as InvoiceTemplateData | PostcardTemplateData
+      document.template_data as unknown as
+        | InvoiceTemplateData
+        | PostcardTemplateData
+        | PermitTemplateData
+        | PaymentGuideTemplateData
     );
 
     if (!pdfResult.success || !pdfResult.buffer) {
