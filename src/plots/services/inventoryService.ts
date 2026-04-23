@@ -29,17 +29,33 @@ function toNumber(value: unknown): number {
   return isNaN(num) ? 0 : num;
 }
 
-// plot_numberからセクションを抽出
+/**
+ * plot_number からセクション名を抽出する。
+ *
+ * 暫定仕様（業務ヒアリング待ち / issue #64 項目 #1）:
+ *   plot_number は `<section>-<連番>` の単純形式を前提とする。
+ *     例: "A-56" → "A", "吉相-10" → "吉相", "1.5-3" → "1.5",
+ *         "るり庵テラス-1" → "るり庵テラス", "天空K-5" → "天空K"
+ *   区画名一覧（komine-docs/区画名一覧.md）に従い、セクション名自体には
+ *   ハイフンを含めない前提。期名（area_name）は別カラムで管理し、
+ *   plot_number には含めない。
+ *   末尾に `-<連番>` が無いフォーマット（例: "A", "吉相"）は、
+ *   セクション単独表記として扱い、そのまま返す。
+ */
 export function extractSection(plotNumber: string): string {
-  // "A-56" → "A"
-  // "吉相-10" → "吉相"
-  // "るり庵テラス-1" → "るり庵テラス"
-  // "1-5" → "1"
   const match = plotNumber.match(/^(.+)-\d+$/);
   return match && match[1] ? match[1] : plotNumber;
 }
 
-// カテゴリを判定（特殊区画用）
+/**
+ * セクションを特殊区画カテゴリに分類する。
+ *
+ * 暫定仕様（業務ヒアリング待ち / issue #64 項目 #5）:
+ *   区画名一覧（komine-docs/区画名一覧.md）の第3期樹林部のセクション
+ *   （樹林, 天空K）を「樹林・天空」カテゴリに分類する。
+ *   素の "天空" セクションは区画名一覧に存在しないが、将来 "天空-N" のような
+ *   区画が追加された場合に備えて互換で残している。
+ */
 export function categorizeSection(section: string): string | undefined {
   const categoryMap: Record<string, string> = {
     樹林: '樹林・天空',
@@ -49,12 +65,26 @@ export function categorizeSection(section: string): string | undefined {
   return categoryMap[section];
 }
 
-// 区画タイプを判定
+/**
+ * セクション名から区画タイプ（表示用分類）を判定する。
+ *
+ * 暫定仕様（業務ヒアリング待ち / issue #64 項目 #6）:
+ *   区画名一覧（komine-docs/区画名一覧.md）に準拠する。
+ *     - 吉相 → "吉相"
+ *     - 樹林 → "樹林"
+ *     - "天空" を含む（天空K等） → "天空"
+ *     - "るり庵" を含む（るり庵テラス, るり庵テラスⅡ等） → "るり庵"
+ *     - 想 → "るり庵"（区画名一覧の備考より、もり庵テラス関連の区画として暫定で "るり庵" 扱い）
+ *     - 墳墓 → "墳墓"（区画名一覧には無いが将来用に残置）
+ *     - 憩 / 恵 → "特別区"
+ *     - その他（A〜P, 1〜8, 1.5, 2.4, 3, 4, 5, 8.4 等） → "自由"
+ */
 export function determinePlotType(section: string, _areaSqm: number): string {
   if (section === '吉相') return '吉相';
   if (section === '樹林') return '樹林';
   if (section.includes('天空')) return '天空';
   if (section.includes('るり庵')) return 'るり庵';
+  if (section === '想') return 'るり庵';
   if (section === '墳墓') return '墳墓';
   if (section === '憩' || section === '恵') return '特別区';
   return '自由';
@@ -126,6 +156,7 @@ export async function getOverallSummary(prisma: DbClient): Promise<InventorySumm
     usageRate: Math.round(usageRate * 10) / 10,
     totalAreaSqm: Math.round(totalAreaSqm * 100) / 100,
     remainingAreaSqm: Math.round(remainingAreaSqm * 100) / 100,
+    // issue #64 項目 #3: API は常に ISO8601 (UTC) で返す。表示整形はフロント責務。
     lastUpdated: new Date().toISOString(),
   };
 }
