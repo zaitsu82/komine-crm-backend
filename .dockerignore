@@ -49,8 +49,9 @@ codecov.yml
 !README.md
 docs
 
-# Scripts (開発用スクリプトは除外)
+# Scripts (開発用スクリプトは除外。ビルド時に必要なものだけ allowlist で許可)
 scripts
+!scripts/copy-document-assets.js
 
 # Logs
 logs
