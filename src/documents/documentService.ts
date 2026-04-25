@@ -40,6 +40,12 @@ export { PAYMENT_GUIDE_DEFAULTS, getDefaultSeasonGreeting };
 
 const PDF_TEXT_STYLE_PRESETS = new Set(['default', 'mincho', 'gothic_large', 'compact']);
 
+/**
+ * テンプレート埋め込み時に HTML エスケープせず、生 HTML としてそのまま挿入するキー。
+ * サーバー側で生成し、ユーザー入力が混じらないキーだけをここに入れる。
+ */
+const RAW_HTML_KEYS = new Set(['textStyleBodyAttr']);
+
 function normalizePdfTextStylePreset(raw: unknown): string {
   const s = String(raw ?? 'default');
   return PDF_TEXT_STYLE_PRESETS.has(s) ? s : 'default';
@@ -98,36 +104,17 @@ function loadAndRenderTemplate(templateType: TemplateType, data: Record<string, 
     }
   }
 
-  // items 配列の特別処理（旧請求書テンプレート互換）。
-  // 後段の {{ key }} 空文字化より先に行う必要がある:
-  // 空文字化は `{{#items}}` 等のブロックタグも誤って消す可能性があるため。
-  if ('items' in data && Array.isArray(data['items'])) {
-    const items = data['items'] as Array<{
-      description: string;
-      quantity: number;
-      unitPrice: number;
-      amount: number;
-    }>;
-    const itemsHtml = items
-      .map(
-        (item) => `
-        <tr>
-          <td>${escapeHtml(item.description)}</td>
-          <td class="text-right">${item.quantity}</td>
-          <td class="text-right">${formatCurrency(item.unitPrice)}</td>
-          <td class="text-right">${formatCurrency(item.amount)}</td>
-        </tr>
-      `
-      )
-      .join('');
-    html = html.replace(/{{#items}}[\s\S]*?{{\/items}}/g, itemsHtml);
-  }
-
-  // プレースホルダーを置換
+  // プレースホルダーを置換。
+  // ユーザー入力を含むため HTMLエスケープは必須（XSS / `&` 等での表示崩壊対策）。
+  // textStyleBodyAttr のみサーバーで生成した HTML 属性そのものを差し込むため allowlist で素通し。
   const flattenData = flattenObject(dataForTemplate);
   for (const [key, value] of Object.entries(flattenData)) {
     const placeholder = new RegExp(`{{\\s*${escapeRegex(key)}\\s*}}`, 'g');
-    html = html.replace(placeholder, String(value ?? ''));
+    const stringValue = String(value ?? '');
+    const replacement = RAW_HTML_KEYS.has(key) ? stringValue : escapeHtml(stringValue);
+    // String.prototype.replace は第2引数文字列内の `$&` `$1` 等を特殊解釈するため、
+    // 関数形式で渡してリテラル挿入にする。
+    html = html.replace(placeholder, () => replacement);
   }
 
   // 残った未解決の {{ key }} プレースホルダーは空文字に置換
@@ -178,16 +165,6 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-}
-
-/**
- * 通貨フォーマット
- */
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('ja-JP', {
-    style: 'currency',
-    currency: 'JPY',
-  }).format(amount);
 }
 
 /**
