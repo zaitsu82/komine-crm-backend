@@ -2,6 +2,8 @@ import { createRequire } from 'node:module';
 import * as Sentry from '@sentry/node';
 import { logger } from './logger';
 
+// `__filename` は CommonJS の global。将来 ESM 移行する際は
+// `createRequire(import.meta.url)` への切り替えが必要。
 const requireNode = createRequire(__filename);
 
 function tryLoadProfilingIntegration(): ReturnType<

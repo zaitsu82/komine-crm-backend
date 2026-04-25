@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PDFDocument, rgb, degrees, PDFFont } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { PERMIT_PAGES, PermitField, PermitTemplateData } from './templates/permit/fieldLayouts';
+import { PERMIT_PAGES, PermitField, PermitTemplateData } from '@komine/types';
 import { logger } from '../utils/logger';
 
 const TEMPLATE_DIR = path.join(__dirname, 'templates', 'permit');
@@ -115,9 +115,10 @@ export async function generatePermitPdf(
     for (const pageDef of PERMIT_PAGES) {
       if (!pageDef.enabled) continue;
       const basePath = path.join(TEMPLATE_DIR, pageDef.baseFile);
+      // ベースPDFはリポジトリに同梱されているため、不在なら配布物が壊れている。
+      // silent skip すると空ページの PDF がユーザに渡るので fail fast する。
       if (!fs.existsSync(basePath)) {
-        logger.warn({ basePath }, 'Permit base PDF missing, skipping');
-        continue;
+        throw new Error(`Permit base PDF が見つかりません: ${pageDef.baseFile}`);
       }
 
       const baseBytes = fs.readFileSync(basePath);

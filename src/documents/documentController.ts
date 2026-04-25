@@ -10,15 +10,16 @@
 
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { ZodError } from 'zod';
 import { getRequestLogger } from '../utils/logger';
+import { generatePdfFromTemplate } from './documentService';
 import {
-  generatePdfFromTemplate,
-  TemplateType,
-  InvoiceTemplateData,
-  PostcardTemplateData,
-  PaymentGuideTemplateData,
-} from './documentService';
-import type { PermitTemplateData } from './templates/permit/fieldLayouts';
+  type DocumentTemplateType,
+  type PdfTemplateData,
+  DOCUMENT_TEMPLATE_TYPES,
+  sanitizeDocumentFileName,
+} from '@komine/types';
+import { generatePdfRequestSchema, parseTemplateData } from '../validations/documentValidation';
 import prisma from '../db/prisma';
 import {
   recordDocumentCreated,
@@ -61,17 +62,34 @@ interface DocumentListQuery {
   sortOrder?: 'asc' | 'desc';
 }
 
-interface GeneratePdfBody {
-  templateType: TemplateType;
-  templateData:
-    | InvoiceTemplateData
-    | PostcardTemplateData
-    | PermitTemplateData
-    | PaymentGuideTemplateData;
-  documentId?: string;
-  name?: string;
-  contractPlotId?: string;
-  customerId?: string;
+// テンプレートタイプ → 書類種別 / 表示名のマップ。
+// `Record<DocumentTemplateType, ...>` で縛ることで、新テンプレート追加時に
+// コンパイラが未対応をエラーで教えてくれる。
+const TEMPLATE_TYPE_TO_DOC_TYPE: Record<DocumentTemplateType, DocumentType> = {
+  invoice: 'invoice',
+  postcard: 'postcard',
+  permit: 'permit',
+  'payment-guide': 'other',
+};
+
+const TEMPLATE_TYPE_TO_NAME: Record<DocumentTemplateType, string> = {
+  invoice: '護持費のお知らせ',
+  postcard: 'はがき',
+  permit: '許可証',
+  'payment-guide': 'お支払い方法のご案内',
+};
+
+function isDocumentTemplateType(value: unknown): value is DocumentTemplateType {
+  return (
+    typeof value === 'string' && (DOCUMENT_TEMPLATE_TYPES as readonly string[]).includes(value)
+  );
+}
+
+function formatZodIssues(err: ZodError): Array<{ field: string; message: string }> {
+  return err.issues.map((issue) => ({
+    field: issue.path.join('.') || '',
+    message: issue.message,
+  }));
 }
 
 /**
@@ -567,43 +585,26 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
  */
 export const generatePdf = async (req: Request, res: Response): Promise<void> => {
   try {
-    const body = req.body as GeneratePdfBody;
-    const { templateType, templateData, documentId, name, contractPlotId, customerId } = body;
-
-    // 必須フィールド検証
-    if (!templateType || !templateData) {
+    // Zod で discriminated union として検証。
+    // templateType / templateData の必須チェック・テンプレートタイプ列挙・
+    // データの形まで一括で弾ける。
+    const parsed = generatePdfRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
       res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'templateType と templateData は必須です',
+          message: 'リクエストの形式が不正です',
+          details: formatZodIssues(parsed.error),
         },
       });
       return;
     }
-
-    // テンプレートタイプ検証
-    if (!['invoice', 'postcard', 'permit', 'payment-guide'].includes(templateType)) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message:
-            '無効なテンプレートタイプです。invoice / postcard / permit / payment-guide を指定してください。',
-        },
-      });
-      return;
-    }
+    const { templateType, templateData, documentId, name, contractPlotId, customerId } =
+      parsed.data;
 
     // PDF生成
-    const pdfResult = await generatePdfFromTemplate(
-      templateType,
-      templateData as
-        | InvoiceTemplateData
-        | PostcardTemplateData
-        | PermitTemplateData
-        | PaymentGuideTemplateData
-    );
+    const pdfResult = await generatePdfFromTemplate(templateType, templateData as PdfTemplateData);
 
     if (!pdfResult.success || !pdfResult.buffer) {
       res.status(500).json({
@@ -655,20 +656,8 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
     }
 
     // 新規書類メタデータを作成
-    const templateTypeToDocType: Record<string, DocumentType> = {
-      invoice: 'invoice',
-      postcard: 'postcard',
-      permit: 'permit',
-      'payment-guide': 'other',
-    };
-    const documentType: DocumentType = templateTypeToDocType[templateType] || 'other';
-    const templateTypeToName: Record<string, string> = {
-      invoice: '護持費のお知らせ',
-      postcard: 'はがき',
-      permit: '許可証',
-      'payment-guide': 'お支払い方法のご案内',
-    };
-    const documentName = name || `${templateTypeToName[templateType] || '書類'}_${Date.now()}`;
+    const documentType = TEMPLATE_TYPE_TO_DOC_TYPE[templateType];
+    const documentName = name || `${TEMPLATE_TYPE_TO_NAME[templateType]}_${Date.now()}`;
 
     const newDocument = await prisma.document.create({
       data: {
@@ -742,7 +731,7 @@ export const regeneratePdf = async (req: Request, res: Response): Promise<void> 
     }
 
     // テンプレートタイプ検証
-    if (!['invoice', 'postcard', 'permit', 'payment-guide'].includes(document.template_type)) {
+    if (!isDocumentTemplateType(document.template_type)) {
       res.status(400).json({
         success: false,
         error: {
@@ -753,15 +742,27 @@ export const regeneratePdf = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // 保存されている template_data を Zod で復元（壊れたデータを早期に検出）
+    let templateData: PdfTemplateData;
+    try {
+      templateData = parseTemplateData(document.template_type, document.template_data);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_TEMPLATE_DATA',
+            message: '保存されたテンプレートデータの形式が不正です',
+            details: formatZodIssues(err),
+          },
+        });
+        return;
+      }
+      throw err;
+    }
+
     // PDF再生成
-    const pdfResult = await generatePdfFromTemplate(
-      document.template_type as TemplateType,
-      document.template_data as unknown as
-        | InvoiceTemplateData
-        | PostcardTemplateData
-        | PermitTemplateData
-        | PaymentGuideTemplateData
-    );
+    const pdfResult = await generatePdfFromTemplate(document.template_type, templateData);
 
     if (!pdfResult.success || !pdfResult.buffer) {
       res.status(500).json({
@@ -774,9 +775,7 @@ export const regeneratePdf = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const baseName =
-      (document.name || 'document').replace(/[/\\?%*:|"<>]/g, '_').trim() || 'document';
-    const fileName = baseName.toLowerCase().endsWith('.pdf') ? baseName : `${baseName}.pdf`;
+    const fileName = sanitizeDocumentFileName(document.name);
 
     res.status(200).json({
       success: true,

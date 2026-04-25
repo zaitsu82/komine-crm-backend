@@ -14,3 +14,4 @@ export * from './inventoryValidation';
 export * from './authValidation';
 export * from './masterValidation';
 export * from './yuchoValidation';
+export * from './documentValidation';
