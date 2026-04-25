@@ -11,7 +11,7 @@ WORKDIR /packages/types
 # セキュリティ: main 追従だとリポジトリ汚染が即本番到達するため、commit SHA で固定。
 # types 更新時はこの値を明示的に更新する。
 # 詳細: zaitsu82/komine-crm-backend#60
-ARG TYPES_REF=982404c67ecb6270fd2e3cfcba662da430ddfc93
+ARG TYPES_REF=5b19ab012620ef4a72606e04d4e71006e3052e73
 
 RUN git clone https://github.com/zaitsu82/komine-types.git . && \
     git checkout ${TYPES_REF} && \

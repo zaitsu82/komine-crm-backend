@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <title>お支払い方法のご案内</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif;
+      font-size: 13px;
+      line-height: 1.9;
+      color: #222;
+      background: white;
+    }
+
+    .guide-container {
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 18mm 20mm;
+    }
+
+    .top-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 22px;
+    }
+
+    /* 大項目見出し (・管理料のお支払い方法として など) */
+    .section-heading {
+      font-size: 14px;
+      font-weight: bold;
+      padding-left: 0;
+      margin-top: 18px;
+      margin-bottom: 10px;
+    }
+
+    .section-heading::before {
+      content: '・';
+    }
+
+    .section-body {
+      margin-left: 24px;
+    }
+
+    /* ①②形式の箇条書き */
+    .ordered {
+      list-style: none;
+      counter-reset: step;
+      padding-left: 0;
+      margin: 6px 0 14px 10px;
+    }
+
+    .ordered li {
+      counter-increment: step;
+      position: relative;
+      padding-left: 32px;
+      margin-bottom: 4px;
+    }
+
+    .ordered li::before {
+      content: counter(step, decimal-enclose, '①②③④⑤⑥⑦⑧⑨⑩');
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+
+    /* ①②③... 文字リテラルの list-style がないブラウザ向け */
+    .ordered li:nth-child(1)::before {
+      content: '①';
+    }
+
+    .ordered li:nth-child(2)::before {
+      content: '②';
+    }
+
+    .ordered li:nth-child(3)::before {
+      content: '③';
+    }
+
+    /* ※ 注意書き */
+    .notices {
+      margin: 10px 0 14px 10px;
+      font-size: 12.5px;
+    }
+
+    .notices .note {
+      padding-left: 16px;
+      text-indent: -16px;
+      margin-bottom: 4px;
+    }
+
+    .notices .note::before {
+      content: '※';
+    }
+
+    /* お振り込み先 */
+    .bank-list {
+      margin: 6px 0 14px 10px;
+    }
+
+    .bank-item {
+      margin-bottom: 14px;
+    }
+
+    .bank-header {
+      padding-left: 16px;
+      text-indent: -16px;
+      font-weight: bold;
+    }
+
+    .bank-header::before {
+      content: '・';
+    }
+
+    .bank-detail {
+      margin-left: 22px;
+      margin-top: 4px;
+    }
+
+    .bank-detail .row {
+      display: flex;
+      gap: 14px;
+      align-items: baseline;
+      padding: 3px 0;
+      border-bottom: 1px solid #d8d8d8;
+    }
+
+    .bank-detail .row:last-child {
+      border-bottom: none;
+    }
+
+    .bank-detail .label {
+      min-width: 80px;
+      color: #555;
+      font-size: 12.5px;
+    }
+
+    .bank-detail .value {
+      flex: 1;
+    }
+
+    .bank-detail .sub-label {
+      color: #888;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+
+    .bank-header .bank-subvalue {
+      font-weight: normal;
+      margin-left: 12px;
+    }
+
+    /* 下部注意書き */
+    .footer-notice {
+      margin: 22px 0 10px 6px;
+      font-size: 12.5px;
+      line-height: 1.9;
+    }
+
+    .footer-notice .highlight {
+      font-weight: bold;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* 署名ブロック */
+    .signature {
+      margin-top: 28px;
+      text-align: right;
+      line-height: 1.8;
+    }
+
+    .signature .org-name {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 2px;
+    }
+
+    .signature .tel {
+      letter-spacing: 1px;
+    }
+
+    /* テキストの種 */
+    body.doc-preset-mincho .guide-container {
+      font-family: 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', 'MS Mincho', serif;
+    }
+
+    body.doc-preset-gothic_large .guide-container {
+      font-size: 14px;
+    }
+
+    body.doc-preset-gothic_large .top-title {
+      font-size: 17px;
+    }
+
+    body.doc-preset-compact .guide-container {
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    body.doc-preset-compact .top-title {
+      font-size: 15px;
+    }
+  </style>
+</head>
+
+<body{{textStyleBodyAttr}}>
+  <div class="guide-container">
+    <div class="top-title">お客様各位</div>
+
+    <div class="section-heading">管理料のお支払い方法として</div>
+    <div class="section-body">
+      <ol class="ordered">
+        <li>{{ option1 }}</li>
+        <li>{{ option2 }}</li>
+      </ol>
+
+      <div class="notices">
+        <div class="note">{{ notice1 }}</div>
+        <div class="note">{{ notice2 }}</div>
+        <div class="note">{{ notice3 }}</div>
+      </div>
+    </div>
+
+    <div class="section-heading">お振り込み先</div>
+    <div class="section-body">
+      <div class="bank-list">
+        <div class="bank-item">
+          <div class="bank-header">
+            {{ bank1Name }}
+            <span class="bank-subvalue">{{ bank1AccountType }}　{{ bank1AccountNumber }}</span>
+          </div>
+          <div class="bank-detail">
+            <div class="row">
+              <span class="label">宗教法人</span>
+              <span class="value">
+                {{ orgName }}
+                <span class="sub-label">（{{ orgNameKana }}）</span>
+              </span>
+            </div>
+            <div class="row">
+              <span class="label">代表役員</span>
+              <span class="value">
+                {{ repName }}
+                <span class="sub-label">（{{ repNameKana }}）</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bank-item">
+          <div class="bank-header">{{ bank2Name }}</div>
+          <div class="bank-detail">
+            <div class="row">
+              <span class="label">記号</span>
+              <span class="value">{{ bank2Symbol }}</span>
+            </div>
+            <div class="row">
+              <span class="label">番号</span>
+              <span class="value">{{ bank2Number }}</span>
+            </div>
+            <div class="row">
+              <span class="label">宗教法人</span>
+              <span class="value">
+                {{ orgName }}
+                <span class="sub-label">（{{ orgNameKana }}）</span>
+              </span>
+            </div>
+            <div class="row">
+              <span class="label">代表役員</span>
+              <span class="value">
+                {{ repName }}
+                <span class="sub-label">（{{ repNameKana }}）</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-notice">
+      <div>※分割でのお支払いも可能です。</div>
+      <div>
+        <span class="highlight">以前分納をご利用されていた方も改めてお手続きが必要です。</span>
+      </div>
+      <div>
+        <span class="highlight">印鑑をご持参の上管理事務所までお越しください。</span>
+      </div>
+      <div style="margin-left: 8px;">ご不明な点はお問い合わせ下さいませ。</div>
+    </div>
+
+    <div class="signature">
+      <div class="org-name">{{ cemeteryName }}　管理事務所</div>
+      <div class="tel">TEL　{{ tel }}</div>
+      <div class="tel">FAX　{{ fax }}</div>
+    </div>
+  </div>
+  </body>
+
+</html>

@@ -1,56 +1,48 @@
 /**
  * 書類管理サービス
- * PDF生成機能を提供（テンプレート + Puppeteer）
+ * PDF生成機能を提供（テンプレート + Puppeteer / pdf-lib）
  *
  * 設計方針:
  * - PDFファイルはサーバーに永続保存しない（オンデマンド再生成方式）
  * - DBにはメタデータ（template_data等）のみ保存し、必要時に再生成
  * - S3やローカルファイルストレージは不要
+ *
+ * 型・既定値・座標などフロントとバックで共有する定義は `@komine/types` を
+ * 単一ソースとする。ここでは PDF 生成の実装のみ持つ。
  */
 
 import puppeteer from 'puppeteer';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  type DocumentTemplateType,
+  type InvoiceTemplateData,
+  type PostcardTemplateData,
+  type PermitTemplateData,
+  type PaymentGuideTemplateData,
+  type PdfTemplateData,
+  PAYMENT_GUIDE_DEFAULTS,
+  getDefaultSeasonGreeting,
+} from '@komine/types';
 import { logger } from '../utils/logger';
+import { generatePermitPdf } from './permitPdfService';
 
-// テンプレートタイプ
-export type TemplateType = 'invoice' | 'postcard';
+// 後方互換のため既存名で再エクスポート
+export type TemplateType = DocumentTemplateType;
+export type {
+  InvoiceTemplateData,
+  PostcardTemplateData,
+  PermitTemplateData,
+  PaymentGuideTemplateData,
+  PdfTemplateData,
+};
+export { PAYMENT_GUIDE_DEFAULTS, getDefaultSeasonGreeting };
 
 const PDF_TEXT_STYLE_PRESETS = new Set(['default', 'mincho', 'gothic_large', 'compact']);
 
 function normalizePdfTextStylePreset(raw: unknown): string {
   const s = String(raw ?? 'default');
   return PDF_TEXT_STYLE_PRESETS.has(s) ? s : 'default';
-}
-
-// テンプレートデータ型
-export interface InvoiceTemplateData {
-  invoiceNumber: string;
-  issueDate: string;
-  dueDate: string;
-  customerName: string;
-  customerAddress: string;
-  items: Array<{
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    amount: number;
-  }>;
-  subtotal: number;
-  tax: number;
-  total: number;
-  notes?: string;
-}
-
-export interface PostcardTemplateData {
-  recipientName: string;
-  recipientAddress: string;
-  recipientPostalCode: string;
-  senderName: string;
-  senderAddress: string;
-  senderPostalCode: string;
-  message: string;
-  date: string;
 }
 
 /**
@@ -71,14 +63,44 @@ function loadAndRenderTemplate(templateType: TemplateType, data: Record<string, 
     textStyleBodyAttr: preset === 'default' ? '' : ` class="doc-preset-${preset}"`,
   };
 
-  // プレースホルダーを置換
-  const flattenData = flattenObject(dataForTemplate);
-  for (const [key, value] of Object.entries(flattenData)) {
-    const placeholder = new RegExp(`{{\\s*${escapeRegex(key)}\\s*}}`, 'g');
-    html = html.replace(placeholder, String(value ?? ''));
+  // お支払い方法のご案内テンプレート：未入力フィールドに既定値を補完
+  if (templateType === 'payment-guide') {
+    for (const [key, value] of Object.entries(PAYMENT_GUIDE_DEFAULTS)) {
+      if (
+        dataForTemplate[key] === undefined ||
+        dataForTemplate[key] === null ||
+        String(dataForTemplate[key]).trim() === ''
+      ) {
+        dataForTemplate[key] = value;
+      }
+    }
   }
 
-  // items配列の特別処理（請求書用）
+  // 護持費のお知らせテンプレート用：金額の桁区切り表示と季節挨拶のフォールバックを補完
+  if (templateType === 'invoice') {
+    const rawAmount = data['amount'] ?? data['total'];
+    if (dataForTemplate['amountFormatted'] === undefined) {
+      const amountNum =
+        typeof rawAmount === 'number'
+          ? rawAmount
+          : typeof rawAmount === 'string' && rawAmount.trim() !== ''
+            ? Number(rawAmount)
+            : NaN;
+      dataForTemplate['amountFormatted'] = Number.isFinite(amountNum)
+        ? new Intl.NumberFormat('ja-JP').format(amountNum)
+        : '';
+    }
+    if (
+      !dataForTemplate['seasonGreeting'] ||
+      String(dataForTemplate['seasonGreeting']).trim() === ''
+    ) {
+      dataForTemplate['seasonGreeting'] = getDefaultSeasonGreeting(new Date());
+    }
+  }
+
+  // items 配列の特別処理（旧請求書テンプレート互換）。
+  // 後段の {{ key }} 空文字化より先に行う必要がある:
+  // 空文字化は `{{#items}}` 等のブロックタグも誤って消す可能性があるため。
   if ('items' in data && Array.isArray(data['items'])) {
     const items = data['items'] as Array<{
       description: string;
@@ -100,6 +122,16 @@ function loadAndRenderTemplate(templateType: TemplateType, data: Record<string, 
       .join('');
     html = html.replace(/{{#items}}[\s\S]*?{{\/items}}/g, itemsHtml);
   }
+
+  // プレースホルダーを置換
+  const flattenData = flattenObject(dataForTemplate);
+  for (const [key, value] of Object.entries(flattenData)) {
+    const placeholder = new RegExp(`{{\\s*${escapeRegex(key)}\\s*}}`, 'g');
+    html = html.replace(placeholder, String(value ?? ''));
+  }
+
+  // 残った未解決の {{ key }} プレースホルダーは空文字に置換
+  html = html.replace(/\{\{\s*[\w.]+\s*\}\}/g, '');
 
   return html;
 }
@@ -230,12 +262,17 @@ export async function generatePdfFromHtml(
  */
 export async function generatePdfFromTemplate(
   templateType: TemplateType,
-  data: InvoiceTemplateData | PostcardTemplateData,
+  data: PdfTemplateData,
   options?: {
     landscape?: boolean;
   }
 ): Promise<{ success: boolean; buffer?: Buffer; error?: string }> {
   try {
+    // 許可証は既存のテンプレートPDFに pdf-lib で文字を重ねる
+    if (templateType === 'permit') {
+      return await generatePermitPdf(data as PermitTemplateData);
+    }
+
     const html = loadAndRenderTemplate(templateType, data as unknown as Record<string, unknown>);
 
     const pdfOptions = {
