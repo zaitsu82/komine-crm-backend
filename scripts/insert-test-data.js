@@ -91,7 +91,7 @@ async function insertTestData() {
     const physicalPlot1 = await prisma.physicalPlot.create({
       data: {
         plot_number: 'A-001',
-        area_name: '東区1期',
+        area_name: '第1期',
         area_sqm: 3.6,
         status: 'sold_out',
         notes: '墓石建立済み、定期メンテナンス対象',
@@ -102,7 +102,7 @@ async function insertTestData() {
     const physicalPlot2 = await prisma.physicalPlot.create({
       data: {
         plot_number: 'B-056',
-        area_name: '西区2期',
+        area_name: '第2期',
         area_sqm: 3.6,
         status: 'available',
         notes: null,
@@ -113,7 +113,7 @@ async function insertTestData() {
     const physicalPlot3 = await prisma.physicalPlot.create({
       data: {
         plot_number: 'C-102',
-        area_name: '南区3期',
+        area_name: '第3期',
         area_sqm: 5.0,
         status: 'sold_out',
         notes: '2025年春より利用開始予定',
@@ -124,7 +124,7 @@ async function insertTestData() {
     const physicalPlot4 = await prisma.physicalPlot.create({
       data: {
         plot_number: 'D-200',
-        area_name: '北区4期',
+        area_name: '第4期',
         area_sqm: 7.2,
         status: 'partially_sold',
         notes: '分割販売中の区画',
