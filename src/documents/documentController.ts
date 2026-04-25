@@ -93,6 +93,39 @@ function formatZodIssues(err: ZodError): Array<{ field: string; message: string 
 }
 
 /**
+ * 書類が参照する FK (contractPlotId / customerId) の存在を確認する。
+ * Zod の UUID 形式チェックだけでは実在しないIDで `prisma.document.create` が
+ * P2003 (FK 違反) で 500 化するため、createDocument / generatePdf の双方から
+ * この関数を呼んで明示的な 400 を返す。
+ *
+ * 戻り値: 検証 OK なら null、NG なら 400 用エラーペイロード。
+ */
+async function validateDocumentRefs(
+  contractPlotId: string | null | undefined,
+  customerId: string | null | undefined
+): Promise<{ code: 'VALIDATION_ERROR'; message: string } | null> {
+  if (contractPlotId) {
+    const exists = await prisma.contractPlot.findFirst({
+      where: { id: contractPlotId, deleted_at: null },
+      select: { id: true },
+    });
+    if (!exists) {
+      return { code: 'VALIDATION_ERROR', message: '指定された契約区画が見つかりません' };
+    }
+  }
+  if (customerId) {
+    const exists = await prisma.customer.findFirst({
+      where: { id: customerId, deleted_at: null },
+      select: { id: true },
+    });
+    if (!exists) {
+      return { code: 'VALIDATION_ERROR', message: '指定された顧客が見つかりません' };
+    }
+  }
+  return null;
+}
+
+/**
  * 書類一覧取得
  */
 export const getDocuments = async (req: Request, res: Response): Promise<void> => {
@@ -354,36 +387,10 @@ export const createDocument = async (req: Request, res: Response): Promise<void>
     }
 
     // 関連データの存在確認
-    if (contractPlotId) {
-      const contractPlot = await prisma.contractPlot.findFirst({
-        where: { id: contractPlotId, deleted_at: null },
-      });
-      if (!contractPlot) {
-        res.status(400).json({
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: '指定された契約区画が見つかりません',
-          },
-        });
-        return;
-      }
-    }
-
-    if (customerId) {
-      const customer = await prisma.customer.findFirst({
-        where: { id: customerId, deleted_at: null },
-      });
-      if (!customer) {
-        res.status(400).json({
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: '指定された顧客が見つかりません',
-          },
-        });
-        return;
-      }
+    const refError = await validateDocumentRefs(contractPlotId, customerId);
+    if (refError) {
+      res.status(400).json({ success: false, error: refError });
+      return;
     }
 
     const document = await prisma.document.create({
@@ -602,6 +609,14 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
     }
     const { templateType, templateData, documentId, name, contractPlotId, customerId } =
       parsed.data;
+
+    // 関連データの存在確認（Zod は UUID 形式しか見ないため、
+    // ここで実在チェックしないと document.create で FK 違反 (P2003) → 500 になる）
+    const refError = await validateDocumentRefs(contractPlotId, customerId);
+    if (refError) {
+      res.status(400).json({ success: false, error: refError });
+      return;
+    }
 
     // PDF生成
     const pdfResult = await generatePdfFromTemplate(templateType, templateData as PdfTemplateData);
