@@ -649,7 +649,7 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
         return;
       }
 
-      await prisma.document.update({
+      const updatedDocument = await prisma.document.update({
         where: { id: documentId },
         data: {
           status: 'generated',
@@ -657,6 +657,22 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
           template_data: templateData as unknown as Prisma.InputJsonValue,
         },
       });
+
+      // 履歴記録: PDF再発行による status / generated_at の更新を追跡
+      await recordDocumentUpdated(
+        prisma,
+        {
+          status: existingDocument.status,
+          generated_at: existingDocument.generated_at,
+        },
+        {
+          status: updatedDocument.status,
+          generated_at: updatedDocument.generated_at,
+        },
+        updatedDocument.id,
+        updatedDocument.contract_plot_id,
+        req
+      );
 
       res.status(200).json({
         success: true,
@@ -689,6 +705,9 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
         created_by: req.user?.name || req.user?.email || 'system',
       },
     });
+
+    // 履歴記録: 書類発行（generate-pdf 経由の新規作成）
+    await recordDocumentCreated(prisma, newDocument, req);
 
     res.status(201).json({
       success: true,
@@ -789,6 +808,21 @@ export const regeneratePdf = async (req: Request, res: Response): Promise<void> 
       });
       return;
     }
+
+    // PDF を再発行したので generated_at を更新し、履歴に残す
+    const regeneratedAt = new Date();
+    await prisma.document.update({
+      where: { id: document.id },
+      data: { generated_at: regeneratedAt },
+    });
+    await recordDocumentUpdated(
+      prisma,
+      { generated_at: document.generated_at },
+      { generated_at: regeneratedAt },
+      document.id,
+      document.contract_plot_id,
+      req
+    );
 
     const fileName = sanitizeDocumentFileName(document.name);
 
