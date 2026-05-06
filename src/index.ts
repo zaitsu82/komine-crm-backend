@@ -19,6 +19,8 @@ import staffRoutes from './staff/staffRoutes';
 import collectiveBurialRoutes from './collective-burials/collectiveBurialRoutes';
 import documentRoutes from './documents/documentRoutes';
 import yuchoRoutes from './yucho/yuchoRoutes';
+import billingRoutes from './billings/billingRoutes';
+import paymentRoutes from './payments/paymentRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requestLogger, securityHeaders } from './middleware/logger';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -107,6 +109,8 @@ app.use('/api/v1/staff', staffRoutes); // スタッフ管理ルート
 app.use('/api/v1/collective-burials', collectiveBurialRoutes); // 合祀管理ルート
 app.use('/api/v1/documents', documentRoutes); // 書類管理ルート
 app.use('/api/v1/yucho', yuchoRoutes); // ゆうちょ連携ルート
+app.use('/api/v1/billings', billingRoutes); // 請求管理ルート
+app.use('/api/v1/payments', paymentRoutes); // 入金管理ルート
 
 // 404エラーハンドラー（すべてのルートの後に配置）
 app.use(notFoundHandler);

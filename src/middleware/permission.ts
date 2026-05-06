@@ -57,11 +57,19 @@ export const API_PERMISSIONS: Record<string, Role[]> = {
   'DELETE /management-fees/*': ['manager', 'admin'],
   'POST /management-fees/calculate': ['operator', 'manager', 'admin'],
 
-  // 請求情報
-  'POST /billing-infos': ['operator', 'manager', 'admin'],
-  'PUT /billing-infos/*': ['operator', 'manager', 'admin'],
-  'DELETE /billing-infos/*': ['manager', 'admin'],
-  'POST /billing-infos/generate': ['manager', 'admin'],
+  // 請求 (Billing)
+  'GET /billings': ['viewer', 'operator', 'manager', 'admin'],
+  'GET /billings/*': ['viewer', 'operator', 'manager', 'admin'],
+  'POST /billings': ['operator', 'manager', 'admin'],
+  'PUT /billings/*': ['operator', 'manager', 'admin'],
+  'DELETE /billings/*': ['manager', 'admin'],
+
+  // 入金 (Payment)
+  'GET /payments': ['viewer', 'operator', 'manager', 'admin'],
+  'GET /payments/*': ['viewer', 'operator', 'manager', 'admin'],
+  'POST /payments': ['operator', 'manager', 'admin'],
+  'PUT /payments/*': ['operator', 'manager', 'admin'],
+  'DELETE /payments/*': ['manager', 'admin'],
 
   // 家族連絡先
   'POST /family-contacts': ['operator', 'manager', 'admin'],

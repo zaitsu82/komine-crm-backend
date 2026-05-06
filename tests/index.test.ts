@@ -248,9 +248,9 @@ describe('Server Index', () => {
 
     // セキュリティミドルウェア（helmet, cors, hpp, json, urlencoded, cookieParser, sanitizeInput, rateLimiter）
     // + requestIdMiddleware + ログミドルウェア（requestLogger, securityHeaders）
-    // + Swagger UI + 7 API routes (auth, plots, masters, staff, collective-burials, documents, yucho)
-    // + notFoundHandler + errorHandler = 21 use calls
-    expect(mockApp.use).toHaveBeenCalledTimes(21);
+    // + Swagger UI + 9 API routes (auth, plots, masters, staff, collective-burials, documents, yucho, billings, payments)
+    // + notFoundHandler + errorHandler = 23 use calls
+    expect(mockApp.use).toHaveBeenCalledTimes(23);
     // 1 health check endpoint
     expect(mockApp.get).toHaveBeenCalledTimes(1);
   });
