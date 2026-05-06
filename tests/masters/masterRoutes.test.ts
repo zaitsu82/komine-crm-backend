@@ -22,9 +22,6 @@ jest.mock('../../src/masters/masterController', () => ({
   getBillingTypeMaster: jest.fn((req, res) =>
     res.status(200).json({ success: true, controller: 'getBillingTypeMaster' })
   ),
-  getAccountTypeMaster: jest.fn((req, res) =>
-    res.status(200).json({ success: true, controller: 'getAccountTypeMaster' })
-  ),
   getRecipientTypeMaster: jest.fn((req, res) =>
     res.status(200).json({ success: true, controller: 'getRecipientTypeMaster' })
   ),
@@ -148,20 +145,6 @@ describe('Master Routes', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.controller).toBe('getBillingTypeMaster');
       expect(mockMasterController.getBillingTypeMaster).toHaveBeenCalledTimes(1);
-      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
-    });
-  });
-
-  describe('GET /api/v1/masters/account-type', () => {
-    it('should handle getAccountTypeMaster request', async () => {
-      const response = await request(app)
-        .get('/api/v1/masters/account-type')
-        .set('Authorization', 'Bearer token');
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.controller).toBe('getAccountTypeMaster');
-      expect(mockMasterController.getAccountTypeMaster).toHaveBeenCalledTimes(1);
       expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
     });
   });

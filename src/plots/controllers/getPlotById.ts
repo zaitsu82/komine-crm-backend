@@ -46,7 +46,6 @@ export const getPlotById = async (
             customer: {
               include: {
                 workInfo: true,
-                billingInfo: true,
               },
             },
           },
@@ -295,16 +294,6 @@ export const getPlotById = async (
               notes: primaryCustomer.workInfo.notes,
             }
           : null,
-        billingInfo: primaryCustomer.billingInfo
-          ? {
-              billingType: primaryCustomer.billingInfo.billing_type,
-              bankName: primaryCustomer.billingInfo.bank_name,
-              branchName: primaryCustomer.billingInfo.branch_name,
-              accountType: primaryCustomer.billingInfo.account_type,
-              accountNumber: primaryCustomer.billingInfo.account_number,
-              accountHolder: primaryCustomer.billingInfo.account_holder,
-            }
-          : null,
       };
     }
 
@@ -340,16 +329,6 @@ export const getPlotById = async (
                 dmSetting: role.customer.workInfo.dm_setting,
                 addressType: role.customer.workInfo.address_type,
                 notes: role.customer.workInfo.notes,
-              }
-            : null,
-          billingInfo: role.customer.billingInfo
-            ? {
-                billingType: role.customer.billingInfo.billing_type,
-                bankName: role.customer.billingInfo.bank_name,
-                branchName: role.customer.billingInfo.branch_name,
-                accountType: role.customer.billingInfo.account_type,
-                accountNumber: role.customer.billingInfo.account_number,
-                accountHolder: role.customer.billingInfo.account_holder,
               }
             : null,
         },

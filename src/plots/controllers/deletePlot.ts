@@ -35,7 +35,6 @@ export const deletePlot = async (
             customer: {
               include: {
                 workInfo: true,
-                billingInfo: true,
               },
             },
           },
@@ -112,7 +111,7 @@ export const deletePlot = async (
         });
       }
 
-      // 4-6. 各顧客のWorkInfo、BillingInfo、Customerを論理削除
+      // 4-6. 各顧客のWorkInfo、Customerを論理削除
       // 注: saleContractRolesを通じて顧客にアクセス
       if (contractPlot.saleContractRoles) {
         for (const role of contractPlot.saleContractRoles) {
@@ -132,25 +131,6 @@ export const deletePlot = async (
               beforeRecord: {
                 id: customer.workInfo.id,
                 company_name: customer.workInfo.company_name,
-              },
-              req,
-            });
-          }
-
-          // BillingInfoを論理削除（存在する場合）
-          if (customer.billingInfo) {
-            await tx.billingInfo.update({
-              where: { id: customer.billingInfo.id },
-              data: { deleted_at: now },
-            });
-            await recordEntityDeleted(tx, {
-              entityType: 'BillingInfo',
-              entityId: customer.billingInfo.id,
-              physicalPlotId,
-              contractPlotId: id,
-              beforeRecord: {
-                id: customer.billingInfo.id,
-                bank_name: customer.billingInfo.bank_name,
               },
               req,
             });

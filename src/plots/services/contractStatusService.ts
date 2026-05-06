@@ -1,7 +1,15 @@
 /**
  * 契約ステータス遷移サービス
  *
- * 契約のライフサイクル管理と状態遷移のバリデーションを行う
+ * 契約のライフサイクル管理と状態遷移のバリデーションを行う。
+ *
+ * 新スキーマ（3ステート）:
+ *   vacant     — 区画未契約（空き）
+ *   active     — 契約有効
+ *   terminated — 契約終了（解約・期限切れ・名義変更後など、理由を問わない）
+ *
+ * 注: 旧7ステート（draft/reserved/suspended/cancelled/transferred）は廃止。
+ *     旧 reserved/draft 相当は active に統合、cancelled/transferred は terminated に統合。
  */
 
 import { ContractStatus, PaymentStatus } from '@prisma/client';
@@ -12,31 +20,23 @@ import { ContractStatus, PaymentStatus } from '@prisma/client';
  * value: 遷移可能なステータスの配列
  */
 const ALLOWED_TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
-  [ContractStatus.draft]: [ContractStatus.reserved, ContractStatus.cancelled],
-  [ContractStatus.reserved]: [ContractStatus.active, ContractStatus.cancelled],
-  [ContractStatus.active]: [
-    ContractStatus.suspended,
-    ContractStatus.terminated,
-    ContractStatus.cancelled,
-    ContractStatus.transferred,
-  ],
-  [ContractStatus.suspended]: [ContractStatus.active, ContractStatus.cancelled],
+  [ContractStatus.vacant]: [ContractStatus.active],
+  [ContractStatus.active]: [ContractStatus.terminated],
   [ContractStatus.terminated]: [],
-  [ContractStatus.cancelled]: [],
-  [ContractStatus.transferred]: [],
 };
 
 /**
  * 各契約ステータスで許可される支払いステータス
  */
 const ALLOWED_PAYMENT_STATUS: Record<ContractStatus, PaymentStatus[]> = {
-  [ContractStatus.draft]: [PaymentStatus.unpaid],
-  [ContractStatus.reserved]: [PaymentStatus.unpaid, PaymentStatus.partial_paid],
-  [ContractStatus.active]: [PaymentStatus.unpaid, PaymentStatus.partial_paid, PaymentStatus.paid],
-  [ContractStatus.suspended]: [PaymentStatus.overdue],
+  [ContractStatus.vacant]: [PaymentStatus.unpaid],
+  [ContractStatus.active]: [
+    PaymentStatus.unpaid,
+    PaymentStatus.partial_paid,
+    PaymentStatus.paid,
+    PaymentStatus.overdue,
+  ],
   [ContractStatus.terminated]: [PaymentStatus.paid, PaymentStatus.refunded],
-  [ContractStatus.cancelled]: [PaymentStatus.refunded, PaymentStatus.cancelled],
-  [ContractStatus.transferred]: [PaymentStatus.paid],
 };
 
 /**
@@ -53,14 +53,7 @@ export type ContractOperation =
   | 'delete'; // 削除
 
 const ALLOWED_OPERATIONS: Record<ContractStatus, ContractOperation[]> = {
-  [ContractStatus.draft]: ['edit_basic_info', 'edit_customer', 'delete'],
-  [ContractStatus.reserved]: [
-    'edit_basic_info',
-    'edit_customer',
-    'register_payment',
-    'issue_invoice',
-    'request_cancellation',
-  ],
+  [ContractStatus.vacant]: ['edit_basic_info', 'delete'],
   [ContractStatus.active]: [
     'edit_basic_info',
     'edit_customer',
@@ -70,15 +63,7 @@ const ALLOWED_OPERATIONS: Record<ContractStatus, ContractOperation[]> = {
     'transfer_ownership',
     'request_cancellation',
   ],
-  [ContractStatus.suspended]: [
-    'edit_basic_info',
-    'register_payment',
-    'issue_invoice',
-    'request_cancellation',
-  ],
   [ContractStatus.terminated]: [],
-  [ContractStatus.cancelled]: [],
-  [ContractStatus.transferred]: [],
 };
 
 /**
@@ -203,12 +188,7 @@ export const contractStatusService = {
    * 契約がファイナル状態（変更不可）かどうか
    */
   isFinalStatus(status: ContractStatus): boolean {
-    const finalStatuses: ContractStatus[] = [
-      ContractStatus.terminated,
-      ContractStatus.cancelled,
-      ContractStatus.transferred,
-    ];
-    return finalStatuses.includes(status);
+    return status === ContractStatus.terminated;
   },
 
   /**
@@ -230,13 +210,9 @@ export const contractStatusService = {
    */
   getStatusLabel(status: ContractStatus): string {
     const labels: Record<ContractStatus, string> = {
-      [ContractStatus.draft]: '下書き',
-      [ContractStatus.reserved]: '予約済み',
+      [ContractStatus.vacant]: '空き',
       [ContractStatus.active]: '有効',
-      [ContractStatus.suspended]: '停止中',
       [ContractStatus.terminated]: '終了',
-      [ContractStatus.cancelled]: '解約',
-      [ContractStatus.transferred]: '継承済み',
     };
     return labels[status];
   },
@@ -246,13 +222,9 @@ export const contractStatusService = {
    */
   getStatusDescription(status: ContractStatus): string {
     const descriptions: Record<ContractStatus, string> = {
-      [ContractStatus.draft]: '契約情報入力中、未確定の状態',
-      [ContractStatus.reserved]: '区画予約完了、本契約締結待ち',
-      [ContractStatus.active]: '本契約締結済み、利用可能な状態',
-      [ContractStatus.suspended]: '支払い延滞等により一時停止中',
-      [ContractStatus.terminated]: '契約期間満了による正常終了',
-      [ContractStatus.cancelled]: '契約者都合による中途解約',
-      [ContractStatus.transferred]: '名義変更により別契約へ移行済み',
+      [ContractStatus.vacant]: '区画未契約（空き）',
+      [ContractStatus.active]: '契約締結済み、利用可能な状態',
+      [ContractStatus.terminated]: '契約終了（解約・期限切れ・名義変更後など）',
     };
     return descriptions[status];
   },

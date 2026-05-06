@@ -63,6 +63,7 @@ export async function createPlotCore(
         area_name: input.physicalPlot.areaName,
         area_sqm: new Prisma.Decimal(input.physicalPlot.areaSqm || 3.6),
         status: 'available',
+        map_id: input.physicalPlot.mapId ?? null,
         notes: input.physicalPlot.notes || null,
       },
     });
@@ -94,6 +95,8 @@ export async function createPlotCore(
       fax_number: input.customer.faxNumber || null,
       email: input.customer.email || null,
       notes: input.customer.notes || null,
+      staff_id: input.customer.staffId ?? null,
+      legacy_danka_cd: input.customer.legacyDankaCd ?? null,
     },
   });
 
@@ -115,23 +118,7 @@ export async function createPlotCore(
     });
   }
 
-  // 5. 請求情報の作成（オプション）
-  let billingInfo: { id: string } | null = null;
-  if (input.billingInfo) {
-    billingInfo = await tx.billingInfo.create({
-      data: {
-        customer_id: customer.id,
-        billing_type: input.billingInfo.billingType,
-        bank_name: input.billingInfo.bankName,
-        branch_name: input.billingInfo.branchName,
-        account_type: input.billingInfo.accountType,
-        account_number: input.billingInfo.accountNumber,
-        account_holder: input.billingInfo.accountHolder,
-      },
-    });
-  }
-
-  // 6. 契約区画の作成（販売契約情報を統合）
+  // 5. 契約区画の作成（販売契約情報を統合）
   const contractPlot = await tx.contractPlot.create({
     data: {
       physical_plot_id: physicalPlot.id,
@@ -139,11 +126,16 @@ export async function createPlotCore(
       location_description: input.contractPlot.locationDescription || null,
       burial_capacity: input.collectiveBurial?.burialCapacity ?? null,
       validity_period_years: input.collectiveBurial?.validityPeriodYears ?? null,
-      contract_date: new Date(input.saleContract.contractDate),
-      price: input.saleContract.price,
+      contract_date: input.saleContract.contractDate
+        ? new Date(input.saleContract.contractDate)
+        : null,
+      price: input.saleContract.price ?? null,
       payment_status: input.saleContract.paymentStatus || PaymentStatus.unpaid,
       reservation_date: input.saleContract.reservationDate
         ? new Date(input.saleContract.reservationDate)
+        : null,
+      request_date: input.saleContract.requestDate
+        ? new Date(input.saleContract.requestDate)
         : null,
       acceptance_number: input.saleContract.acceptanceNumber || null,
       acceptance_date: input.saleContract.acceptanceDate
@@ -156,6 +148,10 @@ export async function createPlotCore(
       start_date: input.saleContract.startDate ? new Date(input.saleContract.startDate) : null,
       uncollected_amount: input.saleContract.uncollectedAmount ?? 0,
       notes: input.saleContract.notes || null,
+      grave_kind: input.saleContract.graveKind ?? null,
+      grave_kubun: input.saleContract.graveKubun ?? null,
+      grave_type: input.saleContract.graveType ?? null,
+      legacy_grave_cd: input.saleContract.legacyGraveCd ?? null,
     },
   });
 
@@ -274,16 +270,6 @@ export async function createPlotCore(
       req,
     });
   }
-  if (billingInfo) {
-    await recordEntityCreated(tx, {
-      entityType: 'BillingInfo',
-      entityId: billingInfo.id,
-      physicalPlotId: physicalPlot.id,
-      contractPlotId: contractPlot.id,
-      afterRecord: { id: billingInfo.id, customer_id: customer.id, ...input.billingInfo! },
-      req,
-    });
-  }
   if (usageFee) {
     await recordEntityCreated(tx, {
       entityType: 'UsageFee',
@@ -369,7 +355,6 @@ export const createPlot = async (
             customer: {
               include: {
                 workInfo: true,
-                billingInfo: true,
               },
             },
           },
@@ -408,6 +393,7 @@ export const createPlot = async (
           areaName: createdContractPlot?.physicalPlot.area_name,
           areaSqm: createdContractPlot?.physicalPlot.area_sqm.toNumber(),
           status: createdContractPlot?.physicalPlot.status,
+          mapId: createdContractPlot?.physicalPlot.map_id,
         },
 
         primaryCustomer: firstCustomer

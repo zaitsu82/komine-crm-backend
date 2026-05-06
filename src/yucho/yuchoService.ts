@@ -41,6 +41,9 @@ const parseManagementFeeAmount = (value: string | null | undefined): number => {
 /**
  * 契約者(役割: contractor)を最優先、無ければ申込者(applicant)を返す。
  */
+// NOTE: BillingInfoは新スキーマで廃止された。
+// 振込先情報は今後 Billing/Payment エンティティから取得する想定（Phase 3で実装）。
+// 現状は payer.billingInfo は常に null として扱う。
 const pickPayer = (
   roles: Array<{
     role: string;
@@ -48,13 +51,6 @@ const pickPayer = (
       id: string;
       name: string;
       name_kana: string;
-      billingInfo: {
-        bank_name: string | null;
-        branch_name: string | null;
-        account_type: string | null;
-        account_number: string | null;
-        account_holder: string | null;
-      } | null;
     } | null;
   }>
 ) => {
@@ -83,7 +79,7 @@ const fetchManagementBillingItems = async (params: FetchParams): Promise<YuchoBi
 
   const contractPlotWhere = {
     deleted_at: null,
-    contract_status: { in: ['active' as const, 'reserved' as const] },
+    contract_status: 'active' as const,
     ...(paymentStatusFilter ? { payment_status: paymentStatusFilter } : {}),
   };
 
@@ -99,9 +95,7 @@ const fetchManagementBillingItems = async (params: FetchParams): Promise<YuchoBi
           saleContractRoles: {
             where: { deleted_at: null },
             include: {
-              customer: {
-                include: { billingInfo: true },
-              },
+              customer: true,
             },
           },
         },
@@ -134,7 +128,7 @@ const fetchManagementBillingItems = async (params: FetchParams): Promise<YuchoBi
       contractPlotId: fee.contract_plot_id,
       plotNumber: fee.contractPlot.physicalPlot.plot_number,
       areaName: fee.contractPlot.physicalPlot.area_name,
-      contractDate: fee.contractPlot.contract_date.toISOString().split('T')[0] ?? '',
+      contractDate: fee.contractPlot.contract_date?.toISOString().split('T')[0] ?? '',
       customerId: payer?.id ?? null,
       customerName: payer?.name ?? null,
       customerNameKana: payer?.name_kana ?? null,
@@ -142,15 +136,7 @@ const fetchManagementBillingItems = async (params: FetchParams): Promise<YuchoBi
       billingStatus: fee.contractPlot.payment_status,
       scheduledDate,
       billingMonth,
-      billingInfo: payer?.billingInfo
-        ? {
-            bankName: payer.billingInfo.bank_name,
-            branchName: payer.billingInfo.branch_name,
-            accountType: payer.billingInfo.account_type,
-            accountNumber: payer.billingInfo.account_number,
-            accountHolder: payer.billingInfo.account_holder,
-          }
-        : null,
+      billingInfo: null,
     });
   }
 
@@ -191,9 +177,7 @@ const fetchCollectiveBillingItems = async (params: FetchParams): Promise<YuchoBi
           saleContractRoles: {
             where: { deleted_at: null },
             include: {
-              customer: {
-                include: { billingInfo: true },
-              },
+              customer: true,
             },
           },
         },
@@ -216,7 +200,7 @@ const fetchCollectiveBillingItems = async (params: FetchParams): Promise<YuchoBi
         contractPlotId: b.contract_plot_id,
         plotNumber: b.contractPlot.physicalPlot.plot_number,
         areaName: b.contractPlot.physicalPlot.area_name,
-        contractDate: b.contractPlot.contract_date.toISOString().split('T')[0] ?? '',
+        contractDate: b.contractPlot.contract_date?.toISOString().split('T')[0] ?? '',
         customerId: payer?.id ?? null,
         customerName: payer?.name ?? null,
         customerNameKana: payer?.name_kana ?? null,
@@ -224,15 +208,7 @@ const fetchCollectiveBillingItems = async (params: FetchParams): Promise<YuchoBi
         billingStatus: b.billing_status,
         scheduledDate,
         billingMonth,
-        billingInfo: payer?.billingInfo
-          ? {
-              bankName: payer.billingInfo.bank_name,
-              branchName: payer.billingInfo.branch_name,
-              accountType: payer.billingInfo.account_type,
-              accountNumber: payer.billingInfo.account_number,
-              accountHolder: payer.billingInfo.account_holder,
-            }
-          : null,
+        billingInfo: null,
       };
     });
 };

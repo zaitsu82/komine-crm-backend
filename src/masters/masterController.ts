@@ -210,42 +210,6 @@ export const getBillingTypeMaster = async (_req: Request, res: Response) => {
 };
 
 /**
- * 口座タイプマスタ取得
- * GET /api/v1/masters/account-type
- */
-export const getAccountTypeMaster = async (_req: Request, res: Response) => {
-  try {
-    const data = await prisma.accountTypeMaster.findMany({
-      where: { is_active: true },
-      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-    });
-
-    const formatted: MasterData[] = data.map((item) => ({
-      id: item.id,
-      code: item.code,
-      name: item.name,
-      description: item.description,
-      sortOrder: item.sort_order,
-      isActive: item.is_active,
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: formatted,
-    });
-  } catch (error) {
-    getRequestLogger().error({ err: error }, 'Error fetching account type master');
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: '口座タイプマスタの取得に失敗しました',
-      },
-    });
-  }
-};
-
-/**
  * 受取人タイプマスタ取得
  * GET /api/v1/masters/recipient-type
  */
@@ -364,7 +328,6 @@ const getMasterDelegate = (masterType: MasterType) => {
     'tax-type': prisma.taxTypeMaster,
     'calc-type': prisma.calcTypeMaster,
     'billing-type': prisma.billingTypeMaster,
-    'account-type': prisma.accountTypeMaster,
     'recipient-type': prisma.recipientTypeMaster,
     'construction-type': prisma.constructionTypeMaster,
     'section-name': prisma.sectionNameMaster,
@@ -378,7 +341,6 @@ const masterTypeLabels: Record<MasterType, string> = {
   'tax-type': '税タイプ',
   'calc-type': '計算タイプ',
   'billing-type': '請求タイプ',
-  'account-type': '口座タイプ',
   'recipient-type': '受取人タイプ',
   'construction-type': '工事タイプ',
   'section-name': '区画名',
@@ -698,7 +660,6 @@ export const getAllMasters = async (_req: Request, res: Response) => {
       taxType,
       calcType,
       billingType,
-      accountType,
       recipientType,
       constructionType,
       sectionName,
@@ -720,10 +681,6 @@ export const getAllMasters = async (_req: Request, res: Response) => {
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.billingTypeMaster.findMany({
-        where: { is_active: true },
-        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-      }),
-      prisma.accountTypeMaster.findMany({
         where: { is_active: true },
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
@@ -778,14 +735,6 @@ export const getAllMasters = async (_req: Request, res: Response) => {
           isActive: item.is_active,
         })),
         billingType: billingType.map((item) => ({
-          id: item.id,
-          code: item.code,
-          name: item.name,
-          description: item.description,
-          sortOrder: item.sort_order,
-          isActive: item.is_active,
-        })),
-        accountType: accountType.map((item) => ({
           id: item.id,
           code: item.code,
           name: item.name,

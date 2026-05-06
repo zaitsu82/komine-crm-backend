@@ -286,15 +286,15 @@ describe('Plot Validation (ContractPlot Model)', () => {
       expect(() => createPlotSchema.parse(invalidData)).toThrow();
     });
 
-    it('契約日が必須であること', () => {
-      const invalidData = {
+    it('契約日は省略可能であること（レガシーDBで45%空のため nullable 化）', () => {
+      const dataWithoutContractDate = {
         ...validCreatePlotData,
         saleContract: {
           ...validCreatePlotData.saleContract,
-          contractDate: '' as any,
+          contractDate: undefined,
         },
       };
-      expect(() => createPlotSchema.parse(invalidData)).toThrow();
+      expect(() => createPlotSchema.parse(dataWithoutContractDate)).not.toThrow();
     });
 
     it('価格が0以上の数値であること', () => {

@@ -30,12 +30,6 @@ describe('customerService', () => {
         findUnique: jest.fn(),
         deleteMany: jest.fn(),
       },
-      billingInfo: {
-        create: jest.fn(),
-        update: jest.fn(),
-        findUnique: jest.fn(),
-        deleteMany: jest.fn(),
-      },
       saleContract: {
         findMany: jest.fn(),
       },
@@ -83,11 +77,12 @@ describe('customerService', () => {
           fax_number: undefined,
           email: undefined,
           notes: undefined,
+          staff_id: null,
+          legacy_danka_cd: null,
         },
       });
       expect(result).toEqual(mockCustomer);
       expect(mockPrisma.workInfo.create).not.toHaveBeenCalled();
-      expect(mockPrisma.billingInfo.create).not.toHaveBeenCalled();
     });
 
     it('顧客と勤務先情報を作成できること', async () => {
@@ -124,51 +119,6 @@ describe('customerService', () => {
           dm_setting: undefined,
           address_type: undefined,
           notes: undefined,
-        },
-      });
-    });
-
-    it('顧客、勤務先情報、請求情報をすべて作成できること', async () => {
-      const customerData = {
-        name: '山田太郎',
-        nameKana: 'ヤマダタロウ',
-        postalCode: '150-0001',
-        address: '東京都渋谷区',
-        phoneNumber: '0312345678',
-      };
-
-      const workInfoData = {
-        companyName: '株式会社テスト',
-        companyNameKana: 'カブシキガイシャテスト',
-      };
-
-      const billingInfoData = {
-        billingType: 'bank_transfer',
-        accountType: 'savings',
-        bankName: 'テスト銀行',
-        branchName: '渋谷支店',
-        accountNumber: '1234567',
-        accountHolder: '山田太郎',
-      };
-
-      const mockCustomer = { id: 'customer-1' };
-      mockPrisma.customer.create.mockResolvedValue(mockCustomer);
-      mockPrisma.workInfo.create.mockResolvedValue({});
-      mockPrisma.billingInfo.create.mockResolvedValue({});
-
-      await createCustomerWithRelations(mockPrisma, customerData, workInfoData, billingInfoData);
-
-      expect(mockPrisma.customer.create).toHaveBeenCalled();
-      expect(mockPrisma.workInfo.create).toHaveBeenCalled();
-      expect(mockPrisma.billingInfo.create).toHaveBeenCalledWith({
-        data: {
-          customer_id: 'customer-1',
-          billing_type: 'bank_transfer',
-          account_type: 'savings',
-          bank_name: 'テスト銀行',
-          branch_name: '渋谷支店',
-          account_number: '1234567',
-          account_holder: '山田太郎',
         },
       });
     });
@@ -245,62 +195,12 @@ describe('customerService', () => {
         },
       });
     });
-
-    it('請求情報が存在する場合、更新すること', async () => {
-      const billingInfoData = {
-        bankName: '新テスト銀行',
-      };
-
-      mockPrisma.billingInfo.findUnique.mockResolvedValue({ id: 'billing-1' });
-      mockPrisma.billingInfo.update.mockResolvedValue({});
-
-      await updateCustomerWithRelations(
-        mockPrisma,
-        'customer-1',
-        undefined,
-        undefined,
-        billingInfoData
-      );
-
-      expect(mockPrisma.billingInfo.update).toHaveBeenCalled();
-      expect(mockPrisma.billingInfo.create).not.toHaveBeenCalled();
-    });
-
-    it('請求情報が存在しない場合、新規作成すること', async () => {
-      const billingInfoData = {
-        bankName: '新テスト銀行',
-      };
-
-      mockPrisma.billingInfo.findUnique.mockResolvedValue(null);
-      mockPrisma.billingInfo.create.mockResolvedValue({});
-
-      await updateCustomerWithRelations(
-        mockPrisma,
-        'customer-1',
-        undefined,
-        undefined,
-        billingInfoData
-      );
-
-      expect(mockPrisma.billingInfo.create).toHaveBeenCalledWith({
-        data: {
-          customer_id: 'customer-1',
-          billing_type: undefined,
-          account_type: undefined,
-          bank_name: '新テスト銀行',
-          branch_name: undefined,
-          account_number: undefined,
-          account_holder: undefined,
-        },
-      });
-    });
   });
 
   describe('deleteCustomerIfUnused', () => {
     it('他に契約がない場合、顧客を削除すること', async () => {
       mockPrisma.saleContractRole.findMany.mockResolvedValue([]);
       mockPrisma.workInfo.deleteMany.mockResolvedValue({});
-      mockPrisma.billingInfo.deleteMany.mockResolvedValue({});
       mockPrisma.customer.update.mockResolvedValue({});
 
       await deleteCustomerIfUnused(mockPrisma, 'customer-1');
@@ -312,9 +212,6 @@ describe('customerService', () => {
         },
       });
       expect(mockPrisma.workInfo.deleteMany).toHaveBeenCalledWith({
-        where: { customer_id: 'customer-1' },
-      });
-      expect(mockPrisma.billingInfo.deleteMany).toHaveBeenCalledWith({
         where: { customer_id: 'customer-1' },
       });
       expect(mockPrisma.customer.update).toHaveBeenCalledWith({
@@ -329,14 +226,12 @@ describe('customerService', () => {
       await deleteCustomerIfUnused(mockPrisma, 'customer-1');
 
       expect(mockPrisma.workInfo.deleteMany).not.toHaveBeenCalled();
-      expect(mockPrisma.billingInfo.deleteMany).not.toHaveBeenCalled();
       expect(mockPrisma.customer.update).not.toHaveBeenCalled();
     });
 
     it('除外する契約IDを指定した場合、その契約を除いて検索すること', async () => {
       mockPrisma.saleContractRole.findMany.mockResolvedValue([]);
       mockPrisma.workInfo.deleteMany.mockResolvedValue({});
-      mockPrisma.billingInfo.deleteMany.mockResolvedValue({});
       mockPrisma.customer.update.mockResolvedValue({});
 
       await deleteCustomerIfUnused(mockPrisma, 'customer-1', 'exclude-contract-1');
@@ -358,7 +253,6 @@ describe('customerService', () => {
         name: '山田太郎',
         deleted_at: null,
         workInfo: null,
-        billingInfo: null,
       };
 
       mockPrisma.customer.findUnique.mockResolvedValue(mockCustomer);
@@ -369,7 +263,6 @@ describe('customerService', () => {
         where: { id: 'customer-1', deleted_at: null },
         include: {
           workInfo: true,
-          billingInfo: true,
         },
       });
       expect(result).toEqual(mockCustomer);
