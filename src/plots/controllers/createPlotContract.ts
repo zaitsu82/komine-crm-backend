@@ -88,21 +88,6 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
         });
       }
 
-      // BillingInfo作成（オプション）
-      if (input.billingInfo) {
-        await tx.billingInfo.create({
-          data: {
-            customer_id: customer.id,
-            billing_type: input.billingInfo.billingType || 'individual',
-            bank_name: input.billingInfo.bankName || '',
-            branch_name: input.billingInfo.branchName || '',
-            account_type: input.billingInfo.accountType || 'ordinary',
-            account_number: input.billingInfo.accountNumber || '',
-            account_holder: input.billingInfo.accountHolder || '',
-          },
-        });
-      }
-
       // ContractPlot作成（販売契約情報を統合）
       const contractPlot = await tx.contractPlot.create({
         data: {
@@ -110,11 +95,16 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
           contract_area_sqm: new Prisma.Decimal(input.contractPlot.contractAreaSqm),
           location_description: input.contractPlot.locationDescription || null,
           // 販売契約情報（ContractPlotに統合済み）
-          contract_date: new Date(input.saleContract.contractDate),
-          price: input.saleContract.price,
+          contract_date: input.saleContract.contractDate
+            ? new Date(input.saleContract.contractDate)
+            : null,
+          price: input.saleContract.price ?? null,
           payment_status: input.saleContract.paymentStatus || PaymentStatus.unpaid,
           reservation_date: input.saleContract.reservationDate
             ? new Date(input.saleContract.reservationDate)
+            : null,
+          request_date: input.saleContract.requestDate
+            ? new Date(input.saleContract.requestDate)
             : null,
           acceptance_number: input.saleContract.acceptanceNumber || null,
           permit_number: input.saleContract.permitNumber || null,
@@ -124,6 +114,10 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
           start_date: input.saleContract.startDate ? new Date(input.saleContract.startDate) : null,
           uncollected_amount: input.saleContract.uncollectedAmount ?? 0,
           notes: input.saleContract.notes || null,
+          grave_kind: input.saleContract.graveKind ?? null,
+          grave_kubun: input.saleContract.graveKubun ?? null,
+          grave_type: input.saleContract.graveType ?? null,
+          legacy_grave_cd: input.saleContract.legacyGraveCd ?? null,
         },
       });
 
@@ -210,7 +204,6 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
             customer: {
               include: {
                 workInfo: true,
-                billingInfo: true,
               },
             },
           },
@@ -248,6 +241,7 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
           areaName: createdContractPlot?.physicalPlot.area_name,
           areaSqm: createdContractPlot?.physicalPlot.area_sqm.toNumber(),
           status: createdContractPlot?.physicalPlot.status,
+          mapId: createdContractPlot?.physicalPlot.map_id,
         },
 
         // 後方互換性: 最初の顧客の情報

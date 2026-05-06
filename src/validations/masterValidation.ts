@@ -37,7 +37,6 @@ export const VALID_MASTER_TYPES = [
   'tax-type',
   'calc-type',
   'billing-type',
-  'account-type',
   'recipient-type',
   'construction-type',
   'section-name',

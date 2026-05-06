@@ -124,8 +124,8 @@ export async function recordContractPlotCreated(
     id: string;
     physical_plot_id: string;
     contract_area_sqm: Prisma.Decimal;
-    contract_date: Date;
-    price: number;
+    contract_date: Date | null;
+    price: number | null;
     [key: string]: unknown;
   },
   req: Request
@@ -140,7 +140,7 @@ export async function recordContractPlotCreated(
       id: contractPlot.id,
       physical_plot_id: contractPlot.physical_plot_id,
       contract_area_sqm: contractPlot.contract_area_sqm.toString(),
-      contract_date: contractPlot.contract_date.toISOString(),
+      contract_date: contractPlot.contract_date ? contractPlot.contract_date.toISOString() : null,
       price: contractPlot.price,
     },
     req,

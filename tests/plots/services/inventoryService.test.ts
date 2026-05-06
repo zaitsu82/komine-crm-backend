@@ -269,21 +269,21 @@ describe('inventoryService', () => {
       const plots = [
         ...Array.from({ length: 50 }, (_, i) => ({
           id: `sold-${i}`,
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
         })),
         {
           id: 'partial',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'partially_sold',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
         },
         ...Array.from({ length: 49 }, (_, i) => ({
           id: `available-${i}`,
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
@@ -291,7 +291,7 @@ describe('inventoryService', () => {
       ];
       mockPrisma.physicalPlot.findMany.mockResolvedValue(plots);
 
-      const result = await getPeriodSummaries(mockPrisma, '1期');
+      const result = await getPeriodSummaries(mockPrisma, '第1期');
 
       expect(result[0].totalCount).toBe(100);
       expect(result[0].usedCount).toBe(51);
@@ -469,7 +469,7 @@ describe('inventoryService', () => {
         ...Array.from({ length: 50 }, (_, i) => ({
           id: `sold-${i}`,
           plot_number: `A-${i}`,
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
@@ -477,7 +477,7 @@ describe('inventoryService', () => {
         {
           id: 'partial',
           plot_number: 'A-50',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'partially_sold',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
@@ -485,7 +485,7 @@ describe('inventoryService', () => {
         ...Array.from({ length: 49 }, (_, i) => ({
           id: `available-${i}`,
           plot_number: `A-${100 + i}`,
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],
@@ -628,7 +628,7 @@ describe('inventoryService', () => {
         ...Array.from({ length: 50 }, (_, i) => ({
           id: `sold-${i}`,
           plot_number: `A-${i}`,
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'sold_out',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 3.6 } }],
@@ -636,7 +636,7 @@ describe('inventoryService', () => {
         {
           id: 'partial',
           plot_number: 'A-50',
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'partially_sold',
           contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
@@ -644,7 +644,7 @@ describe('inventoryService', () => {
         ...Array.from({ length: 49 }, (_, i) => ({
           id: `available-${i}`,
           plot_number: `A-${100 + i}`,
-          area_name: '1期',
+          area_name: '第1期',
           area_sqm: { toNumber: () => 3.6 },
           status: 'available',
           contractPlots: [],

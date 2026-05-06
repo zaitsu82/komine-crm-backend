@@ -45,7 +45,6 @@ export async function updatePlotCore(
           customer: {
             include: {
               workInfo: true,
-              billingInfo: true,
             },
           },
         },
@@ -144,10 +143,12 @@ export async function updatePlotCore(
 
   if (input.saleContract) {
     if (input.saleContract.contractDate !== undefined) {
-      updateData.contract_date = new Date(input.saleContract.contractDate);
+      updateData.contract_date = input.saleContract.contractDate
+        ? new Date(input.saleContract.contractDate)
+        : null;
     }
     if (input.saleContract.price !== undefined) {
-      updateData.price = new Prisma.Decimal(input.saleContract.price);
+      updateData.price = input.saleContract.price ?? null;
     }
     if (input.saleContract.paymentStatus !== undefined) {
       updateData.payment_status = input.saleContract.paymentStatus;
@@ -412,96 +413,8 @@ export async function updatePlotCore(
         }
       }
 
-      // 6. BillingInfoの更新/作成/削除
-      if (input.billingInfo !== undefined) {
-        const existingBillingInfo = primaryRole?.customer.billingInfo;
-
-        if (input.billingInfo === null) {
-          if (existingBillingInfo) {
-            await tx.billingInfo.delete({
-              where: { id: existingBillingInfo.id },
-            });
-            await recordEntityDeleted(tx, {
-              entityType: 'BillingInfo',
-              entityId: existingBillingInfo.id,
-              physicalPlotId,
-              contractPlotId: id,
-              beforeRecord: {
-                id: existingBillingInfo.id,
-                billing_type: existingBillingInfo.billing_type,
-                bank_name: existingBillingInfo.bank_name,
-                branch_name: existingBillingInfo.branch_name,
-              },
-              req,
-            });
-          }
-        } else {
-          const billingInfoData: any = {};
-          if (input.billingInfo.billingType !== undefined)
-            billingInfoData.billing_type = input.billingInfo.billingType;
-          if (input.billingInfo.bankName !== undefined)
-            billingInfoData.bank_name = input.billingInfo.bankName;
-          if (input.billingInfo.branchName !== undefined)
-            billingInfoData.branch_name = input.billingInfo.branchName;
-          if (input.billingInfo.accountType !== undefined)
-            billingInfoData.account_type = input.billingInfo.accountType;
-          if (input.billingInfo.accountNumber !== undefined)
-            billingInfoData.account_number = input.billingInfo.accountNumber;
-          if (input.billingInfo.accountHolder !== undefined)
-            billingInfoData.account_holder = input.billingInfo.accountHolder;
-
-          if (Object.keys(billingInfoData).length > 0) {
-            if (existingBillingInfo) {
-              const updated = await tx.billingInfo.update({
-                where: { id: existingBillingInfo.id },
-                data: billingInfoData,
-              });
-              await recordEntityUpdated(tx, {
-                entityType: 'BillingInfo',
-                entityId: existingBillingInfo.id,
-                physicalPlotId,
-                contractPlotId: id,
-                beforeRecord: {
-                  billing_type: existingBillingInfo.billing_type,
-                  bank_name: existingBillingInfo.bank_name,
-                  branch_name: existingBillingInfo.branch_name,
-                  account_type: existingBillingInfo.account_type,
-                  account_number: existingBillingInfo.account_number,
-                  account_holder: existingBillingInfo.account_holder,
-                },
-                afterRecord: {
-                  billing_type: updated.billing_type,
-                  bank_name: updated.bank_name,
-                  branch_name: updated.branch_name,
-                  account_type: updated.account_type,
-                  account_number: updated.account_number,
-                  account_holder: updated.account_holder,
-                },
-                req,
-              });
-            } else {
-              const created = await tx.billingInfo.create({
-                data: {
-                  customer_id: customerId,
-                  ...billingInfoData,
-                },
-              });
-              await recordEntityCreated(tx, {
-                entityType: 'BillingInfo',
-                entityId: created.id,
-                physicalPlotId,
-                contractPlotId: id,
-                afterRecord: {
-                  id: created.id,
-                  customer_id: customerId,
-                  ...billingInfoData,
-                },
-                req,
-              });
-            }
-          }
-        }
-      }
+      // 6. BillingInfo は新スキーマで廃止された。
+      // 振込先情報は今後 Billing/Payment エンティティから扱う予定（Phase 3で実装）。
     }
   }
 
@@ -1216,7 +1129,6 @@ export const updatePlot = async (
             customer: {
               include: {
                 workInfo: true,
-                billingInfo: true,
               },
             },
           },

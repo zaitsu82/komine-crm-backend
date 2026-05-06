@@ -670,7 +670,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
       expect(mockNext).toHaveBeenCalledWith(expect.any(ValidationError));
     });
 
-    it('should create work info and billing info when provided', async () => {
+    it('should create work info when provided (BillingInfo は新スキーマで廃止)', async () => {
       const mockInput = {
         physicalPlot: {
           plotNumber: 'A-01',
@@ -700,14 +700,6 @@ describe('Plot Controller (ContractPlot Model)', () => {
           dmSetting: 'allow',
           addressType: 'work',
         },
-        billingInfo: {
-          billingType: 'company',
-          bankName: 'テスト銀行',
-          branchName: 'テスト支店',
-          accountType: 'ordinary',
-          accountNumber: '1234567',
-          accountHolder: 'ヤマダタロウ',
-        },
       };
 
       mockPrisma.physicalPlot.create.mockResolvedValue({
@@ -721,7 +713,6 @@ describe('Plot Controller (ContractPlot Model)', () => {
       mockPrisma.contractPlot.create.mockResolvedValue({ id: 'cp1' });
       mockPrisma.saleContract.create.mockResolvedValue({ id: 'sc1' });
       mockPrisma.workInfo.create.mockResolvedValue({ id: 'wi1' });
-      mockPrisma.billingInfo.create.mockResolvedValue({ id: 'bi1' });
       mockPrisma.contractPlot.findUnique.mockResolvedValue({
         id: 'cp1',
         contract_area_sqm: new Prisma.Decimal(3.6),
@@ -750,7 +741,6 @@ describe('Plot Controller (ContractPlot Model)', () => {
       await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockPrisma.workInfo.create).toHaveBeenCalled();
-      expect(mockPrisma.billingInfo.create).toHaveBeenCalled();
       expect(responseStatus).toHaveBeenCalledWith(201);
     });
 

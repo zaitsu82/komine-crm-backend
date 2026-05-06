@@ -15,7 +15,7 @@ interface PlotSearchQuery {
   search?: string;
   status?: 'available' | 'partially_sold' | 'sold_out';
   cemeteryType?: string;
-  paymentStatus?: 'unpaid' | 'partial_paid' | 'paid' | 'overdue' | 'refunded' | 'cancelled';
+  paymentStatus?: 'unpaid' | 'partial_paid' | 'paid' | 'overdue' | 'refunded';
   sortBy?:
     | 'plotNumber'
     | 'customerName'

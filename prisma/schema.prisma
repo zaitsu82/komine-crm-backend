@@ -24,18 +24,13 @@ enum PaymentStatus {
   paid // 全額入金済み
   overdue // 延滞
   refunded // 返金済み
-  cancelled // キャンセル（非推奨: ContractStatus.cancelledを使用）
 }
 
-// 契約ステータス
+// 契約ステータス（レガシー m_bochi.status NULL/1/0 に対応）
 enum ContractStatus {
-  draft // 下書き・仮予約
-  reserved // 予約済み（仮契約）
-  active // 有効（本契約）
-  suspended // 一時停止（滞納等）
-  terminated // 終了（正常終了）
-  cancelled // 解約（中途解約）
-  transferred // 継承済み（名義変更完了）
+  vacant // 未契約（旧 NULL）
+  active // 契約中（旧 status=1）
+  terminated // 解約済（旧 status=0）
 }
 
 // 性別
@@ -65,25 +60,32 @@ enum DmSetting {
   limited // 制限付き
 }
 
-// 請求先タイプ
-enum BillingType {
-  individual // 個人
-  corporate // 法人
-  bank_transfer // 銀行振込
-}
-
-// 口座種別
-enum AccountType {
-  ordinary // 普通預金
-  current // 当座預金
-  savings // 貯蓄預金
-}
-
-// 請求ステータス
+// 請求ステータス（CollectiveBurialの請求管理用）
 enum BillingStatus {
   pending // 請求前
   billed // 請求済
   paid // 支払済
+}
+
+// 請求の料金区分（Billing.category）
+enum BillingCategory {
+  usage_fee // 使用料
+  management_fee // 管理料
+  collective_fee // 合祀料金
+  construction_fee // 工事料金
+  gravestone_fee // 墓石代
+  other // その他
+}
+
+// 請求レコードのステータス（Billing.status）
+enum BillingRecordStatus {
+  pending // 請求前
+  billed // 請求済
+  partial_paid // 一部入金
+  paid // 全額入金済
+  overdue // 延滞
+  terminated // 解約済（使用料/管理料が止まった）
+  written_off // 貸倒処理
 }
 
 // 履歴アクションタイプ
@@ -129,6 +131,7 @@ model PhysicalPlot {
   area_name   String             @db.VarChar(100) // 区画（期）（例: 1期、2期）
   area_sqm    Decimal            @default(3.6) @db.Decimal(5, 2) // 区画の総面積（基本3.6㎡）
   status      PhysicalPlotStatus @default(available) // 区画ステータス
+  map_id      Int? // マップ位置ID（レガシー map_id）
   notes       String?            @db.Text // 備考
   created_at  DateTime           @default(now())
   updated_at  DateTime           @updatedAt
@@ -159,11 +162,12 @@ model ContractPlot {
   validity_period_years Int? // 有効期間（年単位）
 
   // 販売契約情報
-  contract_date      DateTime       @db.Date // 契約日
-  price              Int // 販売価格（円単位）
-  contract_status    ContractStatus @default(draft) // 契約ステータス
+  contract_date      DateTime?      @db.Date // 契約日（レガシー contract_start: 45%空のため nullable）
+  price              Int? // 販売価格（円単位）（レガシー shiyouryou: 53%空のため nullable）
+  contract_status    ContractStatus @default(vacant) // 契約ステータス
   payment_status     PaymentStatus  @default(unpaid) // 支払いステータス
   reservation_date   DateTime?      @db.Date // 予約日
+  request_date       DateTime?      @db.Date // 申込日（レガシー request_date）
   acceptance_number  String?        @db.VarChar(50) // 受付番号（承諾書番号）
   acceptance_date    DateTime?      @db.Date // 受付日
   staff_in_charge    String?        @db.VarChar(100) // 担当者
@@ -173,6 +177,14 @@ model ContractPlot {
   uncollected_amount Int            @default(0) // 未集金額（円単位）
   agent_name         String?        @db.VarChar(100) // 取扱（販売代理店）
   notes              String?        @db.Text // 契約に関する備考
+
+  // レガシー由来の区分コード（sykbnn マスタ未紐付け159通り、整理せずそのまま保持）
+  grave_kind  Int? // 区画種別1（レガシー grave_kind）
+  grave_kubun Int? // 区画種別2（レガシー grave_kubun）
+  grave_type  Int? // 区画種別3（レガシー grave_type）
+
+  // 移行用（後で削除可能）
+  legacy_grave_cd Int? // レガシー m_bochi.grave_cd 保持
 
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
@@ -190,12 +202,15 @@ model ContractPlot {
   collectiveBurial  CollectiveBurial? // 合葬情報（1:1）
   saleContractRoles SaleContractRole[] // 販売契約役割（1:N）
   documents         Document[] // 書類（1:N）
+  billings          Billing[] // 請求（1:N）
+  payments          Payment[] // 入金（1:N、孤児入金用）
 
   @@index([physical_plot_id])
   @@index([contract_date])
   @@index([contract_status])
   @@index([payment_status])
   @@index([deleted_at])
+  @@index([legacy_grave_cd])
   @@map("contract_plots")
 }
 
@@ -214,20 +229,26 @@ model Customer {
   fax_number         String?   @db.VarChar(11) // FAX番号
   email              String?   @db.VarChar(254) // メールアドレス（RFC 5321準拠）
   notes              String?   @db.Text // 備考
+  staff_id           Int? // 担当スタッフFK（レガシー tancd → matant）
+  legacy_danka_cd    Int? // 移行用（レガシー t_danka.danka_cd）
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
   deleted_at         DateTime?
 
   // Relations
+  staff             Staff?             @relation(fields: [staff_id], references: [id], onDelete: SetNull)
   workInfo          WorkInfo? // 勤務先情報（1:1）
-  billingInfo       BillingInfo? // 請求情報（1:1）
   familyContacts    FamilyContact[] // 家族連絡先（1:N）
   saleContractRoles SaleContractRole[] // 販売契約役割（1:N）
   documents         Document[] // 書類（1:N）
+  billings          Billing[] // 請求（1:N）
+  payments          Payment[] // 入金（1:N、孤児入金用）
 
   @@index([name, name_kana])
   @@index([phone_number])
   @@index([email])
+  @@index([staff_id])
+  @@index([legacy_danka_cd])
   @@index([deleted_at])
   @@map("customers")
 }
@@ -318,6 +339,9 @@ model GravestoneInfo {
   gravestone_cost        Int? // 墓石代（円単位）
   establishment_deadline DateTime? @db.Date // 設置期限
   establishment_date     DateTime? @db.Date // 設置日
+  gravestone_inscription String?   @db.VarChar(200) // 墓誌（レガシー boshi）
+  direction_id           Int? // 方位ID（レガシー houi_id）
+  position_id            Int? // 位置ID（レガシー ichi_id）
   created_at             DateTime  @default(now())
   updated_at             DateTime  @updatedAt
   deleted_at             DateTime?
@@ -417,23 +441,27 @@ model FamilyContact {
 
 // 埋葬者一覧
 model BuriedPerson {
-  id               String    @id @default(uuid()) @map("buried_person_id")
-  contract_plot_id String // 契約区画ID
-  name             String    @db.VarChar(100)
-  name_kana        String?   @db.VarChar(100)
-  relationship     String?   @db.VarChar(50)
-  birth_date       DateTime? @db.Date // 生年月日
-  death_date       DateTime? @db.Date
-  age              Int?
-  gender           Gender? // 性別
-  burial_date      DateTime? @db.Date
-  posthumous_name  String?   @db.VarChar(200) // 戒名
-  report_date      DateTime? @db.Date // 届出日（埋葬届）
-  religion         String?   @db.VarChar(50) // 宗派
-  notes            String?   @db.Text
-  created_at       DateTime  @default(now())
-  updated_at       DateTime  @updatedAt
-  deleted_at       DateTime?
+  id                         String    @id @default(uuid()) @map("buried_person_id")
+  contract_plot_id           String // 契約区画ID
+  name                       String    @db.VarChar(100)
+  name_kana                  String?   @db.VarChar(100)
+  relationship               String?   @db.VarChar(50)
+  birth_date                 DateTime? @db.Date // 生年月日
+  death_date                 DateTime? @db.Date
+  age                        Int?
+  gender                     Gender? // 性別
+  burial_date                DateTime? @db.Date
+  posthumous_name            String?   @db.VarChar(200) // 戒名
+  report_date                DateTime? @db.Date // 届出日（埋葬届）
+  religion                   String?   @db.VarChar(50) // 宗派
+  death_place                String?   @db.VarChar(200) // 死亡場所（レガシー siboubasyo）
+  cause_of_death             String?   @db.VarChar(200) // 死因（レガシー siin、センシティブ情報）
+  chief_mourner_name         String?   @db.VarChar(100) // 喪主氏名（レガシー moshu_sei + moshu_mei）
+  chief_mourner_relationship String?   @db.VarChar(50) // 喪主続柄（レガシー moshu_zokugara）
+  notes                      String?   @db.Text
+  created_at                 DateTime  @default(now())
+  updated_at                 DateTime  @updatedAt
+  deleted_at                 DateTime?
 
   // Relations
   contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
@@ -463,27 +491,6 @@ model WorkInfo {
 
   @@index([customer_id])
   @@map("work_infos")
-}
-
-// 請求情報
-model BillingInfo {
-  id             String      @id @default(uuid()) @map("billing_info_id")
-  customer_id    String      @unique // 顧客ID
-  billing_type   BillingType // 請求先タイプ
-  bank_name      String      @db.VarChar(100)
-  branch_name    String      @db.VarChar(100)
-  account_type   AccountType // 口座種別
-  account_number String      @db.VarChar(20)
-  account_holder String      @db.VarChar(100)
-  created_at     DateTime    @default(now())
-  updated_at     DateTime    @updatedAt
-  deleted_at     DateTime?
-
-  // Relations
-  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-
-  @@index([customer_id])
-  @@map("billing_infos")
 }
 
 // 合祀情報（複数の故人を一つの区画に祀る管理）
@@ -550,6 +557,9 @@ model Staff {
   created_at    DateTime  @default(now())
   updated_at    DateTime  @updatedAt
   deleted_at    DateTime?
+
+  // Relations
+  customers Customer[] // 担当顧客（1:N）
 
   @@index([email])
   @@index([supabase_uid])
@@ -633,20 +643,6 @@ model BillingTypeMaster {
   @@map("billing_type_master")
 }
 
-// 口座種別マスタ
-model AccountTypeMaster {
-  id          Int      @id @default(autoincrement()) // ID
-  code        String   @unique @db.VarChar(10) // 口座種別コード
-  name        String   @db.VarChar(50) // 口座種別名称
-  description String?  @db.VarChar(200) // 説明
-  sort_order  Int? // 表示順序
-  is_active   Boolean  @default(true) // 有効フラグ
-  created_at  DateTime @default(now()) // 作成日時
-  updated_at  DateTime @updatedAt // 更新日時
-
-  @@map("account_type_master")
-}
-
 // 宛先区分マスタ
 model RecipientTypeMaster {
   id          Int      @id @default(autoincrement()) // ID
@@ -688,6 +684,129 @@ model SectionNameMaster {
   updated_at  DateTime @updatedAt // 更新日時
 
   @@map("section_name_master")
+}
+
+// 続柄マスタ（レガシー sykbnn KBNNO=2009 の続柄35種を保持）
+model RelationshipMaster {
+  id          Int      @id @default(autoincrement()) // ID
+  code        String   @unique @db.VarChar(10) // 続柄コード
+  name        String   @db.VarChar(50) // 続柄名称
+  description String?  @db.VarChar(200) // 説明
+  sort_order  Int? // 表示順序
+  is_active   Boolean  @default(true) // 有効フラグ
+  created_at  DateTime @default(now()) // 作成日時
+  updated_at  DateTime @updatedAt // 更新日時
+
+  @@map("relationship_master")
+}
+
+// =============================================================================
+// 請求・入金管理
+// =============================================================================
+
+// 請求: 顧客への請求記録（レガシー t_seikyu の移行先）
+model Billing {
+  id               String @id @default(uuid()) @map("billing_id")
+  contract_plot_id String // 契約区画FK
+  customer_id      String // 請求先顧客FK
+
+  // 適用範囲
+  category       BillingCategory // 料金区分
+  use_start_year Int? // 使用開始年（管理料の対象年範囲）
+  use_end_year   Int? // 使用終了年
+  target_month   Int? // 対象月（1〜12、月次請求）
+  billing_years  Int? // 請求年数（一括請求）
+
+  // 金額
+  amount Int // 請求金額（円）
+
+  // 日付
+  contract_date DateTime? @db.Date // 契約日
+  billing_date  DateTime? @db.Date // 請求日
+
+  // 入金集計（キャッシュ。Payment から自動計算）
+  paid_amount       Int       @default(0) // 入金合計
+  last_payment_date DateTime? @db.Date // 最終入金日
+
+  // 解約
+  terminated      Boolean   @default(false) // 解約済フラグ
+  terminated_date DateTime? @db.Date // 解約日
+
+  // ステータス
+  status BillingRecordStatus @default(pending)
+
+  // 区分（レガシー保持）
+  application_type Int? // tekiyou_kubun
+  billing_type     Int? // seikyu_kubun（旧コード）
+
+  // メタ
+  notes            String? @db.Text
+  legacy_seikyu_cd Int?    @unique // レガシー seikyu_cd を保持（移行時の照合用）
+
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  // Relations
+  contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Restrict)
+  customer     Customer     @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  payments     Payment[] // 1:N
+
+  @@index([contract_plot_id])
+  @@index([customer_id])
+  @@index([category])
+  @@index([status])
+  @@index([billing_date])
+  @@index([deleted_at])
+  @@index([legacy_seikyu_cd])
+  @@map("billings")
+}
+
+// 入金: 請求に対する入金記録（レガシー t_nyukin の移行先）
+model Payment {
+  id         String  @id @default(uuid()) @map("payment_id")
+  billing_id String? // 請求FK（nullable: 孤児入金16件に対応）
+
+  // 直リンク（請求に紐付かない入金用）
+  customer_id      String? // 顧客FK
+  contract_plot_id String? // 区画FK
+
+  // 予定
+  scheduled_date   DateTime? @db.Date // 入金予定日
+  scheduled_amount Int? // 入金予定額
+
+  // 実績
+  payment_date   DateTime? @db.Date // 入金日
+  payment_amount Int // 入金額（円）
+
+  // 区分
+  fee_type         String? @db.VarChar(50) // 料金種別（自由記述）
+  application_type Int? // tekiyou_kubun
+  billing_type     Int? // seikyu_kubun（旧コード）
+
+  // 担当
+  staff_in_charge String? @db.VarChar(100) // 担当者
+
+  // メタ
+  notes            String? @db.Text
+  legacy_nyukin_cd Int?    @unique // レガシー nyukin_cd を保持
+
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
+
+  // Relations
+  billing      Billing?      @relation(fields: [billing_id], references: [id], onDelete: SetNull)
+  customer     Customer?     @relation(fields: [customer_id], references: [id], onDelete: SetNull)
+  contractPlot ContractPlot? @relation(fields: [contract_plot_id], references: [id], onDelete: SetNull)
+
+  @@index([billing_id])
+  @@index([customer_id])
+  @@index([contract_plot_id])
+  @@index([payment_date])
+  @@index([deleted_at])
+  @@index([legacy_nyukin_cd])
+  @@map("payments")
 }
 
 // =============================================================================

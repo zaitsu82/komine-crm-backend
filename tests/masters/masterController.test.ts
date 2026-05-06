@@ -63,11 +63,6 @@ const mockBillingTypeData = [
   { id: 2, code: 'annual', name: '年次', description: null, sort_order: 2, is_active: true },
 ];
 
-const mockAccountTypeData = [
-  { id: 1, code: 'ordinary', name: '普通', description: null, sort_order: 1, is_active: true },
-  { id: 2, code: 'savings', name: '貯蓄', description: null, sort_order: 2, is_active: true },
-];
-
 const mockRecipientTypeData = [
   { id: 1, code: 'individual', name: '個人', description: null, sort_order: 1, is_active: true },
   { id: 2, code: 'corporate', name: '法人', description: null, sort_order: 2, is_active: true },
@@ -126,9 +121,6 @@ const mockPrisma: any = {
   billingTypeMaster: {
     findMany: jest.fn(),
   },
-  accountTypeMaster: {
-    findMany: jest.fn(),
-  },
   recipientTypeMaster: {
     findMany: jest.fn(),
   },
@@ -152,7 +144,6 @@ import {
   getTaxTypeMaster,
   getCalcTypeMaster,
   getBillingTypeMaster,
-  getAccountTypeMaster,
   getRecipientTypeMaster,
   getConstructionTypeMaster,
   getSectionNameMaster,
@@ -430,56 +421,6 @@ describe('Master Controller', () => {
     });
   });
 
-  describe('getAccountTypeMaster', () => {
-    it('口座タイプマスタデータを正常に取得できること', async () => {
-      mockPrisma.accountTypeMaster.findMany.mockResolvedValue(mockAccountTypeData);
-
-      await getAccountTypeMaster(mockRequest as Request, mockResponse as Response);
-
-      expect(mockPrisma.accountTypeMaster.findMany).toHaveBeenCalledWith({
-        where: { is_active: true },
-        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-      });
-      expect(mockResponse.status).toHaveBeenCalledWith(200);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        success: true,
-        data: [
-          {
-            id: 1,
-            code: 'ordinary',
-            name: '普通',
-            description: null,
-            sortOrder: 1,
-            isActive: true,
-          },
-          {
-            id: 2,
-            code: 'savings',
-            name: '貯蓄',
-            description: null,
-            sortOrder: 2,
-            isActive: true,
-          },
-        ],
-      });
-    });
-
-    it('エラーが発生した場合、500エラーを返すこと', async () => {
-      mockPrisma.accountTypeMaster.findMany.mockRejectedValue(new Error('Database error'));
-
-      await getAccountTypeMaster(mockRequest as Request, mockResponse as Response);
-
-      expect(mockResponse.status).toHaveBeenCalledWith(500);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        success: false,
-        error: {
-          code: 'INTERNAL_SERVER_ERROR',
-          message: '口座タイプマスタの取得に失敗しました',
-        },
-      });
-    });
-  });
-
   describe('getRecipientTypeMaster', () => {
     it('受取人タイプマスタデータを正常に取得できること', async () => {
       mockPrisma.recipientTypeMaster.findMany.mockResolvedValue(mockRecipientTypeData);
@@ -636,7 +577,6 @@ describe('Master Controller', () => {
       mockPrisma.taxTypeMaster.findMany.mockResolvedValue(mockTaxTypeData);
       mockPrisma.calcTypeMaster.findMany.mockResolvedValue(mockCalcTypeData);
       mockPrisma.billingTypeMaster.findMany.mockResolvedValue(mockBillingTypeData);
-      mockPrisma.accountTypeMaster.findMany.mockResolvedValue(mockAccountTypeData);
       mockPrisma.recipientTypeMaster.findMany.mockResolvedValue(mockRecipientTypeData);
       mockPrisma.constructionTypeMaster.findMany.mockResolvedValue(mockConstructionTypeData);
       mockPrisma.sectionNameMaster.findMany.mockResolvedValue(mockSectionNameData);
@@ -653,7 +593,6 @@ describe('Master Controller', () => {
       expect(jsonCall.data.taxType).toHaveLength(2);
       expect(jsonCall.data.calcType).toHaveLength(2);
       expect(jsonCall.data.billingType).toHaveLength(2);
-      expect(jsonCall.data.accountType).toHaveLength(2);
       expect(jsonCall.data.recipientType).toHaveLength(2);
       expect(jsonCall.data.constructionType).toHaveLength(2);
       expect(jsonCall.data.sectionName).toHaveLength(2);

@@ -5,7 +5,6 @@ import {
   getTaxTypeMaster,
   getCalcTypeMaster,
   getBillingTypeMaster,
-  getAccountTypeMaster,
   getRecipientTypeMaster,
   getConstructionTypeMaster,
   getSectionNameMaster,
@@ -66,14 +65,6 @@ router.get(
   authenticate,
   checkApiPermission(),
   withLogging('Masters', 'getBillingTypeMaster', getBillingTypeMaster)
-);
-
-// 口座タイプマスタ
-router.get(
-  '/account-type',
-  authenticate,
-  checkApiPermission(),
-  withLogging('Masters', 'getAccountTypeMaster', getAccountTypeMaster)
 );
 
 // 受取人タイプマスタ

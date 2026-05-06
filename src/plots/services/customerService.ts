@@ -1,6 +1,6 @@
 /**
  * 顧客サービス
- * Customer、WorkInfo、BillingInfoに関する共通処理を提供
+ * Customer、WorkInfoに関する共通処理を提供
  */
 
 import { PrismaClient, Prisma } from '@prisma/client';
@@ -10,14 +10,12 @@ import { PrismaClient, Prisma } from '@prisma/client';
  * @param prisma - PrismaClientまたはTransactionClient
  * @param customerData - 顧客基本情報
  * @param workInfoData - 勤務先情報（オプション）
- * @param billingInfoData - 請求情報（オプション）
  * @returns 作成された顧客
  */
 export async function createCustomerWithRelations(
   prisma: PrismaClient | Prisma.TransactionClient,
   customerData: any,
-  workInfoData?: any,
-  billingInfoData?: any
+  workInfoData?: any
 ) {
   // 顧客を作成
   const customer = await prisma.customer.create({
@@ -33,6 +31,8 @@ export async function createCustomerWithRelations(
       fax_number: customerData.faxNumber,
       email: customerData.email,
       notes: customerData.notes,
+      staff_id: customerData.staffId ?? null,
+      legacy_danka_cd: customerData.legacyDankaCd ?? null,
     },
   });
 
@@ -53,21 +53,6 @@ export async function createCustomerWithRelations(
     });
   }
 
-  // 請求情報を作成（オプション）
-  if (billingInfoData) {
-    await prisma.billingInfo.create({
-      data: {
-        customer_id: customer.id,
-        billing_type: billingInfoData.billingType,
-        account_type: billingInfoData.accountType,
-        bank_name: billingInfoData.bankName,
-        branch_name: billingInfoData.branchName,
-        account_number: billingInfoData.accountNumber,
-        account_holder: billingInfoData.accountHolder,
-      },
-    });
-  }
-
   return customer;
 }
 
@@ -77,14 +62,12 @@ export async function createCustomerWithRelations(
  * @param customerId - 顧客ID
  * @param customerData - 更新する顧客情報
  * @param workInfoData - 更新する勤務先情報（オプション）
- * @param billingInfoData - 更新する請求情報（オプション）
  */
 export async function updateCustomerWithRelations(
   prisma: PrismaClient | Prisma.TransactionClient,
   customerId: string,
   customerData?: any,
-  workInfoData?: any,
-  billingInfoData?: any
+  workInfoData?: any
 ) {
   // 顧客基本情報を更新
   if (customerData) {
@@ -102,6 +85,8 @@ export async function updateCustomerWithRelations(
         fax_number: customerData.faxNumber,
         email: customerData.email,
         notes: customerData.notes,
+        staff_id: customerData.staffId ?? undefined,
+        legacy_danka_cd: customerData.legacyDankaCd ?? undefined,
       },
     });
   }
@@ -142,39 +127,6 @@ export async function updateCustomerWithRelations(
       });
     }
   }
-
-  // 請求情報を更新または作成
-  if (billingInfoData) {
-    const existingBillingInfo = await prisma.billingInfo.findUnique({
-      where: { customer_id: customerId },
-    });
-
-    if (existingBillingInfo) {
-      await prisma.billingInfo.update({
-        where: { customer_id: customerId },
-        data: {
-          billing_type: billingInfoData.billingType,
-          account_type: billingInfoData.accountType,
-          bank_name: billingInfoData.bankName,
-          branch_name: billingInfoData.branchName,
-          account_number: billingInfoData.accountNumber,
-          account_holder: billingInfoData.accountHolder,
-        },
-      });
-    } else {
-      await prisma.billingInfo.create({
-        data: {
-          customer_id: customerId,
-          billing_type: billingInfoData.billingType,
-          account_type: billingInfoData.accountType,
-          bank_name: billingInfoData.bankName,
-          branch_name: billingInfoData.branchName,
-          account_number: billingInfoData.accountNumber,
-          account_holder: billingInfoData.accountHolder,
-        },
-      });
-    }
-  }
 }
 
 /**
@@ -204,11 +156,6 @@ export async function deleteCustomerIfUnused(
       where: { customer_id: customerId },
     });
 
-    // 請求情報を削除
-    await prisma.billingInfo.deleteMany({
-      where: { customer_id: customerId },
-    });
-
     // 顧客を論理削除
     await prisma.customer.update({
       where: { id: customerId },
@@ -231,7 +178,6 @@ export async function findCustomerById(
     where: { id, deleted_at: null },
     include: {
       workInfo: true,
-      billingInfo: true,
     },
   });
 }

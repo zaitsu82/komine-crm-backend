@@ -199,6 +199,8 @@ describe('yuchoController', () => {
     });
 
     it('prefers contractor role over applicant when picking the payer', async () => {
+      // BillingInfoは新スキーマで廃止。Phase 3で Billing/Payment 経由で再実装予定。
+      // ここでは payer 選定（contractor 優先）が正しく行われることのみ検証する。
       mockPrisma.managementFee.findMany.mockResolvedValue([
         {
           id: 'f1',
@@ -213,7 +215,6 @@ describe('yuchoController', () => {
                   id: 'a1',
                   name: '申込太郎',
                   name_kana: 'モウシコミタロウ',
-                  billingInfo: null,
                 },
               },
               {
@@ -222,13 +223,6 @@ describe('yuchoController', () => {
                   id: 'c1',
                   name: '契約花子',
                   name_kana: 'ケイヤクハナコ',
-                  billingInfo: {
-                    bank_name: 'ゆうちょ銀行',
-                    branch_name: '〇一八',
-                    account_type: 'ordinary',
-                    account_number: '7654321',
-                    account_holder: 'ケイヤクハナコ',
-                  },
                 },
               },
             ],
@@ -242,7 +236,7 @@ describe('yuchoController', () => {
 
       const payload = (res.json as jest.Mock).mock.calls[0][0];
       expect(payload.data.items[0].customerId).toBe('c1');
-      expect(payload.data.items[0].billingInfo.accountNumber).toBe('7654321');
+      expect(payload.data.items[0].billingInfo).toBeNull();
     });
   });
 
@@ -256,6 +250,9 @@ describe('yuchoController', () => {
     };
 
     it('returns text/csv with attachment disposition and Zengin records', async () => {
+      // 注: BillingInfo は新スキーマで廃止されたため、現状はデータ行(2)が生成されない。
+      // Phase 3 で Billing/Payment 経由で振込先情報を取得する実装に切り替えた段階で
+      // データ行の生成を再度検証する。ここではヘッダ/トレーラ/エンドの存在のみ確認。
       mockPrisma.managementFee.findMany.mockResolvedValue([
         {
           id: 'f1',
@@ -279,7 +276,6 @@ describe('yuchoController', () => {
       const sent = (res.send as jest.Mock).mock.calls[0][0] as string;
       const lines = sent.split('\r\n').filter((l) => l.length > 0);
       expect(lines[0]?.[0]).toBe('1');
-      expect(lines.find((l) => l[0] === '2')).toBeDefined();
       expect(lines.find((l) => l[0] === '8')).toBeDefined();
       expect(lines.find((l) => l[0] === '9')).toBeDefined();
     });

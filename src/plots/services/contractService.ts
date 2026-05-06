@@ -34,7 +34,6 @@ export async function findContractPlotById(
           customer: {
             include: {
               workInfo: true,
-              billingInfo: true,
             },
           },
         },
@@ -83,12 +82,18 @@ export function buildContractPlotDetailResponse(contractPlot: any) {
     // 販売契約情報（ContractPlotに統合済み）
     contractDate: contractPlot.contract_date,
     price: contractPlot.price,
+    contractStatus: contractPlot.contract_status,
     paymentStatus: contractPlot.payment_status,
     reservationDate: contractPlot.reservation_date,
+    requestDate: contractPlot.request_date,
     acceptanceNumber: contractPlot.acceptance_number,
     permitDate: contractPlot.permit_date,
     startDate: contractPlot.start_date,
     notes: contractPlot.notes,
+    graveKind: contractPlot.grave_kind,
+    graveKubun: contractPlot.grave_kubun,
+    graveType: contractPlot.grave_type,
+    legacyGraveCd: contractPlot.legacy_grave_cd,
 
     createdAt: contractPlot.created_at,
     updatedAt: contractPlot.updated_at,
@@ -99,6 +104,7 @@ export function buildContractPlotDetailResponse(contractPlot: any) {
       areaName: contractPlot.physicalPlot.area_name,
       areaSqm: contractPlot.physicalPlot.area_sqm.toNumber(),
       status: contractPlot.physicalPlot.status,
+      mapId: contractPlot.physicalPlot.map_id,
       notes: contractPlot.physicalPlot.notes,
       buriedPersons: contractPlot.buriedPersons.map((bp: any) => ({
         id: bp.id,
@@ -152,6 +158,8 @@ export function buildContractPlotDetailResponse(contractPlot: any) {
           faxNumber: primaryCustomer.fax_number,
           email: primaryCustomer.email,
           notes: primaryCustomer.notes,
+          staffId: primaryCustomer.staff_id,
+          legacyDankaCd: primaryCustomer.legacy_danka_cd,
           role: primaryRole?.role || null,
 
           workInfo: primaryCustomer.workInfo
@@ -165,18 +173,6 @@ export function buildContractPlotDetailResponse(contractPlot: any) {
                 dmSetting: primaryCustomer.workInfo.dm_setting,
                 addressType: primaryCustomer.workInfo.address_type,
                 notes: primaryCustomer.workInfo.notes,
-              }
-            : null,
-
-          billingInfo: primaryCustomer.billingInfo
-            ? {
-                id: primaryCustomer.billingInfo.id,
-                billingType: primaryCustomer.billingInfo.billing_type,
-                accountType: primaryCustomer.billingInfo.account_type,
-                bankName: primaryCustomer.billingInfo.bank_name,
-                branchName: primaryCustomer.billingInfo.branch_name,
-                accountNumber: primaryCustomer.billingInfo.account_number,
-                accountHolder: primaryCustomer.billingInfo.account_holder,
               }
             : null,
         }
@@ -203,6 +199,8 @@ export function buildContractPlotDetailResponse(contractPlot: any) {
           address: role.customer.address,
           registeredAddress: role.customer.registered_address,
           notes: role.customer.notes,
+          staffId: role.customer.staff_id,
+          legacyDankaCd: role.customer.legacy_danka_cd,
           workInfo: role.customer.workInfo
             ? {
                 companyName: role.customer.workInfo.company_name,
@@ -213,16 +211,6 @@ export function buildContractPlotDetailResponse(contractPlot: any) {
                 dmSetting: role.customer.workInfo.dm_setting,
                 addressType: role.customer.workInfo.address_type,
                 notes: role.customer.workInfo.notes,
-              }
-            : null,
-          billingInfo: role.customer.billingInfo
-            ? {
-                billingType: role.customer.billingInfo.billing_type,
-                bankName: role.customer.billingInfo.bank_name,
-                branchName: role.customer.billingInfo.branch_name,
-                accountType: role.customer.billingInfo.account_type,
-                accountNumber: role.customer.billingInfo.account_number,
-                accountHolder: role.customer.billingInfo.account_holder,
               }
             : null,
         },
