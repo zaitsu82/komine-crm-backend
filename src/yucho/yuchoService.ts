@@ -38,26 +38,44 @@ const parseManagementFeeAmount = (value: string | null | undefined): number => {
   return isNaN(num) ? 0 : Math.round(num);
 };
 
+type PayerCustomer = {
+  id: string;
+  name: string;
+  name_kana: string;
+  bank_name: string | null;
+  branch_name: string | null;
+  account_type: string | null;
+  account_number: string | null;
+  account_holder: string | null;
+};
+
 /**
  * 契約者(役割: contractor)を最優先、無ければ申込者(applicant)を返す。
  */
-// NOTE: BillingInfoは新スキーマで廃止された。
-// 振込先情報は今後 Billing/Payment エンティティから取得する想定（Phase 3で実装）。
-// 現状は payer.billingInfo は常に null として扱う。
 const pickPayer = (
-  roles: Array<{
-    role: string;
-    customer: {
-      id: string;
-      name: string;
-      name_kana: string;
-    } | null;
-  }>
-) => {
+  roles: Array<{ role: string; customer: PayerCustomer | null }>
+): PayerCustomer | null => {
   const contractor = roles.find((r) => r.role === 'contractor' && r.customer);
   if (contractor) return contractor.customer;
   const applicant = roles.find((r) => r.role === 'applicant' && r.customer);
   return applicant?.customer ?? null;
+};
+
+/**
+ * Customer の振込先カラムから YuchoBillingItem.billingInfo を組み立てる。
+ * 主要フィールド（bank_name / branch_name / account_number）が全て空の場合は null を返す。
+ * （Zengin CSV のデータ行生成判定に使われる）
+ */
+const buildBillingInfo = (payer: PayerCustomer | null): YuchoBillingItem['billingInfo'] => {
+  if (!payer) return null;
+  if (!payer.bank_name && !payer.branch_name && !payer.account_number) return null;
+  return {
+    bankName: payer.bank_name,
+    branchName: payer.branch_name,
+    accountType: payer.account_type,
+    accountNumber: payer.account_number,
+    accountHolder: payer.account_holder,
+  };
 };
 
 /**
@@ -136,7 +154,7 @@ const fetchManagementBillingItems = async (params: FetchParams): Promise<YuchoBi
       billingStatus: fee.contractPlot.payment_status,
       scheduledDate,
       billingMonth,
-      billingInfo: null,
+      billingInfo: buildBillingInfo(payer),
     });
   }
 
@@ -208,7 +226,7 @@ const fetchCollectiveBillingItems = async (params: FetchParams): Promise<YuchoBi
         billingStatus: b.billing_status,
         scheduledDate,
         billingMonth,
-        billingInfo: null,
+        billingInfo: buildBillingInfo(payer),
       };
     });
 };
