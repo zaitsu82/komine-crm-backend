@@ -28,6 +28,12 @@ jest.mock('../../src/masters/masterController', () => ({
   getConstructionTypeMaster: jest.fn((req, res) =>
     res.status(200).json({ success: true, controller: 'getConstructionTypeMaster' })
   ),
+  getSectionNameMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getSectionNameMaster' })
+  ),
+  getRelationshipMaster: jest.fn((req, res) =>
+    res.status(200).json({ success: true, controller: 'getRelationshipMaster' })
+  ),
   getAllMasters: jest.fn((req, res) =>
     res.status(200).json({ success: true, controller: 'getAllMasters' })
   ),
@@ -173,6 +179,20 @@ describe('Master Routes', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.controller).toBe('getConstructionTypeMaster');
       expect(mockMasterController.getConstructionTypeMaster).toHaveBeenCalledTimes(1);
+      expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/v1/masters/relationship', () => {
+    it('should handle getRelationshipMaster request', async () => {
+      const response = await request(app)
+        .get('/api/v1/masters/relationship')
+        .set('Authorization', 'Bearer token');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.controller).toBe('getRelationshipMaster');
+      expect(mockMasterController.getRelationshipMaster).toHaveBeenCalledTimes(1);
       expect(mockAuthMiddleware.authenticate).toHaveBeenCalled();
     });
   });

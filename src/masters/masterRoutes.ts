@@ -8,6 +8,7 @@ import {
   getRecipientTypeMaster,
   getConstructionTypeMaster,
   getSectionNameMaster,
+  getRelationshipMaster,
   getAllMasters,
   createMaster,
   updateMaster,
@@ -89,6 +90,14 @@ router.get(
   authenticate,
   checkApiPermission(),
   withLogging('Masters', 'getSectionNameMaster', getSectionNameMaster)
+);
+
+// 続柄マスタ
+router.get(
+  '/relationship',
+  authenticate,
+  checkApiPermission(),
+  withLogging('Masters', 'getRelationshipMaster', getRelationshipMaster)
 );
 
 // マスタデータ CRUD（汎用）
