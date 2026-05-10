@@ -104,6 +104,11 @@ const mockUpdateTypeData = [
   { id: 2, code: 'change', name: '変更', description: null, sort_order: 2, is_active: true },
 ];
 
+const mockRelationshipData = [
+  { id: 1, code: 'spouse', name: '配偶者', description: null, sort_order: 1, is_active: true },
+  { id: 2, code: 'child', name: '子', description: null, sort_order: 2, is_active: true },
+];
+
 // モックプリズマインスタンスの作成
 const mockPrisma: any = {
   cemeteryTypeMaster: {
@@ -130,6 +135,9 @@ const mockPrisma: any = {
   sectionNameMaster: {
     findMany: jest.fn(),
   },
+  relationshipMaster: {
+    findMany: jest.fn(),
+  },
 };
 
 // PrismaClientをモック化
@@ -147,6 +155,7 @@ import {
   getRecipientTypeMaster,
   getConstructionTypeMaster,
   getSectionNameMaster,
+  getRelationshipMaster,
   getAllMasters,
 } from '../../src/masters/masterController';
 
@@ -569,6 +578,56 @@ describe('Master Controller', () => {
     });
   });
 
+  describe('getRelationshipMaster', () => {
+    it('続柄マスタデータを正しく取得・フォーマットすること', async () => {
+      mockPrisma.relationshipMaster.findMany.mockResolvedValue(mockRelationshipData);
+
+      await getRelationshipMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.relationshipMaster.findMany).toHaveBeenCalledWith({
+        where: { is_active: true },
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      });
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: [
+          {
+            id: 1,
+            code: 'spouse',
+            name: '配偶者',
+            description: null,
+            sortOrder: 1,
+            isActive: true,
+          },
+          {
+            id: 2,
+            code: 'child',
+            name: '子',
+            description: null,
+            sortOrder: 2,
+            isActive: true,
+          },
+        ],
+      });
+    });
+
+    it('エラーが発生した場合、500エラーを返すこと', async () => {
+      mockPrisma.relationshipMaster.findMany.mockRejectedValue(new Error('Database error'));
+
+      await getRelationshipMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '続柄マスタの取得に失敗しました',
+        },
+      });
+    });
+  });
+
   describe('getAllMasters', () => {
     it('全マスタデータを一括取得できること', async () => {
       // すべてのマスターテーブルのモックを設定
@@ -580,6 +639,7 @@ describe('Master Controller', () => {
       mockPrisma.recipientTypeMaster.findMany.mockResolvedValue(mockRecipientTypeData);
       mockPrisma.constructionTypeMaster.findMany.mockResolvedValue(mockConstructionTypeData);
       mockPrisma.sectionNameMaster.findMany.mockResolvedValue(mockSectionNameData);
+      mockPrisma.relationshipMaster.findMany.mockResolvedValue(mockRelationshipData);
 
       await getAllMasters(mockRequest as Request, mockResponse as Response);
 
@@ -596,11 +656,15 @@ describe('Master Controller', () => {
       expect(jsonCall.data.recipientType).toHaveLength(2);
       expect(jsonCall.data.constructionType).toHaveLength(2);
       expect(jsonCall.data.sectionName).toHaveLength(2);
+      expect(jsonCall.data.relationship).toHaveLength(2);
 
       // 特殊フィールドのテスト（taxRate）
       expect(jsonCall.data.taxType[0].taxRate).toBe('10');
       // 特殊フィールドのテスト（period）
       expect(jsonCall.data.sectionName[0].period).toBe('第1期');
+      // 続柄
+      expect(jsonCall.data.relationship[0].code).toBe('spouse');
+      expect(jsonCall.data.relationship[0].name).toBe('配偶者');
     });
 
     it('エラーが発生した場合、500エラーを返すこと', async () => {

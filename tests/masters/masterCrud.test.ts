@@ -64,6 +64,18 @@ const mockPrisma: any = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  sectionNameMaster: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
+  relationshipMaster: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
 };
 
 jest.mock('@prisma/client', () => ({
@@ -125,6 +137,36 @@ describe('Master CRUD Controller', () => {
         },
         message: '墓地タイプマスタを作成しました',
       });
+    });
+
+    it('続柄マスタを正常に作成できること', async () => {
+      mockRequest.params = { masterType: 'relationship' };
+      mockRequest.body = { code: 'sibling', name: '兄弟姉妹', sortOrder: 5 };
+
+      mockPrisma.relationshipMaster.create.mockResolvedValue({
+        id: 5,
+        code: 'sibling',
+        name: '兄弟姉妹',
+        description: null,
+        sort_order: 5,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      await createMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.relationshipMaster.create).toHaveBeenCalledWith({
+        data: {
+          code: 'sibling',
+          name: '兄弟姉妹',
+          sort_order: 5,
+          is_active: true,
+        },
+      });
+      expect(mockResponse.status).toHaveBeenCalledWith(201);
+      const jsonCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+      expect(jsonCall.message).toBe('続柄マスタを作成しました');
     });
 
     it('税タイプマスタでtaxRateを含めて作成できること', async () => {
