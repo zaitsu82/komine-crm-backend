@@ -85,6 +85,11 @@ jest.mock('@prisma/client', () => ({
     partial: 'partial',
     paid: 'paid',
   },
+  ContractStatus: {
+    vacant: 'vacant',
+    active: 'active',
+    terminated: 'terminated',
+  },
   ContractRole: {
     applicant: 'applicant',
     contractor: 'contractor',
