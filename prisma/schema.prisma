@@ -419,8 +419,8 @@ model FamilyContact {
   birth_date             DateTime?    @db.Date
   relationship           String       @db.VarChar(50)
   postal_code            String?      @db.VarChar(7) // 郵便番号
-  address                String       @db.VarChar(200)
-  phone_number           String       @db.VarChar(11)
+  address                String?      @db.VarChar(200) // レガシーDBで41%欠損のため nullable
+  phone_number           String?      @db.VarChar(11) // レガシーDBで3%欠損のため nullable
   phone_number_2         String?      @db.VarChar(15) // 電話番号2
   fax_number             String?      @db.VarChar(11)
   email                  String?      @db.VarChar(254) // メールアドレス（RFC 5321準拠）
