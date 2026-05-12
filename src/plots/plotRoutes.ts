@@ -7,6 +7,7 @@ import {
   bulkUpdatePlots,
   updatePlot,
   deletePlot,
+  restoreContract,
   getPlotContracts,
   createPlotContract,
   getPlotInventory,
@@ -26,6 +27,7 @@ import {
   createPlotSchema,
   updatePlotSchema,
   createPlotContractSchema,
+  restoreContractSchema,
 } from '../validations/plotValidation';
 import {
   inventorySummaryQuerySchema,
@@ -139,6 +141,15 @@ router.delete(
   requirePermission(['manager', 'admin']),
   validate({ params: plotIdParamsSchema }),
   withLogging('Plots', 'deletePlot', deletePlot)
+);
+
+// 契約復活（terminated → active、誤操作リカバリ用）
+router.post(
+  '/:id/restore',
+  authenticate,
+  requirePermission(['operator', 'manager', 'admin']),
+  validate({ params: plotIdParamsSchema, body: restoreContractSchema }),
+  withLogging('Plots', 'restoreContract', restoreContract)
 );
 
 // 物理区画の契約一覧取得

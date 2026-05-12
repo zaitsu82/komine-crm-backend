@@ -603,6 +603,80 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/plots/{id}/restore:
+    post:
+      tags:
+        - Plots
+      summary: 契約区画の復活（terminated → active）
+      description: |
+        terminated 状態の契約区画を active に戻す（誤操作リカバリ用）。
+        reason は履歴に記録するため必須（1〜200文字、空白のみは不可）。
+        現在のステータスが terminated でない場合は 409 を返す。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 契約区画ID（UUID）
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: 復活理由（履歴に記録される）
+                  example: 担当者の入力ミスのため復活
+      responses:
+        "200":
+          description: 復活成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 契約区画を復活しました
+                      id:
+                        type: string
+                        format: uuid
+                      contractStatus:
+                        type: string
+                        enum: [vacant, active, terminated]
+                        example: active
+        "400":
+          description: バリデーションエラー（reason 欠落 / 長すぎ等）
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: 現在のステータスが terminated でないため復活不可
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/v1/plots/{id}/contracts:
     get:
       tags:

@@ -274,6 +274,20 @@ export const createPlotContractSchema = z.object({
 });
 
 /**
+ * 契約復活リクエストのバリデーションスキーマ
+ * POST /plots/:id/restore
+ * terminated 状態の ContractPlot を active に戻す（誤操作リカバリ用）。
+ * reason は履歴に記録するため必須（空白のみは拒否）。
+ */
+export const restoreContractSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(1, '復活理由は必須です')
+    .max(200, '復活理由は200文字以内で入力してください'),
+});
+
+/**
  * 型エクスポート
  */
 export type PlotSearchQuery = z.infer<typeof plotSearchQuerySchema>;
@@ -281,6 +295,7 @@ export type PlotIdParams = z.infer<typeof plotIdParamsSchema>;
 export type CreatePlotRequest = z.infer<typeof createPlotSchema>;
 export type UpdatePlotRequest = z.infer<typeof updatePlotSchema>;
 export type CreatePlotContractRequest = z.infer<typeof createPlotContractSchema>;
+export type RestoreContractRequest = z.infer<typeof restoreContractSchema>;
 
 // dateSchema も従来通り再エクスポート（他モジュールからの参照互換性維持）
 export { dateSchema };
