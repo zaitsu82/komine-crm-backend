@@ -8,21 +8,19 @@
  *   active     — 契約有効
  *   terminated — 契約終了（解約・期限切れ・名義変更後など、理由を問わない）
  *
+ * 通常遷移: vacant → active → terminated（一方向）
+ * 例外遷移: terminated → active（復活）— 誤操作リカバリ用、reason 必須
+ *
  * 注: 旧7ステート（draft/reserved/suspended/cancelled/transferred）は廃止。
  *     旧 reserved/draft 相当は active に統合、cancelled/transferred は terminated に統合。
  */
 
 import { ContractStatus, PaymentStatus } from '@prisma/client';
 
-/**
- * 許可される状態遷移のマップ
- * key: 現在のステータス
- * value: 遷移可能なステータスの配列
- */
 const ALLOWED_TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
   [ContractStatus.vacant]: [ContractStatus.active],
   [ContractStatus.active]: [ContractStatus.terminated],
-  [ContractStatus.terminated]: [],
+  [ContractStatus.terminated]: [ContractStatus.active],
 };
 
 /**
@@ -112,6 +110,17 @@ export class PaymentStatusMismatchError extends Error {
 }
 
 /**
+ * 復活遷移の reason 未指定エラー
+ * terminated → active の遷移時、誰がいつ何の理由で復活させたか追跡するため reason 必須
+ */
+export class RestoreReasonRequiredError extends Error {
+  constructor(message?: string) {
+    super(message || 'Reason is required when restoring a terminated contract to active');
+    this.name = 'RestoreReasonRequiredError';
+  }
+}
+
+/**
  * 契約ステータス遷移サービス
  */
 export const contractStatusService = {
@@ -185,7 +194,40 @@ export const contractStatusService = {
   },
 
   /**
-   * 契約がファイナル状態（変更不可）かどうか
+   * 復活遷移（terminated → active）かどうか判定
+   */
+  isRestoreTransition(from: ContractStatus, to: ContractStatus): boolean {
+    return from === ContractStatus.terminated && to === ContractStatus.active;
+  },
+
+  /**
+   * 復活遷移の reason をバリデート
+   * 空文字 / 空白のみは RestoreReasonRequiredError をスロー
+   */
+  validateRestoreReason(reason: string | null | undefined): void {
+    if (!reason || reason.trim().length === 0) {
+      throw new RestoreReasonRequiredError();
+    }
+  },
+
+  /**
+   * 復活遷移を含めた一括バリデーション
+   * 復活遷移の場合のみ reason 必須をチェックする
+   */
+  validateTransitionWithReason(
+    from: ContractStatus,
+    to: ContractStatus,
+    reason: string | null | undefined
+  ): void {
+    this.validateTransition(from, to);
+    if (this.isRestoreTransition(from, to)) {
+      this.validateRestoreReason(reason);
+    }
+  },
+
+  /**
+   * 契約がファイナル状態（通常運用での終端）かどうか
+   * 注: terminated は通常運用ではファイナルだが、誤操作リカバリで active へ復活可能
    */
   isFinalStatus(status: ContractStatus): boolean {
     return status === ContractStatus.terminated;

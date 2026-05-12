@@ -8,6 +8,7 @@ import {
   ContractStatusTransitionError,
   ContractOperationNotAllowedError,
   PaymentStatusMismatchError,
+  RestoreReasonRequiredError,
   ContractOperation,
 } from '../../../src/plots/services/contractStatusService';
 
@@ -41,11 +42,11 @@ describe('contractStatusService', () => {
       });
     });
 
-    describe('terminated は最終状態', () => {
-      it('terminated → active は許可されない', () => {
+    describe('terminated からの遷移（復活遷移）', () => {
+      it('terminated → active は許可される（誤操作リカバリ用）', () => {
         expect(
           contractStatusService.canTransition(ContractStatus.terminated, ContractStatus.active)
-        ).toBe(false);
+        ).toBe(true);
       });
 
       it('terminated → vacant は許可されない', () => {
@@ -63,9 +64,15 @@ describe('contractStatusService', () => {
       ).not.toThrow();
     });
 
-    it('許可されない遷移は ContractStatusTransitionError を投げる', () => {
+    it('復活遷移（terminated → active）はエラーを投げない', () => {
       expect(() =>
         contractStatusService.validateTransition(ContractStatus.terminated, ContractStatus.active)
+      ).not.toThrow();
+    });
+
+    it('許可されない遷移は ContractStatusTransitionError を投げる', () => {
+      expect(() =>
+        contractStatusService.validateTransition(ContractStatus.terminated, ContractStatus.vacant)
       ).toThrow(ContractStatusTransitionError);
     });
   });
@@ -83,8 +90,104 @@ describe('contractStatusService', () => {
       ]);
     });
 
-    it('terminated は遷移先なし', () => {
-      expect(contractStatusService.getAllowedTransitions(ContractStatus.terminated)).toEqual([]);
+    it('terminated は active のみに遷移可能（復活）', () => {
+      expect(contractStatusService.getAllowedTransitions(ContractStatus.terminated)).toEqual([
+        ContractStatus.active,
+      ]);
+    });
+  });
+
+  describe('isRestoreTransition', () => {
+    it('terminated → active は復活遷移', () => {
+      expect(
+        contractStatusService.isRestoreTransition(ContractStatus.terminated, ContractStatus.active)
+      ).toBe(true);
+    });
+
+    it('vacant → active は復活遷移ではない', () => {
+      expect(
+        contractStatusService.isRestoreTransition(ContractStatus.vacant, ContractStatus.active)
+      ).toBe(false);
+    });
+
+    it('active → terminated は復活遷移ではない', () => {
+      expect(
+        contractStatusService.isRestoreTransition(ContractStatus.active, ContractStatus.terminated)
+      ).toBe(false);
+    });
+  });
+
+  describe('validateRestoreReason', () => {
+    it('非空文字の reason はエラーを投げない', () => {
+      expect(() =>
+        contractStatusService.validateRestoreReason('誤って解約したため復活')
+      ).not.toThrow();
+    });
+
+    it('空文字は RestoreReasonRequiredError を投げる', () => {
+      expect(() => contractStatusService.validateRestoreReason('')).toThrow(
+        RestoreReasonRequiredError
+      );
+    });
+
+    it('null は RestoreReasonRequiredError を投げる', () => {
+      expect(() => contractStatusService.validateRestoreReason(null)).toThrow(
+        RestoreReasonRequiredError
+      );
+    });
+
+    it('undefined は RestoreReasonRequiredError を投げる', () => {
+      expect(() => contractStatusService.validateRestoreReason(undefined)).toThrow(
+        RestoreReasonRequiredError
+      );
+    });
+
+    it('空白のみは RestoreReasonRequiredError を投げる', () => {
+      expect(() => contractStatusService.validateRestoreReason('   ')).toThrow(
+        RestoreReasonRequiredError
+      );
+    });
+  });
+
+  describe('validateTransitionWithReason', () => {
+    it('通常遷移は reason なしでもエラーを投げない', () => {
+      expect(() =>
+        contractStatusService.validateTransitionWithReason(
+          ContractStatus.vacant,
+          ContractStatus.active,
+          null
+        )
+      ).not.toThrow();
+    });
+
+    it('復活遷移で reason ありはエラーを投げない', () => {
+      expect(() =>
+        contractStatusService.validateTransitionWithReason(
+          ContractStatus.terminated,
+          ContractStatus.active,
+          '誤って解約したため復活'
+        )
+      ).not.toThrow();
+    });
+
+    it('復活遷移で reason なしは RestoreReasonRequiredError を投げる', () => {
+      expect(() =>
+        contractStatusService.validateTransitionWithReason(
+          ContractStatus.terminated,
+          ContractStatus.active,
+          null
+        )
+      ).toThrow(RestoreReasonRequiredError);
+    });
+
+    it('許可されない遷移は ContractStatusTransitionError を投げる', () => {
+      expect(() =>
+        contractStatusService.validateTransitionWithReason(
+          ContractStatus.terminated,
+          ContractStatus.vacant,
+          'whatever'
+        )
+      ).toThrow(ContractStatusTransitionError);
     });
   });
 
