@@ -2180,6 +2180,8 @@ components:
         - postcard
         - contract
         - permit
+        - envelope_letter
+        - envelope_base
         - other
       example: invoice
 
@@ -2419,7 +2421,13 @@ components:
       properties:
         templateType:
           type: string
-          enum: [ invoice, postcard ]
+          enum:
+            - invoice
+            - postcard
+            - permit
+            - envelope-letter
+            - envelope-base
+            - payment-guide
           description: テンプレートタイプ
         templateData:
           type: object

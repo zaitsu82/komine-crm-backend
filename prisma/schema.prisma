@@ -101,6 +101,8 @@ enum DocumentType {
   postcard // はがき
   contract // 契約書
   permit // 許可証
+  envelope_letter // 封筒書
+  envelope_base // 封筒台
   other // その他
 }
 

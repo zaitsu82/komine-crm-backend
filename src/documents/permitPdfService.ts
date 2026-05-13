@@ -7,7 +7,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PDFDocument, rgb, degrees, PDFFont } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { PERMIT_PAGES, PermitField, PermitTemplateData } from '@komine/types';
+import {
+  PERMIT_CERTIFICATE_PAGES,
+  ENVELOPE_LETTER_PAGES,
+  ENVELOPE_BASE_PAGES,
+  type PermitField,
+  type PermitPage,
+  type PermitTemplateData,
+} from '@komine/types';
 import { logger } from '../utils/logger';
 
 const TEMPLATE_DIR = path.join(__dirname, 'templates', 'permit');
@@ -98,25 +105,22 @@ function drawField(
 }
 
 /**
- * 許可証テンプレートPDFにテキストを重ねて、5ページまとめた1つのPDFを返す
+ * 許可証・封筒書・封筒台: 指定ページ定義どおりに PDF を結合して返す
  */
-export async function generatePermitPdf(
+export async function generatePermitPdfFromPages(
+  pages: readonly PermitPage[],
   data: PermitTemplateData
 ): Promise<{ success: boolean; buffer?: Buffer; error?: string }> {
   try {
     const fonts = loadFonts();
     const outDoc = await PDFDocument.create();
     outDoc.registerFontkit(fontkit);
-    // subset=true だと CID マップ不整合で一部文字が描画されない現象があったため、
-    // 全グリフを埋め込む（ファイルサイズは増えるが表示を優先）
     const fontRegular = await outDoc.embedFont(fonts.regular, { subset: false });
     const fontBold = await outDoc.embedFont(fonts.bold, { subset: false });
 
-    for (const pageDef of PERMIT_PAGES) {
+    for (const pageDef of pages) {
       if (!pageDef.enabled) continue;
       const basePath = path.join(TEMPLATE_DIR, pageDef.baseFile);
-      // ベースPDFはリポジトリに同梱されているため、不在なら配布物が壊れている。
-      // silent skip すると空ページの PDF がユーザに渡るので fail fast する。
       if (!fs.existsSync(basePath)) {
         throw new Error(`Permit base PDF が見つかりません: ${pageDef.baseFile}`);
       }
@@ -143,10 +147,29 @@ export async function generatePermitPdf(
     const bytes = await outDoc.save();
     return { success: true, buffer: Buffer.from(bytes) };
   } catch (error) {
-    logger.error({ err: error }, 'Permit PDF generation error');
+    logger.error({ err: error }, 'Permit-style PDF generation error');
     return {
       success: false,
-      error: error instanceof Error ? error.message : '許可証PDFの生成に失敗しました',
+      error: error instanceof Error ? error.message : 'PDFの生成に失敗しました',
     };
   }
+}
+
+/** 許可証は1ページ（許可証書）のみ */
+export async function generatePermitPdf(
+  data: PermitTemplateData
+): Promise<{ success: boolean; buffer?: Buffer; error?: string }> {
+  return generatePermitPdfFromPages(PERMIT_CERTIFICATE_PAGES, data);
+}
+
+export async function generateEnvelopeLetterPdf(
+  data: PermitTemplateData
+): Promise<{ success: boolean; buffer?: Buffer; error?: string }> {
+  return generatePermitPdfFromPages(ENVELOPE_LETTER_PAGES, data);
+}
+
+export async function generateEnvelopeBasePdf(
+  data: PermitTemplateData
+): Promise<{ success: boolean; buffer?: Buffer; error?: string }> {
+  return generatePermitPdfFromPages(ENVELOPE_BASE_PAGES, data);
 }

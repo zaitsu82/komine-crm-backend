@@ -25,7 +25,11 @@ import {
   getDefaultSeasonGreeting,
 } from '@komine/types';
 import { logger } from '../utils/logger';
-import { generatePermitPdf } from './permitPdfService';
+import {
+  generatePermitPdf,
+  generateEnvelopeLetterPdf,
+  generateEnvelopeBasePdf,
+} from './permitPdfService';
 
 // 後方互換のため既存名で再エクスポート
 export type TemplateType = DocumentTemplateType;
@@ -248,6 +252,12 @@ export async function generatePdfFromTemplate(
     // 許可証は既存のテンプレートPDFに pdf-lib で文字を重ねる
     if (templateType === 'permit') {
       return await generatePermitPdf(data as PermitTemplateData);
+    }
+    if (templateType === 'envelope-letter') {
+      return await generateEnvelopeLetterPdf(data as PermitTemplateData);
+    }
+    if (templateType === 'envelope-base') {
+      return await generateEnvelopeBasePdf(data as PermitTemplateData);
     }
 
     const html = loadAndRenderTemplate(templateType, data as unknown as Record<string, unknown>);
