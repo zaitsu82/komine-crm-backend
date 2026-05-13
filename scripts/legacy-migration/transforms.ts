@@ -1,0 +1,106 @@
+/**
+ * レガシー値 → 新システム値 変換ユーティリティ
+ */
+
+/**
+ * レガシー日付 (yyyymmdd の int) → JS Date | null
+ *
+ * - 0, NULL, 空文字 → null
+ * - 19000101 未満 → null（不正値）
+ * - 21000101 超 → null（不正値）
+ * - それ以外 → Date
+ *
+ * UTC 00:00 で生成（Prisma の @db.Date は時刻を捨てるため）
+ */
+export function parseLegacyDate(value: unknown): Date | null {
+  if (value === null || value === undefined || value === '' || value === 0) return null;
+
+  const n = typeof value === 'string' ? Number(value) : (value as number);
+  if (!Number.isFinite(n) || n < 19000101 || n > 21001231) return null;
+
+  const y = Math.floor(n / 10000);
+  const m = Math.floor((n % 10000) / 100);
+  const d = n % 100;
+
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+
+  const date = new Date(Date.UTC(y, m - 1, d));
+  // 月/日が範囲外（例: 2026-02-30）だと Date が補正してしまうので検出
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
+    return null;
+  }
+  return date;
+}
+
+/**
+ * レガシー郵便番号 (int) → "1234567" 形式の文字列 | null
+ *
+ * - 0, NULL → null
+ * - 7桁になるよう左ゼロ埋め
+ */
+export function parseLegacyZip(value: unknown): string | null {
+  if (value === null || value === undefined || value === '' || value === 0) return null;
+  const n = typeof value === 'string' ? value.replace(/\D/g, '') : String(value);
+  if (!n || n === '0') return null;
+  return n.padStart(7, '0').slice(0, 7);
+}
+
+/**
+ * レガシー文字列 → trim 済み文字列 | null
+ *
+ * - 空文字、null、undefined → null
+ * - それ以外 → trim 後の値
+ */
+export function cleanStr(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  return s.length === 0 ? null : s;
+}
+
+/**
+ * cleanStr の必須版（必ず空でない文字列を返す）
+ * デフォルト値を渡さない場合、未設定なら fallback を使う
+ */
+export function requireStr(value: unknown, fallback = ''): string {
+  return cleanStr(value) ?? fallback;
+}
+
+/**
+ * 電話番号: ハイフン除去、数字のみに正規化。長さが 11 桁を超えたら 11 桁にトリム
+ */
+export function cleanPhone(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const digits = String(value).replace(/\D/g, '');
+  if (digits.length === 0) return null;
+  return digits.slice(0, 11);
+}
+
+/**
+ * セイ + メイ を結合（どちらかが null/空でも安全）
+ */
+export function joinName(sei: unknown, mei: unknown, separator = ' '): string | null {
+  const s = cleanStr(sei);
+  const m = cleanStr(mei);
+  if (!s && !m) return null;
+  return [s, m].filter(Boolean).join(separator);
+}
+
+/**
+ * 性別コード: レガシーは int、新システムは Gender enum
+ *
+ * 推測マッピング: 1=male / 2=female / それ以外=not_answered or null
+ */
+export function parseGender(value: unknown): 'male' | 'female' | 'not_answered' | null {
+  if (value === null || value === undefined || value === '' || value === 0) return null;
+  const n = Number(value);
+  if (n === 1) return 'male';
+  if (n === 2) return 'female';
+  return 'not_answered';
+}
+
+/**
+ * tinyint(1) → boolean
+ */
+export function parseBool(value: unknown): boolean {
+  return value === 1 || value === '1' || value === true;
+}

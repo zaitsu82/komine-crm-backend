@@ -225,7 +225,7 @@ model Customer {
   address            String    @db.VarChar(200) // 住所
   address_line_2     String?   @db.VarChar(200) // 住所2（2行目）
   registered_address String?   @db.VarChar(200) // 本籍地
-  phone_number       String    @db.VarChar(11) // 電話番号
+  phone_number       String?   @db.VarChar(11) // 電話番号（nullable: レガシー実データに欠損あり）
   fax_number         String?   @db.VarChar(11) // FAX番号
   email              String?   @db.VarChar(254) // メールアドレス（RFC 5321準拠）
   // 振込先情報（ゆうちょ自動払込CSV 出力用。レガシーで0件運用、新システムで入力していく）
