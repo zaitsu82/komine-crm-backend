@@ -119,10 +119,10 @@ export const stepCustomer: MigrationStep = {
       const postalCode = parseLegacyZip(row.zip);
       const phone = cleanPhone(row.tel1) ?? cleanPhone(row.tel2);
 
-      // D-1 で 100% 確認済とはいえ稀な欠損は除外
-      if (!address || !postalCode || !phone) {
+      // 住所・郵便番号は必須。電話番号は nullable（レガシー実データに 17 件欠損あり、schema 側も nullable）
+      if (!address || !postalCode) {
         logger.warn(
-          { danka_cd: row.danka_cd, address: !!address, postalCode: !!postalCode, phone: !!phone },
+          { danka_cd: row.danka_cd, address: !!address, postalCode: !!postalCode },
           'Skipping t_danka row: required field missing'
         );
         skipped++;

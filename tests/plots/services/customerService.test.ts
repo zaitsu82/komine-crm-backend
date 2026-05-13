@@ -85,6 +85,27 @@ describe('customerService', () => {
       expect(mockPrisma.workInfo.create).not.toHaveBeenCalled();
     });
 
+    it('phoneNumber が null でも作成できること（レガシー欠損データ対応）', async () => {
+      const customerData = {
+        name: '山田太郎',
+        nameKana: 'ヤマダタロウ',
+        postalCode: '150-0001',
+        address: '東京都渋谷区',
+        phoneNumber: null,
+      };
+
+      const mockCustomer = { id: 'customer-1', ...customerData };
+      mockPrisma.customer.create.mockResolvedValue(mockCustomer);
+
+      await createCustomerWithRelations(mockPrisma, customerData);
+
+      expect(mockPrisma.customer.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          phone_number: null,
+        }),
+      });
+    });
+
     it('顧客と勤務先情報を作成できること', async () => {
       const customerData = {
         name: '山田太郎',
