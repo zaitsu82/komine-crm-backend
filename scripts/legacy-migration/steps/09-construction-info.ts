@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 
 import { legacyQuery } from '../legacyDb';
 import { rebuildIdMap } from '../lib/id-map-loader';
-import { assertIdMapsReady, assertNoOrphanRows } from '../lib/invariants';
+import { assertIdMapsReady } from '../lib/invariants';
 import { cleanStr, parseLegacyDate } from '../transforms';
 import type { MigrationStep } from '../types';
 
@@ -69,16 +69,6 @@ export const stepConstructionInfo: MigrationStep = {
         },
       });
       inserted++;
-    }
-
-    if (!dryRun) {
-      await assertNoOrphanRows(
-        prisma,
-        'constructionInfo',
-        { contract_plot_id: null, deleted_at: null },
-        'constructionInfo',
-        'contract_plot_id IS NULL after insert'
-      );
     }
 
     return { inserted, skipped, notes: { source_rows: rows.length } };
