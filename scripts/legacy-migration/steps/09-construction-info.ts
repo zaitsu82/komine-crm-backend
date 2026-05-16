@@ -1,6 +1,8 @@
 import type { RowDataPacket } from 'mysql2/promise';
 
 import { legacyQuery } from '../legacyDb';
+import { rebuildIdMap } from '../lib/id-map-loader';
+import { assertIdMapsReady, assertNoOrphanRows } from '../lib/invariants';
 import { cleanStr, parseLegacyDate } from '../transforms';
 import type { MigrationStep } from '../types';
 
@@ -29,6 +31,9 @@ export const stepConstructionInfo: MigrationStep = {
   name: 'constructionInfo',
   dependsOn: ['contractPlot'],
   async run({ prisma, logger, idMaps, dryRun }) {
+    if (!dryRun) await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
+    assertIdMapsReady('constructionInfo', idMaps, ['contractPlot']);
+
     const rows = await legacyQuery<FoundlogRow>(
       `SELECT * FROM t_foundlog WHERE del_flg = 0 OR del_flg IS NULL`
     );
@@ -64,6 +69,16 @@ export const stepConstructionInfo: MigrationStep = {
         },
       });
       inserted++;
+    }
+
+    if (!dryRun) {
+      await assertNoOrphanRows(
+        prisma,
+        'constructionInfo',
+        { contract_plot_id: null, deleted_at: null },
+        'constructionInfo',
+        'contract_plot_id IS NULL after insert'
+      );
     }
 
     return { inserted, skipped, notes: { source_rows: rows.length } };

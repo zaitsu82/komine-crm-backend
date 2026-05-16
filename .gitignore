@@ -116,3 +116,6 @@ uploads/
 
 # Local permit PDF rotation backups
 *.portrait.backup.pdf
+
+# query-legacy.ts audit log (contains executed SQL, may include unmask requests)
+.query-legacy.audit.log
