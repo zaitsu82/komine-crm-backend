@@ -2,6 +2,8 @@ import type { BillingCategory, BillingRecordStatus } from '@prisma/client';
 import type { RowDataPacket } from 'mysql2/promise';
 
 import { legacyQuery } from '../legacyDb';
+import { rebuildIdMap } from '../lib/id-map-loader';
+import { assertIdMapsReady, assertNoOrphanRows } from '../lib/invariants';
 import { cleanStr, parseLegacyDate } from '../transforms';
 import type { MigrationStep } from '../types';
 
@@ -70,6 +72,12 @@ export const stepBilling: MigrationStep = {
   name: 'billing',
   dependsOn: ['customer', 'contractPlot'],
   async run({ prisma, logger, idMaps, dryRun }) {
+    if (!dryRun) {
+      await rebuildIdMap(prisma, idMaps, 'customer', logger);
+      await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
+    }
+    assertIdMapsReady('billing', idMaps, ['customer', 'contractPlot']);
+
     const rows = await legacyQuery<SeikyuRow>(
       `SELECT * FROM t_seikyu WHERE del_flg = 0 OR del_flg IS NULL`
     );
@@ -150,6 +158,16 @@ export const stepBilling: MigrationStep = {
       });
       idMaps.billing.set(row.seikyu_cd, billing.id);
       inserted++;
+    }
+
+    if (!dryRun) {
+      await assertNoOrphanRows(
+        prisma,
+        'billing',
+        { legacy_seikyu_cd: { not: null }, contract_plot_id: null, deleted_at: null },
+        'billing',
+        'legacy_seikyu_cd set but contract_plot_id IS NULL'
+      );
     }
 
     return {

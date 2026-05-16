@@ -1,6 +1,8 @@
 import type { RowDataPacket } from 'mysql2/promise';
 
 import { legacyQuery } from '../legacyDb';
+import { rebuildIdMap } from '../lib/id-map-loader';
+import { assertIdMapsReady, assertNoOrphanRows } from '../lib/invariants';
 import { cleanPhone, cleanStr, joinName, parseLegacyZip } from '../transforms';
 import type { MigrationStep } from '../types';
 
@@ -32,6 +34,12 @@ export const stepSaleContractRole: MigrationStep = {
   name: 'saleContractRole',
   dependsOn: ['customer', 'contractPlot'],
   async run({ prisma, logger, idMaps, dryRun }) {
+    if (!dryRun) {
+      await rebuildIdMap(prisma, idMaps, 'customer', logger);
+      await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
+    }
+    assertIdMapsReady('saleContractRole', idMaps, ['customer', 'contractPlot']);
+
     const rows = await legacyQuery<DankaRoleRow>(
       `SELECT danka_cd, grave_cd,
               request_sei, request_sei_kana, request_mei, request_mei_kana,
@@ -174,6 +182,16 @@ export const stepSaleContractRole: MigrationStep = {
         },
       });
       applicantInserted++;
+    }
+
+    if (!dryRun) {
+      await assertNoOrphanRows(
+        prisma,
+        'saleContractRole',
+        { contract_plot_id: null, deleted_at: null },
+        'saleContractRole',
+        'contract_plot_id IS NULL after insert'
+      );
     }
 
     return {

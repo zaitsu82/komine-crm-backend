@@ -1,6 +1,8 @@
 import type { RowDataPacket } from 'mysql2/promise';
 
 import { legacyQuery } from '../legacyDb';
+import { rebuildIdMap } from '../lib/id-map-loader';
+import { assertIdMapsReady, assertNoOrphanRows } from '../lib/invariants';
 import { cleanPhone, cleanStr, joinName, parseLegacyDate, parseLegacyZip } from '../transforms';
 import type { MigrationStep } from '../types';
 
@@ -44,6 +46,12 @@ export const stepFamilyContact: MigrationStep = {
   name: 'familyContact',
   dependsOn: ['customer', 'contractPlot'],
   async run({ prisma, logger, idMaps, dryRun }) {
+    if (!dryRun) {
+      await rebuildIdMap(prisma, idMaps, 'customer', logger);
+      await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
+    }
+    assertIdMapsReady('familyContact', idMaps, ['customer', 'contractPlot']);
+
     // t_danka から danka_cd → grave_cd の対応を取得
     const dankaToGrave = await legacyQuery<RowDataPacket & { danka_cd: number; grave_cd: number }>(
       `SELECT danka_cd, grave_cd FROM t_danka WHERE del_flg = 0 OR del_flg IS NULL`
@@ -123,6 +131,16 @@ export const stepFamilyContact: MigrationStep = {
         },
       });
       inserted++;
+    }
+
+    if (!dryRun) {
+      await assertNoOrphanRows(
+        prisma,
+        'familyContact',
+        { contract_plot_id: null, deleted_at: null },
+        'familyContact',
+        'contract_plot_id IS NULL after insert'
+      );
     }
 
     return {

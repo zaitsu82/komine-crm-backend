@@ -1,6 +1,8 @@
 import type { RowDataPacket } from 'mysql2/promise';
 
 import { legacyQuery } from '../legacyDb';
+import { rebuildIdMap } from '../lib/id-map-loader';
+import { assertIdMapsReady, assertNoOrphanRows } from '../lib/invariants';
 import { cleanStr, parseLegacyDate } from '../transforms';
 import type { MigrationStep } from '../types';
 
@@ -32,6 +34,13 @@ export const stepPayment: MigrationStep = {
   name: 'payment',
   dependsOn: ['billing'],
   async run({ prisma, logger, idMaps, dryRun }) {
+    if (!dryRun) {
+      await rebuildIdMap(prisma, idMaps, 'customer', logger);
+      await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
+      await rebuildIdMap(prisma, idMaps, 'billing', logger);
+    }
+    assertIdMapsReady('payment', idMaps, ['billing', 'contractPlot', 'customer']);
+
     const rows = await legacyQuery<NyukinRow>(
       `SELECT * FROM t_nyukin WHERE del_flg = 0 OR del_flg IS NULL`
     );
@@ -85,6 +94,21 @@ export const stepPayment: MigrationStep = {
         },
       });
       inserted++;
+    }
+
+    if (!dryRun) {
+      await assertNoOrphanRows(
+        prisma,
+        'payment',
+        {
+          legacy_nyukin_cd: { not: null },
+          billing_id: null,
+          contract_plot_id: null,
+          deleted_at: null,
+        },
+        'payment',
+        'legacy_nyukin_cd set but both billing_id and contract_plot_id IS NULL (2026-05-14 fake-orphan reproduction guard)'
+      );
     }
 
     return {

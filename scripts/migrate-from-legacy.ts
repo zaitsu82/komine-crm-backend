@@ -33,6 +33,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { closeLegacyPool } from './legacy-migration/legacyDb';
 import { logger } from './legacy-migration/logger';
 import { createIdMaps } from './legacy-migration/idMap';
+import { InvariantViolationError } from './legacy-migration/lib/invariants';
 import { stepMasters } from './legacy-migration/steps/01-masters';
 import { stepStaff } from './legacy-migration/steps/02-staff';
 import { stepPhysicalPlot } from './legacy-migration/steps/03-physical-plot';
@@ -209,6 +210,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  logger.fatal({ err }, 'Migration failed');
+  if (err instanceof InvariantViolationError) {
+    logger.fatal({ msg: err.message }, 'Migration aborted: invariant violation');
+  } else {
+    logger.fatal({ err }, 'Migration failed');
+  }
   process.exit(1);
 });

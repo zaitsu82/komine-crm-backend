@@ -2,6 +2,8 @@ import type { Prisma } from '@prisma/client';
 import type { RowDataPacket } from 'mysql2/promise';
 
 import { legacyQuery } from '../legacyDb';
+import { rebuildIdMap } from '../lib/id-map-loader';
+import { assertIdMapsReady } from '../lib/invariants';
 import { cleanStr, parseLegacyDate } from '../transforms';
 import type { MigrationStep } from '../types';
 
@@ -68,6 +70,9 @@ export const stepContractPlot: MigrationStep = {
   name: 'contractPlot',
   dependsOn: ['physicalPlot'],
   async run({ prisma, logger, idMaps, dryRun }) {
+    if (!dryRun) await rebuildIdMap(prisma, idMaps, 'physicalPlot', logger);
+    assertIdMapsReady('contractPlot', idMaps, ['physicalPlot']);
+
     const rows = await legacyQuery<BochiContractRow>(
       `SELECT grave_cd, danka_cd, status, grave_kind, grave_kubun, grave_type,
               request_date, contract_start, contract_end, konryu_kigen, konryu_date, reserve_date,
