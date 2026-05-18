@@ -149,7 +149,7 @@ export const stepSaleContractRole: MigrationStep = {
       const reqZip = parseLegacyZip(row.request_zip);
       const reqPhone = cleanPhone(row.request_tel1);
 
-      if (!reqKana || !reqAddress || !reqZip || !reqPhone) {
+      if (!reqKana || !reqAddress || !reqZip) {
         logger.debug(
           { danka_cd: row.danka_cd },
           'Applicant differs from contractor but lacks required fields, skipping applicant role'
