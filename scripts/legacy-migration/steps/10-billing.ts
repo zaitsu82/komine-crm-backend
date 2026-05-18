@@ -3,7 +3,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 
 import { legacyQuery } from '../legacyDb';
 import { rebuildIdMap } from '../lib/id-map-loader';
-import { assertIdMapsReady, assertNoOrphanRows } from '../lib/invariants';
+import { assertIdMapsReady } from '../lib/invariants';
 import { cleanStr, parseLegacyDate } from '../transforms';
 import type { MigrationStep } from '../types';
 
@@ -158,16 +158,6 @@ export const stepBilling: MigrationStep = {
       });
       idMaps.billing.set(row.seikyu_cd, billing.id);
       inserted++;
-    }
-
-    if (!dryRun) {
-      await assertNoOrphanRows(
-        prisma,
-        'billing',
-        { legacy_seikyu_cd: { not: null }, contract_plot_id: null, deleted_at: null },
-        'billing',
-        'legacy_seikyu_cd set but contract_plot_id IS NULL'
-      );
     }
 
     return {

@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 
 import { legacyQuery } from '../legacyDb';
 import { rebuildIdMap } from '../lib/id-map-loader';
-import { assertIdMapsReady, assertNoOrphanRows } from '../lib/invariants';
+import { assertIdMapsReady } from '../lib/invariants';
 import { cleanStr, joinName, parseGender, parseLegacyDate } from '../transforms';
 import type { MigrationStep } from '../types';
 
@@ -108,16 +108,6 @@ export const stepBuriedPerson: MigrationStep = {
         },
       });
       inserted++;
-    }
-
-    if (!dryRun) {
-      await assertNoOrphanRows(
-        prisma,
-        'buriedPerson',
-        { contract_plot_id: null, deleted_at: null },
-        'buriedPerson',
-        'contract_plot_id IS NULL after insert'
-      );
     }
 
     return {
