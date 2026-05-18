@@ -104,10 +104,11 @@ export const stepPayment: MigrationStep = {
           legacy_nyukin_cd: { not: null },
           billing_id: null,
           contract_plot_id: null,
+          customer_id: null,
           deleted_at: null,
         },
         'payment',
-        'legacy_nyukin_cd set but both billing_id and contract_plot_id IS NULL (2026-05-14 fake-orphan reproduction guard)'
+        'legacy_nyukin_cd set but billing_id, contract_plot_id, customer_id all IS NULL (真の deeper orphan)'
       );
     }
 
