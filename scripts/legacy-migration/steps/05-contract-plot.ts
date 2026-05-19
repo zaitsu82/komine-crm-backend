@@ -44,6 +44,10 @@ interface BochiContractRow extends RowDataPacket {
   houi_id: number | null;
   ichi_id: number | null;
   note: string | null;
+  // t_danka からの JOIN 結果（承諾番号・承諾日）
+  // m_bochi.danka_cd → t_danka.danka_cd で 1:1（同一 danka_cd が複数 m_bochi に紐づく場合も値は同一）
+  auth_no: number | null;
+  auth_date: number | null;
 }
 
 /**
@@ -74,16 +78,18 @@ export const stepContractPlot: MigrationStep = {
     assertIdMapsReady('contractPlot', idMaps, ['physicalPlot']);
 
     const rows = await legacyQuery<BochiContractRow>(
-      `SELECT grave_cd, danka_cd, status, grave_kind, grave_kubun, grave_type,
-              request_date, contract_start, contract_end, konryu_kigen, konryu_date, reserve_date,
-              shiyouryou, shiyouryou_menseki, shiyouryou_tanka, shiyouryou_keisan, shiyouryou_zei,
-              shiyouryou_shiharai, shiyouryou_seikyu, shiyouryou_seikyunen, shiyouryou_seikyutsuki,
-              kanriryou, kanriryou_menseki, kanriryou_tanka, kanriryou_keisan, kanriryou_zei,
-              kanriryou_shiharai, kanriryou_seikyu, kanriryou_seikyunen, kanriryou_seikyutsuki,
-              kanriryou_last_sei_date,
-              bosekiryou, boshi, houi_id, ichi_id, note
-         FROM m_bochi
-        WHERE del_flg = 0 OR del_flg IS NULL`
+      `SELECT b.grave_cd, b.danka_cd, b.status, b.grave_kind, b.grave_kubun, b.grave_type,
+              b.request_date, b.contract_start, b.contract_end, b.konryu_kigen, b.konryu_date, b.reserve_date,
+              b.shiyouryou, b.shiyouryou_menseki, b.shiyouryou_tanka, b.shiyouryou_keisan, b.shiyouryou_zei,
+              b.shiyouryou_shiharai, b.shiyouryou_seikyu, b.shiyouryou_seikyunen, b.shiyouryou_seikyutsuki,
+              b.kanriryou, b.kanriryou_menseki, b.kanriryou_tanka, b.kanriryou_keisan, b.kanriryou_zei,
+              b.kanriryou_shiharai, b.kanriryou_seikyu, b.kanriryou_seikyunen, b.kanriryou_seikyutsuki,
+              b.kanriryou_last_sei_date,
+              b.bosekiryou, b.boshi, b.houi_id, b.ichi_id, b.note,
+              d.auth_no, d.auth_date
+         FROM m_bochi b
+         LEFT JOIN t_danka d ON d.danka_cd = b.danka_cd AND (d.del_flg = 0 OR d.del_flg IS NULL)
+        WHERE b.del_flg = 0 OR b.del_flg IS NULL`
     );
 
     let inserted = 0;
@@ -139,6 +145,8 @@ export const stepContractPlot: MigrationStep = {
         price: row.shiyouryou ?? null,
         request_date: parseLegacyDate(row.request_date),
         reservation_date: parseLegacyDate(row.reserve_date),
+        acceptance_number: row.auth_no != null ? String(row.auth_no) : null,
+        acceptance_date: parseLegacyDate(row.auth_date),
         permit_date: parseLegacyDate(row.konryu_kigen),
         start_date: parseLegacyDate(row.konryu_date),
         notes: cleanStr(row.note),
