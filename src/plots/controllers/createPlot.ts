@@ -94,6 +94,12 @@ export async function createPlotCore(
       phone_number: input.customer.phoneNumber,
       fax_number: input.customer.faxNumber || null,
       email: input.customer.email || null,
+      // 振込先情報（ゆうちょ自動払込 CSV 出力用）
+      bank_name: input.customer.bankName || null,
+      branch_name: input.customer.branchName || null,
+      account_type: input.customer.accountType || null,
+      account_number: input.customer.accountNumber || null,
+      account_holder: input.customer.accountHolder || null,
       notes: input.customer.notes || null,
       staff_id: input.customer.staffId ?? null,
       legacy_danka_cd: input.customer.legacyDankaCd ?? null,

@@ -305,6 +305,17 @@ export async function updatePlotCore(
       if (input.customer.faxNumber !== undefined)
         customerUpdateData.fax_number = input.customer.faxNumber;
       if (input.customer.email !== undefined) customerUpdateData.email = input.customer.email;
+      // 振込先情報（ゆうちょ自動払込 CSV 出力用）
+      if (input.customer.bankName !== undefined)
+        customerUpdateData.bank_name = input.customer.bankName;
+      if (input.customer.branchName !== undefined)
+        customerUpdateData.branch_name = input.customer.branchName;
+      if (input.customer.accountType !== undefined)
+        customerUpdateData.account_type = input.customer.accountType;
+      if (input.customer.accountNumber !== undefined)
+        customerUpdateData.account_number = input.customer.accountNumber;
+      if (input.customer.accountHolder !== undefined)
+        customerUpdateData.account_holder = input.customer.accountHolder;
       if (input.customer.notes !== undefined) customerUpdateData.notes = input.customer.notes;
 
       // issue #66: update 戻り値を保持し section 13 で再取得しないようにする
