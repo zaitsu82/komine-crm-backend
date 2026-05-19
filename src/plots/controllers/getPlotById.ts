@@ -318,6 +318,12 @@ export const getPlotById = async (
           address: role.customer.address,
           addressLine2: role.customer.address_line_2,
           registeredAddress: role.customer.registered_address,
+          // 振込先情報（ゆうちょ自動払込 CSV 出力用、レガシー t_danka.kikan_name 系から移行）
+          bankName: role.customer.bank_name,
+          branchName: role.customer.branch_name,
+          accountType: role.customer.account_type,
+          accountNumber: role.customer.account_number,
+          accountHolder: role.customer.account_holder,
           notes: role.customer.notes,
           workInfo: role.customer.workInfo
             ? {
