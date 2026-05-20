@@ -317,6 +317,7 @@ export const getPlotById = async (
           postalCode: role.customer.postal_code,
           address: role.customer.address,
           addressLine2: role.customer.address_line_2,
+          registeredPostalCode: role.customer.registered_postal_code,
           registeredAddress: role.customer.registered_address,
           // 振込先情報（ゆうちょ自動払込 CSV 出力用、レガシー t_danka.kikan_name 系から移行）
           bankName: role.customer.bank_name,

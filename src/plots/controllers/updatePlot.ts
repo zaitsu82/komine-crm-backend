@@ -298,6 +298,8 @@ export async function updatePlotCore(
       if (input.customer.address !== undefined) customerUpdateData.address = input.customer.address;
       if (input.customer.addressLine2 !== undefined)
         customerUpdateData.address_line_2 = input.customer.addressLine2;
+      if (input.customer.registeredPostalCode !== undefined)
+        customerUpdateData.registered_postal_code = input.customer.registeredPostalCode;
       if (input.customer.registeredAddress !== undefined)
         customerUpdateData.registered_address = input.customer.registeredAddress;
       if (input.customer.phoneNumber !== undefined)
