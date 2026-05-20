@@ -90,6 +90,7 @@ export async function createPlotCore(
       postal_code: input.customer.postalCode,
       address: input.customer.address,
       address_line_2: input.customer.addressLine2 || null,
+      registered_postal_code: input.customer.registeredPostalCode || null,
       registered_address: input.customer.registeredAddress || null,
       phone_number: input.customer.phoneNumber,
       fax_number: input.customer.faxNumber || null,

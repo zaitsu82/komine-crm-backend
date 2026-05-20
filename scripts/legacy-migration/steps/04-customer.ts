@@ -158,6 +158,7 @@ export const stepCustomer: MigrationStep = {
           gender: parseGender(row.sex_flg),
           postal_code: postalCode,
           address,
+          registered_postal_code: parseLegacyZip(row.honseki_zip),
           registered_address:
             [cleanStr(row.honseki_addr1), cleanStr(row.honseki_addr2)].filter(Boolean).join(' ') ||
             null,
