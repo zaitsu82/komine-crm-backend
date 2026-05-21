@@ -4,6 +4,7 @@
  */
 
 export { getPlots } from './getPlots';
+export { getGraveClassifications } from './getGraveClassifications';
 export { getPlotById } from './getPlotById';
 export { createPlot } from './createPlot';
 export { bulkCreatePlots } from './bulkCreatePlots';

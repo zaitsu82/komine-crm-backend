@@ -370,6 +370,45 @@ describe('Plot Controller (ContractPlot Model)', () => {
         })
       );
     });
+
+    it('should apply grave_kind / grave_kubun / grave_type filters when provided', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
+
+      mockRequest.query = {
+        page: 1,
+        limit: 10,
+        graveKind: 1,
+        graveKubun: 3,
+        graveType: 2,
+      } as any;
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.contractPlot.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            grave_kind: 1,
+            grave_kubun: 3,
+            grave_type: 2,
+          }),
+        })
+      );
+    });
+
+    it('should not apply grave classification filters when omitted', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
+
+      mockRequest.query = { page: 1, limit: 10 } as any;
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      const whereArg = mockPrisma.contractPlot.findMany.mock.calls[0][0].where;
+      expect(whereArg).not.toHaveProperty('grave_kind');
+      expect(whereArg).not.toHaveProperty('grave_kubun');
+      expect(whereArg).not.toHaveProperty('grave_type');
+    });
   });
 
   describe('getPlotById', () => {

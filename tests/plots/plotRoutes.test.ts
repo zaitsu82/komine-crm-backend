@@ -48,6 +48,12 @@ jest.mock('../../src/middleware/validation', () => {
 // モックコントローラー
 jest.mock('../../src/plots/controllers', () => ({
   getPlots: jest.fn((req, res) => res.status(200).json({ success: true, data: [] })),
+  getGraveClassifications: jest.fn((req, res) =>
+    res.status(200).json({
+      success: true,
+      data: { graveKinds: [], graveKubuns: [], graveTypes: [] },
+    })
+  ),
   getPlotById: jest.fn((req, res) => res.status(200).json({ success: true, data: {} })),
   createPlot: jest.fn((req, res) => res.status(201).json({ success: true, data: {} })),
   bulkCreatePlots: jest.fn((req, res) => res.status(201).json({ success: true, data: {} })),
@@ -75,6 +81,7 @@ jest.mock('../../src/plots/controllers', () => ({
 
 import {
   getPlots,
+  getGraveClassifications,
   getPlotById,
   createPlot,
   updatePlot,
@@ -104,6 +111,17 @@ describe('Plot Routes', () => {
       expect(response.status).toBe(200);
       expect(getPlots).toHaveBeenCalled();
       expect(response.body.success).toBe(true);
+    });
+  });
+
+  describe('GET /api/v1/plots/grave-classifications', () => {
+    it('should call getGraveClassifications controller', async () => {
+      const response = await request(app).get('/api/v1/plots/grave-classifications');
+
+      expect(response.status).toBe(200);
+      expect(getGraveClassifications).toHaveBeenCalled();
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toEqual({ graveKinds: [], graveKubuns: [], graveTypes: [] });
     });
   });
 
