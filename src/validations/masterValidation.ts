@@ -41,6 +41,7 @@ export const VALID_MASTER_TYPES = [
   'construction-type',
   'section-name',
   'relationship',
+  'contractor',
 ] as const;
 
 export type MasterType = (typeof VALID_MASTER_TYPES)[number];

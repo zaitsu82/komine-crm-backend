@@ -24,7 +24,10 @@ interface FoundlogRow extends RowDataPacket {
 /**
  * t_foundlog → ConstructionInfo
  *
- * - 業者名（gyousha_cd）は contractor フィールドに int 文字列で保持（後でマスタ参照可）
+ * - 業者名（gyousha_cd）は contractor フィールドに `legacy-gyousha-{id}` 形式で保存。
+ *   同名 code を持つ ContractorMaster エントリを upsert で確保し、frontend の
+ *   select が直接ヒット (= 既存値 fallback ではなく master 値として認識) するようにする。
+ *   実際の業者名は業務側確認後にマスタ画面で rename する想定。
  * - work_amount_1 を price、payment_amount_1 を payment に対応
  */
 export const stepConstructionInfo: MigrationStep = {
@@ -37,6 +40,30 @@ export const stepConstructionInfo: MigrationStep = {
     const rows = await legacyQuery<FoundlogRow>(
       `SELECT * FROM t_foundlog WHERE del_flg = 0 OR del_flg IS NULL`
     );
+
+    // 出現する legacy gyousha_cd の一意集合を ContractorMaster に upsert
+    const distinctGyousha = new Set<number>();
+    for (const row of rows) {
+      if (row.gyousha_cd != null) distinctGyousha.add(row.gyousha_cd);
+    }
+    let mastersUpserted = 0;
+    if (!dryRun) {
+      for (const gyoushaCd of distinctGyousha) {
+        const code = `legacy-gyousha-${gyoushaCd}`;
+        await prisma.contractorMaster.upsert({
+          where: { code },
+          create: {
+            code,
+            name: `業者ID:${gyoushaCd}`, // 業務側確認後にリネーム想定
+            sort_order: gyoushaCd,
+            is_active: true,
+          },
+          update: {}, // 既に存在する場合は何もしない (名前は手動で更新可能)
+        });
+        mastersUpserted++;
+      }
+      logger.info({ mastersUpserted }, 'ContractorMaster upserted from legacy gyousha_cd');
+    }
 
     let inserted = 0;
     let skipped = 0;
@@ -71,6 +98,10 @@ export const stepConstructionInfo: MigrationStep = {
       inserted++;
     }
 
-    return { inserted, skipped, notes: { source_rows: rows.length } };
+    return {
+      inserted,
+      skipped,
+      notes: { source_rows: rows.length, contractor_masters_upserted: mastersUpserted },
+    };
   },
 };

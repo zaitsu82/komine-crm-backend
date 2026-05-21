@@ -109,6 +109,25 @@ const mockRelationshipData = [
   { id: 2, code: 'child', name: '子', description: null, sort_order: 2, is_active: true },
 ];
 
+const mockContractorData = [
+  {
+    id: 1,
+    code: 'placeholder-1',
+    name: '小嶺石材',
+    description: null,
+    sort_order: 1,
+    is_active: true,
+  },
+  {
+    id: 2,
+    code: 'placeholder-99',
+    name: 'その他',
+    description: null,
+    sort_order: 99,
+    is_active: true,
+  },
+];
+
 // モックプリズマインスタンスの作成
 const mockPrisma: any = {
   cemeteryTypeMaster: {
@@ -138,6 +157,9 @@ const mockPrisma: any = {
   relationshipMaster: {
     findMany: jest.fn(),
   },
+  contractorMaster: {
+    findMany: jest.fn(),
+  },
 };
 
 // PrismaClientをモック化
@@ -156,6 +178,7 @@ import {
   getConstructionTypeMaster,
   getSectionNameMaster,
   getRelationshipMaster,
+  getContractorMaster,
   getAllMasters,
 } from '../../src/masters/masterController';
 
@@ -640,6 +663,7 @@ describe('Master Controller', () => {
       mockPrisma.constructionTypeMaster.findMany.mockResolvedValue(mockConstructionTypeData);
       mockPrisma.sectionNameMaster.findMany.mockResolvedValue(mockSectionNameData);
       mockPrisma.relationshipMaster.findMany.mockResolvedValue(mockRelationshipData);
+      mockPrisma.contractorMaster.findMany.mockResolvedValue(mockContractorData);
 
       await getAllMasters(mockRequest as Request, mockResponse as Response);
 
@@ -657,6 +681,7 @@ describe('Master Controller', () => {
       expect(jsonCall.data.constructionType).toHaveLength(2);
       expect(jsonCall.data.sectionName).toHaveLength(2);
       expect(jsonCall.data.relationship).toHaveLength(2);
+      expect(jsonCall.data.contractor).toHaveLength(2);
 
       // 特殊フィールドのテスト（taxRate）
       expect(jsonCall.data.taxType[0].taxRate).toBe('10');
@@ -665,10 +690,23 @@ describe('Master Controller', () => {
       // 続柄
       expect(jsonCall.data.relationship[0].code).toBe('spouse');
       expect(jsonCall.data.relationship[0].name).toBe('配偶者');
+      // 工事業者
+      expect(jsonCall.data.contractor[0].code).toBe('placeholder-1');
+      expect(jsonCall.data.contractor[0].name).toBe('小嶺石材');
     });
 
     it('エラーが発生した場合、500エラーを返すこと', async () => {
       mockPrisma.cemeteryTypeMaster.findMany.mockRejectedValue(new Error('Database error'));
+      // Promise.all で同時に走るので他のマスタは resolved に設定しておく
+      mockPrisma.paymentMethodMaster.findMany.mockResolvedValue([]);
+      mockPrisma.taxTypeMaster.findMany.mockResolvedValue([]);
+      mockPrisma.calcTypeMaster.findMany.mockResolvedValue([]);
+      mockPrisma.billingTypeMaster.findMany.mockResolvedValue([]);
+      mockPrisma.recipientTypeMaster.findMany.mockResolvedValue([]);
+      mockPrisma.constructionTypeMaster.findMany.mockResolvedValue([]);
+      mockPrisma.sectionNameMaster.findMany.mockResolvedValue([]);
+      mockPrisma.relationshipMaster.findMany.mockResolvedValue([]);
+      mockPrisma.contractorMaster.findMany.mockResolvedValue([]);
 
       await getAllMasters(mockRequest as Request, mockResponse as Response);
 
@@ -678,6 +716,56 @@ describe('Master Controller', () => {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '全マスタデータの取得に失敗しました',
+        },
+      });
+    });
+  });
+
+  describe('getContractorMaster', () => {
+    it('工事業者マスタを取得できること', async () => {
+      mockPrisma.contractorMaster.findMany.mockResolvedValue(mockContractorData);
+
+      await getContractorMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.contractorMaster.findMany).toHaveBeenCalledWith({
+        where: { is_active: true },
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      });
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: [
+          {
+            id: 1,
+            code: 'placeholder-1',
+            name: '小嶺石材',
+            description: null,
+            sortOrder: 1,
+            isActive: true,
+          },
+          {
+            id: 2,
+            code: 'placeholder-99',
+            name: 'その他',
+            description: null,
+            sortOrder: 99,
+            isActive: true,
+          },
+        ],
+      });
+    });
+
+    it('エラーが発生した場合、500エラーを返すこと', async () => {
+      mockPrisma.contractorMaster.findMany.mockRejectedValue(new Error('Database error'));
+
+      await getContractorMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '工事業者マスタの取得に失敗しました',
         },
       });
     });

@@ -355,6 +355,42 @@ export const getRelationshipMaster = async (_req: Request, res: Response) => {
 };
 
 /**
+ * 工事業者マスタ取得
+ * GET /api/v1/masters/contractor
+ */
+export const getContractorMaster = async (_req: Request, res: Response) => {
+  try {
+    const data = await prisma.contractorMaster.findMany({
+      where: { is_active: true },
+      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+    });
+
+    const formatted: MasterData[] = data.map((item) => ({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      description: item.description,
+      sortOrder: item.sort_order,
+      isActive: item.is_active,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+    });
+  } catch (error) {
+    getRequestLogger().error({ err: error }, 'Error fetching contractor master');
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: '工事業者マスタの取得に失敗しました',
+      },
+    });
+  }
+};
+
+/**
  * マスタタイプからPrismaモデルデリゲートを取得
  */
 const getMasterDelegate = (masterType: MasterType) => {
@@ -368,6 +404,7 @@ const getMasterDelegate = (masterType: MasterType) => {
     'construction-type': prisma.constructionTypeMaster,
     'section-name': prisma.sectionNameMaster,
     relationship: prisma.relationshipMaster,
+    contractor: prisma.contractorMaster,
   };
   return delegateMap[masterType];
 };
@@ -382,6 +419,7 @@ const masterTypeLabels: Record<MasterType, string> = {
   'construction-type': '工事タイプ',
   'section-name': '区画名',
   relationship: '続柄',
+  contractor: '工事業者',
 };
 
 /**
@@ -702,6 +740,7 @@ export const getAllMasters = async (_req: Request, res: Response) => {
       constructionType,
       sectionName,
       relationship,
+      contractor,
     ] = await Promise.all([
       prisma.cemeteryTypeMaster.findMany({
         where: { is_active: true },
@@ -736,6 +775,10 @@ export const getAllMasters = async (_req: Request, res: Response) => {
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.relationshipMaster.findMany({
+        where: { is_active: true },
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      }),
+      prisma.contractorMaster.findMany({
         where: { is_active: true },
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
@@ -811,6 +854,14 @@ export const getAllMasters = async (_req: Request, res: Response) => {
           isActive: item.is_active,
         })),
         relationship: relationship.map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+          description: item.description,
+          sortOrder: item.sort_order,
+          isActive: item.is_active,
+        })),
+        contractor: contractor.map((item) => ({
           id: item.id,
           code: item.code,
           name: item.name,

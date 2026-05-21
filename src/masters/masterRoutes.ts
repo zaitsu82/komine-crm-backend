@@ -9,6 +9,7 @@ import {
   getConstructionTypeMaster,
   getSectionNameMaster,
   getRelationshipMaster,
+  getContractorMaster,
   getAllMasters,
   createMaster,
   updateMaster,
@@ -98,6 +99,14 @@ router.get(
   authenticate,
   checkApiPermission(),
   withLogging('Masters', 'getRelationshipMaster', getRelationshipMaster)
+);
+
+// 工事業者マスタ
+router.get(
+  '/contractor',
+  authenticate,
+  checkApiPermission(),
+  withLogging('Masters', 'getContractorMaster', getContractorMaster)
 );
 
 // マスタデータ CRUD（汎用）
