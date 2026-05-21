@@ -122,6 +122,21 @@ paths:
           description: 墓地タイプフィルタ
           schema:
             type: string
+        - name: graveKind
+          in: query
+          description: 区画区分フィルタ（grave_kind、レガシー tinyint 値）
+          schema:
+            type: integer
+        - name: graveKubun
+          in: query
+          description: 区画区分フィルタ（grave_kubun、レガシー tinyint 値）
+          schema:
+            type: integer
+        - name: graveType
+          in: query
+          description: 区画区分フィルタ（grave_type、レガシー tinyint 値）
+          schema:
+            type: integer
       responses:
         "200":
           description: 取得成功
@@ -184,6 +199,48 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+
+  /api/v1/plots/grave-classifications:
+    get:
+      tags:
+        - Plots
+      summary: 区画区分 distinct 値取得
+      description: |
+        ContractPlot に存在する grave_kind / grave_kubun / grave_type の
+        一意な値の一覧を返します。区画一覧画面のフィルタ select 用。
+        master 化されるまでの暫定エンドポイントです。
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      graveKinds:
+                        type: array
+                        items:
+                          type: integer
+                      graveKubuns:
+                        type: array
+                        items:
+                          type: integer
+                      graveTypes:
+                        type: array
+                        items:
+                          type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /api/v1/plots/bulk:
     post:

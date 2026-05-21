@@ -23,6 +23,15 @@ import {
 /**
  * Plot検索クエリのバリデーションスキーマ
  */
+const graveClassificationParam = z
+  .string()
+  .optional()
+  .transform((val) => {
+    if (val === undefined || val === '') return undefined;
+    const n = parseInt(val, 10);
+    return Number.isNaN(n) ? undefined : n;
+  });
+
 export const plotSearchQuerySchema = paginationSchema.extend({
   search: z.string().optional(),
   status: z.enum(['available', 'partially_sold', 'sold_out']).optional(), // PhysicalPlotStatus ENUM
@@ -42,6 +51,9 @@ export const plotSearchQuerySchema = paginationSchema.extend({
     .optional(),
   sortOrder: z.enum(['asc', 'desc']).optional(),
   nameKanaPrefix: z.string().max(5).optional(),
+  graveKind: graveClassificationParam,
+  graveKubun: graveClassificationParam,
+  graveType: graveClassificationParam,
 });
 
 /**

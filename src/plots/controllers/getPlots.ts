@@ -25,6 +25,9 @@ interface PlotSearchQuery {
     | 'createdAt';
   sortOrder?: 'asc' | 'desc';
   nameKanaPrefix?: string;
+  graveKind?: number;
+  graveKubun?: number;
+  graveType?: number;
 }
 
 /**
@@ -43,6 +46,9 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
       sortBy,
       sortOrder = 'asc',
       nameKanaPrefix,
+      graveKind,
+      graveKubun,
+      graveType,
     } = req.query as unknown as PlotSearchQuery;
 
     // ページネーション計算
@@ -110,6 +116,17 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
     // 入金ステータスフィルター
     if (paymentStatus) {
       whereCondition.payment_status = paymentStatus;
+    }
+
+    // 区分フィルター（grave_kind / grave_kubun / grave_type）
+    if (graveKind !== undefined) {
+      whereCondition.grave_kind = graveKind;
+    }
+    if (graveKubun !== undefined) {
+      whereCondition.grave_kubun = graveKubun;
+    }
+    if (graveType !== undefined) {
+      whereCondition.grave_type = graveType;
     }
 
     // フリガナ先頭文字フィルター（あいうえおタブ用）

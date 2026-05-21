@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   getPlots,
+  getGraveClassifications,
   getPlotById,
   createPlot,
   bulkCreatePlots,
@@ -45,6 +46,14 @@ router.get(
   requirePermission(['viewer', 'operator', 'manager', 'admin']),
   validate({ query: plotSearchQuerySchema }),
   withLogging('Plots', 'getPlots', getPlots)
+);
+
+// 区画区分（grave_kind/kubun/type）の distinct 値取得（フィルタ select 用）
+router.get(
+  '/grave-classifications',
+  authenticate,
+  requirePermission(['viewer', 'operator', 'manager', 'admin']),
+  withLogging('Plots', 'getGraveClassifications', getGraveClassifications)
 );
 
 // ==========================================
