@@ -1738,6 +1738,32 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/masters/contractor:
+    get:
+      tags:
+        - Masters
+      summary: 工事業者マスタ一覧取得
+      description: 有効な工事業者マスタデータを表示順で取得（ConstructionInfo.contractor の select 候補）
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 工事業者マスタ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ContractorMaster"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/v1/masters/all:
     get:
       tags:
@@ -1768,6 +1794,10 @@ paths:
                         type: array
                         items:
                           $ref: "#/components/schemas/RelationshipMaster"
+                      contractor:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ContractorMaster"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -2048,6 +2078,30 @@ components:
         name:
           type: string
           example: "配偶者"
+        description:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          nullable: true
+          example: 1
+        isActive:
+          type: boolean
+          example: true
+
+    ContractorMaster:
+      type: object
+      description: 工事業者マスタ (ConstructionInfo.contractor の select 候補)
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: "placeholder-1"
+        name:
+          type: string
+          example: "小嶺石材"
         description:
           type: string
           nullable: true
