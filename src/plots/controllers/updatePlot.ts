@@ -6,13 +6,14 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { Prisma } from '@prisma/client';
+import { Prisma, ContractRole } from '@prisma/client';
 import { UpdatePlotRequest } from '@komine/types';
 import { updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 import {
   recordContractPlotUpdated,
+  recordCustomerCreated,
   recordCustomerUpdated,
   recordEntityCreated,
   recordEntityUpdated,
@@ -428,6 +429,126 @@ export async function updatePlotCore(
 
       // 6. BillingInfo は新スキーマで廃止された。
       // 振込先情報は今後 Billing/Payment エンティティから扱う予定（Phase 3で実装）。
+    }
+  }
+
+  // 6.5. 申込者（applicant）の upsert / 解除
+  // undefined: 変更なし / null: 既存の applicant role を soft-delete /
+  // object: 既存あれば更新、なければ Customer + role を新規作成。
+  if (input.applicant !== undefined) {
+    const existingApplicantRole = existingContractPlot.saleContractRoles?.find(
+      (r) => r.role === ContractRole.applicant
+    );
+
+    if (input.applicant === null) {
+      if (existingApplicantRole) {
+        await tx.saleContractRole.update({
+          where: { id: existingApplicantRole.id },
+          data: { deleted_at: new Date() },
+        });
+        await recordEntityDeleted(tx, {
+          entityType: 'SaleContractRole',
+          entityId: existingApplicantRole.id,
+          physicalPlotId,
+          contractPlotId: id,
+          beforeRecord: {
+            id: existingApplicantRole.id,
+            role: existingApplicantRole.role,
+            customer_id: existingApplicantRole.customer_id,
+          },
+          req,
+        });
+      }
+    } else if (existingApplicantRole) {
+      // 既存の applicant Customer を部分更新
+      const applicantCustomerId = existingApplicantRole.customer.id;
+      const applicantUpdateData: any = {};
+      if (input.applicant.name !== undefined) applicantUpdateData.name = input.applicant.name;
+      if (input.applicant.nameKana !== undefined)
+        applicantUpdateData.name_kana = input.applicant.nameKana;
+      if (input.applicant.birthDate !== undefined) {
+        applicantUpdateData.birth_date = input.applicant.birthDate
+          ? new Date(input.applicant.birthDate)
+          : null;
+      }
+      if (input.applicant.gender !== undefined) applicantUpdateData.gender = input.applicant.gender;
+      if (input.applicant.postalCode !== undefined)
+        applicantUpdateData.postal_code = input.applicant.postalCode ?? '';
+      if (input.applicant.address !== undefined)
+        applicantUpdateData.address = input.applicant.address ?? '';
+      if (input.applicant.addressLine2 !== undefined)
+        applicantUpdateData.address_line_2 = input.applicant.addressLine2;
+      if (input.applicant.registeredPostalCode !== undefined)
+        applicantUpdateData.registered_postal_code = input.applicant.registeredPostalCode;
+      if (input.applicant.registeredAddress !== undefined)
+        applicantUpdateData.registered_address = input.applicant.registeredAddress;
+      if (input.applicant.phoneNumber !== undefined)
+        applicantUpdateData.phone_number = input.applicant.phoneNumber;
+      if (input.applicant.faxNumber !== undefined)
+        applicantUpdateData.fax_number = input.applicant.faxNumber;
+      if (input.applicant.email !== undefined) applicantUpdateData.email = input.applicant.email;
+      if (input.applicant.notes !== undefined) applicantUpdateData.notes = input.applicant.notes;
+
+      if (Object.keys(applicantUpdateData).length > 0) {
+        const before = existingApplicantRole.customer;
+        const updated = await tx.customer.update({
+          where: { id: applicantCustomerId },
+          data: applicantUpdateData,
+        });
+        await recordCustomerUpdated(
+          tx,
+          before as unknown as Record<string, unknown>,
+          updated as unknown as Record<string, unknown>,
+          applicantCustomerId,
+          id,
+          physicalPlotId,
+          req
+        );
+      }
+    } else {
+      // 新規 Customer + applicant role を作成
+      if (!input.applicant.name || !input.applicant.nameKana) {
+        throw new ValidationError('申込者の氏名・氏名カナは必須です');
+      }
+      const applicantCustomer = await tx.customer.create({
+        data: {
+          name: input.applicant.name,
+          name_kana: input.applicant.nameKana,
+          birth_date: input.applicant.birthDate ? new Date(input.applicant.birthDate) : null,
+          gender: input.applicant.gender || null,
+          postal_code: input.applicant.postalCode || '',
+          address: input.applicant.address || '',
+          address_line_2: input.applicant.addressLine2 || null,
+          registered_postal_code: input.applicant.registeredPostalCode || null,
+          registered_address: input.applicant.registeredAddress || null,
+          phone_number: input.applicant.phoneNumber ?? null,
+          fax_number: input.applicant.faxNumber || null,
+          email: input.applicant.email || null,
+          notes: input.applicant.notes || null,
+          staff_id: input.applicant.staffId ?? null,
+          legacy_danka_cd: input.applicant.legacyDankaCd ?? null,
+        },
+      });
+      const createdRole = await tx.saleContractRole.create({
+        data: {
+          contract_plot_id: id,
+          customer_id: applicantCustomer.id,
+          role: ContractRole.applicant,
+        },
+      });
+      await recordCustomerCreated(tx, applicantCustomer, id, physicalPlotId, req);
+      await recordEntityCreated(tx, {
+        entityType: 'SaleContractRole',
+        entityId: createdRole.id,
+        physicalPlotId,
+        contractPlotId: id,
+        afterRecord: {
+          id: createdRole.id,
+          role: createdRole.role,
+          customer_id: createdRole.customer_id,
+        },
+        req,
+      });
     }
   }
 

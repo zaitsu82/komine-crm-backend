@@ -875,6 +875,90 @@ describe('Plot Controller (ContractPlot Model)', () => {
       expect(responseStatus).toHaveBeenCalledWith(201);
     });
 
+    it('should create applicant as separate customer + role when provided', async () => {
+      const mockInput = {
+        physicalPlot: {
+          plotNumber: 'A-01',
+          areaName: '一般墓地A',
+          areaSqm: 3.6,
+        },
+        contractPlot: {
+          contractAreaSqm: 3.6,
+        },
+        saleContract: {
+          contractDate: '2024-01-01',
+          price: 1000000,
+        },
+        customer: {
+          name: '山田太郎',
+          nameKana: 'ヤマダタロウ',
+          postalCode: '1500001',
+          address: '東京都渋谷区',
+          phoneNumber: '0312345678',
+        },
+        applicant: {
+          name: '山田花子',
+          nameKana: 'ヤマダハナコ',
+          postalCode: '1500001',
+          address: '東京都渋谷区',
+          phoneNumber: '0312345679',
+        },
+      };
+
+      const mockContractor = { id: 'c1', name: '山田太郎' };
+      const mockApplicant = { id: 'c2', name: '山田花子' };
+
+      mockPrisma.physicalPlot.create.mockResolvedValue({
+        id: 'pp1',
+        plot_number: 'A-01',
+        area_name: '一般墓地A',
+        area_sqm: new Prisma.Decimal(3.6),
+        status: 'sold_out',
+      });
+      mockPrisma.customer.create
+        .mockResolvedValueOnce(mockContractor)
+        .mockResolvedValueOnce(mockApplicant);
+      mockPrisma.contractPlot.create.mockResolvedValue({ id: 'cp1' });
+      mockPrisma.saleContractRole.create
+        .mockResolvedValueOnce({ id: 'scr1', role: 'contractor', customer_id: 'c1' })
+        .mockResolvedValueOnce({ id: 'scr2', role: 'applicant', customer_id: 'c2' });
+      mockPrisma.contractPlot.findUnique.mockResolvedValue({
+        id: 'cp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        contract_date: new Date('2024-01-01'),
+        price: 1000000,
+        payment_status: 'unpaid',
+        created_at: new Date(),
+        updated_at: new Date(),
+        physicalPlot: {
+          id: 'pp1',
+          plot_number: 'A-01',
+          area_name: '一般墓地A',
+          area_sqm: new Prisma.Decimal(3.6),
+          status: 'sold_out',
+        },
+        saleContractRoles: [
+          { id: 'scr1', role: 'contractor', customer: mockContractor },
+          { id: 'scr2', role: 'applicant', customer: mockApplicant },
+        ],
+        usageFee: null,
+        managementFee: null,
+      });
+
+      mockRequest.body = mockInput;
+
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.customer.create).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.saleContractRole.create).toHaveBeenCalledTimes(2);
+      const roleCalls = (mockPrisma.saleContractRole.create as jest.Mock).mock.calls.map(
+        (c: any[]) => c[0].data.role
+      );
+      expect(roleCalls).toContain('contractor');
+      expect(roleCalls).toContain('applicant');
+      expect(responseStatus).toHaveBeenCalledWith(201);
+    });
+
     it('should return error when plotNumber and areaName are missing for new physical plot', async () => {
       mockRequest.body = {
         physicalPlot: {
@@ -945,6 +1029,145 @@ describe('Plot Controller (ContractPlot Model)', () => {
       await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(ValidationError));
+    });
+
+    it('should create applicant Customer + role when applicant provided and no existing applicant', async () => {
+      const mockExistingPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: { id: 'c1', workInfo: null },
+            customer_id: 'c1',
+            deleted_at: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+      };
+
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.customer.create.mockResolvedValue({ id: 'c2', name: '山田花子' });
+      mockPrisma.saleContractRole.create.mockResolvedValue({
+        id: 'scr2',
+        role: 'applicant',
+        customer_id: 'c2',
+      });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        applicant: {
+          name: '山田花子',
+          nameKana: 'ヤマダハナコ',
+        },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.customer.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ name: '山田花子', name_kana: 'ヤマダハナコ' }),
+        })
+      );
+      expect(mockPrisma.saleContractRole.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ role: 'applicant', customer_id: 'c2' }),
+        })
+      );
+    });
+
+    it('should update existing applicant Customer when applicant role already exists', async () => {
+      const mockExistingPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: { id: 'c1', workInfo: null },
+            customer_id: 'c1',
+            deleted_at: null,
+          },
+          {
+            id: 'scr2',
+            role: 'applicant',
+            customer: { id: 'c2', name: '山田花子' },
+            customer_id: 'c2',
+            deleted_at: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+      };
+
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.customer.update.mockResolvedValue({ id: 'c2', name: '山田花江' });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        applicant: { name: '山田花江' },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.customer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'c2' },
+          data: expect.objectContaining({ name: '山田花江' }),
+        })
+      );
+      expect(mockPrisma.saleContractRole.create).not.toHaveBeenCalled();
+    });
+
+    it('should soft-delete applicant role when applicant=null', async () => {
+      const mockExistingPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: { id: 'c1', workInfo: null },
+            customer_id: 'c1',
+            deleted_at: null,
+          },
+          {
+            id: 'scr2',
+            role: 'applicant',
+            customer: { id: 'c2', name: '山田花子' },
+            customer_id: 'c2',
+            deleted_at: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+      };
+
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.saleContractRole.update.mockResolvedValue({ id: 'scr2' });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = { applicant: null };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.saleContractRole.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'scr2' },
+          data: expect.objectContaining({ deleted_at: expect.any(Date) }),
+        })
+      );
     });
   });
 
