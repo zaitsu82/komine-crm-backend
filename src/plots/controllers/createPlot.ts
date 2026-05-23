@@ -207,6 +207,44 @@ export async function createPlotCore(
     createdRoles.push({ id: created.id, role: created.role, customer_id: created.customer_id });
   }
 
+  // 7.5. 申込者（applicant）の作成（任意）
+  // 旧画面は申込者と契約者を並列に持つ。指定された場合は別 Customer +
+  // SaleContractRole(role=applicant) として保存する。
+  if (input.applicant) {
+    const applicantCustomer = await tx.customer.create({
+      data: {
+        name: input.applicant.name,
+        name_kana: input.applicant.nameKana,
+        birth_date: input.applicant.birthDate ? new Date(input.applicant.birthDate) : null,
+        gender: input.applicant.gender || null,
+        postal_code: input.applicant.postalCode || '',
+        address: input.applicant.address || '',
+        address_line_2: input.applicant.addressLine2 || null,
+        registered_postal_code: input.applicant.registeredPostalCode || null,
+        registered_address: input.applicant.registeredAddress || null,
+        phone_number: input.applicant.phoneNumber ?? null,
+        fax_number: input.applicant.faxNumber || null,
+        email: input.applicant.email || null,
+        notes: input.applicant.notes || null,
+        staff_id: input.applicant.staffId ?? null,
+        legacy_danka_cd: input.applicant.legacyDankaCd ?? null,
+      },
+    });
+    const applicantRoleRecord = await tx.saleContractRole.create({
+      data: {
+        contract_plot_id: contractPlot.id,
+        customer_id: applicantCustomer.id,
+        role: ContractRole.applicant,
+      },
+    });
+    createdRoles.push({
+      id: applicantRoleRecord.id,
+      role: applicantRoleRecord.role,
+      customer_id: applicantRoleRecord.customer_id,
+    });
+    await recordCustomerCreated(tx, applicantCustomer, contractPlot.id, physicalPlot.id, req);
+  }
+
   // 8. 使用料情報の作成
   let usageFee: { id: string } | null = null;
   if (input.usageFee) {
