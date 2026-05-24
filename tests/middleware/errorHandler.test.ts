@@ -71,7 +71,7 @@ describe('Error Handler Middleware', () => {
 
   describe('errorHandler', () => {
     describe('Prismaエラー処理', () => {
-      it('P2002（重複エラー）を正しく処理すること', () => {
+      it('P2002（重複エラー、v6 meta.target=array）を正しく処理すること', () => {
         const error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
           code: 'P2002',
           clientVersion: '5.0.0',
@@ -89,7 +89,150 @@ describe('Error Handler Middleware', () => {
             details: [
               {
                 field: 'email',
-                message: 'email は既に使用されています',
+                message: 'メールアドレス は既に使用されています',
+              },
+            ],
+          },
+        });
+      });
+
+      it('P2002（v6 meta.target=string カンマ区切り）を正しく処理すること', () => {
+        const error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '5.0.0',
+          meta: { target: 'email,supabase_uid' },
+        });
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(409);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'CONFLICT',
+            message: '重複するデータが存在します',
+            details: [
+              {
+                field: 'email, supabase_uid',
+                message: 'メールアドレス, Supabaseユーザー は既に使用されています',
+              },
+            ],
+          },
+        });
+      });
+
+      it('P2002（v7 adapter-pg, driverAdapterError から field を抽出）を正しく処理すること', () => {
+        // Prisma v7 + @prisma/adapter-pg では meta.target が無く、
+        // meta.driverAdapterError.cause.constraint.fields に入る
+        const error = new Prisma.PrismaClientKnownRequestError(
+          '\nInvalid `prisma.physicalPlot.create()` invocation:\n\n\nUnique constraint failed on the fields: (`plot_number`)',
+          {
+            code: 'P2002',
+            clientVersion: '7.8.0',
+            meta: {
+              modelName: 'PhysicalPlot',
+              driverAdapterError: {
+                name: 'DriverAdapterError',
+                cause: {
+                  originalCode: '23505',
+                  originalMessage:
+                    'duplicate key value violates unique constraint "physical_plots_plot_number_key"',
+                  kind: 'UniqueConstraintViolation',
+                  constraint: { fields: ['plot_number'] },
+                },
+              },
+            },
+          }
+        );
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(409);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'CONFLICT',
+            message: '重複するデータが存在します',
+            details: [
+              {
+                field: 'plot_number',
+                message: '区画番号 は既に使用されています',
+              },
+            ],
+          },
+        });
+      });
+
+      it('P2002（meta 不在、error.message からフォールバック抽出）を正しく処理すること', () => {
+        const error = new Prisma.PrismaClientKnownRequestError(
+          'Unique constraint failed on the fields: (`plot_number`)',
+          {
+            code: 'P2002',
+            clientVersion: '7.8.0',
+          }
+        );
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(409);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'CONFLICT',
+            message: '重複するデータが存在します',
+            details: [
+              {
+                field: 'plot_number',
+                message: '区画番号 は既に使用されています',
+              },
+            ],
+          },
+        });
+      });
+
+      it('P2002（field 完全に取れない場合）でも undefined を出さないこと', () => {
+        const error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '7.8.0',
+        });
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(409);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'CONFLICT',
+            message: '重複するデータが存在します',
+            details: [
+              {
+                field: undefined,
+                message: 'データ は既に使用されています',
+              },
+            ],
+          },
+        });
+      });
+
+      it('P2002（未知の field 名はそのまま表示）', () => {
+        const error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '7.8.0',
+          meta: { target: ['unknown_field_xyz'] },
+        });
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(409);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'CONFLICT',
+            message: '重複するデータが存在します',
+            details: [
+              {
+                field: 'unknown_field_xyz',
+                message: 'unknown_field_xyz は既に使用されています',
               },
             ],
           },
