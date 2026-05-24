@@ -18,6 +18,7 @@
     "swagger:build": "node scripts/swagger.js build",
     "billing:generate": "ts-node scripts/generate-collective-burial-invoices.ts",
     "bootstrap:admin": "ts-node --transpile-only prisma/seed.ts",
+    "seed:masters": "ts-node --transpile-only prisma/seedMasters.ts",
     "migrate:legacy": "ts-node --transpile-only scripts/migrate-from-legacy.ts",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
