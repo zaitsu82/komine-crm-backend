@@ -152,13 +152,63 @@ export const errorHandler = (error: any, req: Request, res: Response, _next: Nex
 };
 
 /**
+ * P2002 (unique 制約違反) の field 名を抽出する。
+ * Prisma v6 までは meta.target に入っていたが、v7 + @prisma/adapter-pg では
+ * meta.driverAdapterError.cause.constraint.fields に入る。どちらも取れない
+ * 場合は error.message ("Unique constraint failed on the fields: (`xxx`)")
+ * を正規表現でパースしてフォールバックする。
+ */
+const extractP2002Fields = (error: Prisma.PrismaClientKnownRequestError): string[] => {
+  const meta = error.meta as Record<string, unknown> | undefined;
+
+  const target = meta?.['target'];
+  if (Array.isArray(target)) return target.filter((f): f is string => typeof f === 'string');
+  if (typeof target === 'string')
+    return target
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const driverAdapterError = meta?.['driverAdapterError'] as
+    | { cause?: { constraint?: { fields?: unknown } } }
+    | undefined;
+  const adapterFields = driverAdapterError?.cause?.constraint?.fields;
+  if (Array.isArray(adapterFields)) {
+    const fields = adapterFields.filter((f): f is string => typeof f === 'string');
+    if (fields.length > 0) return fields;
+  }
+
+  const match = error.message.match(/fields:\s*\(([^)]+)\)/);
+  if (match) {
+    return match[1]
+      .split(',')
+      .map((s) => s.trim().replace(/^`|`$/g, ''))
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const FIELD_LABEL_MAP: Record<string, string> = {
+  plot_number: '区画番号',
+  email: 'メールアドレス',
+  supabase_uid: 'Supabaseユーザー',
+  contract_plot_id: '契約区画',
+  customer_id: '顧客',
+  code: 'コード',
+};
+
+const toFieldLabel = (field: string): string => FIELD_LABEL_MAP[field] ?? field;
+
+/**
  * Prismaエラーハンドラー
  */
 const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Response) => {
   switch (error.code) {
     case 'P2002': {
-      // Unique constraint violation
-      const target = error.meta?.['target'] as string[];
+      const fields = extractP2002Fields(error);
+      const fieldKey = fields.join(', ');
+      const fieldLabel = fields.length > 0 ? fields.map(toFieldLabel).join(', ') : 'データ';
       return res.status(409).json({
         success: false,
         error: {
@@ -166,8 +216,8 @@ const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Res
           message: '重複するデータが存在します',
           details: [
             {
-              field: target?.join(', '),
-              message: `${target?.join(', ')} は既に使用されています`,
+              field: fieldKey || undefined,
+              message: `${fieldLabel} は既に使用されています`,
             },
           ],
         },
