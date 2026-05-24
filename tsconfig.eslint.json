@@ -7,7 +7,8 @@
     "src/**/*",
     "scripts/**/*.ts",
     "prisma/scripts/**/*.ts",
-    "prisma/seed.ts"
+    "prisma/seed.ts",
+    "prisma/seedMasters.ts"
   ],
   "exclude": [
     "node_modules",
