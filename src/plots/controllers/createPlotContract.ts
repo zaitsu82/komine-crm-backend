@@ -154,7 +154,7 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
             contract_plot_id: contractPlot.id,
             calculation_type: input.usageFee.calculationType || null,
             tax_type: input.usageFee.taxType || null,
-            billing_type: input.usageFee.billingType || 'onetime',
+            billing_type: input.usageFee.billingType || '',
             billing_years: input.usageFee.billingYears || '1',
             area: input.usageFee.area ? input.usageFee.area.toString() : null,
             unit_price: input.usageFee.unitPrice ? input.usageFee.unitPrice.toString() : null,

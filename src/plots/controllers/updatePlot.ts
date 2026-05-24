@@ -624,7 +624,7 @@ export async function updatePlotCore(
           const created = await tx.usageFee.create({
             data: {
               contract_plot_id: id,
-              billing_type: 'onetime',
+              billing_type: '',
               billing_years: '1',
               ...usageFeeData,
             },

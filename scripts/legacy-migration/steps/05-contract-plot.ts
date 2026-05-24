@@ -7,6 +7,30 @@ import { assertIdMapsReady } from '../lib/invariants';
 import { cleanStr, parseLegacyDate } from '../transforms';
 import type { MigrationStep } from '../types';
 
+// 旧 sykbnn 区分コード → 新マスタ code（seedMasters.ts と一致させること）
+//   計算区分 KBNNO=2026 (0=面積×単価 / 1=任意設定)
+//   税区分   KBNNO=2027 (0=内税 / 1=外税)
+//   請求区分 KBNNO=2028 (0=なし / 1=あり / 2=永代)
+const CALC_TYPE_MAP: Record<number, string> = { 0: 'AREA', 1: 'FIXED' };
+const TAX_TYPE_MAP: Record<number, string> = { 0: 'INCLUSIVE', 1: 'EXCLUSIVE' };
+const BILLING_TYPE_MAP: Record<number, string> = { 0: 'NONE', 1: 'PRESENT', 2: 'PERPETUAL' };
+
+// 旧int値をマスタ code に変換。対応表に無い値は誤 resolve 回避のため legacy- prefix で温存する。
+function mapFeeCode(
+  map: Record<number, string>,
+  prefix: string,
+  value: number | null | undefined
+): string | null {
+  if (value == null) return null;
+  return map[value] ?? `legacy-${prefix}-${value}`;
+}
+
+// 支払方法(shiharai)は旧コードの意味が未特定（対応する sykbnn KBNNO 無し）。
+// 業務確認まで legacy- prefix で温存し、マスタ名への誤変換を防ぐ。
+function mapShiharai(value: number | null | undefined): string | null {
+  return value == null ? null : `legacy-shiharai-${value}`;
+}
+
 interface BochiContractRow extends RowDataPacket {
   grave_cd: number;
   danka_cd: number | null;
@@ -170,14 +194,14 @@ export const stepContractPlot: MigrationStep = {
         await prisma.usageFee.create({
           data: {
             contract_plot_id: contractPlot.id,
-            calculation_type: row.shiyouryou_keisan?.toString() ?? null,
-            tax_type: row.shiyouryou_zei?.toString() ?? null,
-            billing_type: row.shiyouryou_seikyu?.toString() ?? null,
+            calculation_type: mapFeeCode(CALC_TYPE_MAP, 'keisan', row.shiyouryou_keisan),
+            tax_type: mapFeeCode(TAX_TYPE_MAP, 'zei', row.shiyouryou_zei),
+            billing_type: mapFeeCode(BILLING_TYPE_MAP, 'seikyu', row.shiyouryou_seikyu),
             billing_years: row.shiyouryou_seikyunen?.toString() ?? null,
             area: cleanStr(row.shiyouryou_menseki),
             unit_price: row.shiyouryou_tanka?.toString() ?? null,
             usage_fee: row.shiyouryou?.toString() ?? null,
-            payment_method: row.shiyouryou_shiharai?.toString() ?? null,
+            payment_method: mapShiharai(row.shiyouryou_shiharai),
           },
         });
         usageFeeInserted++;
@@ -193,16 +217,16 @@ export const stepContractPlot: MigrationStep = {
         await prisma.managementFee.create({
           data: {
             contract_plot_id: contractPlot.id,
-            calculation_type: row.kanriryou_keisan?.toString() ?? null,
-            tax_type: row.kanriryou_zei?.toString() ?? null,
-            billing_type: row.kanriryou_seikyu?.toString() ?? null,
+            calculation_type: mapFeeCode(CALC_TYPE_MAP, 'keisan', row.kanriryou_keisan),
+            tax_type: mapFeeCode(TAX_TYPE_MAP, 'zei', row.kanriryou_zei),
+            billing_type: mapFeeCode(BILLING_TYPE_MAP, 'seikyu', row.kanriryou_seikyu),
             billing_years: row.kanriryou_seikyunen?.toString() ?? null,
             area: cleanStr(row.kanriryou_menseki),
             billing_month: row.kanriryou_seikyutsuki?.toString() ?? null,
             management_fee: row.kanriryou?.toString() ?? null,
             unit_price: row.kanriryou_tanka?.toString() ?? null,
             last_billing_month: row.kanriryou_last_sei_date?.toString() ?? null,
-            payment_method: row.kanriryou_shiharai?.toString() ?? null,
+            payment_method: mapShiharai(row.kanriryou_shiharai),
           },
         });
         managementFeeInserted++;
