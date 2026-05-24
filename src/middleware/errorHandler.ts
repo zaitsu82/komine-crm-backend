@@ -178,9 +178,9 @@ const extractP2002Fields = (error: Prisma.PrismaClientKnownRequestError): string
     if (fields.length > 0) return fields;
   }
 
-  const match = error.message.match(/fields:\s*\(([^)]+)\)/);
-  if (match) {
-    return match[1]
+  const captured = error.message.match(/fields:\s*\(([^)]+)\)/)?.[1];
+  if (captured) {
+    return captured
       .split(',')
       .map((s) => s.trim().replace(/^`|`$/g, ''))
       .filter(Boolean);
