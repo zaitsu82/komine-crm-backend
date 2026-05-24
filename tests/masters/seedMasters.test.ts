@@ -11,7 +11,7 @@ function createFakePrisma() {
   return {
     cemeteryTypeMaster: { createMany: makeCreateMany(3) },
     paymentMethodMaster: { createMany: makeCreateMany(3) },
-    taxTypeMaster: { createMany: makeCreateMany(3) },
+    taxTypeMaster: { createMany: makeCreateMany(2) },
     calcTypeMaster: { createMany: makeCreateMany(2) },
     billingTypeMaster: { createMany: makeCreateMany(3) },
     recipientTypeMaster: { createMany: makeCreateMany(3) },
@@ -55,7 +55,7 @@ describe('seedMasters', () => {
     const summary = await seedMasters(prisma as unknown as PrismaClient);
 
     const total = summary.reduce((sum, s) => sum + s.inserted, 0);
-    expect(total).toBe(3 + 3 + 3 + 2 + 3 + 3 + 4);
+    expect(total).toBe(3 + 3 + 2 + 2 + 3 + 3 + 4);
     expect(summary.map((s) => s.master)).toEqual([
       'cemetery_type_master',
       'payment_method_master',

@@ -253,7 +253,7 @@ export async function createPlotCore(
         contract_plot_id: contractPlot.id,
         calculation_type: input.usageFee.calculationType || '',
         tax_type: input.usageFee.taxType || '',
-        billing_type: input.usageFee.billingType || 'onetime',
+        billing_type: input.usageFee.billingType || '',
         billing_years: input.usageFee.billingYears || '1',
         usage_fee: String(input.usageFee.usageFee ?? ''),
         area: String(input.usageFee.area ?? ''),

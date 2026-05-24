@@ -19,8 +19,11 @@
  *   - 続柄   (relationship_master) ......... レガシー移行 scripts/legacy-migration/steps/01-masters.ts
  *   - 工事業者 (contractor_master) ......... レガシー移行 + migration プレースホルダ
  *
- * 値の出典: frontend モック（komine-crm-frontend/src/lib/api/masters.ts）を確定ベースラインとして採用（issue #46 の方針）。
- *           税率変更やクレジットカード等の追加は、確定後にこのファイルへ追記して再実行すれば冪等に反映される。
+ * 値の出典:
+ *   - 墓地区分/支払方法/宛先区分/工事種別: frontend モック（masters.ts）を確定ベースラインとして採用（#46 方針）
+ *   - 計算区分/税区分/請求区分: 旧システム sykbnn（KBNNO 2026/2027/2028）の意味に合わせて再定義（旧データ忠実移行）。
+ *     migration step05 は旧int値をこの code に remap する（scripts/legacy-migration/steps/05-contract-plot.ts）。
+ *   業務確定での値追加（クレカ等）は、このファイルへ追記して再実行すれば冪等に反映される。
  *
  * 実行方法:
  *   npm run seed:masters
@@ -55,21 +58,25 @@ const paymentMethod: MasterSeedRow[] = [
   { code: 'ACCOUNT_TRANSFER', name: '口座振替', description: '自動口座振替', sort_order: 3 },
 ];
 
+// 税区分: 旧システム(sykbnn KBNNO=2027 税金区分)の意味に合わせ「内税/外税」。
+// ※新システム初期設計の税率(10%/8%/非課税)ではない。旧データ忠実移行のため再定義。
+//   tax_rate は内税/外税の概念では持たないため null（請求書の税率は document-form 側で別管理）。
 const taxType: TaxTypeSeedRow[] = [
-  { code: 'TAX_10', name: '消費税10%', description: '標準税率', sort_order: 1, tax_rate: '0.10' },
-  { code: 'TAX_8', name: '消費税8%', description: '軽減税率', sort_order: 2, tax_rate: '0.08' },
-  { code: 'TAX_FREE', name: '非課税', description: '非課税取引', sort_order: 3, tax_rate: '0' },
+  { code: 'INCLUSIVE', name: '内税', description: '税込み', sort_order: 1, tax_rate: null },
+  { code: 'EXCLUSIVE', name: '外税', description: '税抜き', sort_order: 2, tax_rate: null },
 ];
 
+// 計算区分: 旧 sykbnn KBNNO=2026（0=面積×単価 / 1=任意設定）。code は既存と互換維持。
 const calcType: MasterSeedRow[] = [
-  { code: 'AREA', name: '面積単価', description: '面積に基づく計算', sort_order: 1 },
-  { code: 'FIXED', name: '一律料金', description: '固定料金', sort_order: 2 },
+  { code: 'AREA', name: '面積×単価', description: '面積×単価で計算', sort_order: 1 },
+  { code: 'FIXED', name: '任意設定', description: '金額を任意設定', sort_order: 2 },
 ];
 
+// 請求区分: 旧 sykbnn KBNNO=2028（0=なし / 1=あり / 2=永代）。
 const billingType: MasterSeedRow[] = [
-  { code: 'YEARLY', name: '年次請求', description: '年1回の請求', sort_order: 1 },
-  { code: 'MONTHLY', name: '月次請求', description: '月1回の請求', sort_order: 2 },
-  { code: 'ONETIME', name: '一括請求', description: '契約時のみ', sort_order: 3 },
+  { code: 'NONE', name: 'なし', description: '請求なし', sort_order: 1 },
+  { code: 'PRESENT', name: 'あり', description: '請求あり', sort_order: 2 },
+  { code: 'PERPETUAL', name: '永代', description: '永代', sort_order: 3 },
 ];
 
 const recipientType: MasterSeedRow[] = [
