@@ -86,6 +86,9 @@
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
   },
+  "overrides": {
+    "@hono/node-server": "1.19.14"
+  },
   "lint-staged": {
     "*.ts": [
       "eslint --fix",
