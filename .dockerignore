@@ -74,11 +74,6 @@ prettier.config.*
 # Jest
 jest.config.js
 
-# Playwright
-playwright-report
-test-results
-playwright.config.ts
-
 # Database files (開発用のローカルDB)
 *.db
 *.sqlite
