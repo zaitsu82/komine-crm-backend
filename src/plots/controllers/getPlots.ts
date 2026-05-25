@@ -31,6 +31,57 @@ interface PlotSearchQuery {
 }
 
 /**
+ * B10: 年度別請求 status サマリ
+ *
+ * 旧画面01 の「受付済 / 09年 / 10年 …」を一覧では 1 列に集約する（サマリ列方式）。
+ * 集計対象は管理料 (management_fee) Billing。各 Billing の対象年度は
+ * `use_end_year ?? use_start_year` で判定する。
+ *
+ * - latestYear / latestYearStatus: 最も新しい対象年度を持つ Billing の年度と status
+ * - unpaidYearCount: 未納（billed / partial_paid / overdue）の Billing 件数
+ *   （pending=請求前、paid/terminated/written_off は未納に含めない）
+ */
+const UNPAID_BILLING_STATUSES = new Set(['billed', 'partial_paid', 'overdue']);
+
+interface BillingForSummary {
+  use_start_year: number | null;
+  use_end_year: number | null;
+  status: string;
+}
+
+interface BillingSummaryResult {
+  hasBilling: boolean;
+  latestYear: number | null;
+  latestYearStatus: string | null;
+  unpaidYearCount: number;
+}
+
+export const buildBillingSummary = (
+  billings: BillingForSummary[] | undefined | null
+): BillingSummaryResult => {
+  if (!billings || billings.length === 0) {
+    return { hasBilling: false, latestYear: null, latestYearStatus: null, unpaidYearCount: 0 };
+  }
+
+  let latestYear: number | null = null;
+  let latestYearStatus: string | null = null;
+  let unpaidYearCount = 0;
+
+  for (const billing of billings) {
+    const year = billing.use_end_year ?? billing.use_start_year ?? null;
+    if (year !== null && (latestYear === null || year > latestYear)) {
+      latestYear = year;
+      latestYearStatus = billing.status;
+    }
+    if (UNPAID_BILLING_STATUSES.has(billing.status)) {
+      unpaidYearCount += 1;
+    }
+  }
+
+  return { hasBilling: true, latestYear, latestYearStatus, unpaidYearCount };
+};
+
+/**
  * 契約区画一覧取得（ContractPlot中心）
  * サーバーサイド検索・ページネーション対応
  */
@@ -223,6 +274,15 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
             },
           },
           managementFee: true,
+          // B10: 年度別請求 status サマリ用。管理料 Billing のみ集計対象
+          billings: {
+            where: { category: 'management_fee', deleted_at: null },
+            select: {
+              use_start_year: true,
+              use_end_year: true,
+              status: true,
+            },
+          },
         },
         orderBy: orderByCondition,
       }),
@@ -299,6 +359,9 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
         nextBillingDate,
         managementFee: contractPlot.managementFee?.management_fee || null,
         uncollectedAmount: contractPlot.uncollected_amount,
+
+        // 請求状況サマリ（B10: 年度別請求 status の集約列）
+        billingSummary: buildBillingSummary(contractPlot.billings),
 
         // メタ情報
         createdAt: contractPlot.created_at,
