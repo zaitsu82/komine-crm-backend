@@ -29,6 +29,8 @@ const TEMPLATE_DATA_SCHEMAS = {
   invoice: invoiceTemplateDataSchema,
   postcard: postcardTemplateDataSchema,
   permit: permitTemplateDataSchema,
+  'envelope-letter': permitTemplateDataSchema,
+  'envelope-base': permitTemplateDataSchema,
   'payment-guide': paymentGuideTemplateDataSchema,
 } as const;
 

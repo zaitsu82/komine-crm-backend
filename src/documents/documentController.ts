@@ -9,7 +9,7 @@
  */
 
 import { Request, Response } from 'express';
-import { Prisma } from '@prisma/client';
+import { Prisma, type DocumentType, type DocumentStatus } from '@prisma/client';
 import { ZodError } from 'zod';
 import { getRequestLogger } from '../utils/logger';
 import { generatePdfFromTemplate } from './documentService';
@@ -26,10 +26,6 @@ import {
   recordDocumentUpdated,
   recordDocumentDeleted,
 } from '../plots/services/historyService';
-
-// 型定義
-type DocumentType = 'invoice' | 'postcard' | 'contract' | 'permit' | 'other';
-type DocumentStatus = 'draft' | 'generated' | 'sent' | 'archived';
 
 // リクエスト型定義
 interface CreateDocumentBody {
@@ -69,6 +65,8 @@ const TEMPLATE_TYPE_TO_DOC_TYPE: Record<DocumentTemplateType, DocumentType> = {
   invoice: 'invoice',
   postcard: 'postcard',
   permit: 'permit',
+  'envelope-letter': 'envelope_letter',
+  'envelope-base': 'envelope_base',
   'payment-guide': 'other',
 };
 
@@ -76,6 +74,8 @@ const TEMPLATE_TYPE_TO_NAME: Record<DocumentTemplateType, string> = {
   invoice: '護持費のお知らせ',
   postcard: 'はがき',
   permit: '許可証',
+  'envelope-letter': '封筒書',
+  'envelope-base': '封筒台',
   'payment-guide': 'お支払い方法のご案内',
 };
 
