@@ -17,10 +17,8 @@ This is Cemetery CRM (kurosakicrm) - a comprehensive backend system for managing
 - `npm test` - Run all tests with Jest
 - `npm run test:watch` - Run tests in watch mode
 - `npm run test:coverage` - Generate test coverage report
-- `npm run test:e2e` - Run Playwright end-to-end tests
-- `npm run test:e2e:ui` - Run Playwright tests with UI mode
-- `npm run test:e2e:debug` - Debug Playwright tests
 - **Running Single Test**: `npm test -- path/to/test.ts` or `npm test -- --testNamePattern="test name"`
+- **E2E**: バックエンドの API E2E は Supertest（Jest 上）でカバー。ブラウザ画面 E2E は frontend リポジトリの Playwright に集約。バックエンド単体に Playwright は無い。
 - **Coverage Requirements**: Currently fn 80%, lines 65%, stmts 65%, branches 40% (temporarily lowered; targets: fn 100%, lines 99%, stmts 97%, branches 80%)
 
 ### Code Quality

@@ -81,9 +81,8 @@ Cemetery CRM Backendは、墓地管理業務のデジタル化を支援するRES
 - **HPP** - HTTP Parameter Pollution対策
 
 ### テスト
-- **Jest** (v30.1.3)
-- **Supertest** (v7.1.4)
-- **Playwright** (v1.55.0) - E2Eテスト
+- **Jest** (v30.1.3) - 単体・統合テスト
+- **Supertest** (v7.1.4) - API統合テスト（HTTPレベルE2E）
 
 ### コード品質
 - **ESLint** (v8.57.1)
@@ -228,7 +227,6 @@ npm start
 npm test                    # 全テスト実行
 npm run test:watch          # ウォッチモード
 npm run test:coverage       # カバレッジレポート生成
-npm run test:e2e            # E2Eテスト（Playwright）
 
 # コード品質
 npm run lint                # ESLintチェック
@@ -295,18 +293,11 @@ npm test -- --testNamePattern="GET /api/v1/plots"
 - **Statements**: 97.87%
 - **Branches**: 81.72%
 
-### E2Eテスト
+### テスト方針（E2Eの所在）
 
-```bash
-# Playwrightテスト実行
-npm run test:e2e
+バックエンドの自動テストは **Jest + Supertest** に一本化している。Supertest は Express アプリを HTTP レベルで起動して叩くため、API の E2E はこの層でカバーする。
 
-# UIモードで実行
-npm run test:e2e:ui
-
-# デバッグモード
-npm run test:e2e:debug
-```
+ブラウザを介した画面 E2E（Playwright）は **フロントエンドリポジトリ（`komine-crm-frontend`）** に集約している。バックエンド単体には Playwright を置かない方針。
 
 ---
 
