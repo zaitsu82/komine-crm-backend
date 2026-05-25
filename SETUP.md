@@ -6,7 +6,7 @@ Cemetery CRM Backend の環境構築・設定ガイド
 
 1. [認証・ユーザー管理方針](#認証ユーザー管理方針)
 2. [環境変数の設定](#環境変数の設定)
-3. [Dockerセットアップ](#dockerセットアップ)
+3. [Dockerでの起動](#dockerでの起動)
 4. [Supabase認証](#supabase認証)
 5. [顧客環境への初回デプロイ手順](#顧客環境への初回デプロイ手順)
 6. [CI/CDセットアップ](#cicdセットアップ)
@@ -85,51 +85,53 @@ cp .env.example .env
 
 ---
 
-## Dockerセットアップ
+## Dockerでの起動
 
-### クイックスタート
+本リポジトリには本番ビルド用の `Dockerfile` が含まれています（CI の Docker Security Scan / Render デプロイで使用）。
+データベースは Supabaseホストの PostgreSQL を利用するため、コンテナには含めません。`DATABASE_URL` などの環境変数は起動時に渡します。
+
+### イメージのビルド
 
 ```bash
-# 本番環境
-docker compose up -d
-
-# 開発環境（ホットリロード有効）
-docker compose -f docker-compose.dev.yml up -d
+docker build -t komine-crm-backend .
 ```
 
-### 基本コマンド
+### 起動
 
 ```bash
-# 停止
-docker compose down
+# .env を使って起動（推奨）
+docker run --rm -p 4000:4000 --env-file .env komine-crm-backend
 
-# ログ確認
-docker compose logs -f app
+# または環境変数を個別に渡す
+docker run --rm -p 4000:4000 \
+  -e DATABASE_URL="postgresql://..." \
+  -e SUPABASE_URL="https://xxx.supabase.co" \
+  -e SUPABASE_SERVICE_ROLE_KEY="eyJ..." \
+  -e ALLOWED_ORIGINS="https://app.example.com" \
+  komine-crm-backend
+```
 
-# コンテナ内でコマンド実行
-docker compose exec app sh
+動作確認:
 
-# DB接続
-docker compose exec db psql -U cemetery_user -d komine_cemetery_crm
+```bash
+curl http://localhost:4000/health
 ```
 
 ### Prismaマイグレーション
 
-```bash
-# 本番環境
-docker compose exec app npx prisma migrate deploy
+マイグレーションは Supabase の DB に対してホスト側から実行します（コンテナ内ではなくローカル／CI から実行）。
 
-# 開発環境
-docker compose -f docker-compose.dev.yml exec app npx prisma migrate dev
+```bash
+npx prisma migrate deploy
 ```
 
 ### トラブルシューティング
 
 | 症状 | 解決策 |
 |------|--------|
-| DB接続エラー | `docker compose logs db` で確認、`docker compose restart db` |
-| ポート使用中 | `.env`で`PORT`を変更 |
-| Prismaエラー | `docker compose exec app npx prisma generate` |
+| DB接続エラー | `DATABASE_URL` が正しいか確認。Supabase 側の接続情報（Session Pooler のポート等）を確認 |
+| ポート使用中 | `docker run` の `-p` で別ポートにマッピング（例: `-p 4001:4000`） |
+| Prismaエラー | `npx prisma generate` を実行してからイメージを再ビルド |
 
 ---
 

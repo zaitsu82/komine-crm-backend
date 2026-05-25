@@ -9,7 +9,7 @@ Cemetery CRM（kurosakicrm）は、墓地・墓石管理を行うための包括
 - [技術スタック](#技術スタック)
 - [セットアップ](#セットアップ)
   - [ローカル環境](#ローカル環境)
-  - [Docker環境](#docker環境)
+  - [Dockerでの起動](#dockerでの起動)
 - [開発ガイド](#開発ガイド)
 - [テスト](#テスト)
 - [API仕様](#api仕様)
@@ -68,7 +68,7 @@ Cemetery CRM Backendは、墓地管理業務のデジタル化を支援するRES
 - **Express.js** (v4.19.2)
 
 ### データベース
-- **PostgreSQL** (v16)
+- **PostgreSQL** (Supabaseホスト)
 - **Prisma ORM** (v6.9.0)
 
 ### 認証
@@ -95,8 +95,7 @@ Cemetery CRM Backendは、墓地管理業務のデジタル化を支援するRES
 - **Codecov** - カバレッジレポート
 
 ### コンテナ化
-- **Docker** - コンテナ化
-- **Docker Compose** - マルチコンテナ管理
+- **Docker** - コンテナ化（本番イメージは `Dockerfile` でビルド）
 
 ---
 
@@ -105,16 +104,16 @@ Cemetery CRM Backendは、墓地管理業務のデジタル化を支援するRES
 ### 前提条件
 
 - **Node.js**: v18.x, v20.x, v22.xのいずれか
-- **PostgreSQL**: v16以降（Dockerを使用する場合は不要）
 - **npm**: v8以降
+- **PostgreSQL**: Supabaseホストのインスタンスを使用（接続文字列を `DATABASE_URL` に設定）
 
 ### ローカル環境
 
 #### 1. リポジトリのクローン
 
 ```bash
-git clone https://github.com/your-org/cemetery-crm-backend.git
-cd cemetery-crm-backend
+git clone https://github.com/zaitsu82/komine-crm-backend.git
+cd komine-crm-backend
 ```
 
 #### 2. 依存関係のインストール
@@ -162,50 +161,37 @@ npm run dev
 
 ---
 
-### Docker環境
+### Dockerでの起動
 
-Docker環境では、アプリケーションとPostgreSQLデータベースが自動的にセットアップされます。
+リポジトリには本番ビルド用の `Dockerfile` が含まれています。データベースは Supabaseホストの PostgreSQL を利用するため、コンテナには含めません。`DATABASE_URL` などの環境変数はコンテナ起動時に渡します。
 
 #### 前提条件
 
 - **Docker**: v20.10以降
-- **Docker Compose**: v2.0以降
 
-#### クイックスタート
+#### イメージのビルドと起動
 
 ```bash
-# 1. 環境変数設定
-cp .env.example .env
-# .envファイルを編集（特にDB_USER, DB_PASSWORD, DB_NAMEを確認）
+# 1. イメージをビルド
+docker build -t komine-crm-backend .
 
-# 2. Docker Composeで起動（本番環境モード）
-docker compose up -d
+# 2. .env を使って起動（推奨）
+#    .env に DATABASE_URL / SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / ALLOWED_ORIGINS を設定しておく
+docker run --rm -p 4000:4000 --env-file .env komine-crm-backend
 
-# または開発環境モード（ホットリロード有効）
-docker compose -f docker-compose.dev.yml up -d
+#    または環境変数を個別に渡す
+docker run --rm -p 4000:4000 \
+  -e DATABASE_URL="postgresql://..." \
+  -e SUPABASE_URL="https://xxx.supabase.co" \
+  -e SUPABASE_SERVICE_ROLE_KEY="eyJ..." \
+  -e ALLOWED_ORIGINS="https://app.example.com" \
+  komine-crm-backend
 
 # 3. 動作確認
 curl http://localhost:4000/health
-
-# 4. ログ確認
-docker compose logs -f app
-
-# 5. 停止
-docker compose down
 ```
 
-#### Docker詳細ガイド
-
-Docker環境の詳細なセットアップ手順、トラブルシューティング、パフォーマンスチューニングについては、以下のドキュメントを参照してください：
-
-📖 **[DOCKER_SETUP.md](./DOCKER_SETUP.md)** - Docker環境セットアップガイド
-
-主なトピック：
-- 開発環境と本番環境の違い
-- データベースマイグレーション
-- コンテナ管理コマンド
-- トラブルシューティング
-- セキュリティベストプラクティス
+> マイグレーションは Supabase に対して別途実行します（`npx prisma migrate deploy`）。詳細は [SETUP.md](./SETUP.md) を参照してください。
 
 ---
 
@@ -348,15 +334,13 @@ http://localhost:4000/api-docs
 
 ### 本番環境セットアップ
 
-本番環境へのデプロイ手順、環境変数設定、セキュリティチェックリストについては、以下のドキュメントを参照してください：
+本番環境・顧客環境へのデプロイ手順、環境変数設定、初期adminの作成（bootstrap）、セキュリティチェックリストについては、以下のドキュメントを参照してください：
 
-📖 **[PRODUCTION_SETUP.md](./PRODUCTION_SETUP.md)** - 本番環境セットアップガイド
+📖 **[SETUP.md](./SETUP.md)** - セットアップ／デプロイガイド
 
 ### CI/CD
 
-GitHub Actionsによる自動テスト・ビルドパイプラインを実装しています。
-
-📖 **[CI_CD_SETUP.md](./CI_CD_SETUP.md)** - CI/CDセットアップガイド
+GitHub Actions（`.github/workflows/ci.yml`）による自動テスト・ビルドパイプラインを実装しています。設定手順は [SETUP.md](./SETUP.md) を参照してください。
 
 #### CI/CDワークフロー
 
@@ -373,14 +357,9 @@ GitHub Actionsによる自動テスト・ビルドパイプラインを実装し
 ### 主要ドキュメント
 
 - **[README.md](./README.md)** - このファイル（プロジェクト概要）
-- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - 貢献者向けガイドライン
+- **[SETUP.md](./SETUP.md)** - セットアップ／デプロイガイド（環境変数・CI/CD・本番デプロイ含む）
 - **[SECURITY.md](./SECURITY.md)** - セキュリティポリシー
-- **[CHANGELOG.md](./CHANGELOG.md)** - 変更履歴
 - **[CLAUDE.md](./CLAUDE.md)** - プロジェクト概要と開発ガイドライン
-- **[DOCKER_SETUP.md](./DOCKER_SETUP.md)** - Docker環境セットアップ
-- **[PRODUCTION_SETUP.md](./PRODUCTION_SETUP.md)** - 本番環境セットアップ
-- **[CI_CD_SETUP.md](./CI_CD_SETUP.md)** - CI/CDセットアップ
-- **[TODO.md](./TODO.md)** - タスク管理と進捗状況
 
 ### API仕様書
 
@@ -423,7 +402,7 @@ npm audit --production
 
 # Dockerイメージの脆弱性スキャン
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-  aquasec/trivy image cemetery-crm-backend:latest
+  aquasec/trivy image komine-crm-backend:latest
 ```
 
 ### セキュリティベストプラクティス
@@ -440,17 +419,12 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 
 ---
 
-## 🤝 貢献
+## 🤝 開発フロー
 
-貢献は歓迎します！詳細な貢献ガイドラインは **[CONTRIBUTING.md](./CONTRIBUTING.md)** を参照してください。
+### ブランチ運用
 
-### クイックスタート
-
-1. このリポジトリをフォーク
-2. 機能ブランチを作成 (`git checkout -b feature/amazing-feature`)
-3. 変更をコミット (`git commit -m 'Add some amazing feature'`)
-4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
-5. Pull Requestを作成
+- `main` への直接コミット・プッシュは禁止。必ず `main` からブランチを切って作業し、PRマージのみ。
+- ブランチ名は変更内容がわかる名称にする（例: `feature/xxx`, `fix/xxx`, `chore/xxx`）。
 
 ### コミット前のチェック
 
@@ -466,15 +440,6 @@ npm test
 npm run test:coverage
 ```
 
-### その他の貢献方法
-
-- バグ報告（Issue作成）
-- 機能提案（Issue作成）
-- ドキュメント改善
-- コードレビュー
-
-詳細は **[CONTRIBUTING.md](./CONTRIBUTING.md)** をご覧ください。
-
 ---
 
 ## 📄 ライセンス
@@ -487,8 +452,8 @@ npm run test:coverage
 
 問題が発生した場合は、以下を確認してください：
 
-1. [GitHub Issues](https://github.com/your-org/cemetery-crm-backend/issues)
-2. ドキュメント: `CLAUDE.md`, `DOCKER_SETUP.md`, `PRODUCTION_SETUP.md`
+1. [GitHub Issues](https://github.com/zaitsu82/komine-crm-backend/issues)
+2. ドキュメント: `SETUP.md`, `CLAUDE.md`, `SECURITY.md`
 3. API仕様書: `swagger.yaml`
 
 ---
