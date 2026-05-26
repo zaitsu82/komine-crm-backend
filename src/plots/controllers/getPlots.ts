@@ -107,8 +107,12 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
     const take = limit;
 
     // 検索条件の構築
+    // 台帳問い合わせ（/plots）には契約のない空き区画（contract_status='vacant'）を表示しない。
+    // 空き区画は区画残数管理（/plot-availability, inventory系）にのみ表示する（#167）。
+    // active / terminated は過去・現在の契約がある区画のため従来どおり一覧へ含める。
     const whereCondition: Prisma.ContractPlotWhereInput = {
       deleted_at: null,
+      contract_status: { not: 'vacant' },
     };
 
     // フリーテキスト検索（区画番号、顧客名、顧客名カナ、電話番号、住所）
