@@ -391,6 +391,78 @@ export const getContractorMaster = async (_req: Request, res: Response) => {
 };
 
 /**
+ * 方角マスタ取得
+ * GET /api/v1/masters/direction
+ */
+export const getDirectionMaster = async (_req: Request, res: Response) => {
+  try {
+    const data = await prisma.directionMaster.findMany({
+      where: { is_active: true },
+      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+    });
+
+    const formatted: MasterData[] = data.map((item) => ({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      description: item.description,
+      sortOrder: item.sort_order,
+      isActive: item.is_active,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+    });
+  } catch (error) {
+    getRequestLogger().error({ err: error }, 'Error fetching direction master');
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: '方角マスタの取得に失敗しました',
+      },
+    });
+  }
+};
+
+/**
+ * 位置マスタ取得
+ * GET /api/v1/masters/position
+ */
+export const getPositionMaster = async (_req: Request, res: Response) => {
+  try {
+    const data = await prisma.positionMaster.findMany({
+      where: { is_active: true },
+      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+    });
+
+    const formatted: MasterData[] = data.map((item) => ({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      description: item.description,
+      sortOrder: item.sort_order,
+      isActive: item.is_active,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formatted,
+    });
+  } catch (error) {
+    getRequestLogger().error({ err: error }, 'Error fetching position master');
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: '位置マスタの取得に失敗しました',
+      },
+    });
+  }
+};
+
+/**
  * マスタタイプからPrismaモデルデリゲートを取得
  */
 const getMasterDelegate = (masterType: MasterType) => {
@@ -405,6 +477,8 @@ const getMasterDelegate = (masterType: MasterType) => {
     'section-name': prisma.sectionNameMaster,
     relationship: prisma.relationshipMaster,
     contractor: prisma.contractorMaster,
+    direction: prisma.directionMaster,
+    position: prisma.positionMaster,
   };
   return delegateMap[masterType];
 };
@@ -420,6 +494,8 @@ const masterTypeLabels: Record<MasterType, string> = {
   'section-name': '区画名',
   relationship: '続柄',
   contractor: '工事業者',
+  direction: '方角',
+  position: '位置',
 };
 
 /**
@@ -741,6 +817,8 @@ export const getAllMasters = async (_req: Request, res: Response) => {
       sectionName,
       relationship,
       contractor,
+      direction,
+      position,
     ] = await Promise.all([
       prisma.cemeteryTypeMaster.findMany({
         where: { is_active: true },
@@ -779,6 +857,14 @@ export const getAllMasters = async (_req: Request, res: Response) => {
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.contractorMaster.findMany({
+        where: { is_active: true },
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      }),
+      prisma.directionMaster.findMany({
+        where: { is_active: true },
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      }),
+      prisma.positionMaster.findMany({
         where: { is_active: true },
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
@@ -862,6 +948,22 @@ export const getAllMasters = async (_req: Request, res: Response) => {
           isActive: item.is_active,
         })),
         contractor: contractor.map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+          description: item.description,
+          sortOrder: item.sort_order,
+          isActive: item.is_active,
+        })),
+        direction: direction.map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+          description: item.description,
+          sortOrder: item.sort_order,
+          isActive: item.is_active,
+        })),
+        position: position.map((item) => ({
           id: item.id,
           code: item.code,
           name: item.name,

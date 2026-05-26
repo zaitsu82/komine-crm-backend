@@ -195,6 +195,9 @@ export const getPlotById = async (
             gravestoneType: contractPlot.gravestoneInfo.gravestone_type,
             surroundingArea: contractPlot.gravestoneInfo.surrounding_area,
             gravestoneCost: contractPlot.gravestoneInfo.gravestone_cost,
+            gravestoneInscription: contractPlot.gravestoneInfo.gravestone_inscription,
+            directionId: contractPlot.gravestoneInfo.direction_id,
+            positionId: contractPlot.gravestoneInfo.position_id,
             establishmentDeadline: contractPlot.gravestoneInfo.establishment_deadline,
             establishmentDate: contractPlot.gravestoneInfo.establishment_date,
           }

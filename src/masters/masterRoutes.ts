@@ -10,6 +10,8 @@ import {
   getSectionNameMaster,
   getRelationshipMaster,
   getContractorMaster,
+  getDirectionMaster,
+  getPositionMaster,
   getAllMasters,
   createMaster,
   updateMaster,
@@ -107,6 +109,22 @@ router.get(
   authenticate,
   checkApiPermission(),
   withLogging('Masters', 'getContractorMaster', getContractorMaster)
+);
+
+// 方角マスタ
+router.get(
+  '/direction',
+  authenticate,
+  checkApiPermission(),
+  withLogging('Masters', 'getDirectionMaster', getDirectionMaster)
+);
+
+// 位置マスタ
+router.get(
+  '/position',
+  authenticate,
+  checkApiPermission(),
+  withLogging('Masters', 'getPositionMaster', getPositionMaster)
 );
 
 // マスタデータ CRUD（汎用）
