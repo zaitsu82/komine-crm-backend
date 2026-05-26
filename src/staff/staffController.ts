@@ -186,6 +186,24 @@ export const createStaff = async (
       );
 
       if (!supabaseResult.success || !supabaseResult.user) {
+        // #174: Supabase に同一メールのユーザーが残存しているケース。
+        // 重複チェック（deleted_at: null）は通過しているため、CRM上にアクティブな
+        // スタッフは存在しない。論理削除済みスタッフの有無で対処可能な文言に振り分ける。
+        if (supabaseResult.errorCode === 'already_registered') {
+          const softDeletedStaff = await prisma.staff.findFirst({
+            where: { email: normalizedEmail, deleted_at: { not: null } },
+          });
+          if (softDeletedStaff) {
+            throw new ConflictError(
+              'このメールアドレスは過去に削除されたスタッフで使用されており、認証基盤(Supabase)側にアカウントが残存しています。' +
+                '管理者に認証基盤側の残存アカウント削除を依頼してから再登録してください。'
+            );
+          }
+          throw new ConflictError(
+            'このメールアドレスは認証基盤(Supabase)側に既に登録されています。' +
+              'CRM上に該当スタッフが存在しない場合は、認証基盤側に残存しているアカウントの確認・削除が必要です。'
+          );
+        }
         throw new ConflictError(supabaseResult.error || 'Supabaseアカウントの作成に失敗しました');
       }
 
@@ -197,15 +215,48 @@ export const createStaff = async (
     }
 
     // スタッフ作成
-    const newStaff = await prisma.staff.create({
-      data: {
-        name: name.trim(),
-        email: normalizedEmail,
-        role: role as StaffRole,
-        supabase_uid: supabaseUid,
-        is_active: true,
-      },
-    });
+    // #173: Supabaseユーザー作成（=招待メール送信）後に staff.create が失敗すると
+    // 招待メールだけ飛んでDBレコードが無い orphan アカウントが残る。
+    // DB作成失敗時は作成済みSupabaseユーザーを補償削除（best-effort）してから再スロー。
+    let newStaff;
+    try {
+      newStaff = await prisma.staff.create({
+        data: {
+          name: name.trim(),
+          email: normalizedEmail,
+          role: role as StaffRole,
+          supabase_uid: supabaseUid,
+          is_active: true,
+        },
+      });
+    } catch (createError) {
+      if (invitationSent && !supabaseUid.startsWith('pending_')) {
+        try {
+          const cleanup = await deleteSupabaseUser(supabaseUid);
+          if (!cleanup.success) {
+            getRequestLogger().warn(
+              { email: normalizedEmail, supabaseUid, error: cleanup.error },
+              'staff.create 失敗後のSupabaseユーザー補償削除に失敗（orphanの可能性）'
+            );
+          } else {
+            getRequestLogger().warn(
+              { email: normalizedEmail, supabaseUid },
+              'staff.create 失敗のためSupabaseユーザーを補償削除した'
+            );
+          }
+        } catch (cleanupError) {
+          getRequestLogger().warn(
+            {
+              email: normalizedEmail,
+              supabaseUid,
+              error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+            },
+            'staff.create 失敗後のSupabaseユーザー補償削除で例外（orphanの可能性）'
+          );
+        }
+      }
+      throw createError;
+    }
 
     const response: StaffDetail = {
       id: newStaff.id,

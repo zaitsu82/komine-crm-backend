@@ -251,6 +251,83 @@ describe('Staff Controller', () => {
         const error = (mockNext as jest.Mock).mock.calls[0][0];
         expect(error.message).toContain('Supabase');
       });
+
+      it('staff.create が失敗した場合、作成済みSupabaseユーザーを補償削除して再スローする (#173)', async () => {
+        mockRequest.body = {
+          name: 'Orphan Risk',
+          email: 'orphan@example.com',
+          role: 'viewer',
+        };
+
+        mockPrisma.staff.findFirst.mockResolvedValue(null);
+        mockSupabaseAdminAuth.inviteUserByEmail.mockResolvedValue({
+          data: { user: { id: 'orphan-uid' } },
+          error: null,
+        });
+        // DB作成が失敗
+        mockPrisma.staff.create.mockRejectedValue(new Error('DB write failed'));
+        mockSupabaseAdminAuth.deleteUser.mockResolvedValue({ error: null });
+
+        await createStaff(mockRequest as Request, mockResponse as Response, mockNext);
+
+        // 作成済みSupabaseユーザーを補償削除している
+        expect(mockSupabaseAdminAuth.deleteUser).toHaveBeenCalledWith('orphan-uid');
+        // 元のDBエラーが伝播する
+        expect(mockNext).toHaveBeenCalled();
+        const error = (mockNext as jest.Mock).mock.calls[0][0];
+        expect(error.message).toBe('DB write failed');
+      });
+
+      it('補償削除が失敗しても元のエラーを再スローする (#173)', async () => {
+        mockRequest.body = {
+          name: 'Orphan Risk',
+          email: 'orphan2@example.com',
+          role: 'viewer',
+        };
+
+        mockPrisma.staff.findFirst.mockResolvedValue(null);
+        mockSupabaseAdminAuth.inviteUserByEmail.mockResolvedValue({
+          data: { user: { id: 'orphan-uid-2' } },
+          error: null,
+        });
+        mockPrisma.staff.create.mockRejectedValue(new Error('DB write failed'));
+        // 補償削除も失敗
+        mockSupabaseAdminAuth.deleteUser.mockResolvedValue({
+          error: { message: 'delete failed' },
+        });
+
+        await createStaff(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockSupabaseAdminAuth.deleteUser).toHaveBeenCalledWith('orphan-uid-2');
+        expect(mockNext).toHaveBeenCalled();
+        const error = (mockNext as jest.Mock).mock.calls[0][0];
+        expect(error.message).toBe('DB write failed');
+      });
+
+      it('soft-delete済みスタッフのメールでSupabaseが残存する場合、対処可能なメッセージを返す (#174)', async () => {
+        mockRequest.body = {
+          name: 'Reuse',
+          email: 'deleted@example.com',
+          role: 'viewer',
+        };
+
+        // 1回目: 重複チェック（deleted_at: null）→ なし / 2回目: 論理削除済みチェック → あり
+        mockPrisma.staff.findFirst
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ id: 9, email: 'deleted@example.com', deleted_at: new Date() });
+        mockSupabaseAdminAuth.inviteUserByEmail.mockResolvedValue({
+          data: { user: null },
+          error: { message: 'User already registered' },
+        });
+
+        await createStaff(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalled();
+        const error = (mockNext as jest.Mock).mock.calls[0][0];
+        expect(error.message).toContain('過去に削除されたスタッフ');
+        // DBレコードは作成しない
+        expect(mockPrisma.staff.create).not.toHaveBeenCalled();
+      });
     });
 
     describe('deleteStaff', () => {
