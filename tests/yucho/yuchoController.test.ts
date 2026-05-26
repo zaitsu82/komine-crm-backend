@@ -125,6 +125,63 @@ describe('yuchoController', () => {
       expect(payload.data.summary.totalAmount).toBe(62000);
       expect(payload.data.summary.byCategory.management.amount).toBe(12000);
       expect(payload.data.summary.byCategory.collective.amount).toBe(50000);
+      // 両件とも口座登録あり → 全件 exportable・除外0（#172）
+      expect(payload.data.summary.exportableCount).toBe(2);
+      expect(payload.data.summary.exportableAmount).toBe(62000);
+      expect(payload.data.summary.excludedNoAccountCount).toBe(0);
+    });
+
+    it('口座未登録の請求は exportable から除外され excludedNoAccountCount に計上される (#172)', async () => {
+      // 口座あり（出力対象）
+      mockPrisma.managementFee.findMany.mockResolvedValue([
+        {
+          id: 'fee-1',
+          contract_plot_id: 'cp-1',
+          billing_month: '4',
+          management_fee: '12000',
+          contractPlot: buildContractPlot(),
+        },
+        // 口座未登録（bank/branch/account がすべて null）→ 振替ファイルから無言除外される対象
+        {
+          id: 'fee-2',
+          contract_plot_id: 'cp-3',
+          billing_month: '4',
+          management_fee: '8000',
+          contractPlot: buildContractPlot({
+            id: 'cp-3',
+            physicalPlot: { id: 'pp-3', plot_number: 'C-3', area_name: '第1期' },
+            saleContractRoles: [
+              {
+                role: 'contractor',
+                customer: {
+                  id: 'cust-3',
+                  name: '佐藤花子',
+                  name_kana: 'サトウハナコ',
+                  bank_name: null,
+                  branch_name: null,
+                  account_type: null,
+                  account_number: null,
+                  account_holder: null,
+                },
+              },
+            ],
+          }),
+        },
+      ]);
+      mockPrisma.collectiveBurial.findMany.mockResolvedValue([]);
+
+      const req = buildRequest({ year: '2026', month: '4', category: 'management' });
+      await getYuchoBilling(req as Request, res as Response, next);
+
+      const payload = (res.json as jest.Mock).mock.calls[0][0];
+      // 一覧（totalCount）は除外前の全件
+      expect(payload.data.summary.totalCount).toBe(2);
+      expect(payload.data.summary.totalAmount).toBe(20000);
+      // 実際にCSVへ出力されるのは口座ありの1件のみ
+      expect(payload.data.summary.exportableCount).toBe(1);
+      expect(payload.data.summary.exportableAmount).toBe(12000);
+      // 口座未登録の1件は除外として可視化
+      expect(payload.data.summary.excludedNoAccountCount).toBe(1);
     });
 
     it('filters out management fees whose billing_month does not match', async () => {

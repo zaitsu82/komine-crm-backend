@@ -315,6 +315,15 @@ interface BuildCsvParams {
 }
 
 /**
+ * CSV（振替ファイル）のデータ行として出力可能な請求項目かどうか。
+ * 口座情報（billingInfo）があり、かつ請求金額が正であること。
+ * 件数表示の整合性のため、この判定を CSV 生成（buildZenginCsv）と
+ * 集計（yuchoService の summary）で共用する。これが実出力件数の唯一の基準となる。
+ */
+export const isExportableBillingItem = (item: YuchoBillingItem): boolean =>
+  Boolean(item.billingInfo) && item.billingAmount > 0;
+
+/**
  * 全銀協フォーマットの完全な CSV (固定長レコード) を生成する。
  * 出力例:
  *   1{ヘッダー...}\r\n
@@ -324,7 +333,7 @@ interface BuildCsvParams {
  *   9{エンド...}\r\n
  */
 export const buildZenginCsv = ({ header, items }: BuildCsvParams): string => {
-  const billable = items.filter((i) => i.billingInfo && i.billingAmount > 0);
+  const billable = items.filter(isExportableBillingItem);
   const totalAmount = billable.reduce((sum, i) => sum + i.billingAmount, 0);
 
   const lines = [
