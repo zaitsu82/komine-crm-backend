@@ -4,7 +4,7 @@
  * 物理区画の在庫計算と契約可能面積の検証を行います
  */
 
-import { PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 /**
  * 物理区画の利用可能面積を計算
@@ -13,7 +13,7 @@ import { PrismaClient } from '@prisma/client';
  * @returns 利用可能面積（㎡）
  */
 export async function calculateAvailableArea(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   physicalPlotId: string
 ): Promise<number> {
   const physicalPlot = await prisma.physicalPlot.findUnique({
@@ -39,7 +39,7 @@ export async function calculateAvailableArea(
 
   // 契約済み面積の合計
   const contractedArea = (physicalPlot.contractPlots || []).reduce(
-    (sum: number, contract: any) => sum + contract.contract_area_sqm.toNumber(),
+    (sum, contract) => sum + contract.contract_area_sqm.toNumber(),
     0
   );
 
@@ -58,7 +58,7 @@ export async function calculateAvailableArea(
  * @returns 契約可能かどうか
  */
 export async function validateContractArea(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   physicalPlotId: string,
   requestedArea: number,
   excludeContractPlotId?: string
@@ -92,7 +92,7 @@ export async function validateContractArea(
 
   const totalArea = physicalPlot.area_sqm.toNumber();
   const contractedArea = (physicalPlot.contractPlots || []).reduce(
-    (sum: number, contract: any) => sum + contract.contract_area_sqm.toNumber(),
+    (sum, contract) => sum + contract.contract_area_sqm.toNumber(),
     0
   );
   const availableArea = totalArea - contractedArea;
@@ -127,7 +127,7 @@ export async function validateContractArea(
  * @returns 更新後のステータス
  */
 export async function updatePhysicalPlotStatus(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   physicalPlotId: string
 ): Promise<'available' | 'partially_sold' | 'sold_out'> {
   const availableArea = await calculateAvailableArea(prisma, physicalPlotId);
@@ -168,7 +168,7 @@ export async function updatePhysicalPlotStatus(
  * @returns 完全に利用可能かどうか
  */
 export async function isFullyAvailable(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   physicalPlotId: string
 ): Promise<boolean> {
   const physicalPlot = await prisma.physicalPlot.findUnique({
@@ -194,7 +194,7 @@ export async function isFullyAvailable(
  * @returns 完全に売却済みかどうか
  */
 export async function isFullySold(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   physicalPlotId: string
 ): Promise<boolean> {
   const availableArea = await calculateAvailableArea(prisma, physicalPlotId);
@@ -209,7 +209,7 @@ export async function isFullySold(
  * @returns 契約可能な面積パターン（例: [1.8, 3.6]）
  */
 export async function getAvailableAreaOptions(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   physicalPlotId: string
 ): Promise<number[]> {
   const availableArea = await calculateAvailableArea(prisma, physicalPlotId);
