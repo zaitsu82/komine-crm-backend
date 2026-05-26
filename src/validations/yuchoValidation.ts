@@ -92,8 +92,16 @@ export interface YuchoBillingItem {
 }
 
 export interface YuchoBillingSummary {
+  /** 請求対象の総件数（口座未登録を含む） */
   totalCount: number;
+  /** 請求対象の総額（口座未登録を含む） */
   totalAmount: number;
+  /** 実際にCSV（振替ファイル）へ出力される件数（口座登録あり・金額>0）。CSVのデータ行数と一致する */
+  exportableCount: number;
+  /** 実際にCSVへ出力される金額の合計。CSVトレーラーの合計金額と一致する */
+  exportableAmount: number;
+  /** 口座未登録のため振替ファイルから除外される件数（請求漏れ検知用） */
+  excludedNoAccountCount: number;
   byCategory: {
     management: { count: number; amount: number };
     collective: { count: number; amount: number };

@@ -8,6 +8,7 @@
 import { PaymentStatus } from '@prisma/client';
 import prisma from '../db/prisma';
 import type { YuchoBillingItem, YuchoBillingResponse } from '../validations/yuchoValidation';
+import { isExportableBillingItem } from './yuchoCsv';
 
 interface FetchParams {
   year: number;
@@ -249,9 +250,19 @@ export const fetchYuchoBillingData = async (params: FetchParams): Promise<YuchoB
   // 区画番号順でソート
   items.sort((a, b) => a.plotNumber.localeCompare(b.plotNumber));
 
+  // CSV（振替ファイル）へ実際に出力される項目と、口座未登録で除外される項目を分離。
+  // exportableCount は buildZenginCsv のデータ行数と一致する（同一 predicate を共用）。
+  const exportableItems = items.filter(isExportableBillingItem);
+  const excludedNoAccountCount = items.filter(
+    (i) => i.billingAmount > 0 && !isExportableBillingItem(i)
+  ).length;
+
   const summary = {
     totalCount: items.length,
     totalAmount: items.reduce((sum, i) => sum + i.billingAmount, 0),
+    exportableCount: exportableItems.length,
+    exportableAmount: exportableItems.reduce((sum, i) => sum + i.billingAmount, 0),
+    excludedNoAccountCount,
     byCategory: {
       management: {
         count: items.filter((i) => i.category === 'management').length,
