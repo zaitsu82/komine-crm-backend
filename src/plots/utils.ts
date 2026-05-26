@@ -62,6 +62,9 @@ export async function calculateAvailableArea(
       contractPlots: {
         where: {
           deleted_at: null,
+          // active（契約中）のみを契約済み面積に計上する。vacant（在庫の器契約）と
+          // terminated（解約済）は契約済み面積に含めない（#165）。
+          contract_status: 'active',
         },
         select: {
           contract_area_sqm: true,
@@ -113,6 +116,8 @@ export async function validateContractArea(
       contractPlots: {
         where: {
           deleted_at: null,
+          // active（契約中）のみを契約済み面積に計上する（#165）。
+          contract_status: 'active',
           ...(excludeContractPlotId && { id: { not: excludeContractPlotId } }),
         },
         select: {
