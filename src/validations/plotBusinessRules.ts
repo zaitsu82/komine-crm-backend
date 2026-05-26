@@ -6,7 +6,7 @@
  * データベースアクセスを伴うビジネスルールの検証を行います。
  */
 
-import { PrismaClient, ContractRole } from '@prisma/client';
+import { Prisma, ContractRole } from '@prisma/client';
 import { ValidationError } from '../middleware/errorHandler';
 
 /**
@@ -28,7 +28,7 @@ export function validatePlotNumberFormat(plotNumber: string): boolean {
  * @returns 重複しているかどうか
  */
 export async function isPlotNumberDuplicate(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   plotNumber: string,
   excludeId?: string
 ): Promise<boolean> {
@@ -132,7 +132,7 @@ export function isValidAreaDivision(
  * @returns 削除可能かどうか
  */
 export async function canDeletePhysicalPlot(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   physicalPlotId: string
 ): Promise<{
   canDelete: boolean;
@@ -172,7 +172,7 @@ export async function canDeletePhysicalPlot(
  * @returns 削除可能かどうか
  */
 export async function canDeleteContractPlot(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   contractPlotId: string
 ): Promise<{
   canDelete: boolean;
@@ -268,7 +268,7 @@ export function validateCustomerRole(role: string): boolean {
  * @throws ValidationError
  */
 export async function validatePhysicalPlotCreate(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   plotNumber: string,
   areaSqm: number
 ): Promise<void> {
@@ -305,7 +305,7 @@ export async function validatePhysicalPlotCreate(
  * @throws ValidationError
  */
 export async function validatePhysicalPlotUpdate(
-  prisma: PrismaClient | any,
+  prisma: Prisma.TransactionClient,
   id: string,
   plotNumber?: string,
   areaSqm?: number
@@ -347,7 +347,7 @@ export async function validatePhysicalPlotUpdate(
 
     if (physicalPlot) {
       const totalContractedArea = (physicalPlot.contractPlots || []).reduce(
-        (sum: number, contract: any) => sum + contract.contract_area_sqm.toNumber(),
+        (sum, contract) => sum + contract.contract_area_sqm.toNumber(),
         0
       );
 
