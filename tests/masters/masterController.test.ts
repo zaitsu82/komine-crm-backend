@@ -128,6 +128,16 @@ const mockContractorData = [
   },
 ];
 
+const mockDirectionData = [
+  { id: 1, code: '1', name: '東', description: null, sort_order: 1, is_active: true },
+  { id: 2, code: '2', name: '西', description: null, sort_order: 2, is_active: true },
+];
+
+const mockPositionData = [
+  { id: 1, code: '1', name: '角', description: null, sort_order: 1, is_active: true },
+  { id: 2, code: '2', name: '端', description: null, sort_order: 2, is_active: true },
+];
+
 // モックプリズマインスタンスの作成
 const mockPrisma: any = {
   cemeteryTypeMaster: {
@@ -160,6 +170,12 @@ const mockPrisma: any = {
   contractorMaster: {
     findMany: jest.fn(),
   },
+  directionMaster: {
+    findMany: jest.fn(),
+  },
+  positionMaster: {
+    findMany: jest.fn(),
+  },
 };
 
 // PrismaClientをモック化
@@ -179,6 +195,8 @@ import {
   getSectionNameMaster,
   getRelationshipMaster,
   getContractorMaster,
+  getDirectionMaster,
+  getPositionMaster,
   getAllMasters,
 } from '../../src/masters/masterController';
 
@@ -664,6 +682,8 @@ describe('Master Controller', () => {
       mockPrisma.sectionNameMaster.findMany.mockResolvedValue(mockSectionNameData);
       mockPrisma.relationshipMaster.findMany.mockResolvedValue(mockRelationshipData);
       mockPrisma.contractorMaster.findMany.mockResolvedValue(mockContractorData);
+      mockPrisma.directionMaster.findMany.mockResolvedValue(mockDirectionData);
+      mockPrisma.positionMaster.findMany.mockResolvedValue(mockPositionData);
 
       await getAllMasters(mockRequest as Request, mockResponse as Response);
 
@@ -693,6 +713,14 @@ describe('Master Controller', () => {
       // 工事業者
       expect(jsonCall.data.contractor[0].code).toBe('placeholder-1');
       expect(jsonCall.data.contractor[0].name).toBe('小嶺石材');
+      // 方角
+      expect(jsonCall.data.direction).toHaveLength(2);
+      expect(jsonCall.data.direction[0].code).toBe('1');
+      expect(jsonCall.data.direction[0].name).toBe('東');
+      // 位置
+      expect(jsonCall.data.position).toHaveLength(2);
+      expect(jsonCall.data.position[0].code).toBe('1');
+      expect(jsonCall.data.position[0].name).toBe('角');
     });
 
     it('エラーが発生した場合、500エラーを返すこと', async () => {
@@ -707,6 +735,8 @@ describe('Master Controller', () => {
       mockPrisma.sectionNameMaster.findMany.mockResolvedValue([]);
       mockPrisma.relationshipMaster.findMany.mockResolvedValue([]);
       mockPrisma.contractorMaster.findMany.mockResolvedValue([]);
+      mockPrisma.directionMaster.findMany.mockResolvedValue([]);
+      mockPrisma.positionMaster.findMany.mockResolvedValue([]);
 
       await getAllMasters(mockRequest as Request, mockResponse as Response);
 
@@ -766,6 +796,78 @@ describe('Master Controller', () => {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '工事業者マスタの取得に失敗しました',
+        },
+      });
+    });
+  });
+
+  describe('getDirectionMaster', () => {
+    it('方角マスタを取得できること', async () => {
+      mockPrisma.directionMaster.findMany.mockResolvedValue(mockDirectionData);
+
+      await getDirectionMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.directionMaster.findMany).toHaveBeenCalledWith({
+        where: { is_active: true },
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      });
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: [
+          { id: 1, code: '1', name: '東', description: null, sortOrder: 1, isActive: true },
+          { id: 2, code: '2', name: '西', description: null, sortOrder: 2, isActive: true },
+        ],
+      });
+    });
+
+    it('エラーが発生した場合、500エラーを返すこと', async () => {
+      mockPrisma.directionMaster.findMany.mockRejectedValue(new Error('Database error'));
+
+      await getDirectionMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '方角マスタの取得に失敗しました',
+        },
+      });
+    });
+  });
+
+  describe('getPositionMaster', () => {
+    it('位置マスタを取得できること', async () => {
+      mockPrisma.positionMaster.findMany.mockResolvedValue(mockPositionData);
+
+      await getPositionMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.positionMaster.findMany).toHaveBeenCalledWith({
+        where: { is_active: true },
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      });
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: [
+          { id: 1, code: '1', name: '角', description: null, sortOrder: 1, isActive: true },
+          { id: 2, code: '2', name: '端', description: null, sortOrder: 2, isActive: true },
+        ],
+      });
+    });
+
+    it('エラーが発生した場合、500エラーを返すこと', async () => {
+      mockPrisma.positionMaster.findMany.mockRejectedValue(new Error('Database error'));
+
+      await getPositionMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '位置マスタの取得に失敗しました',
         },
       });
     });

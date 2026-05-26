@@ -1821,6 +1821,58 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/masters/direction:
+    get:
+      tags:
+        - Masters
+      summary: 方角マスタ一覧取得
+      description: 有効な方角マスタデータを表示順で取得（レガシー sykbnn KBNNO=2024 由来）。code は GravestoneInfo.direction_id の int 文字列。
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 方角マスタ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DirectionMaster"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/masters/position:
+    get:
+      tags:
+        - Masters
+      summary: 位置マスタ一覧取得
+      description: 有効な位置マスタデータを表示順で取得（レガシー sykbnn KBNNO=2025 由来）。code は GravestoneInfo.position_id の int 文字列。
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 位置マスタ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PositionMaster"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/v1/masters/all:
     get:
       tags:
@@ -2159,6 +2211,54 @@ components:
         name:
           type: string
           example: "小嶺石材"
+        description:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          nullable: true
+          example: 1
+        isActive:
+          type: boolean
+          example: true
+
+    DirectionMaster:
+      type: object
+      description: 方角マスタ。code は GravestoneInfo.direction_id (レガシー houi_id) の int 文字列。
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: "1"
+        name:
+          type: string
+          example: "東"
+        description:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          nullable: true
+          example: 1
+        isActive:
+          type: boolean
+          example: true
+
+    PositionMaster:
+      type: object
+      description: 位置マスタ。code は GravestoneInfo.position_id (レガシー ichi_id) の int 文字列。
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: "1"
+        name:
+          type: string
+          example: "角"
         description:
           type: string
           nullable: true

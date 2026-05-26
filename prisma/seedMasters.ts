@@ -1,7 +1,7 @@
 /**
  * マスタ初期データ投入スクリプト
  *
- * 標準マスタ7種の初期データを冪等に投入する。
+ * 標準マスタ9種の初期データを冪等に投入する。
  * code を unique キーとした insert-only（`skipDuplicates`）方式のため、
  * 何度実行しても既存レコードは上書きしない（マスタ管理画面での編集を保護する）。
  *
@@ -13,6 +13,8 @@
  *   - 請求方法 (billing_type_master)
  *   - 宛先区分 (recipient_type_master)
  *   - 工事種別 (construction_type_master)
+ *   - 方角     (direction_master) ......... 旧 sykbnn KBNNO=2024（issue #147）
+ *   - 位置     (position_master) ......... 旧 sykbnn KBNNO=2025（issue #147）
  *
  * 対象外（投入元が別にあるため、ここでは触らない）:
  *   - 区画名 (section_name_master) ......... issue #14 で別途対応
@@ -92,6 +94,27 @@ const constructionType: MasterSeedRow[] = [
   { code: 'REPAIR', name: '修繕工事', description: '墓石の修繕', sort_order: 4 },
 ];
 
+// 方角: 旧 sykbnn KBNNO=2024。code はレガシー houi_id の int 文字列（"1".."8"）。
+// GravestoneInfo.direction_id（int）を code === String(direction_id) で解決するため、
+// 移行データの remap は不要。
+const direction: MasterSeedRow[] = [
+  { code: '1', name: '東', sort_order: 1 },
+  { code: '2', name: '西', sort_order: 2 },
+  { code: '3', name: '南', sort_order: 3 },
+  { code: '4', name: '北', sort_order: 4 },
+  { code: '5', name: '北東', sort_order: 5 },
+  { code: '6', name: '南東', sort_order: 6 },
+  { code: '7', name: '北西', sort_order: 7 },
+  { code: '8', name: '南西', sort_order: 8 },
+];
+
+// 位置: 旧 sykbnn KBNNO=2025。code はレガシー ichi_id の int 文字列（"1".."3"）。
+const position: MasterSeedRow[] = [
+  { code: '1', name: '角', sort_order: 1 },
+  { code: '2', name: '端', sort_order: 2 },
+  { code: '3', name: '中', sort_order: 3 },
+];
+
 export interface MasterSeedSummary {
   master: string;
   inserted: number;
@@ -145,6 +168,18 @@ export async function seedMasters(prisma: PrismaClient): Promise<MasterSeedSumma
     skipDuplicates: true,
   });
   summary.push({ master: 'construction_type_master', inserted: construction.count });
+
+  const dir = await prisma.directionMaster.createMany({
+    data: direction,
+    skipDuplicates: true,
+  });
+  summary.push({ master: 'direction_master', inserted: dir.count });
+
+  const pos = await prisma.positionMaster.createMany({
+    data: position,
+    skipDuplicates: true,
+  });
+  summary.push({ master: 'position_master', inserted: pos.count });
 
   return summary;
 }
