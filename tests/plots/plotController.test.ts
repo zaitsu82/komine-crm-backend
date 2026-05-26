@@ -66,6 +66,12 @@ const mockPrisma: any = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  gravestoneInfo: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
   $transaction: jest.fn((callback: any) => Promise.resolve(callback(mockPrisma))),
 };
 
@@ -96,11 +102,15 @@ jest.mock('@prisma/client', () => ({
   },
 }));
 
-// ユーティリティ関数のモック化
-jest.mock('../../src/plots/utils', () => ({
-  validateContractArea: jest.fn(),
-  updatePhysicalPlotStatus: jest.fn(),
-}));
+// ユーティリティ関数のモック化（buildGravestoneInfoData は実装をそのまま使用）
+jest.mock('../../src/plots/utils', () => {
+  const actual = jest.requireActual('../../src/plots/utils');
+  return {
+    validateContractArea: jest.fn(),
+    updatePhysicalPlotStatus: jest.fn(),
+    buildGravestoneInfoData: actual.buildGravestoneInfoData,
+  };
+});
 
 // 履歴サービスのモック化
 jest.mock('../../src/plots/services/historyService', () => ({
@@ -1166,6 +1176,226 @@ describe('Plot Controller (ContractPlot Model)', () => {
         expect.objectContaining({
           where: { id: 'scr2' },
           data: expect.objectContaining({ deleted_at: expect.any(Date) }),
+        })
+      );
+    });
+  });
+
+  describe('GravestoneInfo persistence (issue #154)', () => {
+    const gravestoneInput = {
+      gravestoneBase: '石基A',
+      enclosurePosition: '北東',
+      gravestoneDealer: '小嶺石材',
+      gravestoneType: '和型',
+      surroundingArea: '0.5㎡',
+      gravestoneCost: 500000,
+      establishmentDeadline: '2025-03-31',
+      establishmentDate: '2025-01-15',
+      gravestoneInscription: '南無阿弥陀仏',
+      directionId: 2,
+      positionId: 3,
+    };
+
+    it('createPlot は gravestoneInfo を snake_case で永続化する', async () => {
+      mockPrisma.physicalPlot.create.mockResolvedValue({
+        id: 'pp1',
+        plot_number: 'A-01',
+        area_name: '一般墓地A',
+        area_sqm: new Prisma.Decimal(3.6),
+        status: 'sold_out',
+      });
+      mockPrisma.customer.create.mockResolvedValue({ id: 'c1', name: '山田太郎' });
+      mockPrisma.contractPlot.create.mockResolvedValue({ id: 'cp1', physical_plot_id: 'pp1' });
+      mockPrisma.saleContractRole.create.mockResolvedValue({ id: 'scr1', customer: { id: 'c1' } });
+      mockPrisma.gravestoneInfo.create.mockResolvedValue({ id: 'g1' });
+      mockPrisma.contractPlot.findUnique.mockResolvedValue({
+        id: 'cp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: {
+          id: 'pp1',
+          plot_number: 'A-01',
+          area_name: '一般墓地A',
+          area_sqm: new Prisma.Decimal(3.6),
+        },
+        saleContractRoles: [],
+        usageFee: null,
+        managementFee: null,
+        collectiveBurial: null,
+      });
+
+      mockRequest.body = {
+        physicalPlot: { plotNumber: 'A-01', areaName: '一般墓地A', areaSqm: 3.6 },
+        contractPlot: { contractAreaSqm: 3.6 },
+        saleContract: { contractDate: '2024-01-01' },
+        customer: {
+          name: '山田太郎',
+          nameKana: 'ヤマダタロウ',
+          postalCode: '150-0001',
+          address: '東京都渋谷区',
+          phoneNumber: '0312345678',
+        },
+        gravestoneInfo: gravestoneInput,
+      };
+
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.gravestoneInfo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            contract_plot_id: 'cp1',
+            gravestone_base: '石基A',
+            enclosure_position: '北東',
+            gravestone_dealer: '小嶺石材',
+            gravestone_type: '和型',
+            surrounding_area: '0.5㎡',
+            gravestone_cost: 500000,
+            establishment_deadline: new Date('2025-03-31'),
+            establishment_date: new Date('2025-01-15'),
+            gravestone_inscription: '南無阿弥陀仏',
+            direction_id: 2,
+            position_id: 3,
+          }),
+        })
+      );
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    const buildExistingPlot = (gravestoneInfo: unknown) => ({
+      id: 'cp1',
+      physical_plot_id: 'pp1',
+      contract_area_sqm: new Prisma.Decimal(3.6),
+      physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+      saleContractRoles: [
+        {
+          id: 'scr1',
+          role: 'contractor',
+          customer: { id: 'c1', workInfo: null },
+          deleted_at: null,
+        },
+      ],
+      usageFee: null,
+      managementFee: null,
+      collectiveBurial: null,
+      gravestoneInfo,
+    });
+
+    it('updatePlot は既存 gravestoneInfo が無い場合に create する', async () => {
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(buildExistingPlot(null));
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.gravestoneInfo.create.mockResolvedValue({ id: 'g1' });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = { gravestoneInfo: gravestoneInput };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.gravestoneInfo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ contract_plot_id: 'cp1', gravestone_base: '石基A' }),
+        })
+      );
+      expect(mockPrisma.gravestoneInfo.update).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('updatePlot は既存 gravestoneInfo がある場合に update する', async () => {
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(
+        buildExistingPlot({
+          id: 'g1',
+          gravestone_base: '旧',
+          enclosure_position: null,
+          gravestone_dealer: null,
+          gravestone_type: null,
+          surrounding_area: null,
+          gravestone_cost: null,
+          establishment_deadline: null,
+          establishment_date: null,
+          gravestone_inscription: null,
+          direction_id: null,
+          position_id: null,
+        })
+      );
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.gravestoneInfo.update.mockResolvedValue({
+        id: 'g1',
+        gravestone_base: '石基A',
+        enclosure_position: '北東',
+        gravestone_dealer: '小嶺石材',
+        gravestone_type: '和型',
+        surrounding_area: '0.5㎡',
+        gravestone_cost: 500000,
+        establishment_deadline: new Date('2025-03-31'),
+        establishment_date: new Date('2025-01-15'),
+        gravestone_inscription: '南無阿弥陀仏',
+        direction_id: 2,
+        position_id: 3,
+      });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = { gravestoneInfo: gravestoneInput };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.gravestoneInfo.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'g1' },
+          data: expect.objectContaining({ gravestone_base: '石基A', direction_id: 2 }),
+        })
+      );
+      expect(mockPrisma.gravestoneInfo.create).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('updatePlot は gravestoneInfo: null で既存を削除する', async () => {
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(
+        buildExistingPlot({
+          id: 'g1',
+          gravestone_base: '旧',
+          gravestone_dealer: null,
+          gravestone_type: null,
+          direction_id: null,
+          position_id: null,
+        })
+      );
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.gravestoneInfo.delete.mockResolvedValue({ id: 'g1' });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = { gravestoneInfo: null };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.gravestoneInfo.delete).toHaveBeenCalledWith({ where: { id: 'g1' } });
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('createPlotContract は gravestoneInfo を永続化する', async () => {
+      mockPrisma.physicalPlot.findUnique.mockResolvedValue({ id: 'pp1' });
+      (validateContractArea as jest.Mock).mockResolvedValue({ isValid: true });
+      mockPrisma.customer.create.mockResolvedValue({ id: 'c1' });
+      mockPrisma.contractPlot.create.mockResolvedValue({ id: 'cp1' });
+      mockPrisma.saleContractRole.create.mockResolvedValue({ id: 'scr1' });
+      mockPrisma.gravestoneInfo.create.mockResolvedValue({ id: 'g1' });
+      mockPrisma.contractPlot.findUnique.mockResolvedValue({
+        id: 'cp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(3.6) },
+        saleContractRoles: [],
+      });
+
+      mockRequest.params = { id: 'pp1' };
+      mockRequest.body = {
+        contractPlot: { contractAreaSqm: 3.6 },
+        saleContract: {},
+        customer: { name: '田中', nameKana: 'タナカ' },
+        gravestoneInfo: gravestoneInput,
+      };
+
+      await createPlotContract(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestoneInfo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ contract_plot_id: 'cp1', gravestone_base: '石基A' }),
         })
       );
     });

@@ -8,7 +8,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma, ContractRole } from '@prisma/client';
 import { UpdatePlotRequest } from '@komine/types';
-import { updatePhysicalPlotStatus } from '../utils';
+import { updatePhysicalPlotStatus, buildGravestoneInfoData } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 import {
@@ -53,6 +53,7 @@ export async function updatePlotCore(
       usageFee: true,
       managementFee: true,
       collectiveBurial: true,
+      gravestoneInfo: true,
     },
   });
 
@@ -748,6 +749,101 @@ export async function updatePlotCore(
             afterRecord: {
               id: created.id,
               ...managementFeeData,
+            },
+            req,
+          });
+        }
+      }
+    }
+  }
+
+  // 8.5. GravestoneInfo（issue #154: update で永続化されていなかった）
+  if (input.gravestoneInfo !== undefined) {
+    const existingGravestone = existingContractPlot.gravestoneInfo;
+
+    if (input.gravestoneInfo === null) {
+      if (existingGravestone) {
+        await tx.gravestoneInfo.delete({
+          where: { id: existingGravestone.id },
+        });
+        await recordEntityDeleted(tx, {
+          entityType: 'GravestoneInfo',
+          entityId: existingGravestone.id,
+          physicalPlotId,
+          contractPlotId: id,
+          beforeRecord: {
+            id: existingGravestone.id,
+            gravestone_base: existingGravestone.gravestone_base,
+            gravestone_dealer: existingGravestone.gravestone_dealer,
+            gravestone_type: existingGravestone.gravestone_type,
+            direction_id: existingGravestone.direction_id,
+            position_id: existingGravestone.position_id,
+          },
+          req,
+        });
+      }
+    } else {
+      const gravestoneData = buildGravestoneInfoData(input.gravestoneInfo);
+
+      if (Object.keys(gravestoneData).length > 0) {
+        if (existingGravestone) {
+          const before = existingGravestone;
+          const updated = await tx.gravestoneInfo.update({
+            where: { id: before.id },
+            data: gravestoneData,
+          });
+          await recordEntityUpdated(tx, {
+            entityType: 'GravestoneInfo',
+            entityId: before.id,
+            physicalPlotId,
+            contractPlotId: id,
+            beforeRecord: {
+              gravestone_base: before.gravestone_base,
+              enclosure_position: before.enclosure_position,
+              gravestone_dealer: before.gravestone_dealer,
+              gravestone_type: before.gravestone_type,
+              surrounding_area: before.surrounding_area,
+              gravestone_cost: before.gravestone_cost,
+              establishment_deadline: before.establishment_deadline?.toISOString() ?? null,
+              establishment_date: before.establishment_date?.toISOString() ?? null,
+              gravestone_inscription: before.gravestone_inscription,
+              direction_id: before.direction_id,
+              position_id: before.position_id,
+            },
+            afterRecord: {
+              gravestone_base: updated.gravestone_base,
+              enclosure_position: updated.enclosure_position,
+              gravestone_dealer: updated.gravestone_dealer,
+              gravestone_type: updated.gravestone_type,
+              surrounding_area: updated.surrounding_area,
+              gravestone_cost: updated.gravestone_cost,
+              establishment_deadline: updated.establishment_deadline?.toISOString() ?? null,
+              establishment_date: updated.establishment_date?.toISOString() ?? null,
+              gravestone_inscription: updated.gravestone_inscription,
+              direction_id: updated.direction_id,
+              position_id: updated.position_id,
+            },
+            req,
+          });
+        } else {
+          const created = await tx.gravestoneInfo.create({
+            data: {
+              contract_plot_id: id,
+              ...gravestoneData,
+            },
+          });
+          await recordEntityCreated(tx, {
+            entityType: 'GravestoneInfo',
+            entityId: created.id,
+            physicalPlotId,
+            contractPlotId: id,
+            afterRecord: {
+              id: created.id,
+              gravestone_base: created.gravestone_base,
+              gravestone_dealer: created.gravestone_dealer,
+              gravestone_type: created.gravestone_type,
+              direction_id: created.direction_id,
+              position_id: created.position_id,
             },
             req,
           });

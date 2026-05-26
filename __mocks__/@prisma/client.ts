@@ -81,6 +81,13 @@ export const PrismaClient = jest.fn().mockImplementation(() => ({
     update: jest.fn(),
     delete: jest.fn(),
   },
+  gravestoneInfo: {
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
   billingAccount: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
