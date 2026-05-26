@@ -34,6 +34,12 @@ export interface CreateUserResult {
   success: boolean;
   user?: User;
   error?: string;
+  /**
+   * エラーの機械可読な種別。呼び出し側が文字列マッチに頼らず分岐できるようにする。
+   * - 'already_registered': 同一メールのSupabaseユーザーが既に存在する
+   * - 'rate_limit': 招待メール送信のレート制限
+   */
+  errorCode?: 'already_registered' | 'rate_limit';
 }
 
 /**
@@ -83,15 +89,19 @@ export const createSupabaseUser = async (
     if (error) {
       // よくあるエラーの日本語化
       let errorMessage = error.message;
+      let errorCode: CreateUserResult['errorCode'];
       if (error.message.includes('already registered')) {
         errorMessage = 'このメールアドレスは既にSupabaseに登録されています';
+        errorCode = 'already_registered';
       } else if (error.message.includes('rate limit')) {
         errorMessage = '招待メールの送信制限に達しました。しばらく待ってから再試行してください';
+        errorCode = 'rate_limit';
       }
 
       return {
         success: false,
         error: errorMessage,
+        errorCode,
       };
     }
 
