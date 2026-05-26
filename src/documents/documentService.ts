@@ -65,7 +65,26 @@ function loadAndRenderTemplate(templateType: TemplateType, data: Record<string, 
     throw new Error(`テンプレートが見つかりません: ${templateType}`);
   }
 
-  let html = fs.readFileSync(templatePath, 'utf-8');
+  const templateHtml = fs.readFileSync(templatePath, 'utf-8');
+  return renderTemplateHtml(templateHtml, templateType, data);
+}
+
+/**
+ * テンプレートHTML文字列にデータを埋め込む（ファイルI/O を伴わない純粋関数）。
+ *
+ * - プレースホルダ `{{ key }}` をデータ値で置換（ユーザー入力は HTMLエスケープ）
+ * - `RAW_HTML_KEYS`（サーバー生成の属性のみ）は素通し
+ * - payment-guide は未入力に既定値、invoice は金額整形・季節挨拶フォールバックを補完
+ * - 未解決プレースホルダは空文字に置換
+ *
+ * `loadAndRenderTemplate` から分離し、レンダリングロジックを単体テスト可能にする。
+ */
+export function renderTemplateHtml(
+  templateHtml: string,
+  templateType: TemplateType,
+  data: Record<string, unknown>
+): string {
+  let html = templateHtml;
 
   const preset = normalizePdfTextStylePreset(data['textStylePreset']);
   const dataForTemplate: Record<string, unknown> = {
