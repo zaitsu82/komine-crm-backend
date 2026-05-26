@@ -9,7 +9,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma, PaymentStatus, ContractRole, DmSetting, AddressType } from '@prisma/client';
 import { CreatePlotRequest } from '@komine/types';
-import { validateContractArea, updatePhysicalPlotStatus } from '../utils';
+import { validateContractArea, updatePhysicalPlotStatus, buildGravestoneInfoData } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 import {
@@ -161,6 +161,20 @@ export async function createPlotCore(
       legacy_grave_cd: input.saleContract.legacyGraveCd ?? null,
     },
   });
+
+  // 6. 墓石情報の作成（issue #154: 単一作成・一括作成で永続化されていなかった）
+  let gravestoneInfo: { id: string } | null = null;
+  if (input.gravestoneInfo) {
+    const gravestoneData = buildGravestoneInfoData(input.gravestoneInfo);
+    if (Object.keys(gravestoneData).length > 0) {
+      gravestoneInfo = await tx.gravestoneInfo.create({
+        data: {
+          contract_plot_id: contractPlot.id,
+          ...gravestoneData,
+        },
+      });
+    }
+  }
 
   // 6.5. 合祀情報の作成
   let collectiveBurial: { id: string } | null = null;
@@ -332,6 +346,16 @@ export async function createPlotCore(
       physicalPlotId: physicalPlot.id,
       contractPlotId: contractPlot.id,
       afterRecord: { id: managementFee.id, ...input.managementFee! },
+      req,
+    });
+  }
+  if (gravestoneInfo) {
+    await recordEntityCreated(tx, {
+      entityType: 'GravestoneInfo',
+      entityId: gravestoneInfo.id,
+      physicalPlotId: physicalPlot.id,
+      contractPlotId: contractPlot.id,
+      afterRecord: { id: gravestoneInfo.id, ...buildGravestoneInfoData(input.gravestoneInfo!) },
       req,
     });
   }

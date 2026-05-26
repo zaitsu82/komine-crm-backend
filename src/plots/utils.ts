@@ -7,6 +7,46 @@
 import { Prisma } from '@prisma/client';
 
 /**
+ * フォーム入力（camelCase）から GravestoneInfo の永続化用データ（snake_case）へ変換する。
+ * create / update / createPlotContract / bulk の各経路で共通利用する。
+ * undefined のキーは省略し、null は明示的にクリアとして扱う。
+ */
+export function buildGravestoneInfoData(input: {
+  gravestoneBase?: string | null;
+  enclosurePosition?: string | null;
+  gravestoneDealer?: string | null;
+  gravestoneType?: string | null;
+  surroundingArea?: string | null;
+  gravestoneCost?: number | null;
+  establishmentDeadline?: string | null;
+  establishmentDate?: string | null;
+  gravestoneInscription?: string | null;
+  directionId?: number | null;
+  positionId?: number | null;
+}): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+  if (input.gravestoneBase !== undefined) data['gravestone_base'] = input.gravestoneBase || null;
+  if (input.enclosurePosition !== undefined)
+    data['enclosure_position'] = input.enclosurePosition || null;
+  if (input.gravestoneDealer !== undefined)
+    data['gravestone_dealer'] = input.gravestoneDealer || null;
+  if (input.gravestoneType !== undefined) data['gravestone_type'] = input.gravestoneType || null;
+  if (input.surroundingArea !== undefined) data['surrounding_area'] = input.surroundingArea || null;
+  if (input.gravestoneCost !== undefined) data['gravestone_cost'] = input.gravestoneCost ?? null;
+  if (input.establishmentDeadline !== undefined)
+    data['establishment_deadline'] = input.establishmentDeadline
+      ? new Date(input.establishmentDeadline)
+      : null;
+  if (input.establishmentDate !== undefined)
+    data['establishment_date'] = input.establishmentDate ? new Date(input.establishmentDate) : null;
+  if (input.gravestoneInscription !== undefined)
+    data['gravestone_inscription'] = input.gravestoneInscription || null;
+  if (input.directionId !== undefined) data['direction_id'] = input.directionId ?? null;
+  if (input.positionId !== undefined) data['position_id'] = input.positionId ?? null;
+  return data;
+}
+
+/**
  * 物理区画の利用可能面積を計算
  * @param prisma Prismaクライアント（トランザクション対応）
  * @param physicalPlotId 物理区画ID

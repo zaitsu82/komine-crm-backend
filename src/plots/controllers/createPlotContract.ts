@@ -7,7 +7,7 @@
 
 import { Request, Response } from 'express';
 import { Prisma, PaymentStatus, ContractRole } from '@prisma/client';
-import { validateContractArea, updatePhysicalPlotStatus } from '../utils';
+import { validateContractArea, updatePhysicalPlotStatus, buildGravestoneInfoData } from '../utils';
 import prisma from '../../db/prisma';
 import { getRequestLogger } from '../../utils/logger';
 
@@ -145,6 +145,19 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
             role: input.saleContract.customerRole || ContractRole.contractor,
           },
         });
+      }
+
+      // 墓石情報作成（オプション・issue #154）
+      if (input.gravestoneInfo) {
+        const gravestoneData = buildGravestoneInfoData(input.gravestoneInfo);
+        if (Object.keys(gravestoneData).length > 0) {
+          await tx.gravestoneInfo.create({
+            data: {
+              contract_plot_id: contractPlot.id,
+              ...gravestoneData,
+            },
+          });
+        }
       }
 
       // UsageFee作成（オプション）
