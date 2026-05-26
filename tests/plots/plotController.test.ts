@@ -419,6 +419,22 @@ describe('Plot Controller (ContractPlot Model)', () => {
       expect(whereArg).not.toHaveProperty('grave_kubun');
       expect(whereArg).not.toHaveProperty('grave_type');
     });
+
+    it('should exclude vacant (空き区画) from both list and count (#167)', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
+
+      mockRequest.query = { page: 1, limit: 10 } as any;
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      const findManyWhere = mockPrisma.contractPlot.findMany.mock.calls[0][0].where;
+      const countWhere = mockPrisma.contractPlot.count.mock.calls[0][0].where;
+
+      // 一覧・件数の両方に vacant 除外条件が効いていること
+      expect(findManyWhere).toMatchObject({ contract_status: { not: 'vacant' } });
+      expect(countWhere).toMatchObject({ contract_status: { not: 'vacant' } });
+    });
   });
 
   describe('getPlotById', () => {

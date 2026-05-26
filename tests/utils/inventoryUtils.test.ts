@@ -48,11 +48,34 @@ describe('inventoryUtils', () => {
         where: { id: 'plot-1' },
         include: {
           contractPlots: {
-            where: { deleted_at: null },
+            where: { deleted_at: null, contract_status: 'active' },
             select: { contract_area_sqm: true },
           },
         },
       });
+    });
+
+    it('vacant / terminated 契約は契約済み面積に計上しない（active のみ集計, #165）', async () => {
+      // DB クエリ側で active のみに絞るため、モックは active のみ返す前提。
+      // ここでは集計クエリに contract_status: 'active' フィルタが渡ることを検証する。
+      mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
+        id: 'plot-1',
+        area_sqm: { toNumber: () => 3.6 },
+        contractPlots: [],
+      });
+
+      const result = await calculateAvailableArea(mockPrismaClient, 'plot-1');
+
+      expect(result).toBe(3.6);
+      expect(mockPrismaClient.physicalPlot.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            contractPlots: expect.objectContaining({
+              where: expect.objectContaining({ contract_status: 'active' }),
+            }),
+          }),
+        })
+      );
     });
 
     it('契約がある場合、残り面積を返す', async () => {
@@ -159,6 +182,7 @@ describe('inventoryUtils', () => {
           contractPlots: {
             where: {
               deleted_at: null,
+              contract_status: 'active',
               id: { not: 'contract-1' },
             },
             select: { contract_area_sqm: true },

@@ -6,7 +6,7 @@
  */
 
 import { Request, Response } from 'express';
-import { Prisma, PaymentStatus, ContractRole } from '@prisma/client';
+import { Prisma, PaymentStatus, ContractRole, ContractStatus } from '@prisma/client';
 import { validateContractArea, updatePhysicalPlotStatus, buildGravestoneInfoData } from '../utils';
 import prisma from '../../db/prisma';
 import { getRequestLogger } from '../../utils/logger';
@@ -92,6 +92,8 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
       const contractPlot = await tx.contractPlot.create({
         data: {
           physical_plot_id: physicalPlotId,
+          // 分割販売の新規契約も実契約のため active（schema default の vacant ではない）。#165 / #167 参照。
+          contract_status: ContractStatus.active,
           contract_area_sqm: new Prisma.Decimal(input.contractPlot.contractAreaSqm),
           location_description: input.contractPlot.locationDescription || null,
           // 販売契約情報（ContractPlotに統合済み）

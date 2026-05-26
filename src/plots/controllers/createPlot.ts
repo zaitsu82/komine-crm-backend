@@ -7,7 +7,14 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { Prisma, PaymentStatus, ContractRole, DmSetting, AddressType } from '@prisma/client';
+import {
+  Prisma,
+  PaymentStatus,
+  ContractRole,
+  ContractStatus,
+  DmSetting,
+  AddressType,
+} from '@prisma/client';
 import { CreatePlotRequest } from '@komine/types';
 import { validateContractArea, updatePhysicalPlotStatus, buildGravestoneInfoData } from '../utils';
 import prisma from '../../db/prisma';
@@ -129,6 +136,9 @@ export async function createPlotCore(
   const contractPlot = await tx.contractPlot.create({
     data: {
       physical_plot_id: physicalPlot.id,
+      // 新規作成は実契約（顧客あり）のため active。schema default は vacant（在庫の器契約）。
+      // active を立てないと在庫面積計算（#165）・台帳表示（#167）から漏れる。
+      contract_status: ContractStatus.active,
       contract_area_sqm: new Prisma.Decimal(input.contractPlot.contractAreaSqm),
       location_description: input.contractPlot.locationDescription || null,
       burial_capacity: input.collectiveBurial?.burialCapacity ?? null,
