@@ -120,3 +120,6 @@ uploads/
 
 # query-legacy.ts audit log (contains executed SQL, may include unmask requests)
 .query-legacy.audit.log
+
+# レガシー移行の検証クエリ結果・レポート(PII由来の集計を含むため非追跡)
+query_result/
