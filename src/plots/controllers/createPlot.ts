@@ -29,7 +29,7 @@ type Tx = Prisma.TransactionClient;
 
 /**
  * 新規契約作成のトランザクション内処理
- * bulkCreatePlots からも呼び出せるように外部化
+ * トランザクション境界の外から再利用できるよう外部化
  */
 export async function createPlotCore(
   tx: Tx,

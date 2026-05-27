@@ -27,7 +27,7 @@ type Tx = Prisma.TransactionClient;
 
 /**
  * 契約区画更新のトランザクション内処理
- * bulkUpdatePlots からも呼び出せるように外部化
+ * トランザクション境界の外から再利用できるよう外部化
  */
 export async function updatePlotCore(
   tx: Tx,

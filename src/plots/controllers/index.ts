@@ -7,8 +7,6 @@ export { getPlots } from './getPlots';
 export { getGraveClassifications } from './getGraveClassifications';
 export { getPlotById } from './getPlotById';
 export { createPlot } from './createPlot';
-export { bulkCreatePlots } from './bulkCreatePlots';
-export { bulkUpdatePlots } from './bulkUpdatePlots';
 export { updatePlot } from './updatePlot';
 export { deletePlot } from './deletePlot';
 export { restoreContract } from './restoreContract';
