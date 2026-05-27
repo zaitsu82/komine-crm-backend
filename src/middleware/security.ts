@@ -196,7 +196,7 @@ export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) 
 /**
  * オブジェクト内の文字列を再帰的にサニタイゼーション
  */
-const sanitizeObject = (obj: any): any => {
+const sanitizeObject = (obj: unknown): unknown => {
   if (typeof obj === 'string') {
     return sanitizeString(obj);
   }
@@ -206,10 +206,11 @@ const sanitizeObject = (obj: any): any => {
   }
 
   if (obj !== null && typeof obj === 'object') {
-    const sanitized: any = {};
-    for (const key in obj) {
-      if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        sanitized[key] = sanitizeObject(obj[key]);
+    const sanitized: Record<string, unknown> = {};
+    const source = obj as Record<string, unknown>;
+    for (const key in source) {
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        sanitized[key] = sanitizeObject(source[key]);
       }
     }
     return sanitized;
