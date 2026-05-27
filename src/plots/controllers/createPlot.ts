@@ -78,7 +78,7 @@ export async function createPlotCore(
 
   // 2. 契約面積の妥当性検証
   const validationResult = await validateContractArea(
-    tx as any,
+    tx,
     physicalPlot.id,
     input.contractPlot.contractAreaSqm
   );
@@ -308,7 +308,7 @@ export async function createPlotCore(
   }
 
   // 10. 物理区画のステータス更新
-  await updatePhysicalPlotStatus(tx as any, physicalPlot.id);
+  await updatePhysicalPlotStatus(tx, physicalPlot.id);
 
   // 11. 履歴の自動記録
   if (!input.physicalPlot.id) {
@@ -417,7 +417,7 @@ export const createPlot = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const input: CreatePlotRequest = req.body;
+    const input = req.body as CreatePlotRequest;
 
     const result = await prisma.$transaction(async (tx) => {
       return createPlotCore(tx, input, req);

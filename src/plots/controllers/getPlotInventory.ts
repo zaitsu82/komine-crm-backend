@@ -13,7 +13,7 @@ import { getRequestLogger } from '../../utils/logger';
  * 物理区画の在庫状況取得
  * GET /plots/:id/inventory
  */
-export const getPlotInventory = async (req: Request, res: Response): Promise<any> => {
+export const getPlotInventory = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const { id } = req.params as Record<string, string>;
 

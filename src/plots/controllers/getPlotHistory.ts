@@ -6,6 +6,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../../db/prisma';
 import { NotFoundError } from '../../middleware/errorHandler';
 import { formatHistoryWithLabels } from '../services/historyLabels';
@@ -47,7 +48,7 @@ export const getPlotHistory = async (
     // physical_plot_id は分割販売時に他の契約区画と共有されるため、
     // PhysicalPlot 自体の履歴のみ physical_plot_id で拾い、
     // それ以外は contract_plot_id 一致に絞る（他契約への漏れ防止）。
-    const whereCondition: any = {
+    const whereCondition: Prisma.HistoryWhereInput = {
       OR: [
         { contract_plot_id: id },
         {
