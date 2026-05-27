@@ -29,6 +29,40 @@ interface SectionNameMasterData extends MasterData {
 }
 
 /**
+ * マスタ CRUD で使う Prisma デリゲートの最小構造型。
+ * 各マスタの Prisma デリゲートは型が異なるため、共通して使う create/update/delete
+ * のみを構造的に表現し、`getMasterDelegate` で 1 箇所だけアサーションする。
+ */
+interface MasterRow {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  sort_order: number | null;
+  is_active: boolean;
+  tax_rate?: { toString: () => string } | null;
+  period?: string | null;
+}
+
+interface MasterDelegate {
+  create: (args: { data: Record<string, unknown> }) => Promise<MasterRow>;
+  update: (args: { where: { id: number }; data: Record<string, unknown> }) => Promise<MasterRow>;
+  delete: (args: { where: { id: number } }) => Promise<MasterRow>;
+}
+
+/**
+ * エラーオブジェクト（Prisma など）から `code` を安全に取り出す。
+ * `catch (error: unknown)` を維持したまま P2002 / P2025 判定を行うためのヘルパ。
+ */
+const getErrorCode = (error: unknown): string | undefined => {
+  if (error !== null && typeof error === 'object' && 'code' in error) {
+    const { code } = error as { code?: unknown };
+    return typeof code === 'string' ? code : undefined;
+  }
+  return undefined;
+};
+
+/**
  * 墓地タイプマスタ取得
  * GET /api/v1/masters/cemetery-type
  */
@@ -465,8 +499,8 @@ export const getPositionMaster = async (_req: Request, res: Response) => {
 /**
  * マスタタイプからPrismaモデルデリゲートを取得
  */
-const getMasterDelegate = (masterType: MasterType) => {
-  const delegateMap: Record<MasterType, any> = {
+const getMasterDelegate = (masterType: MasterType): MasterDelegate => {
+  const delegateMap: Record<MasterType, unknown> = {
     'cemetery-type': prisma.cemeteryTypeMaster,
     'payment-method': prisma.paymentMethodMaster,
     'tax-type': prisma.taxTypeMaster,
@@ -480,7 +514,7 @@ const getMasterDelegate = (masterType: MasterType) => {
     direction: prisma.directionMaster,
     position: prisma.positionMaster,
   };
-  return delegateMap[masterType];
+  return delegateMap[masterType] as MasterDelegate;
 };
 
 const masterTypeLabels: Record<MasterType, string> = {
@@ -542,23 +576,23 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
       rest.code = rest.name.substring(0, 20);
     }
 
-    const createData: any = {
+    const createData: Record<string, unknown> = {
       ...rest,
       sort_order: sortOrder ?? null,
       is_active: isActive ?? true,
     };
 
     if (masterType === 'tax-type' && taxRate !== undefined) {
-      createData.tax_rate = taxRate;
+      createData['tax_rate'] = taxRate;
     }
     if (masterType === 'section-name' && period !== undefined) {
-      createData.period = period;
+      createData['period'] = period;
     }
 
     const created = await delegate.create({ data: createData });
     const label = masterTypeLabels[masterType];
 
-    const formatted: any = {
+    const formatted: Record<string, unknown> = {
       id: created.id,
       code: created.code,
       name: created.name,
@@ -567,10 +601,10 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
       isActive: created.is_active,
     };
     if (masterType === 'tax-type' && 'tax_rate' in created) {
-      formatted.taxRate = created.tax_rate?.toString() || null;
+      formatted['taxRate'] = created.tax_rate?.toString() || null;
     }
     if (masterType === 'section-name' && 'period' in created) {
-      formatted.period = created.period;
+      formatted['period'] = created.period;
     }
 
     res.status(201).json({
@@ -578,10 +612,10 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
       data: formatted,
       message: `${label}マスタを作成しました`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     const label = masterTypeLabels[masterType];
 
-    if (error?.code === 'P2002') {
+    if (getErrorCode(error) === 'P2002') {
       res.status(409).json({
         success: false,
         error: {
@@ -657,14 +691,14 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
     const delegate = getMasterDelegate(masterType);
     const { taxRate, sortOrder, isActive, period, ...rest } = parsed.data;
 
-    const updateData: any = { ...rest };
-    if (sortOrder !== undefined) updateData.sort_order = sortOrder;
-    if (isActive !== undefined) updateData.is_active = isActive;
+    const updateData: Record<string, unknown> = { ...rest };
+    if (sortOrder !== undefined) updateData['sort_order'] = sortOrder;
+    if (isActive !== undefined) updateData['is_active'] = isActive;
     if (masterType === 'tax-type' && taxRate !== undefined) {
-      updateData.tax_rate = taxRate;
+      updateData['tax_rate'] = taxRate;
     }
     if (masterType === 'section-name' && period !== undefined) {
-      updateData.period = period;
+      updateData['period'] = period;
     }
 
     const updated = await delegate.update({
@@ -673,7 +707,7 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
     });
 
     const label = masterTypeLabels[masterType];
-    const formatted: any = {
+    const formatted: Record<string, unknown> = {
       id: updated.id,
       code: updated.code,
       name: updated.name,
@@ -682,10 +716,10 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
       isActive: updated.is_active,
     };
     if (masterType === 'tax-type' && 'tax_rate' in updated) {
-      formatted.taxRate = updated.tax_rate?.toString() || null;
+      formatted['taxRate'] = updated.tax_rate?.toString() || null;
     }
     if (masterType === 'section-name' && 'period' in updated) {
-      formatted.period = updated.period;
+      formatted['period'] = updated.period;
     }
 
     res.status(200).json({
@@ -693,10 +727,10 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
       data: formatted,
       message: `${label}マスタを更新しました`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     const label = masterTypeLabels[masterType];
 
-    if (error?.code === 'P2025') {
+    if (getErrorCode(error) === 'P2025') {
       res.status(404).json({
         success: false,
         error: {
@@ -708,7 +742,7 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    if (error?.code === 'P2002') {
+    if (getErrorCode(error) === 'P2002') {
       res.status(409).json({
         success: false,
         error: {
@@ -774,10 +808,10 @@ export const deleteMaster = async (req: Request, res: Response): Promise<void> =
       success: true,
       message: `${label}マスタを削除しました`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     const label = masterTypeLabels[masterType];
 
-    if (error?.code === 'P2025') {
+    if (getErrorCode(error) === 'P2025') {
       res.status(404).json({
         success: false,
         error: {
