@@ -24,6 +24,42 @@ jest.mock('../../src/collective-burials/utils', () => ({
   getBillingTargets: jest.fn(),
 }));
 
+type BillingTarget = Parameters<typeof processBilling>[0];
+
+/**
+ * getBillingTargets の返り値要素と同じ構造のモックを生成する。
+ * （contract_plot_id / contractPlot.physicalPlot.plot_number /
+ *   contractPlot.saleContractRoles[].customer.name を持つ #184 の正しい形）
+ */
+const makeTarget = (overrides: {
+  id: string;
+  contract_plot_id?: string;
+  plot_number?: string;
+  billing_amount?: number | null;
+  roles?: Array<{ role: string; name: string }>;
+}): BillingTarget => {
+  const {
+    id,
+    contract_plot_id = `cp-${id}`,
+    plot_number = `A-${id}`,
+    billing_amount = 50000,
+    roles = [{ role: 'contractor', name: '田中太郎' }],
+  } = overrides;
+  return {
+    id,
+    contract_plot_id,
+    billing_amount,
+    billing_status: 'pending',
+    contractPlot: {
+      physicalPlot: { plot_number },
+      saleContractRoles: roles.map((r) => ({
+        role: r.role,
+        customer: { name: r.name },
+      })),
+    },
+  } as unknown as BillingTarget;
+};
+
 describe('generate-collective-burial-invoices', () => {
   let mockPrisma: any;
   let consoleLogSpy: jest.SpyInstance;
@@ -51,34 +87,16 @@ describe('generate-collective-burial-invoices', () => {
   describe('generateCollectiveBurialInvoices', () => {
     it('should process billing successfully when targets exist', async () => {
       const mockTargets = [
-        {
+        makeTarget({
           id: 'cb-1',
-          plot_id: 'plot-1',
           billing_amount: 50000,
-          billing_status: 'pending',
-          Plot: {
-            Contractors: [
-              {
-                id: 'contractor-1',
-                name: '田中太郎',
-              },
-            ],
-          },
-        },
-        {
+          roles: [{ role: 'contractor', name: '田中太郎' }],
+        }),
+        makeTarget({
           id: 'cb-2',
-          plot_id: 'plot-2',
           billing_amount: 75000,
-          billing_status: 'pending',
-          Plot: {
-            Contractors: [
-              {
-                id: 'contractor-2',
-                name: '佐藤花子',
-              },
-            ],
-          },
-        },
+          roles: [{ role: 'applicant', name: '佐藤花子' }],
+        }),
       ];
 
       (collectiveBurialUtils.getBillingTargets as jest.Mock).mockResolvedValue(mockTargets);
@@ -139,22 +157,7 @@ describe('generate-collective-burial-invoices', () => {
     });
 
     it('should exit with code 1 when some billing processes fail', async () => {
-      const mockTargets = [
-        {
-          id: 'cb-1',
-          plot_id: 'plot-1',
-          billing_amount: 50000,
-          billing_status: 'pending',
-          Plot: {
-            Contractors: [
-              {
-                id: 'contractor-1',
-                name: '田中太郎',
-              },
-            ],
-          },
-        },
-      ];
+      const mockTargets = [makeTarget({ id: 'cb-1', billing_amount: 50000 })];
 
       (collectiveBurialUtils.getBillingTargets as jest.Mock).mockResolvedValue(mockTargets);
 
@@ -172,19 +175,13 @@ describe('generate-collective-burial-invoices', () => {
 
   describe('processBilling', () => {
     it('should process billing successfully for valid target', async () => {
-      const mockTarget = {
+      const mockTarget = makeTarget({
         id: 'cb-1',
-        plot_id: 'plot-1',
+        contract_plot_id: 'cp-1',
+        plot_number: 'A-56',
         billing_amount: 50000,
-        Plot: {
-          Contractors: [
-            {
-              id: 'contractor-1',
-              name: '田中太郎',
-            },
-          ],
-        },
-      };
+        roles: [{ role: 'contractor', name: '田中太郎' }],
+      });
 
       // トランザクション内の処理をモック
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {
@@ -197,7 +194,8 @@ describe('generate-collective-burial-invoices', () => {
 
       expect(result.success).toBe(true);
       expect(result.collectiveBurialId).toBe('cb-1');
-      expect(result.plotId).toBe('plot-1');
+      expect(result.contractPlotId).toBe('cp-1');
+      expect(result.plotNumber).toBe('A-56');
       expect(result.contractorName).toBe('田中太郎');
       expect(result.billingAmount).toBe(50000);
 
@@ -211,15 +209,25 @@ describe('generate-collective-burial-invoices', () => {
       });
     });
 
+    it('申込者ロールを優先して契約者名を採用する', async () => {
+      const mockTarget = makeTarget({
+        id: 'cb-1a',
+        roles: [
+          { role: 'contractor', name: '契約者タロウ' },
+          { role: 'applicant', name: '申込者ハナコ' },
+        ],
+      });
+
+      mockPrisma.$transaction.mockImplementation(async (callback: any) => callback(mockPrisma));
+      mockPrisma.collectiveBurial.update.mockResolvedValue({});
+
+      const result = await processBilling(mockTarget);
+
+      expect(result.contractorName).toBe('申込者ハナコ');
+    });
+
     it('should handle target without contractor', async () => {
-      const mockTarget = {
-        id: 'cb-2',
-        plot_id: 'plot-2',
-        billing_amount: 75000,
-        Plot: {
-          Contractors: [],
-        },
-      };
+      const mockTarget = makeTarget({ id: 'cb-2', billing_amount: 75000, roles: [] });
 
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {
         return await callback(mockPrisma);
@@ -235,19 +243,11 @@ describe('generate-collective-burial-invoices', () => {
     });
 
     it('should handle target without billing amount', async () => {
-      const mockTarget = {
+      const mockTarget = makeTarget({
         id: 'cb-3',
-        plot_id: 'plot-3',
         billing_amount: null,
-        Plot: {
-          Contractors: [
-            {
-              id: 'contractor-1',
-              name: '鈴木一郎',
-            },
-          ],
-        },
-      };
+        roles: [{ role: 'contractor', name: '鈴木一郎' }],
+      });
 
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {
         return await callback(mockPrisma);
@@ -262,19 +262,13 @@ describe('generate-collective-burial-invoices', () => {
     });
 
     it('should return error result when transaction fails', async () => {
-      const mockTarget = {
+      const mockTarget = makeTarget({
         id: 'cb-4',
-        plot_id: 'plot-4',
+        contract_plot_id: 'cp-4',
+        plot_number: 'B-4',
         billing_amount: 60000,
-        Plot: {
-          Contractors: [
-            {
-              id: 'contractor-1',
-              name: '山田次郎',
-            },
-          ],
-        },
-      };
+        roles: [{ role: 'contractor', name: '山田次郎' }],
+      });
 
       const mockError = new Error('Transaction rollback');
       mockPrisma.$transaction.mockRejectedValue(mockError);
@@ -283,19 +277,13 @@ describe('generate-collective-burial-invoices', () => {
 
       expect(result.success).toBe(false);
       expect(result.collectiveBurialId).toBe('cb-4');
-      expect(result.plotId).toBe('plot-4');
+      expect(result.contractPlotId).toBe('cp-4');
+      expect(result.plotNumber).toBe('B-4');
       expect(result.error).toBe('Transaction rollback');
     });
 
     it('should handle non-Error exceptions', async () => {
-      const mockTarget = {
-        id: 'cb-5',
-        plot_id: 'plot-5',
-        billing_amount: 55000,
-        Plot: {
-          Contractors: [],
-        },
-      };
+      const mockTarget = makeTarget({ id: 'cb-5', billing_amount: 55000, roles: [] });
 
       mockPrisma.$transaction.mockRejectedValue('String error');
 

@@ -17,10 +17,14 @@ import { getBillingTargets } from '../src/collective-burials/utils';
 
 const prisma = new PrismaClient();
 
+/** getBillingTargets の返り値要素型。any をやめてリレーション構造の不整合を型で検出する。 */
+type BillingTarget = Awaited<ReturnType<typeof getBillingTargets>>[number];
+
 interface BillingResult {
   success: boolean;
   collectiveBurialId: string;
-  plotId: string;
+  contractPlotId: string;
+  plotNumber: string;
   contractorName: string | null;
   billingAmount: number | null;
   error?: string;
@@ -58,10 +62,10 @@ async function generateCollectiveBurialInvoices(): Promise<void> {
 
       if (result.success) {
         console.log(
-          `  ✓ [成功] 区画ID: ${result.plotId} | 契約者: ${result.contractorName || '未設定'} | 金額: ¥${result.billingAmount?.toLocaleString() || '未設定'}`
+          `  ✓ [成功] 区画: ${result.plotNumber} | 契約者: ${result.contractorName || '未設定'} | 金額: ¥${result.billingAmount?.toLocaleString() || '未設定'}`
         );
       } else {
-        console.error(`  ✗ [失敗] 区画ID: ${result.plotId} | エラー: ${result.error}`);
+        console.error(`  ✗ [失敗] 区画: ${result.plotNumber} | エラー: ${result.error}`);
       }
     }
 
@@ -78,7 +82,7 @@ async function generateCollectiveBurialInvoices(): Promise<void> {
     if (failures.length > 0) {
       console.log('\n[失敗詳細]');
       failures.forEach((f, index) => {
-        console.log(`  ${index + 1}. 区画ID: ${f.plotId}`);
+        console.log(`  ${index + 1}. 区画: ${f.plotNumber}`);
         console.log(`     エラー: ${f.error}`);
       });
       process.exit(1); // 失敗があればエラーコードで終了
@@ -99,11 +103,16 @@ async function generateCollectiveBurialInvoices(): Promise<void> {
  * @param target 請求対象の合祀情報
  * @returns 処理結果
  */
-async function processBilling(target: any): Promise<BillingResult> {
+async function processBilling(target: BillingTarget): Promise<BillingResult> {
   const collectiveBurialId = target.id;
-  const plotId = target.plot_id;
-  const contractor = target.Plot?.Contractors?.[0]; // 最新の契約者
-  const contractorName = contractor?.name || null;
+  const contractPlotId = target.contract_plot_id;
+  const plotNumber = target.contractPlot.physicalPlot.plot_number;
+  // 契約関係者は申込者を優先し、無ければ契約者の氏名を採用（合祀コントローラと同じ選択ロジック）
+  const roles = target.contractPlot.saleContractRoles;
+  const primaryCustomer = (
+    roles.find((r) => r.role === 'applicant') ?? roles.find((r) => r.role === 'contractor')
+  )?.customer;
+  const contractorName = primaryCustomer?.name || null;
   const billingAmount = target.billing_amount ? Number(target.billing_amount) : null;
 
   try {
@@ -128,7 +137,8 @@ async function processBilling(target: any): Promise<BillingResult> {
     return {
       success: true,
       collectiveBurialId,
-      plotId,
+      contractPlotId,
+      plotNumber,
       contractorName,
       billingAmount,
     };
@@ -136,7 +146,8 @@ async function processBilling(target: any): Promise<BillingResult> {
     return {
       success: false,
       collectiveBurialId,
-      plotId,
+      contractPlotId,
+      plotNumber,
       contractorName,
       billingAmount,
       error: error instanceof Error ? error.message : String(error),
