@@ -7,6 +7,30 @@ import { BillingStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler';
 import prisma from '../db/prisma';
 
+/** リクエストボディの型（Express の req.body は any のため、境界で明示的に型付けする） */
+interface CreateCollectiveBurialBody {
+  contractPlotId?: string;
+  burialCapacity?: number;
+  validityPeriodYears?: number;
+  billingAmount?: number | null;
+  notes?: string | null;
+}
+
+interface UpdateCollectiveBurialBody {
+  burialCapacity?: number;
+  validityPeriodYears?: number;
+  capacityReachedDate?: string | null;
+  billingScheduledDate?: string | null;
+  billingStatus?: string;
+  billingAmount?: number | null;
+  notes?: string | null;
+}
+
+interface UpdateBillingStatusBody {
+  billingStatus?: BillingStatus;
+  billingAmount?: number;
+}
+
 /**
  * 合祀一覧取得
  */
@@ -260,7 +284,8 @@ export const createCollectiveBurial = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { contractPlotId, burialCapacity, validityPeriodYears, billingAmount, notes } = req.body;
+    const { contractPlotId, burialCapacity, validityPeriodYears, billingAmount, notes } =
+      req.body as CreateCollectiveBurialBody;
 
     // バリデーション
     if (!contractPlotId) {
@@ -341,7 +366,7 @@ export const updateCollectiveBurial = async (
       billingStatus,
       billingAmount,
       notes,
-    } = req.body;
+    } = req.body as UpdateCollectiveBurialBody;
 
     // 存在確認
     const existing = await prisma.collectiveBurial.findFirst({
@@ -428,7 +453,7 @@ export const updateBillingStatus = async (
 ): Promise<void> => {
   try {
     const { id } = req.params as Record<string, string>;
-    const { billingStatus, billingAmount } = req.body;
+    const { billingStatus, billingAmount } = req.body as UpdateBillingStatusBody;
 
     // バリデーション
     if (!billingStatus || !['pending', 'billed', 'paid'].includes(billingStatus)) {

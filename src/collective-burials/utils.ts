@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma, CollectiveBurial } from '@prisma/client';
 
 /**
  * 請求予定日を計算
@@ -22,9 +22,9 @@ export const calculateBillingScheduledDate = (
  * @returns 更新された合祀情報（存在しない場合はnull）
  */
 export const updateCollectiveBurialCount = async (
-  prisma: PrismaClient | any, // トランザクション内のprismaも受け入れる
+  prisma: PrismaClient | Prisma.TransactionClient, // トランザクション内のprismaも受け入れる
   plotId: string
-): Promise<any | null> => {
+): Promise<CollectiveBurial | null> => {
   // 1. 合祀情報を取得
   const collectiveBurial = await prisma.collectiveBurial.findUnique({
     where: { contract_plot_id: plotId },
@@ -46,7 +46,7 @@ export const updateCollectiveBurialCount = async (
   const capacityReached = currentCount >= collectiveBurial.burial_capacity;
   const wasCapacityReached = collectiveBurial.capacity_reached_date !== null;
 
-  const updateData: any = {
+  const updateData: Prisma.CollectiveBurialUpdateInput = {
     current_burial_count: currentCount,
   };
 
@@ -96,7 +96,7 @@ export const isCapacityReached = async (prisma: PrismaClient, plotId: string): P
  * @param prisma Prismaクライアント
  * @returns 請求対象の合祀情報リスト
  */
-export const getBillingTargets = async (prisma: PrismaClient): Promise<any[]> => {
+export const getBillingTargets = async (prisma: PrismaClient) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0); // 時刻を0:00:00に設定
 
