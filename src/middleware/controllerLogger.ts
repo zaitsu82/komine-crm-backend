@@ -42,12 +42,13 @@ export const withLogging = (
     const originalJson = res.json.bind(res);
     let logged = false;
 
-    res.json = function (body: any) {
+    res.json = function (body: unknown) {
       if (!logged) {
         logged = true;
         const duration = Date.now() - startTime;
         const status = res.statusCode;
-        const success = body?.success !== undefined ? body.success : status < 400;
+        const responseBody = body as { success?: boolean; error?: { code?: string } } | null;
+        const success = responseBody?.success !== undefined ? responseBody.success : status < 400;
 
         if (success) {
           log.info(
@@ -55,7 +56,7 @@ export const withLogging = (
             `[${module}] ${action} END`
           );
         } else {
-          const errorCode = body?.error?.code || 'UNKNOWN';
+          const errorCode = responseBody?.error?.code || 'UNKNOWN';
           log.warn(
             { module, action, status, duration, success: false, errorCode },
             `[${module}] ${action} END`
@@ -66,7 +67,7 @@ export const withLogging = (
     } as typeof res.json;
 
     // next()をラップしてエラーパッシングをキャプチャ
-    const wrappedNext: NextFunction = (err?: any) => {
+    const wrappedNext: NextFunction = (err?: unknown) => {
       if (err && !logged) {
         logged = true;
         const duration = Date.now() - startTime;
