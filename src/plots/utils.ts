@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 
 /**
  * フォーム入力（camelCase）から GravestoneInfo の永続化用データ（snake_case）へ変換する。
- * create / update / createPlotContract / bulk の各経路で共通利用する。
+ * create / update / createPlotContract の各経路で共通利用する。
  * undefined のキーは省略し、null は明示的にクリアとして扱う。
  */
 export function buildGravestoneInfoData(input: {

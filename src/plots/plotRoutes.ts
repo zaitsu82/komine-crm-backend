@@ -4,8 +4,6 @@ import {
   getGraveClassifications,
   getPlotById,
   createPlot,
-  bulkCreatePlots,
-  bulkUpdatePlots,
   updatePlot,
   deletePlot,
   restoreContract,
@@ -99,22 +97,6 @@ router.get(
 // ==========================================
 // 区画情報CRUD
 // ==========================================
-
-// 区画一括登録
-router.post(
-  '/bulk',
-  authenticate,
-  requirePermission(['manager', 'admin']),
-  withLogging('Plots', 'bulkCreatePlots', bulkCreatePlots)
-);
-
-// 区画一括編集
-router.put(
-  '/bulk',
-  authenticate,
-  requirePermission(['manager', 'admin']),
-  withLogging('Plots', 'bulkUpdatePlots', bulkUpdatePlots)
-);
 
 // 区画情報詳細取得
 router.get(
