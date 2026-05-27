@@ -128,7 +128,7 @@ export const API_PERMISSIONS: Record<string, Role[]> = {
  * 特定の権限レベルが必要な操作をチェック
  */
 export const requirePermission = (requiredRoles: Role[]) => {
-  return (req: Request, res: Response, next: NextFunction): any => {
+  return (req: Request, res: Response, next: NextFunction): Response | void => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -182,7 +182,8 @@ export const checkApiPermission = () => {
     }
 
     const method = req.method;
-    const path = req.route?.path || req.path;
+    const route = req.route as { path?: string } | undefined;
+    const path = route?.path || req.path;
     const apiKey = `${method} ${path}`;
 
     // パスパラメータをワイルドカードに変換

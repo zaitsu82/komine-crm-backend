@@ -167,7 +167,7 @@ export const deletePlot = async (
       }
 
       // 7. PhysicalPlotのステータスを更新
-      await updatePhysicalPlotStatus(tx as any, physicalPlotId);
+      await updatePhysicalPlotStatus(tx, physicalPlotId);
     });
 
     res.status(200).json({

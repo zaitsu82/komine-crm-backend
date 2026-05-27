@@ -42,7 +42,8 @@ declare global {
  */
 const extractToken = (req: Request): string | null => {
   // 1. Cookieからトークンを取得（推奨）
-  const cookieToken = req.cookies?.[ACCESS_TOKEN_COOKIE];
+  const cookies = req.cookies as Record<string, string | undefined> | undefined;
+  const cookieToken = cookies?.[ACCESS_TOKEN_COOKIE];
   if (cookieToken) {
     return cookieToken;
   }
@@ -64,7 +65,7 @@ export const authenticate = async (
   req: Request,
   res: Response,
   next: NextFunction
-): Promise<any> => {
+): Promise<Response | void> => {
   const log = getRequestLogger();
 
   try {
@@ -210,7 +211,7 @@ export const optionalAuthenticate = async (
   req: Request,
   _res: Response,
   next: NextFunction
-): Promise<any> => {
+): Promise<void> => {
   try {
     if (!supabase) {
       return next();

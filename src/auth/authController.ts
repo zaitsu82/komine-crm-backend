@@ -75,7 +75,7 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    const { email, password } = req.body;
+    const { email, password } = req.body as { email?: string; password?: string };
 
     if (!email || !password) {
       return res.status(400).json({
@@ -213,7 +213,8 @@ export const logout = async (req: Request, res: Response) => {
     }
 
     // Cookieまたはヘッダーからトークンを取得
-    const cookieToken = req.cookies?.[ACCESS_TOKEN_COOKIE];
+    const cookies = req.cookies as Record<string, string | undefined> | undefined;
+    const cookieToken = cookies?.[ACCESS_TOKEN_COOKIE];
     const authHeader = req.headers.authorization;
     const headerToken = authHeader?.replace('Bearer ', '').trim();
     const token = cookieToken || headerToken;
@@ -333,8 +334,10 @@ export const refreshToken = async (req: Request, res: Response) => {
     }
 
     // Cookieまたはリクエストボディからリフレッシュトークンを取得
-    const cookieRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
-    const bodyRefreshToken = req.body?.refresh_token;
+    const cookies = req.cookies as Record<string, string | undefined> | undefined;
+    const body = req.body as { refresh_token?: string } | undefined;
+    const cookieRefreshToken = cookies?.[REFRESH_TOKEN_COOKIE];
+    const bodyRefreshToken = body?.refresh_token;
     const refresh_token = cookieRefreshToken || bodyRefreshToken;
     const tokenSource = cookieRefreshToken ? 'cookie' : bodyRefreshToken ? 'body' : 'none';
 
@@ -429,7 +432,10 @@ export const changePassword = async (req: Request, res: Response) => {
       });
     }
 
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword } = req.body as {
+      currentPassword?: string;
+      newPassword?: string;
+    };
 
     log.info({ staffId: req.user.id }, 'Auth: password change attempt');
 
@@ -550,7 +556,7 @@ export const updateProfile = async (req: Request, res: Response) => {
       });
     }
 
-    const { name, email } = req.body;
+    const { name, email } = req.body as { name?: string; email?: string };
 
     log.info(
       { staffId: req.user.id, hasName: name !== undefined, hasEmail: email !== undefined },
@@ -660,7 +666,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
       });
     }
 
-    const { email } = req.body;
+    const { email } = req.body as { email: string };
 
     log.info({ email }, 'Auth: password reset request');
 
@@ -718,7 +724,7 @@ export const resetPassword = async (req: Request, res: Response) => {
       });
     }
 
-    const { code, newPassword } = req.body;
+    const { code, newPassword } = req.body as { code: string; newPassword: string };
 
     log.info('Auth: password reset attempt via code');
 

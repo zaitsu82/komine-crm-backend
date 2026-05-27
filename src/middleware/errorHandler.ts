@@ -4,10 +4,23 @@ import * as Sentry from '@sentry/node';
 import { getRequestLogger } from '../utils/logger';
 
 /**
+ * エラーハンドラーが参照するアプリケーションエラーの形状。
+ * Express のエラーは unknown で受け取り、この型に narrow してから扱う。
+ */
+interface HandledError {
+  name?: string;
+  message?: string;
+  status?: number;
+  code?: string;
+  details?: unknown[];
+}
+
+/**
  * グローバルエラーハンドラー
  * すべてのエラーをキャッチして統一されたレスポンス形式で返す
  */
-export const errorHandler = (error: any, req: Request, res: Response, _next: NextFunction) => {
+export const errorHandler = (error: unknown, req: Request, res: Response, _next: NextFunction) => {
+  const err: HandledError = typeof error === 'object' && error !== null ? error : {};
   const log = getRequestLogger();
   log.error(
     {
@@ -47,17 +60,17 @@ export const errorHandler = (error: any, req: Request, res: Response, _next: Nex
     });
 
     // エラータイプに応じたレベル設定
-    if (error.name === 'ValidationError' || error.name === 'NotFoundError') {
+    if (err.name === 'ValidationError' || err.name === 'NotFoundError') {
       scope.setLevel('warning');
-    } else if (error.status && error.status < 500) {
+    } else if (err.status && err.status < 500) {
       scope.setLevel('info');
     } else {
       scope.setLevel('error');
     }
 
     // エラーコードのタグ追加
-    if (error.code) {
-      scope.setTag('error_code', error.code);
+    if (err.code) {
+      scope.setTag('error_code', err.code);
     }
 
     // Prismaエラーコードのタグ追加
@@ -85,67 +98,67 @@ export const errorHandler = (error: any, req: Request, res: Response, _next: Nex
   }
 
   // カスタムエラーの処理
-  if (error.name === 'ValidationError') {
+  if (err.name === 'ValidationError') {
     return res.status(400).json({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: error.message || 'バリデーションエラーが発生しました',
-        details: error.details || [],
+        message: err.message || 'バリデーションエラーが発生しました',
+        details: err.details || [],
       },
     });
   }
 
-  if (error.name === 'UnauthorizedError') {
+  if (err.name === 'UnauthorizedError') {
     return res.status(401).json({
       success: false,
       error: {
         code: 'UNAUTHORIZED',
-        message: error.message || '認証が必要です',
+        message: err.message || '認証が必要です',
         details: [],
       },
     });
   }
 
-  if (error.name === 'ForbiddenError') {
+  if (err.name === 'ForbiddenError') {
     return res.status(403).json({
       success: false,
       error: {
         code: 'FORBIDDEN',
-        message: error.message || '権限が不足しています',
+        message: err.message || '権限が不足しています',
         details: [],
       },
     });
   }
 
-  if (error.name === 'NotFoundError') {
+  if (err.name === 'NotFoundError') {
     return res.status(404).json({
       success: false,
       error: {
         code: 'NOT_FOUND',
-        message: error.message || 'リソースが見つかりません',
+        message: err.message || 'リソースが見つかりません',
         details: [],
       },
     });
   }
 
-  if (error.name === 'ConflictError') {
+  if (err.name === 'ConflictError') {
     return res.status(409).json({
       success: false,
       error: {
         code: 'CONFLICT',
-        message: error.message || '競合が発生しました',
-        details: error.details || [],
+        message: err.message || '競合が発生しました',
+        details: err.details || [],
       },
     });
   }
 
   // デフォルトのエラーレスポンス
-  return res.status(error.status || 500).json({
+  return res.status(err.status || 500).json({
     success: false,
     error: {
-      code: error.code || 'INTERNAL_SERVER_ERROR',
-      message: error.message || '内部サーバーエラーが発生しました',
+      code: err.code || 'INTERNAL_SERVER_ERROR',
+      message: err.message || '内部サーバーエラーが発生しました',
       details: [],
     },
   });
@@ -288,9 +301,9 @@ export const notFoundHandler = (req: Request, res: Response) => {
  * カスタムエラークラス
  */
 export class ValidationError extends Error {
-  details: any[];
+  details: unknown[];
 
-  constructor(message: string, details: any[] = []) {
+  constructor(message: string, details: unknown[] = []) {
     super(message);
     this.name = 'ValidationError';
     this.details = details;
@@ -319,9 +332,9 @@ export class NotFoundError extends Error {
 }
 
 export class ConflictError extends Error {
-  details: any[];
+  details: unknown[];
 
-  constructor(message: string, details: any[] = []) {
+  constructor(message: string, details: unknown[] = []) {
     super(message);
     this.name = 'ConflictError';
     this.details = details;

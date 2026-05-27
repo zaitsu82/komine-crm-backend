@@ -13,7 +13,7 @@ import { getRequestLogger } from '../../utils/logger';
  * 物理区画の契約一覧取得
  * GET /plots/:id/contracts
  */
-export const getPlotContracts = async (req: Request, res: Response): Promise<any> => {
+export const getPlotContracts = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const { id } = req.params as Record<string, string>;
 

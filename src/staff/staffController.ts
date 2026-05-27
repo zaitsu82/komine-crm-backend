@@ -139,7 +139,17 @@ export const createStaff = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { name, email, role = 'viewer', skipSupabase = false } = req.body;
+    const {
+      name,
+      email,
+      role = 'viewer',
+      skipSupabase = false,
+    } = req.body as {
+      name?: string;
+      email?: string;
+      role?: string;
+      skipSupabase?: boolean;
+    };
 
     // バリデーション
     if (!name || !name.trim()) {
@@ -362,7 +372,12 @@ export const updateStaff = async (
       throw new NotFoundError('スタッフが見つかりません');
     }
 
-    const { name, email, role, isActive } = req.body;
+    const { name, email, role, isActive } = req.body as {
+      name?: string;
+      email?: string;
+      role?: string;
+      isActive?: boolean;
+    };
     const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
 
     // メールアドレスの重複チェック
