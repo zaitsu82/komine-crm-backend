@@ -4,6 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { History } from '@prisma/client';
 import prisma from '../../db/prisma';
 import { NotFoundError } from '../../middleware/errorHandler';
 import { formatHistoryWithLabels } from '../services/historyLabels';
@@ -66,7 +67,7 @@ export const getPlotById = async (
     // physical_plot_id で素朴に OR すると別契約の Customer / UsageFee 等の
     // 履歴まで漏れてしまう。PhysicalPlot 自体の履歴のみ physical_plot_id で
     // 拾い、それ以外は contract_plot_id 一致に絞る。
-    let histories: any[] = [];
+    let histories: History[] = [];
     if (includeHistory) {
       histories = await prisma.history.findMany({
         where: {
@@ -85,7 +86,11 @@ export const getPlotById = async (
       });
     }
 
-    const response: any = {
+    // 主契約者（role='contractor'）を取得（後方互換性のため）
+    const primaryRole = contractPlot.saleContractRoles?.find((role) => role.role === 'contractor');
+    const primaryCustomer = primaryRole?.customer;
+
+    const response = {
       // 契約区画基本情報
       id: contractPlot.id,
       contractAreaSqm: contractPlot.contract_area_sqm.toNumber(),
@@ -147,7 +152,7 @@ export const getPlotById = async (
         : null,
 
       // 埋葬者情報
-      buriedPersons: contractPlot.buriedPersons.map((person: any) => ({
+      buriedPersons: contractPlot.buriedPersons.map((person) => ({
         id: person.id,
         name: person.name,
         nameKana: person.name_kana,
@@ -164,7 +169,7 @@ export const getPlotById = async (
       })),
 
       // 家族連絡先情報
-      familyContacts: contractPlot.familyContacts.map((contact: any) => ({
+      familyContacts: contractPlot.familyContacts.map((contact) => ({
         id: contact.id,
         name: contact.name,
         nameKana: contact.name_kana,
@@ -204,7 +209,7 @@ export const getPlotById = async (
         : null,
 
       // 工事情報
-      constructionInfos: contractPlot.constructionInfos.map((construction: any) => ({
+      constructionInfos: contractPlot.constructionInfos.map((construction) => ({
         id: construction.id,
         constructionType: construction.construction_type,
         startDate: construction.start_date,
@@ -234,11 +239,11 @@ export const getPlotById = async (
         paymentAmount2: construction.payment_amount_2
           ? Number(construction.payment_amount_2)
           : null,
-        paymentScheduledDate2: construction.payment_scheduled_date_2,
+        paymentScheduledDate2: construction.payment_date_2,
         paymentStatus2: construction.payment_status_2,
         scheduledEndDate: construction.scheduled_end_date,
         constructionContent: construction.construction_content,
-        constructionNotes: construction.construction_notes,
+        constructionNotes: construction.notes,
       })),
 
       // 合祀情報
@@ -260,89 +265,84 @@ export const getPlotById = async (
 
       // 履歴情報（日本語ラベル付与）
       histories: includeHistory ? histories.map(formatHistoryWithLabels) : undefined,
-    };
 
-    // 主契約者（role='contractor'）を取得（後方互換性のため）
-    const primaryRole = contractPlot.saleContractRoles?.find(
-      (role: any) => role.role === 'contractor'
-    );
-    const primaryCustomer = primaryRole?.customer;
-
-    // 後方互換性のため、主契約者の情報を設定
-    if (primaryRole && primaryCustomer) {
-      response.primaryCustomer = {
-        id: primaryCustomer.id,
-        name: primaryCustomer.name,
-        nameKana: primaryCustomer.name_kana,
-        gender: primaryCustomer.gender,
-        birthDate: primaryCustomer.birth_date,
-        phoneNumber: primaryCustomer.phone_number,
-        faxNumber: primaryCustomer.fax_number,
-        email: primaryCustomer.email,
-        postalCode: primaryCustomer.postal_code,
-        address: primaryCustomer.address,
-        addressLine2: primaryCustomer.address_line_2,
-        registeredAddress: primaryCustomer.registered_address,
-        notes: primaryCustomer.notes,
-        role: primaryRole.role,
-        workInfo: primaryCustomer.workInfo
+      // 後方互換性のため、主契約者の情報を設定
+      primaryCustomer:
+        primaryRole && primaryCustomer
           ? {
-              companyName: primaryCustomer.workInfo.company_name,
-              companyNameKana: primaryCustomer.workInfo.company_name_kana,
-              workAddress: primaryCustomer.workInfo.work_address,
-              workPostalCode: primaryCustomer.workInfo.work_postal_code,
-              workPhoneNumber: primaryCustomer.workInfo.work_phone_number,
-              dmSetting: primaryCustomer.workInfo.dm_setting,
-              addressType: primaryCustomer.workInfo.address_type,
-              notes: primaryCustomer.workInfo.notes,
+              id: primaryCustomer.id,
+              name: primaryCustomer.name,
+              nameKana: primaryCustomer.name_kana,
+              gender: primaryCustomer.gender,
+              birthDate: primaryCustomer.birth_date,
+              phoneNumber: primaryCustomer.phone_number,
+              faxNumber: primaryCustomer.fax_number,
+              email: primaryCustomer.email,
+              postalCode: primaryCustomer.postal_code,
+              address: primaryCustomer.address,
+              addressLine2: primaryCustomer.address_line_2,
+              registeredAddress: primaryCustomer.registered_address,
+              notes: primaryCustomer.notes,
+              role: primaryRole.role,
+              workInfo: primaryCustomer.workInfo
+                ? {
+                    companyName: primaryCustomer.workInfo.company_name,
+                    companyNameKana: primaryCustomer.workInfo.company_name_kana,
+                    workAddress: primaryCustomer.workInfo.work_address,
+                    workPostalCode: primaryCustomer.workInfo.work_postal_code,
+                    workPhoneNumber: primaryCustomer.workInfo.work_phone_number,
+                    dmSetting: primaryCustomer.workInfo.dm_setting,
+                    addressType: primaryCustomer.workInfo.address_type,
+                    notes: primaryCustomer.workInfo.notes,
+                  }
+                : null,
             }
-          : null,
-      };
-    }
+          : undefined,
 
-    // 全ての役割と顧客情報を追加
-    response.roles =
-      contractPlot.saleContractRoles?.map((role: any) => ({
-        id: role.id,
-        role: role.role,
-        roleStartDate: role.role_start_date,
-        roleEndDate: role.role_end_date,
-        notes: role.notes,
-        customer: {
-          id: role.customer.id,
-          name: role.customer.name,
-          nameKana: role.customer.name_kana,
-          gender: role.customer.gender,
-          birthDate: role.customer.birth_date,
-          phoneNumber: role.customer.phone_number,
-          faxNumber: role.customer.fax_number,
-          email: role.customer.email,
-          postalCode: role.customer.postal_code,
-          address: role.customer.address,
-          addressLine2: role.customer.address_line_2,
-          registeredPostalCode: role.customer.registered_postal_code,
-          registeredAddress: role.customer.registered_address,
-          // 振込先情報（ゆうちょ自動払込 CSV 出力用、レガシー t_danka.kikan_name 系から移行）
-          bankName: role.customer.bank_name,
-          branchName: role.customer.branch_name,
-          accountType: role.customer.account_type,
-          accountNumber: role.customer.account_number,
-          accountHolder: role.customer.account_holder,
-          notes: role.customer.notes,
-          workInfo: role.customer.workInfo
-            ? {
-                companyName: role.customer.workInfo.company_name,
-                companyNameKana: role.customer.workInfo.company_name_kana,
-                workAddress: role.customer.workInfo.work_address,
-                workPostalCode: role.customer.workInfo.work_postal_code,
-                workPhoneNumber: role.customer.workInfo.work_phone_number,
-                dmSetting: role.customer.workInfo.dm_setting,
-                addressType: role.customer.workInfo.address_type,
-                notes: role.customer.workInfo.notes,
-              }
-            : null,
-        },
-      })) || [];
+      // 全ての役割と顧客情報
+      roles:
+        contractPlot.saleContractRoles?.map((role) => ({
+          id: role.id,
+          role: role.role,
+          roleStartDate: role.role_start_date,
+          roleEndDate: role.role_end_date,
+          notes: role.notes,
+          customer: {
+            id: role.customer.id,
+            name: role.customer.name,
+            nameKana: role.customer.name_kana,
+            gender: role.customer.gender,
+            birthDate: role.customer.birth_date,
+            phoneNumber: role.customer.phone_number,
+            faxNumber: role.customer.fax_number,
+            email: role.customer.email,
+            postalCode: role.customer.postal_code,
+            address: role.customer.address,
+            addressLine2: role.customer.address_line_2,
+            registeredPostalCode: role.customer.registered_postal_code,
+            registeredAddress: role.customer.registered_address,
+            // 振込先情報（ゆうちょ自動払込 CSV 出力用、レガシー t_danka.kikan_name 系から移行）
+            bankName: role.customer.bank_name,
+            branchName: role.customer.branch_name,
+            accountType: role.customer.account_type,
+            accountNumber: role.customer.account_number,
+            accountHolder: role.customer.account_holder,
+            notes: role.customer.notes,
+            workInfo: role.customer.workInfo
+              ? {
+                  companyName: role.customer.workInfo.company_name,
+                  companyNameKana: role.customer.workInfo.company_name_kana,
+                  workAddress: role.customer.workInfo.work_address,
+                  workPostalCode: role.customer.workInfo.work_postal_code,
+                  workPhoneNumber: role.customer.workInfo.work_phone_number,
+                  dmSetting: role.customer.workInfo.dm_setting,
+                  addressType: role.customer.workInfo.address_type,
+                  notes: role.customer.workInfo.notes,
+                }
+              : null,
+          },
+        })) || [],
+    };
 
     res.status(200).json({
       success: true,

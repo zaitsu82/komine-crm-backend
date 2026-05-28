@@ -107,7 +107,7 @@ export async function updatePlotCore(
   }
 
   // 2. ContractPlotの更新
-  const updateData: any = {};
+  const updateData: Prisma.ContractPlotUpdateInput = {};
 
   if (input.contractPlot) {
     if (input.contractPlot.contractAreaSqm !== undefined) {
@@ -188,7 +188,8 @@ export async function updatePlotCore(
         : null;
     }
     if (input.saleContract.uncollectedAmount !== undefined) {
-      updateData.uncollected_amount = input.saleContract.uncollectedAmount;
+      // uncollected_amount は非 null（schema default 0）。null は create と同様 0 にフォールバック。
+      updateData.uncollected_amount = input.saleContract.uncollectedAmount ?? 0;
     }
     if (input.saleContract.notes !== undefined) {
       updateData.notes = input.saleContract.notes;
@@ -279,12 +280,12 @@ export async function updatePlotCore(
   // 4. Customerの更新
   if (input.customer) {
     const primaryRole = existingContractPlot.saleContractRoles?.find(
-      (role: any) => role.role === 'contractor'
+      (role) => role.role === 'contractor'
     );
     const customerId = primaryRole?.customer.id;
 
     if (customerId) {
-      const customerUpdateData: any = {};
+      const customerUpdateData: Prisma.CustomerUpdateInput = {};
 
       if (input.customer.name !== undefined) customerUpdateData.name = input.customer.name;
       if (input.customer.nameKana !== undefined)
@@ -354,7 +355,7 @@ export async function updatePlotCore(
             });
           }
         } else {
-          const workInfoData: any = {};
+          const workInfoData: Partial<Prisma.WorkInfoUncheckedCreateInput> = {};
           if (input.workInfo.companyName !== undefined)
             workInfoData.company_name = input.workInfo.companyName;
           if (input.workInfo.companyNameKana !== undefined)
@@ -406,10 +407,13 @@ export async function updatePlotCore(
               });
             } else {
               const created = await tx.workInfo.create({
+                // workInfoData は update/create 兼用の Partial。create が要求する必須スカラ
+                // （company_name 等）は UpdatePlotRequest 側で任意のため型上は欠落しうるが、
+                // 旧 any 実装と同じ実行時挙動を維持する。
                 data: {
-                  customer_id: customerId,
                   ...workInfoData,
-                },
+                  customer_id: customerId,
+                } as Prisma.WorkInfoUncheckedCreateInput,
               });
               await recordEntityCreated(tx, {
                 entityType: 'WorkInfo',
@@ -463,7 +467,7 @@ export async function updatePlotCore(
     } else if (existingApplicantRole) {
       // 既存の applicant Customer を部分更新
       const applicantCustomerId = existingApplicantRole.customer.id;
-      const applicantUpdateData: any = {};
+      const applicantUpdateData: Prisma.CustomerUpdateInput = {};
       if (input.applicant.name !== undefined) applicantUpdateData.name = input.applicant.name;
       if (input.applicant.nameKana !== undefined)
         applicantUpdateData.name_kana = input.applicant.nameKana;
@@ -579,7 +583,7 @@ export async function updatePlotCore(
         });
       }
     } else {
-      const usageFeeData: any = {};
+      const usageFeeData: Partial<Prisma.UsageFeeUncheckedCreateInput> = {};
       if (input.usageFee.calculationType !== undefined)
         usageFeeData.calculation_type = input.usageFee.calculationType;
       if (input.usageFee.taxType !== undefined) usageFeeData.tax_type = input.usageFee.taxType;
@@ -674,7 +678,7 @@ export async function updatePlotCore(
         });
       }
     } else {
-      const managementFeeData: any = {};
+      const managementFeeData: Partial<Prisma.ManagementFeeUncheckedCreateInput> = {};
       if (input.managementFee.calculationType !== undefined)
         managementFeeData.calculation_type = input.managementFee.calculationType;
       if (input.managementFee.taxType !== undefined)
@@ -1190,7 +1194,7 @@ export async function updatePlotCore(
         });
         const beforeSerialized: Record<string, unknown> = {};
         for (const key of Object.keys(ciData)) {
-          const v = (before as any)[key];
+          const v = (before as Record<string, unknown>)[key];
           beforeSerialized[key] = v instanceof Date ? v.toISOString() : v;
         }
         ciHistoryEntries.push({
@@ -1231,7 +1235,7 @@ export async function updatePlotCore(
     input.contractPlot?.contractAreaSqm !== undefined &&
     input.contractPlot.contractAreaSqm !== oldContractArea
   ) {
-    await updatePhysicalPlotStatus(tx as any, physicalPlotId);
+    await updatePhysicalPlotStatus(tx, physicalPlotId);
   }
 
   // 13. 履歴の自動記録（ContractPlot、Customer）
@@ -1280,7 +1284,7 @@ export async function updatePlotCore(
 
   if (input.customer) {
     const primaryRole = existingContractPlot.saleContractRoles?.find(
-      (role: any) => role.role === 'contractor'
+      (role) => role.role === 'contractor'
     );
     const existingCustomer = primaryRole?.customer;
 
@@ -1335,7 +1339,7 @@ export const updatePlot = async (
 ): Promise<void> => {
   try {
     const { id } = req.params as Record<string, string>;
-    const input: UpdatePlotRequest = req.body;
+    const input = req.body as UpdatePlotRequest;
 
     // 履歴記録の createMany バッチ化・不要な findUnique 削減（issue #66）で
     // クエリ数は線形増加から定数的な増加に抑制。暫定 30 秒から 10 秒に短縮。

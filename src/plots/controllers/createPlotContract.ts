@@ -7,6 +7,7 @@
 
 import { Request, Response } from 'express';
 import { Prisma, PaymentStatus, ContractRole, ContractStatus } from '@prisma/client';
+import { CreatePlotRequest } from '@komine/types';
 import { validateContractArea, updatePhysicalPlotStatus, buildGravestoneInfoData } from '../utils';
 import prisma from '../../db/prisma';
 import { getRequestLogger } from '../../utils/logger';
@@ -15,10 +16,10 @@ import { getRequestLogger } from '../../utils/logger';
  * 物理区画に新規契約追加
  * POST /plots/:id/contracts
  */
-export const createPlotContract = async (req: Request, res: Response): Promise<any> => {
+export const createPlotContract = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const physicalPlotId = req.params['id'] as string;
-    const input = req.body;
+    const input = req.body as CreatePlotRequest;
 
     // PhysicalPlotの存在確認
     const physicalPlot = await prisma.physicalPlot.findUnique({
@@ -37,7 +38,7 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
 
     // 契約面積の検証
     const validationResult = await validateContractArea(
-      prisma as any,
+      prisma,
       physicalPlotId,
       input.contractPlot.contractAreaSqm
     );
@@ -144,7 +145,7 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
           data: {
             contract_plot_id: contractPlot.id, // sale_contract_id → contract_plot_idに変更
             customer_id: customer.id,
-            role: input.saleContract.customerRole || ContractRole.contractor,
+            role: (input.saleContract.customerRole as ContractRole) || ContractRole.contractor,
           },
         });
       }
@@ -203,7 +204,7 @@ export const createPlotContract = async (req: Request, res: Response): Promise<a
       }
 
       // PhysicalPlotのステータス更新
-      await updatePhysicalPlotStatus(tx as any, physicalPlotId);
+      await updatePhysicalPlotStatus(tx, physicalPlotId);
 
       return { contractPlot, customer };
     });
