@@ -86,12 +86,15 @@ RUN npm run build
 # ============================================
 FROM node:20-slim AS production
 
-# Chromium + 日本語フォント（Puppeteer PDF生成に必要）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium \
-    fonts-ipafont-gothic \
-    fonts-ipafont-mincho \
-    && rm -rf /var/lib/apt/lists/*
+# セキュリティ: ベースイメージの脆弱性パッチを適用してから Chromium + 日本語フォントを導入。
+# `apt-get upgrade` で libgnutls30 等の CVE 修正を取り込む (Trivy CRITICAL gate 対応)。
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    apt-get install -y --no-install-recommends \
+        chromium \
+        fonts-ipafont-gothic \
+        fonts-ipafont-mincho && \
+    rm -rf /var/lib/apt/lists/*
 
 # Puppeteer: システムChromiumを使用し、バンドル版ダウンロードをスキップ
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
