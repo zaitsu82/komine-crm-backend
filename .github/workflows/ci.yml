@@ -124,13 +124,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run npm audit
+      # 全 dep (dev 含む) は moderate+ で情報出力のみ。dev dep の脆弱性は
+      # 本番影響が無いケースが多く、ノイズ抑制のため gate にしない。
+      - name: Run npm audit (informational, dev included)
         run: npm audit --audit-level=moderate
         continue-on-error: true
 
-      - name: Run npm audit (production only)
+      # prod dep の high+ 脆弱性は **本番影響あり** とみなして必ず CI を fail させる。
+      # 本番ランタイムに乗る依存にのみ反応するので false positive が出にくい。
+      - name: Run npm audit (production only, gate)
         run: npm audit --omit=dev --audit-level=high
-        continue-on-error: true
 
   # Dockerイメージ脆弱性スキャン（Trivy）
   docker-security:
@@ -144,7 +147,9 @@ jobs:
       - name: Build Docker image
         run: docker build -t cemetery-crm-backend:test .
 
-      - name: Run Trivy vulnerability scanner
+      # SARIF 出力（CRITICAL + HIGH を GitHub Security ダッシュボードへ送る）。
+      # この step は gate ではないので、失敗しても継続する。
+      - name: Run Trivy vulnerability scanner (SARIF output)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: cemetery-crm-backend:test
@@ -156,6 +161,7 @@ jobs:
 
       - name: Check if SARIF file exists
         id: sarif-check
+        if: always()
         run: |
           if [ -f trivy-results.sarif ]; then
             echo "sarif_exists=true" >> $GITHUB_OUTPUT
@@ -165,17 +171,31 @@ jobs:
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
-        if: steps.sarif-check.outputs.sarif_exists == 'true'
+        if: always() && steps.sarif-check.outputs.sarif_exists == 'true'
         continue-on-error: true
         with:
           sarif_file: "trivy-results.sarif"
 
-      - name: Run Trivy vulnerability scanner (table output)
+      # 情報出力: CRITICAL/HIGH/MEDIUM を log に出す（gate ではない）。
+      - name: Run Trivy vulnerability scanner (table output, informational)
         uses: aquasecurity/trivy-action@master
+        if: always()
         with:
           image-ref: cemetery-crm-backend:test
           format: "table"
           severity: "CRITICAL,HIGH,MEDIUM"
+
+      # **Gate**: 修正可能 (fix available) な **CRITICAL** 脆弱性があれば CI を fail させる。
+      # `ignore-unfixed: true` で「修正パッチ未提供」のものはノイズ扱い。
+      # SARIF upload より後ろに置いて、gate fail 時もダッシュボードには反映する。
+      - name: Run Trivy vulnerability scanner (gate on fixable CRITICAL)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: cemetery-crm-backend:test
+          format: "table"
+          severity: "CRITICAL"
+          exit-code: "1"
+          ignore-unfixed: true
 
   # テスト実行（複数Node.jsバージョン）
   test:
