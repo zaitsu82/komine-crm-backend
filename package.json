@@ -44,6 +44,7 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "hpp": "^0.2.3",
+    "iconv-lite": "^0.7.2",
     "js-yaml": "^4.1.1",
     "mysql2": "^3.22.3",
     "pdf-lib": "^1.17.1",

@@ -55,9 +55,7 @@ describe('Yucho Routes', () => {
   });
 
   it('GET /api/v1/yucho/export → 200 with CSV content type', async () => {
-    const res = await request(app).get(
-      '/api/v1/yucho/export?year=2026&month=4&transferDate=2026-04-27&clientCode=1234567&clientName=KOMINE'
-    );
+    const res = await request(app).get('/api/v1/yucho/export?year=2026&month=4');
     expect(res.status).toBe(200);
     expect(exportYuchoCsv).toHaveBeenCalled();
     expect(res.headers['content-type']).toContain('text/csv');

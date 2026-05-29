@@ -349,12 +349,9 @@ describe('yuchoController', () => {
     const validQuery = {
       year: '2026',
       month: '4',
-      transferDate: '2026-04-27',
-      clientCode: '1234567',
-      clientName: 'コミネレイエン',
     };
 
-    it('returns text/csv with attachment disposition and Zengin records', async () => {
+    it('returns Shift-JIS CSV buffer with attachment disposition and 12-column data rows', async () => {
       mockPrisma.managementFee.findMany.mockResolvedValue([
         {
           id: 'f1',
@@ -369,32 +366,52 @@ describe('yuchoController', () => {
       const req = buildRequest(validQuery);
       await exportYuchoCsv(req as Request, res as Response, next);
 
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=Shift_JIS');
       expect(res.setHeader).toHaveBeenCalledWith(
         'Content-Disposition',
         expect.stringContaining('yucho_202604.csv')
       );
       expect(res.status).toHaveBeenCalledWith(200);
-      const sent = (res.send as jest.Mock).mock.calls[0][0] as string;
-      const lines = sent.split('\r\n').filter((l) => l.length > 0);
-      expect(lines[0]?.[0]).toBe('1');
-      expect(lines.find((l) => l[0] === '2')).toBeDefined();
-      expect(lines.find((l) => l[0] === '8')).toBeDefined();
-      expect(lines.find((l) => l[0] === '9')).toBeDefined();
+      const sent = (res.send as jest.Mock).mock.calls[0][0] as Buffer;
+      expect(Buffer.isBuffer(sent)).toBe(true);
+      // decode the Shift-JIS buffer back to verify structure
+      const iconv = (await import('iconv-lite')).default;
+      const decoded = iconv.decode(sent, 'Shift_JIS');
+      const lines = decoded.split('\r\n').filter((l) => l.length > 0);
+      expect(lines.length).toBe(1); // single billable item → one data row
+      const row = lines[0]!;
+      // 12 columns, starts with empty (comma-led)
+      expect(row.split(',')).toHaveLength(12);
+      expect(row.startsWith(',')).toBe(true);
+      // no header/trailer/end markers (no row starts with 1/8/9)
+      expect(lines.some((l) => l.startsWith('1,'))).toBe(false);
+      expect(lines.some((l) => l.startsWith('8,'))).toBe(false);
+      expect(lines.some((l) => l.startsWith('9,'))).toBe(false);
+      // internal contractPlotId (cp-1) must NOT appear in output
+      expect(decoded.includes('cp-1')).toBe(false);
     });
 
-    it('rejects missing transferDate via ValidationError', async () => {
-      const { transferDate: _omit, ...rest } = validQuery;
-      void _omit;
-      const req = buildRequest(rest);
-      await exportYuchoCsv(req as Request, res as Response, next);
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({ name: 'ValidationError' }));
-    });
+    it('encodes Japanese kanji bank name in Shift-JIS (not UTF-8 / not 文字化け)', async () => {
+      mockPrisma.managementFee.findMany.mockResolvedValue([
+        {
+          id: 'f1',
+          contract_plot_id: 'cp-1',
+          billing_month: '4',
+          management_fee: '12000',
+          contractPlot: buildContractPlot(),
+        },
+      ]);
+      mockPrisma.collectiveBurial.findMany.mockResolvedValue([]);
 
-    it('rejects malformed transferDate', async () => {
-      const req = buildRequest({ ...validQuery, transferDate: '2026/04/27' });
+      const req = buildRequest(validQuery);
       await exportYuchoCsv(req as Request, res as Response, next);
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({ name: 'ValidationError' }));
+
+      const sent = (res.send as jest.Mock).mock.calls[0][0] as Buffer;
+      // Decoding as UTF-8 should be 文字化け (not contain ゆうちょ銀行)
+      expect(sent.toString('utf-8').includes('ゆうちょ銀行')).toBe(false);
+      // Decoding as Shift-JIS should restore the kanji intact
+      const iconv = (await import('iconv-lite')).default;
+      expect(iconv.decode(sent, 'Shift_JIS').includes('ゆうちょ銀行')).toBe(true);
     });
 
     it('uses "all" suffix in filename when month is omitted', async () => {
@@ -410,6 +427,19 @@ describe('yuchoController', () => {
         'Content-Disposition',
         expect.stringContaining('yucho_2026all.csv')
       );
+    });
+
+    it('sends empty buffer (no header row) when there are no billable items', async () => {
+      mockPrisma.managementFee.findMany.mockResolvedValue([]);
+      mockPrisma.collectiveBurial.findMany.mockResolvedValue([]);
+
+      const req = buildRequest(validQuery);
+      await exportYuchoCsv(req as Request, res as Response, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      const sent = (res.send as jest.Mock).mock.calls[0][0] as Buffer;
+      expect(Buffer.isBuffer(sent)).toBe(true);
+      expect(sent.length).toBe(0);
     });
   });
 });

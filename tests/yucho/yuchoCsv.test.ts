@@ -1,14 +1,10 @@
 import {
-  buildHeaderRecord,
-  buildDataRecord,
-  buildTrailerRecord,
-  buildEndRecord,
-  buildZenginCsv,
+  buildDataRow,
+  buildYuchoCsv,
+  isExportableBillingItem,
   __internal,
 } from '../../src/yucho/yuchoCsv';
 import type { YuchoBillingItem } from '../../src/validations/yuchoValidation';
-
-const RECORD_LENGTH = 120;
 
 const baseItem = (overrides: Partial<YuchoBillingItem> = {}): YuchoBillingItem => ({
   category: 'management',
@@ -83,13 +79,7 @@ describe('yuchoCsv internals', () => {
     });
   });
 
-  describe('extractBankCode / extractBranchCode', () => {
-    it('returns 9900 for ゆうちょ銀行', () => {
-      expect(__internal.extractBankCode('ゆうちょ銀行')).toBe('9900');
-    });
-    it('returns 0000 for unknown banks', () => {
-      expect(__internal.extractBankCode('みずほ銀行')).toBe('0000');
-    });
+  describe('extractBranchCode', () => {
     it('extracts ASCII branch code', () => {
       expect(__internal.extractBranchCode('018店')).toBe('018');
     });
@@ -102,112 +92,167 @@ describe('yuchoCsv internals', () => {
   });
 });
 
-describe('Zengin record builders', () => {
-  it('buildHeaderRecord is exactly 120 bytes and starts with "1"', () => {
-    const record = buildHeaderRecord({
-      clientCode: '1234567',
-      clientName: 'コミネレイエン',
-      transferDate: '2026-04-27',
-      bankCode: '9900',
-      branchCode: '018',
-      accountType: 'ordinary',
-      accountNumber: '1234567',
+describe('buildDataRow', () => {
+  it('starts with empty column (comma-led row)', () => {
+    const row = buildDataRow(baseItem());
+    expect(row.startsWith(',')).toBe(true);
+  });
+
+  it('produces exactly 12 comma-separated columns', () => {
+    const row = buildDataRow(baseItem());
+    // 口座名義列にカンマは含まれない想定 (半角カナ+空白) なので単純に split で良い
+    expect(row.split(',')).toHaveLength(12);
+  });
+
+  it('uses fixed bank values (9900 / ﾕｳﾁﾖ padded to 15 / ゆうちょ銀行)', () => {
+    const cells = buildDataRow(baseItem()).split(',');
+    expect(cells[1]).toBe('9900');
+    expect(cells[2]).toBe('ﾕｳﾁﾖ           '); // 15桁
+    expect(cells[2]).toHaveLength(15);
+    expect(cells[3]).toBe('ゆうちょ銀行');
+  });
+
+  it('emits 3-digit branch code derived from branch name', () => {
+    const cells = buildDataRow(baseItem()).split(',');
+    expect(cells[4]).toBe('018'); // 〇一八 → 018
+  });
+
+  it('uses fixed deposit type code 1 (ordinary) by default', () => {
+    const cells = buildDataRow(baseItem()).split(',');
+    expect(cells[7]).toBe('1');
+  });
+
+  it('zero-pads account number to 7 digits', () => {
+    const item = baseItem({
+      billingInfo: { ...baseItem().billingInfo!, accountNumber: '12345' },
     });
-    expect(record).toHaveLength(RECORD_LENGTH);
-    expect(record[0]).toBe('1');
-    // 種別コード = 91, コード区分 = 0
-    expect(record.slice(1, 4)).toBe('910');
-    // 委託者コードはゼロ埋め10桁
-    expect(record.slice(4, 14)).toBe('0001234567');
-    // 引落日 (MMDD)
-    expect(record.slice(54, 58)).toBe('0427');
+    const cells = buildDataRow(item).split(',');
+    expect(cells[8]).toBe('0012345');
   });
 
-  it('buildDataRecord is exactly 120 bytes and starts with "2"', () => {
-    const record = buildDataRecord(baseItem());
-    expect(record).toHaveLength(RECORD_LENGTH);
-    expect(record[0]).toBe('2');
-    // 銀行コード(4) + 銀行名(15) + 支店コード(3)
-    expect(record.slice(1, 5)).toBe('9900');
-    expect(record.slice(20, 23)).toBe('018');
+  it('wraps account holder in double quotes and pads to 30 half-width chars', () => {
+    const cells = buildDataRow(baseItem()).split(',');
+    const holder = cells[9]!;
+    expect(holder.startsWith('"')).toBe(true);
+    expect(holder.endsWith('"')).toBe(true);
+    const inner = holder.slice(1, -1);
+    expect(inner).toHaveLength(30);
+    expect(inner.startsWith('ﾔﾏﾀﾞﾀﾛｳ')).toBe(true);
+    expect(inner.trimEnd()).toBe('ﾔﾏﾀﾞﾀﾛｳ');
   });
 
-  it('buildTrailerRecord starts with "8" and contains zero-padded count/amount', () => {
-    const record = buildTrailerRecord(3, 36000);
-    expect(record).toHaveLength(RECORD_LENGTH);
-    expect(record[0]).toBe('8');
-    expect(record.slice(1, 7)).toBe('000003');
-    expect(record.slice(7, 19)).toBe('000000036000');
+  it('falls back to customerNameKana when accountHolder is missing', () => {
+    const item = baseItem({
+      billingInfo: { ...baseItem().billingInfo!, accountHolder: null },
+      customerNameKana: 'サトウハナコ',
+    });
+    const cells = buildDataRow(item).split(',');
+    const inner = cells[9]!.slice(1, -1);
+    expect(inner).toHaveLength(30);
+    expect(inner.trimEnd()).toBe('ｻﾄｳﾊﾅｺ');
   });
 
-  it('buildEndRecord starts with "9" and is 120 bytes', () => {
-    const record = buildEndRecord();
-    expect(record).toHaveLength(RECORD_LENGTH);
-    expect(record[0]).toBe('9');
+  it('outputs billing amount as bare integer (no zero-padding) in column 11', () => {
+    const cells = buildDataRow(baseItem({ billingAmount: 12000 })).split(',');
+    expect(cells[10]).toBe('12000');
+  });
+
+  it('uses fixed flag value 1 in column 12', () => {
+    const cells = buildDataRow(baseItem()).split(',');
+    expect(cells[11]).toBe('1');
+  });
+
+  it('does NOT leak internal contractPlotId anywhere in the row', () => {
+    const item = baseItem({ contractPlotId: 'cuid-secret-DEADBEEF' });
+    const row = buildDataRow(item);
+    expect(row.includes('cuid-secret-DEADBEEF')).toBe(false);
+    expect(row.includes('DEADBEEF')).toBe(false);
+  });
+
+  it('keeps columns 1, 6, 7 empty (matches reference file shape)', () => {
+    const cells = buildDataRow(baseItem()).split(',');
+    expect(cells[0]).toBe('');
+    expect(cells[5]).toBe('');
+    expect(cells[6]).toBe('');
+  });
+
+  it('produces a row matching the reference file shape', () => {
+    const item = baseItem({
+      customerNameKana: 'セイ メイ',
+      billingInfo: {
+        bankName: 'ゆうちょ銀行',
+        branchName: '〇七四', // → 074
+        accountType: 'ordinary',
+        accountNumber: '1234567',
+        accountHolder: 'セイ メイ',
+      },
+      billingAmount: 8000,
+    });
+    const cells = buildDataRow(item).split(',');
+    expect(cells[0]).toBe(''); //                 1: empty
+    expect(cells[1]).toBe('9900'); //              2: bank code
+    expect(cells[2]).toBe('ﾕｳﾁﾖ           '); //   3: bank kana (15)
+    expect(cells[3]).toBe('ゆうちょ銀行'); //        4: bank kanji
+    expect(cells[4]).toBe('074'); //               5: branch (〇七四 → 074)
+    expect(cells[5]).toBe(''); //                  6: empty
+    expect(cells[6]).toBe(''); //                  7: empty
+    expect(cells[7]).toBe('1'); //                 8: deposit type
+    expect(cells[8]).toBe('1234567'); //           9: account number
+    expect(cells[9]!.slice(1, -1).trimEnd()).toBe('ｾｲ ﾒｲ'); // 10: holder
+    expect(cells[10]).toBe('8000'); //            11: amount
+    expect(cells[11]).toBe('1'); //               12: flag
   });
 });
 
-describe('buildZenginCsv', () => {
-  const header = {
-    clientCode: '1234567',
-    clientName: 'コミネレイエン',
-    transferDate: '2026-04-27',
-    bankCode: '9900',
-    branchCode: '018',
-  };
-
-  it('terminates each record with CRLF', () => {
-    const items = [baseItem()];
-    const csv = buildZenginCsv({ header, items });
+describe('buildYuchoCsv', () => {
+  it('terminates each row with CRLF', () => {
+    const csv = buildYuchoCsv({ items: [baseItem()] });
     expect(csv.endsWith('\r\n')).toBe(true);
     const segments = csv.split('\r\n');
-    // 4 records (header, data, trailer, end) + trailing empty from final CRLF
-    expect(segments).toHaveLength(5);
-    expect(segments[segments.length - 1]).toBe('');
+    // 1 data row + trailing empty from final CRLF
+    expect(segments).toHaveLength(2);
+    expect(segments[1]).toBe('');
   });
 
-  it('produces 5 lines for 2 items (header + 2 data + trailer + end)', () => {
+  it('emits one data row per exportable item — no header/trailer/end rows', () => {
     const items = [baseItem(), baseItem({ sourceId: 'fee-2', billingAmount: 8000 })];
-    const csv = buildZenginCsv({ header, items });
+    const csv = buildYuchoCsv({ items });
     const lines = csv.split('\r\n').filter((l) => l.length > 0);
-    expect(lines.length).toBe(5);
-    expect(lines[0]?.[0]).toBe('1');
-    expect(lines[1]?.[0]).toBe('2');
-    expect(lines[2]?.[0]).toBe('2');
-    expect(lines[3]?.[0]).toBe('8');
-    expect(lines[4]?.[0]).toBe('9');
+    expect(lines.length).toBe(2);
+    // Both lines must start with empty column (comma-led)
+    for (const line of lines) {
+      expect(line.startsWith(',')).toBe(true);
+    }
   });
 
   it('skips items with no billingInfo', () => {
     const items = [baseItem(), baseItem({ sourceId: 'fee-2', billingInfo: null })];
-    const csv = buildZenginCsv({ header, items });
-    const dataLines = csv.split('\r\n').filter((l) => l.startsWith('2'));
-    expect(dataLines.length).toBe(1);
+    const csv = buildYuchoCsv({ items });
+    const rows = csv.split('\r\n').filter((l) => l.length > 0);
+    expect(rows.length).toBe(1);
   });
 
   it('skips items with zero amount', () => {
     const items = [baseItem(), baseItem({ sourceId: 'fee-2', billingAmount: 0 })];
-    const csv = buildZenginCsv({ header, items });
-    const dataLines = csv.split('\r\n').filter((l) => l.startsWith('2'));
-    expect(dataLines.length).toBe(1);
+    const csv = buildYuchoCsv({ items });
+    const rows = csv.split('\r\n').filter((l) => l.length > 0);
+    expect(rows.length).toBe(1);
   });
 
-  it('trailer total amount equals sum of billable items', () => {
-    const items = [
-      baseItem({ billingAmount: 12000 }),
-      baseItem({ sourceId: 'fee-2', billingAmount: 8000 }),
-      baseItem({ sourceId: 'fee-3', billingAmount: 5000 }),
-    ];
-    const csv = buildZenginCsv({ header, items });
-    const trailer = csv.split('\r\n').find((l) => l.startsWith('8'));
-    expect(trailer?.slice(1, 7)).toBe('000003');
-    expect(trailer?.slice(7, 19)).toBe('000000025000');
+  it('returns empty string when no exportable items', () => {
+    expect(buildYuchoCsv({ items: [] })).toBe('');
+    expect(buildYuchoCsv({ items: [baseItem({ billingInfo: null })] })).toBe('');
   });
+});
 
-  it('outputs only header + trailer + end when no items provided', () => {
-    const csv = buildZenginCsv({ header, items: [] });
-    const lines = csv.split('\r\n').filter((l) => l.length > 0);
-    expect(lines.length).toBe(3); // header + trailer + end
-    expect(lines[1]?.slice(1, 7)).toBe('000000'); // count = 0
+describe('isExportableBillingItem', () => {
+  it('is true when billingInfo present and amount > 0', () => {
+    expect(isExportableBillingItem(baseItem())).toBe(true);
+  });
+  it('is false when billingInfo is null', () => {
+    expect(isExportableBillingItem(baseItem({ billingInfo: null }))).toBe(false);
+  });
+  it('is false when amount is 0', () => {
+    expect(isExportableBillingItem(baseItem({ billingAmount: 0 }))).toBe(false);
   });
 });
