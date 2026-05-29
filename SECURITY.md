@@ -84,12 +84,14 @@ Cemetery CRM Backendのセキュリティポリシー
 
 2. **npm audit**
    - CI/CDパイプラインで自動実行
-   - `moderate`以上の脆弱性を検出
+   - 全 dep (dev 含む): `moderate` 以上を **情報出力** (gate ではない)
+   - prod dep のみ: `high` 以上を検出した時点で **CI を fail させる gate**
 
 3. **Trivy**
    - Dockerイメージの脆弱性スキャン
-   - CRITICAL/HIGHの脆弱性を検出
-   - GitHub Security タブで結果確認可能
+   - SARIF 出力: CRITICAL/HIGH を GitHub Security タブへ送出
+   - **Gate**: 修正可能な (`ignore-unfixed: true`) CRITICAL 脆弱性で CI を fail
+   - 修正パッチ未提供のものはノイズ扱いで継続
 
 ### 手動セキュリティチェック
 

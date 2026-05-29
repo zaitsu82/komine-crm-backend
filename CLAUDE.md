@@ -357,8 +357,8 @@ See `SETUP.md` for detailed deployment configuration, CORS setup, and troublesho
   - **Build**: TypeScript compilation check, Prisma client generation
   - **Lint & Format Check**: ESLint + Prettier validation
   - **Swagger Validation**: OpenAPI spec validation
-  - **Security Audit**: npm audit (moderate+ vulnerabilities)
-  - **Docker Security Scan**: Trivy vulnerability scanner (CRITICAL/HIGH)
+  - **Security Audit**: npm audit (prod-only `--audit-level=high` は **fail させる gate**、dev 含む moderate+ は情報出力のみ)
+  - **Docker Security Scan**: Trivy vulnerability scanner (修正可能な **CRITICAL** で fail させる gate + CRITICAL/HIGH を SARIF で GitHub Security に送出)
   - **Test**: Run all 610+ tests on Node.js 20.x, 22.x (parallel)
   - **Coverage**: Generate and upload to Codecov (Node 20.x only)
   - **All Checks Passed**: Final validation gate
@@ -368,11 +368,13 @@ See `SETUP.md` for detailed deployment configuration, CORS setup, and troublesho
   - npm packages
   - GitHub Actions
   - Docker base images
-- **npm audit**: Runs on every push/PR (moderate+ level)
+- **npm audit**:
+  - 全 dep (dev 含む) を `--audit-level=moderate` で **情報出力のみ** (dev dep の脆弱性は本番影響が薄くノイズになりやすいため gate にしない)
+  - prod dep のみを `--omit=dev --audit-level=high` で **gate 化** — high+ の本番依存脆弱性は CI fail
 - **Trivy**: Docker image vulnerability scanning with GitHub Security integration
   - Uses CodeQL Action v4 for SARIF upload
-  - SARIF file existence check before upload
-  - Continues on error to prevent blocking other jobs
+  - SARIF file existence check before upload (`if: always()` で gate fail 時もダッシュボードへ反映)
+  - **Gate**: `severity: CRITICAL` + `ignore-unfixed: true` で **修正可能な CRITICAL のみ** で fail させる (修正パッチ未提供のものはノイズ扱い)
   - **Note**: SARIF upload requires GitHub Code Scanning to be enabled
     - Public repositories: Code Scanning available for free
     - Private repositories: Requires GitHub Advanced Security (paid)
