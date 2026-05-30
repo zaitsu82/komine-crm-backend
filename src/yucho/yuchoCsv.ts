@@ -1,23 +1,38 @@
 /**
- * 全銀協 預金口座振替フォーマット CSV ビルダー
+ * ゆうちょ自動払込み CSV ビルダー
  *
- * 1レコード120バイト固定長を CRLF で連結したテキストを生成する。
- * 半角カナへの正規化と、固定幅へのパディング/切詰めを行う。
+ * 利用者提供の実ファイル(2026-05-27 確認) に基づくフォーマット:
+ *   - カンマ区切り CSV・12列・Shift-JIS（エンコードは Controller 側で実施）
+ *   - ヘッダ/トレーラ/エンドレコードは無し（全行データ）
+ *   - 行頭は空列でカンマ始まり
  *
- * レコード構成:
- *   1: ヘッダー    — 委託者情報・引落日・委託者口座
- *   2: データ      — 顧客口座・引落金額（顧客毎）
- *   8: トレーラー  — 合計件数・合計金額
- *   9: エンド      — レコード終端
+ * 列定義:
+ *   1: 空
+ *   2: 金融機関コード (9900 固定 = ゆうちょ)
+ *   3: 金融機関名 半角カナ (15桁・空白パディング, "ﾕｳﾁﾖ" + 11空白)
+ *   4: 金融機関名 漢字 ("ゆうちょ銀行" 固定)
+ *   5: 店番 (3桁)
+ *   6: 空 (支店名カナ想定・現状は空)
+ *   7: 空 (支店名漢字想定・現状は空)
+ *   8: 預金種目 (1=普通)
+ *   9: 口座番号 (7桁)
+ *  10: 口座名義 半角カナ (30桁空白パディング・ダブルクオート囲み)
+ *  11: 引落金額
+ *  12: フラグ (1 固定)
  */
 
 import type { YuchoBillingItem } from '../validations/yuchoValidation';
 
-const RECORD_LENGTH = 120;
 const LINE_SEP = '\r\n';
+const BANK_CODE = '9900';
+const BANK_NAME_KANA = 'ﾕｳﾁﾖ';
+const BANK_NAME_KANA_WIDTH = 15;
+const BANK_NAME_KANJI = 'ゆうちょ銀行';
+const ACCOUNT_HOLDER_WIDTH = 30;
+const FLAG = '1';
 
 /**
- * 預金種目コード変換（Prisma enum → Zengin code）
+ * 預金種目コード変換（Prisma enum → ゆうちょ code）
  *   ordinary (普通)  → 1
  *   current  (当座)  → 2
  *   savings  (貯蓄)  → 4
@@ -37,7 +52,7 @@ const accountTypeCode = (type: string | null | undefined): string => {
 
 /**
  * 全角カナ・ひらがなを半角カナに変換する簡易コンバーター。
- * 全銀フォーマットは半角カナを要求するため。
+ * ゆうちょCSVの口座名義は半角カナを要求するため。
  */
 const KANA_MAP: Record<string, string> = {
   ガ: 'ｶﾞ',
@@ -137,25 +152,19 @@ const toHalfWidthKana = (input: string): string => {
   let result = '';
   for (const ch of input) {
     if (ch >= 'ぁ' && ch <= 'ん') {
-      // ひらがなをカタカナへ → 半角カナ
       const kata = String.fromCharCode(ch.charCodeAt(0) + HIRAGANA_OFFSET);
       result += KANA_MAP[kata] ?? kata;
     } else if (KANA_MAP[ch]) {
       result += KANA_MAP[ch];
-    } else if (ch >= '\uFF61' && ch <= '\uFF9F') {
-      // 既に半角カナ
+    } else if (ch >= '｡' && ch <= 'ﾟ') {
       result += ch;
-    } else if (ch >= '\uFF10' && ch <= '\uFF19') {
-      // 全角数字 → 半角
+    } else if (ch >= '０' && ch <= '９') {
       result += String.fromCharCode(ch.charCodeAt(0) - 0xfee0);
-    } else if (ch >= '\uFF21' && ch <= '\uFF5A') {
-      // 全角英字 → 半角
+    } else if (ch >= 'Ａ' && ch <= 'ｚ') {
       result += String.fromCharCode(ch.charCodeAt(0) - 0xfee0);
     } else if (ch.charCodeAt(0) < 0x80) {
-      // ASCII
       result += ch;
     } else {
-      // 変換できない文字はスペース
       result += ' ';
     }
   }
@@ -179,103 +188,9 @@ const padLeftZero = (value: string | number, width: number): string => {
   return '0'.repeat(width - s.length) + s;
 };
 
-interface HeaderParams {
-  clientCode: string; // 委託者コード(10桁)
-  clientName: string; // 委託者名(40バイト, 半角カナ)
-  transferDate: string; // YYYY-MM-DD
-  bankCode: string; // 取引銀行番号(4桁)
-  bankName?: string; // 取引銀行名(15バイト, デフォルト ﾕｳﾁﾖｷﾞﾝｺｳ)
-  branchCode: string; // 取引支店番号(3桁)
-  branchName?: string; // 取引支店名(15バイト)
-  accountType?: string; // 預金種目 (ordinary/current/savings)
-  accountNumber?: string; // 委託者口座番号(7桁)
-}
-
 /**
- * ヘッダレコード（区分=1）120バイトを生成
- */
-export const buildHeaderRecord = (params: HeaderParams): string => {
-  const transferMMDD = params.transferDate.replace(/-/g, '').slice(4, 8);
-  const parts = [
-    '1', // レコード区分
-    '91', // 種別コード（預金口座振替）
-    '0', // コード区分（JISコード）
-    padLeftZero(params.clientCode, 10),
-    padRight(toHalfWidthKana(params.clientName), 40),
-    transferMMDD, // 引落日 MMDD (4桁)
-    padLeftZero(params.bankCode, 4),
-    padRight(toHalfWidthKana(params.bankName ?? 'ﾕｳﾁﾖｷﾞﾝｺｳ'), 15),
-    padLeftZero(params.branchCode, 3),
-    padRight(toHalfWidthKana(params.branchName ?? ''), 15),
-    accountTypeCode(params.accountType ?? 'ordinary'),
-    padLeftZero(params.accountNumber ?? '', 7),
-  ];
-  const body = parts.join('');
-  return padRight(body, RECORD_LENGTH);
-};
-
-/**
- * データレコード（区分=2）120バイトを生成
- */
-export const buildDataRecord = (item: YuchoBillingItem): string => {
-  const info = item.billingInfo;
-  const parts = [
-    '2', // レコード区分
-    padLeftZero(extractBankCode(info?.bankName ?? ''), 4),
-    padRight(toHalfWidthKana(info?.bankName ?? ''), 15),
-    padLeftZero(extractBranchCode(info?.branchName ?? ''), 3),
-    padRight(toHalfWidthKana(info?.branchName ?? ''), 15),
-    '    ', // ダミー(4)
-    accountTypeCode(info?.accountType),
-    padLeftZero(info?.accountNumber ?? '', 7),
-    padRight(toHalfWidthKana(info?.accountHolder ?? item.customerNameKana ?? ''), 30),
-    padLeftZero(item.billingAmount, 10),
-    '0', // 新規コード(0:その他)
-    padRight(item.contractPlotId.replace(/-/g, '').slice(0, 20), 20), // 顧客番号
-    '0', // 振替結果コード(0:未処理)
-  ];
-  const body = parts.join('');
-  return padRight(body, RECORD_LENGTH);
-};
-
-/**
- * トレーラレコード（区分=8）120バイトを生成
- */
-export const buildTrailerRecord = (totalCount: number, totalAmount: number): string => {
-  const parts = [
-    '8',
-    padLeftZero(totalCount, 6),
-    padLeftZero(totalAmount, 12),
-    padLeftZero(0, 6), // 振替済件数（未処理時は0）
-    padLeftZero(0, 12), // 振替済金額
-    padLeftZero(0, 6), // 振替不能件数
-    padLeftZero(0, 12), // 振替不能金額
-  ];
-  const body = parts.join('');
-  return padRight(body, RECORD_LENGTH);
-};
-
-/**
- * エンドレコード（区分=9）120バイトを生成
- */
-export const buildEndRecord = (): string => {
-  return padRight('9', RECORD_LENGTH);
-};
-
-/**
- * 銀行名から銀行コードを推定。ゆうちょ銀行は 9900。
- * 不明な場合は 0000 を返す（呼び出し側で上書き必要）。
- */
-const extractBankCode = (bankName: string): string => {
-  if (bankName.includes('ゆうちょ') || bankName.includes('ﾕｳﾁﾖ') || bankName.includes('郵便')) {
-    return '9900';
-  }
-  return '0000';
-};
-
-/**
- * 支店名から支店コード(3桁)を推定。漢数字を含む店舗名（〇一八店等）から数字を抽出。
- * 不明な場合は 000 を返す。
+ * 支店名から店番(3桁)を抽出。漢数字を含む店舗名（〇一八店等）から数字を抽出する。
+ * 不明な場合は 000 を返す。記号番号方式の本来採番は別 issue (#170) で対応。
  */
 const KANJI_DIGIT: Record<string, string> = {
   〇: '0',
@@ -295,10 +210,8 @@ const KANJI_DIGIT: Record<string, string> = {
 };
 
 const extractBranchCode = (branchName: string): string => {
-  // ASCII数字優先
   const ascii = branchName.match(/\d{3}/);
   if (ascii) return ascii[0];
-  // 漢数字3桁
   let digits = '';
   for (const ch of branchName) {
     if (KANJI_DIGIT[ch] != null) {
@@ -309,40 +222,54 @@ const extractBranchCode = (branchName: string): string => {
   return digits.length === 3 ? digits : '000';
 };
 
+/**
+ * データ行(1顧客=1行) を生成する。
+ */
+export const buildDataRow = (item: YuchoBillingItem): string => {
+  const info = item.billingInfo;
+  const accountHolder = padRight(
+    toHalfWidthKana(info?.accountHolder ?? item.customerNameKana ?? ''),
+    ACCOUNT_HOLDER_WIDTH
+  );
+
+  const cells = [
+    '', // 1: 空
+    BANK_CODE, // 2: 金融機関コード
+    padRight(BANK_NAME_KANA, BANK_NAME_KANA_WIDTH), // 3: 金融機関名 半角カナ
+    BANK_NAME_KANJI, // 4: 金融機関名 漢字
+    padLeftZero(extractBranchCode(info?.branchName ?? ''), 3), // 5: 店番
+    '', // 6: 空
+    '', // 7: 空
+    accountTypeCode(info?.accountType), // 8: 預金種目
+    padLeftZero(info?.accountNumber ?? '', 7), // 9: 口座番号
+    `"${accountHolder}"`, // 10: 口座名義
+    String(item.billingAmount), // 11: 引落金額
+    FLAG, // 12: フラグ
+  ];
+  return cells.join(',');
+};
+
 interface BuildCsvParams {
-  header: HeaderParams;
   items: YuchoBillingItem[];
 }
 
 /**
  * CSV（振替ファイル）のデータ行として出力可能な請求項目かどうか。
  * 口座情報（billingInfo）があり、かつ請求金額が正であること。
- * 件数表示の整合性のため、この判定を CSV 生成（buildZenginCsv）と
+ * 件数表示の整合性のため、この判定を CSV 生成（buildYuchoCsv）と
  * 集計（yuchoService の summary）で共用する。これが実出力件数の唯一の基準となる。
  */
 export const isExportableBillingItem = (item: YuchoBillingItem): boolean =>
   Boolean(item.billingInfo) && item.billingAmount > 0;
 
 /**
- * 全銀協フォーマットの完全な CSV (固定長レコード) を生成する。
- * 出力例:
- *   1{ヘッダー...}\r\n
- *   2{データ1...}\r\n
- *   2{データ2...}\r\n
- *   8{トレーラー...}\r\n
- *   9{エンド...}\r\n
+ * ゆうちょ自動払込みCSV (12列カンマ区切り) を生成する。
+ * 戻り値は文字列。Shift-JIS エンコードは Controller 側で実施。
  */
-export const buildZenginCsv = ({ header, items }: BuildCsvParams): string => {
+export const buildYuchoCsv = ({ items }: BuildCsvParams): string => {
   const billable = items.filter(isExportableBillingItem);
-  const totalAmount = billable.reduce((sum, i) => sum + i.billingAmount, 0);
-
-  const lines = [
-    buildHeaderRecord(header),
-    ...billable.map(buildDataRecord),
-    buildTrailerRecord(billable.length, totalAmount),
-    buildEndRecord(),
-  ];
-  return lines.join(LINE_SEP) + LINE_SEP;
+  if (billable.length === 0) return '';
+  return billable.map(buildDataRow).join(LINE_SEP) + LINE_SEP;
 };
 
 // テスト用にエクスポート
@@ -351,6 +278,5 @@ export const __internal = {
   padRight,
   padLeftZero,
   accountTypeCode,
-  extractBankCode,
   extractBranchCode,
 };

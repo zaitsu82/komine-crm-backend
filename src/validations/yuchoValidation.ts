@@ -36,30 +36,14 @@ export const yuchoBillingQuerySchema = z.object({
 export type YuchoBillingQuery = z.infer<typeof yuchoBillingQuerySchema>;
 
 // CSV エクスポート用クエリスキーマ
-//   transferDate: 引落日（MMDDフォーマット用）
-//   clientCode:   委託者コード（10桁）
-//   clientName:   委託者名（半角40文字以内）
-//   bankCode:     金融機関コード（4桁、デフォルト 9900 = ゆうちょ）
-//   branchCode:   支店コード（3桁、デフォルト 000）
+// ゆうちょ自動払込みCSVは委託者ヘッダを持たないため、ヘッダ系パラメータ
+// (transferDate / clientCode / clientName / bankCode / branchCode) は不要。
 export const yuchoExportQuerySchema = z.object({
   year: yearSchema,
   month: monthSchema.optional(),
   category: YuchoCategoryEnum.optional().default('all'),
   status: YuchoStatusEnum.optional().default('unbilled'),
   format: YuchoFormatEnum.optional().default('zengin'),
-  transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'transferDate must be YYYY-MM-DD'),
-  clientCode: z.string().regex(/^\d{1,10}$/, 'clientCode must be up to 10 digits'),
-  clientName: z.string().min(1).max(40),
-  bankCode: z
-    .string()
-    .regex(/^\d{4}$/, 'bankCode must be 4 digits')
-    .optional()
-    .default('9900'),
-  branchCode: z
-    .string()
-    .regex(/^\d{3}$/, 'branchCode must be 3 digits')
-    .optional()
-    .default('000'),
 });
 
 export type YuchoExportQuery = z.infer<typeof yuchoExportQuerySchema>;

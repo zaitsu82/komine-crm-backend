@@ -2,15 +2,16 @@
  * ゆうちょ連携コントローラー
  *
  * - GET /api/v1/yucho/billing : 請求対象データの一覧取得
- * - GET /api/v1/yucho/export  : ゆうちょ自動払込み用 全銀協CSVを生成・返却
+ * - GET /api/v1/yucho/export  : ゆうちょ自動払込み用 CSV (Shift-JIS, 12列) を生成・返却
  */
 
 import { Request, Response, NextFunction } from 'express';
+import iconv from 'iconv-lite';
 import { ZodError } from 'zod';
 import { ValidationError } from '../middleware/errorHandler';
 import { yuchoBillingQuerySchema, yuchoExportQuerySchema } from '../validations/yuchoValidation';
 import { fetchYuchoBillingData } from './yuchoService';
-import { buildZenginCsv } from './yuchoCsv';
+import { buildYuchoCsv } from './yuchoCsv';
 
 const formatZodError = (err: ZodError): ValidationError => {
   const details = err.issues.map((i) => ({
@@ -64,21 +65,13 @@ export const exportYuchoCsv = async (
       status: params.status,
     });
 
-    const csv = buildZenginCsv({
-      header: {
-        clientCode: params.clientCode,
-        clientName: params.clientName,
-        transferDate: params.transferDate,
-        bankCode: params.bankCode,
-        branchCode: params.branchCode,
-      },
-      items: data.items,
-    });
+    const csv = buildYuchoCsv({ items: data.items });
+    const buffer = iconv.encode(csv, 'Shift_JIS');
 
     const fileName = `yucho_${params.year}${params.month != null ? String(params.month).padStart(2, '0') : 'all'}.csv`;
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Type', 'text/csv; charset=Shift_JIS');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.status(200).send(csv);
+    res.status(200).send(buffer);
   } catch (error) {
     next(error);
   }
