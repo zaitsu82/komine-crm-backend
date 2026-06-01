@@ -1,7 +1,7 @@
 import { PaymentStatus } from '@prisma/client';
 
 /**
- * ContractPlot.payment_status の派生ロジック（DB 非依存の純関数）。
+ * ContractPlot.payment_status / uncollected_amount の派生ロジック（DB 非依存の純関数）。
  *
  * ランタイム（paymentStatusService）と移行 backfill（scripts/legacy-migration）の
  * 双方から参照され、判定ロジックの単一ソースになる。
@@ -31,17 +31,44 @@ export const paymentStatusFromTotals = (
 };
 
 /**
- * ContractPlot の請求群から payment_status を導出する。
+ * 請求合計と入金合計から未収金額を導出する。
+ *
+ * 未収金額 = active 請求の (請求額 − 入金額)。
+ *  - refunded（返金済み）: 債権が消滅しているため未収 0（#170）
+ *  - それ以外: max(0, totalAmount − totalPaid)（過入金でも負にしない）
+ */
+export const uncollectedFromTotals = (
+  totalAmount: number,
+  totalPaid: number,
+  status: PaymentStatus
+): number => {
+  if (status === PaymentStatus.refunded) return 0;
+  return Math.max(0, totalAmount - totalPaid);
+};
+
+/**
+ * ContractPlot の請求群から payment_status と uncollected_amount を同時に導出する。
  *
  * 解約済み請求（terminated）は債務が消滅しているため集計から除外する。
  * これにより「解約前に全額入金 → 解約」の区画が誤って未入金扱いになるのを防ぐ。
+ * payment_status と未収金額を同一の集計から導出することで、両者が論理的に矛盾しないことを保証する（#170）。
+ */
+export const deriveContractPlotPayment = (
+  billings: { amount: number; paid_amount: number; terminated: boolean }[],
+  currentStatus?: PaymentStatus
+): { status: PaymentStatus; uncollectedAmount: number } => {
+  const active = billings.filter((b) => !b.terminated);
+  const totalAmount = active.reduce((sum, b) => sum + b.amount, 0);
+  const totalPaid = active.reduce((sum, b) => sum + b.paid_amount, 0);
+  const status = paymentStatusFromTotals(totalAmount, totalPaid, currentStatus);
+  return { status, uncollectedAmount: uncollectedFromTotals(totalAmount, totalPaid, status) };
+};
+
+/**
+ * ContractPlot の請求群から payment_status を導出する。
+ * @deprecated 集計を二重化しないため {@link deriveContractPlotPayment} を使うこと。後方互換で残置。
  */
 export const deriveContractPlotPaymentStatus = (
   billings: { amount: number; paid_amount: number; terminated: boolean }[],
   currentStatus?: PaymentStatus
-): PaymentStatus => {
-  const active = billings.filter((b) => !b.terminated);
-  const totalAmount = active.reduce((sum, b) => sum + b.amount, 0);
-  const totalPaid = active.reduce((sum, b) => sum + b.paid_amount, 0);
-  return paymentStatusFromTotals(totalAmount, totalPaid, currentStatus);
-};
+): PaymentStatus => deriveContractPlotPayment(billings, currentStatus).status;

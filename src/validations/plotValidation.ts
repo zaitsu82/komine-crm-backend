@@ -178,6 +178,7 @@ const saleContractSchema = sharedSaleContractSchema.omit({ paymentStatus: true }
   paymentStatus: z.string().max(50).optional().or(z.literal('')),
   customerRole: z.string().max(50).optional().or(z.literal('')), // 後方互換性のため残す（deprecated）
   roles: z.array(saleContractRoleSchema).optional(), // 複数役割サポート（新方式）
+  // @deprecated 手入力廃止（#170）。後方互換で受理するが controller で無視し、請求実績からの導出値で上書きされる。
   uncollectedAmount: z
     .number()
     .int()
