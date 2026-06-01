@@ -59,20 +59,32 @@ describe('computeBillingStatus', () => {
 
 describe('recalculateBillingPayments', () => {
   let billingFindFirst: jest.Mock;
+  let billingFindMany: jest.Mock;
   let paymentFindMany: jest.Mock;
   let billingUpdate: jest.Mock;
+  let contractPlotFindFirst: jest.Mock;
+  let contractPlotUpdate: jest.Mock;
 
   const buildClient = () => {
     billingFindFirst = jest.fn();
+    // ContractPlot.payment_status の再計算が読む請求一覧（既定: 空）
+    billingFindMany = jest.fn().mockResolvedValue([]);
     paymentFindMany = jest.fn();
     billingUpdate = jest.fn();
+    contractPlotFindFirst = jest.fn().mockResolvedValue({ payment_status: 'unpaid' });
+    contractPlotUpdate = jest.fn();
     return {
       billing: {
         findFirst: billingFindFirst,
+        findMany: billingFindMany,
         update: billingUpdate,
       },
       payment: {
         findMany: paymentFindMany,
+      },
+      contractPlot: {
+        findFirst: contractPlotFindFirst,
+        update: contractPlotUpdate,
       },
     } as unknown as Parameters<typeof recalculateBillingPayments>[0];
   };
@@ -159,6 +171,37 @@ describe('recalculateBillingPayments', () => {
         last_payment_date: null,
         status: 'partial_paid',
       },
+    });
+  });
+
+  it('recalculates the linked ContractPlot.payment_status after updating the billing (#162)', async () => {
+    const client = buildClient();
+    billingFindFirst.mockResolvedValue({
+      id: 'b1',
+      contract_plot_id: 'cp1',
+      amount: 10000,
+      billing_date: new Date('2026-03-01'),
+      terminated: false,
+      status: 'billed',
+    });
+    paymentFindMany.mockResolvedValue([
+      { payment_amount: 10000, payment_date: new Date('2026-05-01') },
+    ]);
+    // 区画には他に未入金の管理料請求が残っている → 区画全体は partial_paid
+    billingFindMany.mockResolvedValue([
+      { amount: 10000, paid_amount: 10000, terminated: false },
+      { amount: 5000, paid_amount: 0, terminated: false },
+    ]);
+
+    await recalculateBillingPayments(client, 'b1');
+
+    expect(contractPlotFindFirst).toHaveBeenCalledWith({
+      where: { id: 'cp1', deleted_at: null },
+      select: { payment_status: true },
+    });
+    expect(contractPlotUpdate).toHaveBeenCalledWith({
+      where: { id: 'cp1' },
+      data: { payment_status: 'partial_paid' },
     });
   });
 });

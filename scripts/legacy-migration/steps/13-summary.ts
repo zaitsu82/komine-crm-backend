@@ -51,6 +51,17 @@ export const stepSummary: MigrationStep = {
       }),
     ]);
 
+    // payment_status の分布（#162 backfill の検証用）
+    const paymentStatusGroups = await prisma.contractPlot.groupBy({
+      by: ['payment_status'],
+      where: { deleted_at: null },
+      _count: { _all: true },
+    });
+    const paymentStatusDist = paymentStatusGroups.reduce<Record<string, number>>((acc, g) => {
+      acc[g.payment_status] = g._count._all;
+      return acc;
+    }, {});
+
     // レガシー側のベースライン
     interface LegacyCountsRow {
       physical: number;
@@ -89,6 +100,7 @@ export const stepSummary: MigrationStep = {
         staff: staffCount,
         usage_fee_total: Number(usageFeeTotal._sum.amount ?? 0),
         management_fee_total: Number(managementFeeTotal._sum.amount ?? 0),
+        payment_status_distribution: paymentStatusDist,
       },
       legacy: {
         physical_plots: Number(legacy?.physical ?? 0),

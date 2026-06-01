@@ -45,7 +45,8 @@ import { stepBuriedPerson } from './legacy-migration/steps/08-buried-person';
 import { stepConstructionInfo } from './legacy-migration/steps/09-construction-info';
 import { stepBilling } from './legacy-migration/steps/10-billing';
 import { stepPayment } from './legacy-migration/steps/11-payment';
-import { stepSummary } from './legacy-migration/steps/12-summary';
+import { stepPaymentStatus } from './legacy-migration/steps/12-payment-status';
+import { stepSummary } from './legacy-migration/steps/13-summary';
 import type {
   MigrationContext,
   MigrationStep,
@@ -64,6 +65,7 @@ const ALL_STEPS: MigrationStep[] = [
   stepConstructionInfo,
   stepBilling,
   stepPayment,
+  stepPaymentStatus,
   stepSummary,
 ];
 
