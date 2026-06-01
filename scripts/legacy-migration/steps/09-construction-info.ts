@@ -34,7 +34,8 @@ export const stepConstructionInfo: MigrationStep = {
   name: 'constructionInfo',
   dependsOn: ['contractPlot'],
   async run({ prisma, logger, idMaps, dryRun }) {
-    if (!dryRun) await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
+    // dry-run でも resume 用に再構築（読み取り専用・冪等、full dry-run では no-op）
+    await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
     assertIdMapsReady('constructionInfo', idMaps, ['contractPlot']);
 
     const rows = await legacyQuery<FoundlogRow>(

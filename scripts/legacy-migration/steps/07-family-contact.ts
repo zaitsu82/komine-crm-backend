@@ -46,10 +46,11 @@ export const stepFamilyContact: MigrationStep = {
   name: 'familyContact',
   dependsOn: ['customer', 'contractPlot'],
   async run({ prisma, logger, idMaps, dryRun }) {
-    if (!dryRun) {
-      await rebuildIdMap(prisma, idMaps, 'customer', logger);
-      await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
-    }
+    // dry-run でも idMap を再構築する。rebuildIdMap は新DBからの読み取り専用かつ冪等なので
+    // 安全で、--only=<step> で 03〜06 を飛ばして resume するとき空マップで
+    // assertIdMapsReady が落ちるのを防ぐ。full dry-run では既に placeholder で埋まっており no-op。
+    await rebuildIdMap(prisma, idMaps, 'customer', logger);
+    await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
     assertIdMapsReady('familyContact', idMaps, ['customer', 'contractPlot']);
 
     // t_danka から danka_cd → grave_cd の対応を取得
