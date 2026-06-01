@@ -43,7 +43,7 @@ import { closeLegacyPool, legacyCount, legacyQuery } from './legacy-migration/le
 // ---------------------------------------------------------------------------
 // ベースライン（Query_result_A〜F / dry-run で確定済み）
 //   confirmed: query_result/MIGRATION_STATUS.md「検証ベースライン」および
-//   scripts/legacy-migration/steps/12-summary.ts と一致させること。
+//   scripts/legacy-migration/steps/13-summary.ts と一致させること。
 // ---------------------------------------------------------------------------
 const BASELINE = {
   // レガシー側(del_flg=0)の確定件数
@@ -618,7 +618,7 @@ function buildReport(args: {
     '本レポートは `scripts/verify-migration.ts` により自動生成。再実行: `npm run verify:migration`。'
   );
   lines.push(
-    'ベースラインは `scripts/legacy-migration/steps/12-summary.ts` および MIGRATION_STATUS.md と整合。'
+    'ベースラインは `scripts/legacy-migration/steps/13-summary.ts` および MIGRATION_STATUS.md と整合。'
   );
   lines.push('');
 

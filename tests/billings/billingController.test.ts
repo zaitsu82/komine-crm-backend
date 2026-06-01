@@ -32,6 +32,7 @@ const mockPrisma = {
   },
   contractPlot: {
     findFirst: jest.fn(),
+    update: jest.fn(),
   },
   $transaction: jest.fn(),
 };
@@ -118,6 +119,12 @@ describe('billingController', () => {
     jest.clearAllMocks();
     res = buildResponse();
     next = jest.fn();
+    // 既定: $transaction はそのまま mockPrisma をトランザクションクライアントとして渡す
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: typeof mockPrisma) => unknown) =>
+      cb(mockPrisma)
+    );
+    // payment_status 再計算（recalculateContractPlotPaymentStatus）が読む請求一覧の既定値
+    mockPrisma.billing.findMany.mockResolvedValue([]);
   });
 
   describe('getBillings', () => {
@@ -335,10 +342,20 @@ describe('billingController', () => {
 
   describe('deleteBilling', () => {
     it('soft-deletes the billing and orphans related payments', async () => {
-      mockPrisma.billing.findFirst.mockResolvedValue({ id: VALID_UUID });
+      mockPrisma.billing.findFirst.mockResolvedValue({
+        id: VALID_UUID,
+        contract_plot_id: PLOT_UUID,
+      });
       const txMock = {
-        billing: { update: jest.fn().mockResolvedValue({}) },
+        billing: {
+          update: jest.fn().mockResolvedValue({}),
+          findMany: jest.fn().mockResolvedValue([]),
+        },
         payment: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+        contractPlot: {
+          findFirst: jest.fn().mockResolvedValue({ payment_status: 'unpaid' }),
+          update: jest.fn().mockResolvedValue({}),
+        },
       };
       mockPrisma.$transaction.mockImplementation(async (cb) => cb(txMock));
 
@@ -353,6 +370,11 @@ describe('billingController', () => {
       expect(txMock.billing.update).toHaveBeenCalledWith({
         where: { id: VALID_UUID },
         data: { deleted_at: expect.any(Date) },
+      });
+      // 請求削除後に区画の payment_status を再計算する（#162）
+      expect(txMock.contractPlot.update).toHaveBeenCalledWith({
+        where: { id: PLOT_UUID },
+        data: { payment_status: 'unpaid' },
       });
     });
 

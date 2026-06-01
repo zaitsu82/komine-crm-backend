@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 import prisma from '../db/prisma';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler';
+import { recalculateContractPlotPaymentStatus } from '../plots/services/paymentStatusService';
 import {
   createBillingSchema,
   updateBillingSchema,
@@ -195,24 +196,29 @@ export const createBilling = async (
     if (!contractPlot) throw new NotFoundError('指定の契約区画が見つかりません');
     if (!customer) throw new NotFoundError('指定の顧客が見つかりません');
 
-    const created = await prisma.billing.create({
-      data: {
-        contract_plot_id: input.contractPlotId,
-        customer_id: input.customerId,
-        category: input.category,
-        amount: input.amount,
-        use_start_year: input.useStartYear ?? null,
-        use_end_year: input.useEndYear ?? null,
-        target_month: input.targetMonth ?? null,
-        billing_years: input.billingYears ?? null,
-        contract_date: toDateOrNull(input.contractDate),
-        billing_date: toDateOrNull(input.billingDate),
-        application_type: input.applicationType ?? null,
-        billing_type: input.billingType ?? null,
-        status: input.status ?? 'pending',
-        notes: input.notes ?? null,
-      },
-      include: includeRelations,
+    const created = await prisma.$transaction(async (tx) => {
+      const billing = await tx.billing.create({
+        data: {
+          contract_plot_id: input.contractPlotId,
+          customer_id: input.customerId,
+          category: input.category,
+          amount: input.amount,
+          use_start_year: input.useStartYear ?? null,
+          use_end_year: input.useEndYear ?? null,
+          target_month: input.targetMonth ?? null,
+          billing_years: input.billingYears ?? null,
+          contract_date: toDateOrNull(input.contractDate),
+          billing_date: toDateOrNull(input.billingDate),
+          application_type: input.applicationType ?? null,
+          billing_type: input.billingType ?? null,
+          status: input.status ?? 'pending',
+          notes: input.notes ?? null,
+        },
+        include: includeRelations,
+      });
+      // 請求額が増えたので ContractPlot の payment_status を再計算（#162）
+      await recalculateContractPlotPaymentStatus(tx, input.contractPlotId);
+      return billing;
     });
 
     res.status(201).json({ success: true, data: formatBilling(created) });
@@ -261,10 +267,15 @@ export const updateBilling = async (
       data.terminated_date = toDateOrNull(input.terminatedDate);
     if (input.notes !== undefined) data.notes = input.notes;
 
-    const updated = await prisma.billing.update({
-      where: { id },
-      data,
-      include: includeRelations,
+    const updated = await prisma.$transaction(async (tx) => {
+      const billing = await tx.billing.update({
+        where: { id },
+        data,
+        include: includeRelations,
+      });
+      // 請求額・解約フラグの変更が入金状況に影響しうるので再計算（#162）
+      await recalculateContractPlotPaymentStatus(tx, existing.contract_plot_id);
+      return billing;
     });
 
     res.status(200).json({ success: true, data: formatBilling(updated) });
@@ -303,6 +314,8 @@ export const deleteBilling = async (
         where: { id },
         data: { deleted_at: new Date() },
       });
+      // 請求が消えたので ContractPlot の payment_status を再計算（#162）
+      await recalculateContractPlotPaymentStatus(tx, existing.contract_plot_id);
     });
 
     res.status(200).json({ success: true, data: { message: '請求を削除しました' } });

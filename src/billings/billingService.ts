@@ -1,5 +1,6 @@
 import { BillingRecordStatus, Prisma } from '@prisma/client';
 import prisma from '../db/prisma';
+import { recalculateContractPlotPaymentStatus } from '../plots/services/paymentStatusService';
 
 /**
  * 請求 (Billing) のステータスを入金合計から自動計算する。
@@ -73,4 +74,7 @@ export const recalculateBillingPayments = async (
       status,
     },
   });
+
+  // 入金集計が変わったので、紐付く ContractPlot の payment_status も再計算する（#162）
+  await recalculateContractPlotPaymentStatus(client, billing.contract_plot_id);
 };
