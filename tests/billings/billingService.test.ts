@@ -201,7 +201,7 @@ describe('recalculateBillingPayments', () => {
     });
     expect(contractPlotUpdate).toHaveBeenCalledWith({
       where: { id: 'cp1' },
-      data: { payment_status: 'partial_paid' },
+      data: { payment_status: 'partial_paid', uncollected_amount: 5000 },
     });
   });
 });

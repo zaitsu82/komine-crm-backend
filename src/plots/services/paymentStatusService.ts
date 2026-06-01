@@ -2,18 +2,23 @@ import { PaymentStatus, Prisma } from '@prisma/client';
 
 import prisma from '../../db/prisma';
 
-import { deriveContractPlotPaymentStatus } from './paymentStatusLogic';
+import { deriveContractPlotPayment } from './paymentStatusLogic';
 
-export { deriveContractPlotPaymentStatus, paymentStatusFromTotals } from './paymentStatusLogic';
+export {
+  deriveContractPlotPayment,
+  deriveContractPlotPaymentStatus,
+  paymentStatusFromTotals,
+  uncollectedFromTotals,
+} from './paymentStatusLogic';
 
 type PaymentStatusClient = Prisma.TransactionClient | typeof prisma;
 
 /**
- * 指定 ContractPlot について、紐付く Billing 群（の入金集計 paid_amount）から
- * payment_status を再計算して更新する。
+ * 指定 ContractPlot について、紐付く Billing 群（請求額 amount と入金集計 paid_amount）から
+ * payment_status と uncollected_amount を再計算して更新する。
  *
  * Payment / Billing の作成・更新・削除時に呼ばれ、
- * ContractPlot.payment_status を「請求 vs 入金」の派生値として常に最新に保つ。
+ * ContractPlot.payment_status と未収金額を「請求 vs 入金」の派生値として常に最新に保つ（#170）。
  *
  * @returns 更新後のステータス。区画が見つからなければ null。
  */
@@ -32,11 +37,14 @@ export const recalculateContractPlotPaymentStatus = async (
     select: { amount: true, paid_amount: true, terminated: true },
   });
 
-  const status = deriveContractPlotPaymentStatus(billings, contractPlot.payment_status);
+  const { status, uncollectedAmount } = deriveContractPlotPayment(
+    billings,
+    contractPlot.payment_status
+  );
 
   await client.contractPlot.update({
     where: { id: contractPlotId },
-    data: { payment_status: status },
+    data: { payment_status: status, uncollected_amount: uncollectedAmount },
   });
 
   return status;

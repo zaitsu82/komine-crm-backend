@@ -115,7 +115,8 @@ export const createPlotContract = async (req: Request, res: Response): Promise<R
             ? new Date(input.saleContract.permitDate)
             : null,
           start_date: input.saleContract.startDate ? new Date(input.saleContract.startDate) : null,
-          uncollected_amount: input.saleContract.uncollectedAmount ?? 0,
+          // 未収金額は請求実績から導出する派生値（#170）。新規区画は請求未生成のため 0。手入力は無視。
+          uncollected_amount: 0,
           notes: input.saleContract.notes || null,
           grave_kind: input.saleContract.graveKind ?? null,
           grave_kubun: input.saleContract.graveKubun ?? null,

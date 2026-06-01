@@ -374,7 +374,7 @@ describe('billingController', () => {
       // 請求削除後に区画の payment_status を再計算する（#162）
       expect(txMock.contractPlot.update).toHaveBeenCalledWith({
         where: { id: PLOT_UUID },
-        data: { payment_status: 'unpaid' },
+        data: { payment_status: 'unpaid', uncollected_amount: 0 },
       });
     });
 

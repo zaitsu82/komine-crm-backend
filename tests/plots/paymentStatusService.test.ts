@@ -1,5 +1,7 @@
 import {
   paymentStatusFromTotals,
+  uncollectedFromTotals,
+  deriveContractPlotPayment,
   deriveContractPlotPaymentStatus,
   recalculateContractPlotPaymentStatus,
 } from '../../src/plots/services/paymentStatusService';
@@ -80,6 +82,66 @@ describe('deriveContractPlotPaymentStatus', () => {
   });
 });
 
+describe('uncollectedFromTotals', () => {
+  it('returns billed minus paid', () => {
+    expect(uncollectedFromTotals(10000, 3000, 'partial_paid')).toBe(7000);
+    expect(uncollectedFromTotals(10000, 0, 'unpaid')).toBe(10000);
+  });
+
+  it('returns 0 when fully paid', () => {
+    expect(uncollectedFromTotals(10000, 10000, 'paid')).toBe(0);
+  });
+
+  it('clamps to 0 on overpayment (never negative)', () => {
+    expect(uncollectedFromTotals(10000, 12000, 'paid')).toBe(0);
+  });
+
+  it('returns the remaining debt for overdue', () => {
+    expect(uncollectedFromTotals(10000, 0, 'overdue')).toBe(10000);
+  });
+
+  it('returns 0 for refunded regardless of totals (#170: 債権消滅)', () => {
+    expect(uncollectedFromTotals(10000, 0, 'refunded')).toBe(0);
+    expect(uncollectedFromTotals(10000, 3000, 'refunded')).toBe(0);
+  });
+});
+
+describe('deriveContractPlotPayment', () => {
+  it('derives status and uncollected from the same aggregation', () => {
+    expect(
+      deriveContractPlotPayment([
+        { amount: 10000, paid_amount: 10000, terminated: false },
+        { amount: 5000, paid_amount: 0, terminated: false },
+      ])
+    ).toEqual({ status: 'partial_paid', uncollectedAmount: 5000 });
+  });
+
+  it('excludes terminated billings from both status and uncollected', () => {
+    expect(
+      deriveContractPlotPayment([
+        { amount: 10000, paid_amount: 10000, terminated: false },
+        { amount: 99999, paid_amount: 0, terminated: true },
+      ])
+    ).toEqual({ status: 'paid', uncollectedAmount: 0 });
+  });
+
+  it('reports the full billed amount as uncollected when nothing is paid (#170 主因)', () => {
+    expect(
+      deriveContractPlotPayment([{ amount: 162000, paid_amount: 0, terminated: false }])
+    ).toEqual({ status: 'unpaid', uncollectedAmount: 162000 });
+  });
+
+  it('returns unpaid / 0 when there are no active billings', () => {
+    expect(deriveContractPlotPayment([])).toEqual({ status: 'unpaid', uncollectedAmount: 0 });
+  });
+
+  it('zeroes uncollected for refunded (currentStatus preserved)', () => {
+    expect(
+      deriveContractPlotPayment([{ amount: 10000, paid_amount: 0, terminated: false }], 'refunded')
+    ).toEqual({ status: 'refunded', uncollectedAmount: 0 });
+  });
+});
+
 describe('recalculateContractPlotPaymentStatus', () => {
   let contractPlotFindFirst: jest.Mock;
   let contractPlotUpdate: jest.Mock;
@@ -108,7 +170,7 @@ describe('recalculateContractPlotPaymentStatus', () => {
     expect(result).toBe('paid');
     expect(contractPlotUpdate).toHaveBeenCalledWith({
       where: { id: 'cp1' },
-      data: { payment_status: 'paid' },
+      data: { payment_status: 'paid', uncollected_amount: 0 },
     });
   });
 
@@ -122,7 +184,7 @@ describe('recalculateContractPlotPaymentStatus', () => {
     expect(result).toBe('overdue');
     expect(contractPlotUpdate).toHaveBeenCalledWith({
       where: { id: 'cp1' },
-      data: { payment_status: 'overdue' },
+      data: { payment_status: 'overdue', uncollected_amount: 10000 },
     });
   });
 

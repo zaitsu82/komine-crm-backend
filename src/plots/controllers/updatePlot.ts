@@ -187,10 +187,7 @@ export async function updatePlotCore(
         ? new Date(input.saleContract.startDate)
         : null;
     }
-    if (input.saleContract.uncollectedAmount !== undefined) {
-      // uncollected_amount は非 null（schema default 0）。null は create と同様 0 にフォールバック。
-      updateData.uncollected_amount = input.saleContract.uncollectedAmount ?? 0;
-    }
+    // 未収金額は請求実績から導出する派生値（#170）。手入力は無視し、請求/入金 CRUD と backfill で同期する。
     if (input.saleContract.notes !== undefined) {
       updateData.notes = input.saleContract.notes;
     }
