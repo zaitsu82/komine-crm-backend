@@ -34,11 +34,12 @@ export const stepPayment: MigrationStep = {
   name: 'payment',
   dependsOn: ['billing'],
   async run({ prisma, logger, idMaps, dryRun }) {
-    if (!dryRun) {
-      await rebuildIdMap(prisma, idMaps, 'customer', logger);
-      await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
-      await rebuildIdMap(prisma, idMaps, 'billing', logger);
-    }
+    // dry-run でも resume 用に再構築（読み取り専用・冪等、full dry-run では no-op）。
+    // billing は同一 run の step10 が dry-run で placeholder を入れるため、billing→payment の
+    // 順で --only 実行すれば assertIdMapsReady を通せる。
+    await rebuildIdMap(prisma, idMaps, 'customer', logger);
+    await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
+    await rebuildIdMap(prisma, idMaps, 'billing', logger);
     assertIdMapsReady('payment', idMaps, ['billing', 'contractPlot', 'customer']);
 
     const rows = await legacyQuery<NyukinRow>(
