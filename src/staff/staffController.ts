@@ -13,6 +13,7 @@ import {
   deleteSupabaseUser,
   updateSupabaseUserEmail,
   resendInvitation,
+  sendPasswordReset,
 } from '../config/supabase';
 
 // スタッフ一覧のレスポンス型
@@ -617,28 +618,69 @@ export const resendStaffInvitation = async (
       throw new ValidationError('Supabase Admin サービスが利用できません');
     }
 
-    // 招待メール再送信
-    const result = await resendInvitation(
-      existingStaff.email,
-      process.env['FRONTEND_URL'] ? `${process.env['FRONTEND_URL']}/set-password` : undefined
-    );
+    const redirectTo = process.env['FRONTEND_URL']
+      ? `${process.env['FRONTEND_URL']}/set-password`
+      : undefined;
 
-    if (!result.success) {
-      throw new ValidationError(result.error || '招待メールの送信に失敗しました');
+    // #175: supabase_uid が仮（pending_）= Supabaseアカウント未作成のスタッフは招待メール
+    // （inviteUserByEmail = ユーザー新規作成）でよいが、既に実アカウントがあるスタッフへ
+    // 招待を送ると `already registered` で失敗する。既存アカウントには recovery（パスワード
+    // 再設定）メールを送る。
+    const isPending =
+      !existingStaff.supabase_uid || existingStaff.supabase_uid.startsWith('pending_');
+
+    if (isPending) {
+      // 仮UID: 招待メール送信（=Supabaseユーザー新規作成）
+      const result = await resendInvitation(existingStaff.email, redirectTo);
+
+      // 仮UIDなのにSupabase側に既存アカウントがある（UID未同期等）場合は、招待ではなく
+      // パスワード再設定メールにフォールバックして再送を成立させる。
+      if (!result.success && result.errorCode === 'already_registered') {
+        const fallback = await sendPasswordReset(existingStaff.email, redirectTo);
+        if (!fallback.success) {
+          throw new ValidationError(fallback.error || 'パスワード再設定メールの送信に失敗しました');
+        }
+        res.json({
+          success: true,
+          data: {
+            message: 'パスワード再設定メールを送信しました',
+          },
+        });
+        return;
+      }
+
+      if (!result.success) {
+        throw new ValidationError(result.error || '招待メールの送信に失敗しました');
+      }
+
+      // 新規作成されたSupabaseユーザーの実UIDで仮UIDを更新
+      if (result.user) {
+        await prisma.staff.update({
+          where: { id: staffId },
+          data: { supabase_uid: result.user.id },
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          message: '招待メールを再送信しました',
+        },
+      });
+      return;
     }
 
-    // supabase_uidが仮の値の場合、新しいUIDで更新
-    if (result.user && existingStaff.supabase_uid?.startsWith('pending_')) {
-      await prisma.staff.update({
-        where: { id: staffId },
-        data: { supabase_uid: result.user.id },
-      });
+    // 既存アカウント: パスワード再設定メールを送信
+    const result = await sendPasswordReset(existingStaff.email, redirectTo);
+
+    if (!result.success) {
+      throw new ValidationError(result.error || 'パスワード再設定メールの送信に失敗しました');
     }
 
     res.json({
       success: true,
       data: {
-        message: '招待メールを再送信しました',
+        message: 'パスワード再設定メールを送信しました',
       },
     });
   } catch (error) {
