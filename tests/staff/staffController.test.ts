@@ -24,9 +24,13 @@ const mockSupabaseAdminAuth = {
   updateUserById: jest.fn(),
 };
 
+// resetPasswordForEmail は auth.admin ではなく auth 直下のメソッド
+const mockResetPasswordForEmail = jest.fn();
+
 const mockSupabase = {
   auth: {
     admin: mockSupabaseAdminAuth,
+    resetPasswordForEmail: mockResetPasswordForEmail,
   },
 };
 
@@ -555,6 +559,97 @@ describe('Staff Controller', () => {
             }),
           })
         );
+      });
+
+      it('既にSupabaseアカウントを持つスタッフにはパスワード再設定メールを送る (#175)', async () => {
+        mockRequest.params = { id: '2' };
+
+        const mockExistingStaff = {
+          id: 2,
+          name: 'Staff',
+          email: 'staff@example.com',
+          supabase_uid: '11111111-2222-3333-4444-555555555555', // 実UUID = 既存アカウント
+          is_active: true,
+        };
+        mockPrisma.staff.findFirst.mockResolvedValue(mockExistingStaff);
+        mockResetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+
+        await resendStaffInvitation(mockRequest as Request, mockResponse as Response, mockNext);
+
+        // inviteUserByEmail は呼ばず、recovery メールを送る
+        expect(mockSupabaseAdminAuth.inviteUserByEmail).not.toHaveBeenCalled();
+        expect(mockResetPasswordForEmail).toHaveBeenCalledWith(
+          'staff@example.com',
+          expect.any(Object)
+        );
+        // 既存アカウントなので supabase_uid は更新しない
+        expect(mockPrisma.staff.update).not.toHaveBeenCalled();
+        expect(mockResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            success: true,
+            data: expect.objectContaining({
+              message: 'パスワード再設定メールを送信しました',
+            }),
+          })
+        );
+      });
+
+      it('仮UIDでもSupabase側に既存登録がある場合はパスワード再設定にフォールバックする (#175)', async () => {
+        mockRequest.params = { id: '2' };
+
+        const mockExistingStaff = {
+          id: 2,
+          name: 'Staff',
+          email: 'staff@example.com',
+          supabase_uid: 'pending_123',
+          is_active: true,
+        };
+        mockPrisma.staff.findFirst.mockResolvedValue(mockExistingStaff);
+        // 招待は already registered で失敗
+        mockSupabaseAdminAuth.inviteUserByEmail.mockResolvedValue({
+          data: { user: null },
+          error: { message: 'A user with this email address has already registered' },
+        });
+        // フォールバックの recovery は成功
+        mockResetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+
+        await resendStaffInvitation(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockSupabaseAdminAuth.inviteUserByEmail).toHaveBeenCalled();
+        expect(mockResetPasswordForEmail).toHaveBeenCalledWith(
+          'staff@example.com',
+          expect.any(Object)
+        );
+        expect(mockResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            success: true,
+            data: expect.objectContaining({
+              message: 'パスワード再設定メールを送信しました',
+            }),
+          })
+        );
+      });
+
+      it('パスワード再設定メールの送信に失敗した場合、ValidationErrorを返す (#175)', async () => {
+        mockRequest.params = { id: '2' };
+
+        mockPrisma.staff.findFirst.mockResolvedValue({
+          id: 2,
+          name: 'Staff',
+          email: 'staff@example.com',
+          supabase_uid: '11111111-2222-3333-4444-555555555555',
+          is_active: true,
+        });
+        mockResetPasswordForEmail.mockResolvedValue({
+          data: {},
+          error: { message: 'email rate limit exceeded' },
+        });
+
+        await resendStaffInvitation(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalled();
+        const error = (mockNext as jest.Mock).mock.calls[0][0];
+        expect(error.message).toContain('送信制限');
       });
 
       it('スタッフが見つからない場合、NotFoundErrorを返す', async () => {

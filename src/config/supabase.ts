@@ -49,6 +49,12 @@ export interface InviteUserResult {
   success: boolean;
   user?: User;
   error?: string;
+  /**
+   * エラーの機械可読な種別。呼び出し側が文字列マッチに頼らず分岐できるようにする。
+   * - 'already_registered': 同一メールのSupabaseユーザーが既に存在する
+   * - 'rate_limit': 招待メール送信のレート制限
+   */
+  errorCode?: 'already_registered' | 'rate_limit';
 }
 
 /**
@@ -252,11 +258,15 @@ export const updateSupabaseUserEmail = async (
 };
 
 /**
- * 招待メールを再送信
+ * 招待メールを再送信（Supabaseユーザーが未作成のスタッフ向け）
+ *
+ * `inviteUserByEmail` は新規ユーザー作成を伴うため、既にSupabaseアカウントが
+ * 存在するメールに対しては `already registered` で失敗する。既存アカウントへの
+ * 再送は {@link sendPasswordReset} を使うこと。
  *
  * @param email - ユーザーのメールアドレス
  * @param redirectTo - パスワード設定後のリダイレクト先URL（オプション）
- * @returns 送信結果
+ * @returns 送信結果（`errorCode` で既存登録/レート制限を判別可能）
  */
 export const resendInvitation = async (
   email: string,
@@ -276,19 +286,79 @@ export const resendInvitation = async (
 
     if (error) {
       let errorMessage = error.message;
-      if (error.message.includes('rate limit')) {
+      let errorCode: InviteUserResult['errorCode'];
+      if (error.message.includes('already registered')) {
+        errorMessage = 'このメールアドレスは既にSupabaseに登録されています';
+        errorCode = 'already_registered';
+      } else if (error.message.includes('rate limit')) {
         errorMessage = '招待メールの送信制限に達しました。しばらく待ってから再試行してください';
+        errorCode = 'rate_limit';
       }
 
       return {
         success: false,
         error: errorMessage,
+        errorCode,
       };
     }
 
     return {
       success: true,
       user: data.user,
+    };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : '不明なエラーが発生しました';
+    return {
+      success: false,
+      error: errorMessage,
+    };
+  }
+};
+
+/**
+ * パスワード再設定メールを送信（Supabaseアカウントが既に存在するスタッフ向け）
+ *
+ * 既存ユーザーに対して `inviteUserByEmail` は使えない（`already registered` で失敗する）。
+ * recovery メールを送ることで、既存ユーザーがパスワードを（再）設定できるようにする。
+ *
+ * @param email - ユーザーのメールアドレス
+ * @param redirectTo - パスワード設定画面のリダイレクト先URL（オプション）
+ * @returns 送信結果（recovery のため `user` は返らない）
+ */
+export const sendPasswordReset = async (
+  email: string,
+  redirectTo?: string
+): Promise<InviteUserResult> => {
+  if (!supabaseAdmin) {
+    return {
+      success: false,
+      error: 'Supabase Admin サービスが利用できません',
+    };
+  }
+
+  try {
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+      redirectTo,
+    });
+
+    if (error) {
+      let errorMessage = error.message;
+      let errorCode: InviteUserResult['errorCode'];
+      if (error.message.includes('rate limit')) {
+        errorMessage =
+          'パスワード再設定メールの送信制限に達しました。しばらく待ってから再試行してください';
+        errorCode = 'rate_limit';
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+        errorCode,
+      };
+    }
+
+    return {
+      success: true,
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : '不明なエラーが発生しました';
