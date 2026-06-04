@@ -238,6 +238,87 @@ describe('Master CRUD Controller', () => {
 
       expect(mockResponse.status).toHaveBeenCalledWith(500);
     });
+
+    describe('区画名マスタ（section-name）の period 必須バリデーション', () => {
+      it('period 無しで作成しようとすると 400 VALIDATION_ERROR（details に period）を返すこと', async () => {
+        mockRequest.params = { masterType: 'section-name' };
+        mockRequest.body = { code: '1ki', name: '1期' };
+
+        await createMaster(mockRequest as Request, mockResponse as Response);
+
+        // Prisma NOT NULL 違反による 500 ではなく、明示的な 400 を返す
+        expect(mockResponse.status).toHaveBeenCalledWith(400);
+        const jsonCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+        expect(jsonCall.error.code).toBe('VALIDATION_ERROR');
+        expect(jsonCall.error.details.some((d: { field?: string }) => d.field === 'period')).toBe(
+          true
+        );
+        // バリデーション段階で弾くため create は呼ばれない
+        expect(mockPrisma.sectionNameMaster.create).not.toHaveBeenCalled();
+      });
+
+      it('空文字の period では 400 VALIDATION_ERROR を返すこと', async () => {
+        mockRequest.params = { masterType: 'section-name' };
+        mockRequest.body = { code: '1ki', name: '1期', period: '' };
+
+        await createMaster(mockRequest as Request, mockResponse as Response);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(400);
+        const jsonCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+        expect(jsonCall.error.code).toBe('VALIDATION_ERROR');
+        expect(jsonCall.error.details.some((d: { field?: string }) => d.field === 'period')).toBe(
+          true
+        );
+        expect(mockPrisma.sectionNameMaster.create).not.toHaveBeenCalled();
+      });
+
+      it('period ありで作成できること', async () => {
+        mockRequest.params = { masterType: 'section-name' };
+        mockRequest.body = { code: '1ki', name: '1期', period: '1期' };
+
+        mockPrisma.sectionNameMaster.create.mockResolvedValue({
+          id: 1,
+          code: '1ki',
+          name: '1期',
+          description: null,
+          sort_order: null,
+          is_active: true,
+          period: '1期',
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+
+        await createMaster(mockRequest as Request, mockResponse as Response);
+
+        expect(mockPrisma.sectionNameMaster.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({ period: '1期' }),
+        });
+        expect(mockResponse.status).toHaveBeenCalledWith(201);
+        const jsonCall = (mockResponse.json as jest.Mock).mock.calls[0][0];
+        expect(jsonCall.data.period).toBe('1期');
+      });
+
+      it('section-name 以外のマスタは period 無しでも作成できること', async () => {
+        mockRequest.params = { masterType: 'relationship' };
+        mockRequest.body = { code: 'parent', name: '親' };
+
+        mockPrisma.relationshipMaster.create.mockResolvedValue({
+          id: 1,
+          code: 'parent',
+          name: '親',
+          description: null,
+          sort_order: null,
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+
+        await createMaster(mockRequest as Request, mockResponse as Response);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(201);
+        expect(mockPrisma.relationshipMaster.create).toHaveBeenCalled();
+      });
+    });
   });
 
   describe('updateMaster', () => {

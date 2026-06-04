@@ -3,6 +3,7 @@ import prisma from '../db/prisma';
 import { getRequestLogger } from '../utils/logger';
 import {
   createMasterSchema,
+  createSectionNameMasterSchema,
   updateMasterSchema,
   isValidMasterType,
   MasterType,
@@ -551,7 +552,10 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
     return;
   }
 
-  const parsed = createMasterSchema.safeParse(req.body);
+  // section-name は period が NOT NULL のため作成時のみ専用スキーマで必須チェックし、
+  // 欠落時に 500 ではなく details 付きの 400 VALIDATION_ERROR を返す。
+  const schema = masterType === 'section-name' ? createSectionNameMasterSchema : createMasterSchema;
+  const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({
       success: false,
