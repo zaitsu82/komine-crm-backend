@@ -253,6 +253,94 @@ describe('Plot Controller (ContractPlot Model)', () => {
       );
     });
 
+    it('should sort by contractor name kana across pages when sortBy=customerName (#216)', async () => {
+      const buildSortRow = (id: string, nameKana: string | null) => ({
+        id,
+        saleContractRoles: nameKana ? [{ customer: { name_kana: nameKana, name: '氏名' } }] : [],
+      });
+      const buildListRow = (id: string, nameKana: string) => ({
+        id,
+        physical_plot_id: `pp-${id}`,
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        location_description: null,
+        created_at: new Date('2024-01-01'),
+        updated_at: new Date('2024-01-01'),
+        deleted_at: null,
+        contract_date: new Date('2024-01-01'),
+        price: null,
+        payment_status: 'unpaid',
+        physicalPlot: {
+          plot_number: `A-${id}`,
+          area_name: '第1期',
+          area_sqm: new Prisma.Decimal(3.6),
+          status: 'sold_out',
+        },
+        saleContractRoles: [
+          {
+            id: `scr-${id}`,
+            role: 'contractor',
+            customer: {
+              id: `c-${id}`,
+              name: '氏名',
+              name_kana: nameKana,
+              phone_number: null,
+              address: null,
+              notes: null,
+            },
+          },
+        ],
+        buriedPersons: [],
+        managementFee: null,
+        billings: [],
+      });
+
+      // 1回目: ソートキー取得（登録日順とは異なる順序で返す）
+      // 2回目: ページ分の詳細取得（わざと順序をシャッフルして返す）
+      mockPrisma.contractPlot.findMany
+        .mockResolvedValueOnce([
+          buildSortRow('cp1', 'ヤマダ'),
+          buildSortRow('cp2', 'アオキ'),
+          buildSortRow('cp3', null), // 契約者なし → 末尾
+          buildSortRow('cp4', 'サトウ'),
+        ])
+        .mockResolvedValueOnce([
+          buildListRow('cp4', 'サトウ'),
+          buildListRow('cp1', 'ヤマダ'),
+          buildListRow('cp2', 'アオキ'),
+        ]);
+
+      mockRequest.query = { page: '1', limit: '3', sortBy: 'customerName', sortOrder: 'asc' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(responseStatus).toHaveBeenCalledWith(200);
+      const payload = responseJson.mock.calls[0][0];
+      // 五十音順: アオキ → サトウ → ヤマダ（cp3 は2ページ目=末尾）
+      expect(payload.data.data.map((p: { id: string }) => p.id)).toEqual(['cp2', 'cp4', 'cp1']);
+      // total は全件数（ページサイズではない）
+      expect(payload.data.pagination.total).toBe(4);
+      // count は使わない（ソートキー取得結果から導出）
+      expect(mockPrisma.contractPlot.count).not.toHaveBeenCalled();
+    });
+
+    it('should place plots without contractor at the end for desc order too (#216)', async () => {
+      mockPrisma.contractPlot.findMany
+        .mockResolvedValueOnce([
+          { id: 'cp1', saleContractRoles: [{ customer: { name_kana: 'アオキ', name: 'a' } }] },
+          { id: 'cp2', saleContractRoles: [] }, // 契約者なし
+          { id: 'cp3', saleContractRoles: [{ customer: { name_kana: 'ヤマダ', name: 'y' } }] },
+        ])
+        .mockResolvedValueOnce([]);
+
+      mockRequest.query = { page: '1', limit: '10', sortBy: 'customerName', sortOrder: 'desc' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      // 2回目の findMany（詳細取得）に渡る id 順: ヤマダ → アオキ → 契約者なし
+      const secondCall = mockPrisma.contractPlot.findMany.mock.calls[1][0];
+      expect(secondCall.where.id.in).toEqual(['cp3', 'cp1', 'cp2']);
+    });
+
     it('should calculate next billing date from last_billing_month', async () => {
       const mockContractPlots = [
         {
