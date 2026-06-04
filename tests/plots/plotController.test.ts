@@ -253,6 +253,40 @@ describe('Plot Controller (ContractPlot Model)', () => {
       );
     });
 
+    it('should filter by contractStatus when specified (#200)', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
+
+      mockRequest.query = { page: '1', limit: '10', contractStatus: 'terminated' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.contractPlot.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contract_status: 'terminated',
+          }),
+        })
+      );
+    });
+
+    it('should exclude vacant plots by default (#167)', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
+
+      mockRequest.query = { page: '1', limit: '10' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.contractPlot.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contract_status: { not: 'vacant' },
+          }),
+        })
+      );
+    });
+
     it('should calculate next billing date from last_billing_month', async () => {
       const mockContractPlots = [
         {
@@ -449,18 +483,25 @@ describe('Plot Controller (ContractPlot Model)', () => {
         deleted_at: null,
         contract_date: new Date('2024-01-01'),
         price: 1000000,
+        contract_status: 'active',
         payment_status: 'paid',
         reservation_date: null,
+        request_date: new Date('2023-12-01'),
         acceptance_number: null,
         permit_date: null,
         start_date: null,
         notes: null,
+        grave_kind: 1,
+        grave_kubun: 2,
+        grave_type: 3,
+        legacy_grave_cd: 101,
         physicalPlot: {
           id: 'pp1',
           plot_number: 'A-01',
           area_name: '一般墓地A',
           area_sqm: new Prisma.Decimal(3.6),
           status: 'sold_out',
+          map_id: 7,
           notes: null,
         },
         buriedPersons: [],
@@ -508,10 +549,24 @@ describe('Plot Controller (ContractPlot Model)', () => {
         })
       );
       expect(responseStatus).toHaveBeenCalledWith(200);
+      // PlotDetailResponse の必須フィールド欠落を回帰検知する（#199）
       expect(responseJson).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          data: expect.any(Object),
+          data: expect.objectContaining({
+            id: 'cp1',
+            contractStatus: 'active',
+            paymentStatus: 'paid',
+            requestDate: new Date('2023-12-01'),
+            graveKind: 1,
+            graveKubun: 2,
+            graveType: 3,
+            legacyGraveCd: 101,
+            physicalPlot: expect.objectContaining({
+              id: 'pp1',
+              mapId: 7,
+            }),
+          }),
         })
       );
     });

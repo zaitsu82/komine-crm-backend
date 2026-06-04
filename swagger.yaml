@@ -137,6 +137,12 @@ paths:
           description: 区画区分フィルタ（grave_type、レガシー tinyint 値）
           schema:
             type: integer
+        - name: contractStatus
+          in: query
+          description: 契約ステータスフィルタ（台帳問い合わせはvacant非表示のためactive/terminatedのみ指定可）
+          schema:
+            type: string
+            enum: [active, terminated]
       responses:
         "200":
           description: 取得成功

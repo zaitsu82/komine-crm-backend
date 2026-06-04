@@ -39,6 +39,9 @@ export const plotSearchQuerySchema = paginationSchema.extend({
   paymentStatus: z
     .enum(['unpaid', 'partial_paid', 'paid', 'overdue', 'refunded', 'cancelled'])
     .optional(),
+  // 契約ステータスフィルター（#200）。台帳問い合わせは vacant 非表示（#167）のため
+  // active / terminated のみ許可する。vacant は在庫系エンドポイントで扱う。
+  contractStatus: z.enum(['active', 'terminated']).optional(),
   sortBy: z
     .enum([
       'plotNumber',
