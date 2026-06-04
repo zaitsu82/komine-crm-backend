@@ -4,6 +4,7 @@ import { requirePermission, ROLES } from '../middleware/permission';
 import { withLogging } from '../middleware/controllerLogger';
 import {
   getBillings,
+  getBillingsSummary,
   getBillingById,
   createBilling,
   updateBilling,
@@ -18,6 +19,15 @@ router.get(
   authenticate,
   requirePermission([ROLES.VIEWER, ROLES.OPERATOR, ROLES.MANAGER, ROLES.ADMIN]),
   withLogging('Billings', 'getList', getBillings)
+);
+
+// サマリー集計（viewer以上）
+// ※ '/:id' より先に登録すること（後だと 'summary' が :id にマッチする）
+router.get(
+  '/summary',
+  authenticate,
+  requirePermission([ROLES.VIEWER, ROLES.OPERATOR, ROLES.MANAGER, ROLES.ADMIN]),
+  withLogging('Billings', 'getSummary', getBillingsSummary)
 );
 
 // 詳細取得（viewer以上）
