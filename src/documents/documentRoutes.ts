@@ -14,7 +14,11 @@ import {
   deleteDocument,
   generatePdf,
   regeneratePdf,
+  uploadDocumentFile,
+  getDocumentDownloadUrl,
+  getDocumentFile,
 } from './documentController';
+import { documentFileUpload } from './uploadMiddleware';
 
 const router = Router();
 
@@ -72,6 +76,31 @@ router.post(
   authenticate,
   requirePermission(['operator', 'manager', 'admin']),
   withLogging('Documents', 'regeneratePdf', regeneratePdf)
+);
+
+// ファイルアップロード（multipart/form-data, fileフィールド）
+router.post(
+  '/:id/upload',
+  authenticate,
+  requirePermission(['operator', 'manager', 'admin']),
+  documentFileUpload,
+  withLogging('Documents', 'uploadDocumentFile', uploadDocumentFile)
+);
+
+// ダウンロードURL取得
+router.get(
+  '/:id/download',
+  authenticate,
+  requirePermission(['viewer', 'operator', 'manager', 'admin']),
+  withLogging('Documents', 'getDocumentDownloadUrl', getDocumentDownloadUrl)
+);
+
+// ファイル本体配信（認証付きダウンロード）
+router.get(
+  '/:id/file',
+  authenticate,
+  requirePermission(['viewer', 'operator', 'manager', 'admin']),
+  withLogging('Documents', 'getDocumentFile', getDocumentFile)
 );
 
 export default router;
