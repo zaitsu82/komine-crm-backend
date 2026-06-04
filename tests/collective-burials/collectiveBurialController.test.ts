@@ -21,6 +21,7 @@ const mockPrisma: any = {
     findFirst: jest.fn(),
     count: jest.fn(),
   },
+  $queryRaw: jest.fn(),
 };
 
 jest.mock('../../src/db/prisma', () => ({
@@ -36,6 +37,7 @@ jest.mock('@prisma/client', () => ({
 import {
   getCollectiveBurialList,
   getCollectiveBurialById,
+  getStatsByYear,
 } from '../../src/collective-burials/collectiveBurialController';
 
 describe('collectiveBurialController — 契約者名フォールバック (issue #50)', () => {
@@ -184,6 +186,117 @@ describe('collectiveBurialController — 契約者名フォールバック (issu
 
       const payload = responseJson.mock.calls[0][0];
       expect(payload.data.applicant.name).toBe('申込太郎');
+    });
+  });
+
+  describe('getStatsByYear — 金額集計 (frontend #226)', () => {
+    it('金額（totalAmount/paidAmount）をサーバ集計の値として返す', async () => {
+      // $queryRaw はサーバ側で集計済みの bigint を返す
+      mockPrisma.$queryRaw.mockResolvedValue([
+        {
+          year: 2027,
+          count: 100n,
+          pending_count: 60n,
+          billed_count: 25n,
+          paid_count: 15n,
+          total_amount: 5000000n,
+          paid_amount: 1200000n,
+        },
+      ]);
+
+      await getStatsByYear(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockNext as NextFunction
+      );
+
+      const payload = responseJson.mock.calls[0][0];
+      expect(payload.success).toBe(true);
+      const row = payload.data[0];
+      // 件数は既存どおり
+      expect(row.year).toBe(2027);
+      expect(row.count).toBe(100);
+      expect(row.pendingCount).toBe(60);
+      expect(row.billedCount).toBe(25);
+      expect(row.paidCount).toBe(15);
+      // 金額は bigint → number に変換して返す
+      expect(row.totalAmount).toBe(5000000);
+      expect(row.paidAmount).toBe(1200000);
+      expect(typeof row.totalAmount).toBe('number');
+      expect(typeof row.paidAmount).toBe('number');
+    });
+
+    it('集計が0件（金額がCOALESCEで0）の場合も number 0 を返す', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([
+        {
+          year: 2028,
+          count: 3n,
+          pending_count: 3n,
+          billed_count: 0n,
+          paid_count: 0n,
+          total_amount: 0n,
+          paid_amount: 0n,
+        },
+      ]);
+
+      await getStatsByYear(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockNext as NextFunction
+      );
+
+      const row = responseJson.mock.calls[0][0].data[0];
+      expect(row.totalAmount).toBe(0);
+      expect(row.paidAmount).toBe(0);
+    });
+
+    it('複数年でもそれぞれ金額を集計して返す', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([
+        {
+          year: 2027,
+          count: 2n,
+          pending_count: 2n,
+          billed_count: 0n,
+          paid_count: 0n,
+          total_amount: 200000n,
+          paid_amount: 0n,
+        },
+        {
+          year: 2028,
+          count: 1n,
+          pending_count: 0n,
+          billed_count: 0n,
+          paid_count: 1n,
+          total_amount: 300000n,
+          paid_amount: 300000n,
+        },
+      ]);
+
+      await getStatsByYear(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockNext as NextFunction
+      );
+
+      const data = responseJson.mock.calls[0][0].data;
+      expect(data).toHaveLength(2);
+      expect(data[0].totalAmount).toBe(200000);
+      expect(data[0].paidAmount).toBe(0);
+      expect(data[1].totalAmount).toBe(300000);
+      expect(data[1].paidAmount).toBe(300000);
+    });
+
+    it('クエリエラー時は next に渡す', async () => {
+      const error = new Error('db error');
+      mockPrisma.$queryRaw.mockRejectedValue(error);
+
+      await getStatsByYear(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockNext as NextFunction
+      );
+
+      expect(mockNext).toHaveBeenCalledWith(error);
     });
   });
 });
