@@ -33,6 +33,28 @@ interface StaffDetail extends StaffListItem {
 }
 
 /**
+ * 最後の有効な admin を失う操作（降格・無効化・削除）を防ぐ（#208）。
+ * admin が0人になると staff 管理・マスタ更新等の admin 専用操作が全て不能になり、
+ * 復旧に bootstrap script の実行が必要になるため、対象スタッフを除いて
+ * is_active な admin が存在しない場合は操作を拒否する。
+ */
+const assertNotLastActiveAdmin = async (staffId: number, operationLabel: string): Promise<void> => {
+  const otherActiveAdmins = await prisma.staff.count({
+    where: {
+      role: 'admin',
+      is_active: true,
+      deleted_at: null,
+      id: { not: staffId },
+    },
+  });
+  if (otherActiveAdmins === 0) {
+    throw new ValidationError(
+      `最後の有効な管理者のため${operationLabel}できません。先に別のスタッフへ管理者権限を付与してください`
+    );
+  }
+};
+
+/**
  * スタッフ一覧取得
  * GET /staff
  */
@@ -172,14 +194,21 @@ export const createStaff = async (
     const normalizedEmail = email.trim().toLowerCase();
 
     // メールアドレスの重複チェック
+    // Staff.email は deleted_at を含まない DB レベルの @unique 制約のため、
+    // 論理削除済みスタッフのメールでも create が P2002 になる（#204）。
+    // 削除済みヒットは P2002 に当たる前に専用メッセージで弾く。
     const existingStaff = await prisma.staff.findFirst({
       where: {
         email: normalizedEmail,
-        deleted_at: null,
       },
     });
 
     if (existingStaff) {
+      if (existingStaff.deleted_at) {
+        throw new ConflictError(
+          'このメールアドレスは過去に削除されたスタッフで使用されています。別のメールアドレスを使用してください'
+        );
+      }
       throw new ConflictError('このメールアドレスは既に使用されています');
     }
 
@@ -381,17 +410,29 @@ export const updateStaff = async (
     };
     const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
 
+    // 最後の有効な admin の降格・無効化を防ぐ（#208）
+    const demoting = role !== undefined && ['viewer', 'operator', 'manager'].includes(role);
+    const deactivating = isActive === false;
+    if (existingStaff.role === 'admin' && existingStaff.is_active && (demoting || deactivating)) {
+      await assertNotLastActiveAdmin(staffId, demoting ? '権限を変更' : '無効化');
+    }
+
     // メールアドレスの重複チェック
     if (normalizedEmail && normalizedEmail !== existingStaff.email) {
       const emailExists = await prisma.staff.findFirst({
         where: {
           email: normalizedEmail,
           id: { not: staffId },
-          deleted_at: null,
         },
       });
 
       if (emailExists) {
+        // 論理削除済みでも email @unique（deleted_at 非考慮）に当たるため弾く（#204 と同根）
+        if (emailExists.deleted_at) {
+          throw new ConflictError(
+            'このメールアドレスは過去に削除されたスタッフで使用されています。別のメールアドレスを使用してください'
+          );
+        }
         throw new ConflictError('このメールアドレスは既に使用されています');
       }
 
@@ -491,6 +532,12 @@ export const deleteStaff = async (
       throw new ValidationError('自分自身を削除することはできません');
     }
 
+    // 最後の有効な admin の削除を防ぐ（#208）
+    // Supabase アカウント削除より前に判定する（認証アカウントだけ消える事故を防ぐ）
+    if (existingStaff.role === 'admin' && existingStaff.is_active) {
+      await assertNotLastActiveAdmin(staffId, '削除');
+    }
+
     let supabaseDeleted = false;
 
     // Supabaseユーザーの削除（pending_で始まる仮UIDは除外）
@@ -561,6 +608,11 @@ export const toggleStaffActive = async (
     // 自分自身を無効化しようとしていないかチェック
     if (req.user && req.user.id === staffId && existingStaff.is_active) {
       throw new ValidationError('自分自身を無効化することはできません');
+    }
+
+    // 最後の有効な admin の無効化を防ぐ（#208）
+    if (existingStaff.role === 'admin' && existingStaff.is_active) {
+      await assertNotLastActiveAdmin(staffId, '無効化');
     }
 
     // 有効/無効を切り替え
