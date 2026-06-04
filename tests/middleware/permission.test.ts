@@ -3,6 +3,7 @@ import {
   ROLES,
   requirePermission,
   checkApiPermission,
+  resolveApiPermission,
   hasPermission,
   checkResourceAction,
   API_PERMISSIONS,
@@ -427,6 +428,107 @@ describe('Permission Middleware', () => {
       middleware(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledTimes(1);
+    });
+
+    describe('サブルーター相対パスのフルパス化 (#207)', () => {
+      const buildUser = (role: string) => ({
+        id: 1,
+        email: `${role}@example.com`,
+        name: 'Test User',
+        role,
+        is_active: true,
+        supabase_uid: 'test-uid',
+      });
+
+      it('viewer が GET /api/v1/masters/all（route.path=/all）にアクセスできること', () => {
+        mockRequest.user = buildUser('viewer');
+        mockRequest.method = 'GET';
+        mockRequest.baseUrl = '/api/v1/masters';
+        mockRequest.route = { path: '/all' };
+        const middleware = checkApiPermission();
+
+        middleware(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalledTimes(1);
+        expect(mockResponse.status).not.toHaveBeenCalled();
+      });
+
+      it('viewer が GET /api/v1/masters/cemetery-type にアクセスできること', () => {
+        mockRequest.user = buildUser('viewer');
+        mockRequest.method = 'GET';
+        mockRequest.baseUrl = '/api/v1/masters';
+        mockRequest.route = { path: '/cemetery-type' };
+        const middleware = checkApiPermission();
+
+        middleware(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalledTimes(1);
+        expect(mockResponse.status).not.toHaveBeenCalled();
+      });
+
+      it('viewer の POST /api/v1/masters/:masterType は 403 になること', () => {
+        mockRequest.user = buildUser('viewer');
+        mockRequest.method = 'POST';
+        mockRequest.baseUrl = '/api/v1/masters';
+        mockRequest.route = { path: '/:masterType' };
+        const middleware = checkApiPermission();
+
+        middleware(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).not.toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(403);
+      });
+
+      it('admin の DELETE /api/v1/masters/:masterType/:id は許可されること', () => {
+        mockRequest.user = buildUser('admin');
+        mockRequest.method = 'DELETE';
+        mockRequest.baseUrl = '/api/v1/masters';
+        mockRequest.route = { path: '/:masterType/:id' };
+        const middleware = checkApiPermission();
+
+        middleware(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalledTimes(1);
+      });
+
+      it('manager の PUT /api/v1/masters/:masterType/:id は 403 になること', () => {
+        mockRequest.user = buildUser('manager');
+        mockRequest.method = 'PUT';
+        mockRequest.baseUrl = '/api/v1/masters';
+        mockRequest.route = { path: '/:masterType/:id' };
+        const middleware = checkApiPermission();
+
+        middleware(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).not.toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(403);
+      });
+    });
+
+    describe('resolveApiPermission (#207)', () => {
+      it('完全一致キーを最優先で返すこと', () => {
+        expect(resolveApiPermission('GET /auth/me')).toEqual([
+          'viewer',
+          'operator',
+          'manager',
+          'admin',
+        ]);
+      });
+
+      it('ワイルドカードキーに前方一致でマッチすること', () => {
+        expect(resolveApiPermission('GET /masters/all')).toEqual([
+          'viewer',
+          'operator',
+          'manager',
+          'admin',
+        ]);
+        expect(resolveApiPermission('POST /masters/cemetery-type')).toEqual(['admin']);
+        expect(resolveApiPermission('DELETE /masters/section-name/1')).toEqual(['admin']);
+      });
+
+      it('未定義のパスは undefined を返すこと（デフォルトadmin分岐用）', () => {
+        expect(resolveApiPermission('GET /unknown-resource')).toBeUndefined();
+      });
     });
 
     it('should handle gravestone management endpoints', () => {
