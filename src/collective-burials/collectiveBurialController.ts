@@ -608,6 +608,8 @@ export const getStatsByYear = async (
 ): Promise<void> => {
   try {
     // 請求予定年ごとの集計
+    // 金額（total_amount / paid_amount）もサーバ側で集計し、
+    // ページ制限された items の reduce による過少表示を防ぐ（frontend #226）。
     const stats = await prisma.$queryRaw<
       Array<{
         year: number;
@@ -615,6 +617,8 @@ export const getStatsByYear = async (
         pending_count: bigint;
         billed_count: bigint;
         paid_count: bigint;
+        total_amount: bigint;
+        paid_amount: bigint;
       }>
     >`
       SELECT
@@ -622,7 +626,9 @@ export const getStatsByYear = async (
         COUNT(*)::bigint as count,
         COUNT(CASE WHEN billing_status = 'pending' THEN 1 END)::bigint as pending_count,
         COUNT(CASE WHEN billing_status = 'billed' THEN 1 END)::bigint as billed_count,
-        COUNT(CASE WHEN billing_status = 'paid' THEN 1 END)::bigint as paid_count
+        COUNT(CASE WHEN billing_status = 'paid' THEN 1 END)::bigint as paid_count,
+        COALESCE(SUM(billing_amount), 0)::bigint as total_amount,
+        COALESCE(SUM(CASE WHEN billing_status = 'paid' THEN billing_amount END), 0)::bigint as paid_amount
       FROM collective_burials
       WHERE deleted_at IS NULL
         AND billing_scheduled_date IS NOT NULL
@@ -638,6 +644,8 @@ export const getStatsByYear = async (
         pendingCount: Number(s.pending_count),
         billedCount: Number(s.billed_count),
         paidCount: Number(s.paid_count),
+        totalAmount: Number(s.total_amount),
+        paidAmount: Number(s.paid_amount),
       })),
     });
   } catch (error) {
