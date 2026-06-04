@@ -191,6 +191,41 @@ describe('inventoryService', () => {
       expect(result.remainingCount).toBe(0);
       expect(result.usageRate).toBe(0);
     });
+
+    it('在庫集計クエリが active 契約のみを対象にすること (#209)', async () => {
+      mockPrisma.physicalPlot.findMany.mockResolvedValue([]);
+
+      await getOverallSummary(mockPrisma);
+
+      expect(mockPrisma.physicalPlot.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: {
+            contractPlots: expect.objectContaining({
+              where: { deleted_at: null, contract_status: 'active' },
+            }),
+          },
+        })
+      );
+    });
+
+    it('契約面積が物理面積を超えても残数・残面積が負にならないこと (#205)', async () => {
+      mockPrisma.physicalPlot.findMany.mockResolvedValue([
+        {
+          id: 'plot-1',
+          plot_number: 'A-1',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'partially_sold',
+          // 移行データ等の異常: 契約面積合計が物理面積の2倍
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 7.2 } }],
+        },
+      ]);
+
+      const result = await getOverallSummary(mockPrisma);
+
+      expect(result.usedCount).toBe(1); // 2 にならずクランプ
+      expect(result.remainingCount).toBe(0); // 負値にならない
+      expect(result.remainingAreaSqm).toBe(0); // 使用面積も物理面積でクランプ
+    });
   });
 
   describe('getPeriodSummaries', () => {
@@ -297,6 +332,23 @@ describe('inventoryService', () => {
       expect(result[0].usedCount).toBe(51);
       expect(result[0].remainingCount).toBe(49);
       expect(result[0].usedCount + result[0].remainingCount).toBe(result[0].totalCount);
+    });
+
+    it('契約面積が物理面積を超えても残数が負にならないこと (#205)', async () => {
+      mockPrisma.physicalPlot.findMany.mockResolvedValue([
+        {
+          id: 'plot-1',
+          area_name: '第1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'partially_sold',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 7.2 } }],
+        },
+      ]);
+
+      const result = await getPeriodSummaries(mockPrisma, '第1期');
+
+      expect(result[0].usedCount).toBe(1);
+      expect(result[0].remainingCount).toBe(0);
     });
   });
 
@@ -502,6 +554,25 @@ describe('inventoryService', () => {
       expect(sectionA!.remainingCount).toBe(49);
       expect(sectionA!.usedCount + sectionA!.remainingCount).toBe(sectionA!.totalCount);
     });
+
+    it('契約面積が物理面積を超えても残数が負にならないこと (#205)', async () => {
+      mockPrisma.physicalPlot.findMany.mockResolvedValue([
+        {
+          id: 'plot-1',
+          plot_number: 'A-1',
+          area_name: '第1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'partially_sold',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 7.2 } }],
+        },
+      ]);
+
+      const result = await getSectionInventory(mockPrisma);
+      const sectionA = result.items.find((i) => i.section === 'A');
+
+      expect(sectionA!.usedCount).toBe(1);
+      expect(sectionA!.remainingCount).toBe(0);
+    });
   });
 
   describe('getAreaInventory', () => {
@@ -660,6 +731,26 @@ describe('inventoryService', () => {
       expect(item!.usedCount).toBe(51);
       expect(item!.remainingCount).toBe(49);
       expect(item!.usedCount + item!.remainingCount).toBe(item!.totalCount);
+    });
+
+    it('契約面積が物理面積を超えても残数・残面積が負にならないこと (#205)', async () => {
+      mockPrisma.physicalPlot.findMany.mockResolvedValue([
+        {
+          id: 'plot-1',
+          plot_number: 'A-1',
+          area_name: '第1期',
+          area_sqm: { toNumber: () => 3.6 },
+          status: 'partially_sold',
+          contractPlots: [{ contract_area_sqm: { toNumber: () => 7.2 } }],
+        },
+      ]);
+
+      const result = await getAreaInventory(mockPrisma);
+      const item = result.items.find((i) => i.areaSqm === 3.6);
+
+      expect(item!.usedCount).toBe(1);
+      expect(item!.remainingCount).toBe(0);
+      expect(item!.remainingAreaSqm).toBe(0);
     });
   });
 });
