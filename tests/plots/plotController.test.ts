@@ -72,6 +72,16 @@ const mockPrisma: any = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  familyContact: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn(),
+  },
+  history: {
+    create: jest.fn(),
+    createMany: jest.fn(),
+  },
   $transaction: jest.fn((callback: any) => Promise.resolve(callback(mockPrisma))),
 };
 
@@ -121,6 +131,7 @@ jest.mock('../../src/plots/services/historyService', () => ({
   recordEntityCreated: jest.fn(),
   recordEntityUpdated: jest.fn(),
   recordEntityDeleted: jest.fn(),
+  recordHistoryBatch: jest.fn(),
 }));
 
 import {
@@ -1414,6 +1425,244 @@ describe('Plot Controller (ContractPlot Model)', () => {
           data: expect.objectContaining({ contract_plot_id: 'cp1', gravestone_base: '石基A' }),
         })
       );
+    });
+  });
+
+  describe('FamilyContact persistence (issue #219)', () => {
+    const familyContactInput = {
+      emergencyContactFlag: true,
+      name: '山田花子',
+      nameKana: 'ヤマダハナコ',
+      relationship: '配偶者',
+      postalCode: '150-0001',
+      address: '東京都渋谷区1-1-1',
+      phoneNumber: '0312345678',
+      email: 'hanako@example.com',
+      contactMethod: 'phone',
+      notes: '日中連絡可',
+    };
+
+    const buildExistingPlotForFc = () => ({
+      id: 'cp1',
+      physical_plot_id: 'pp1',
+      contract_area_sqm: new Prisma.Decimal(3.6),
+      physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+      saleContractRoles: [
+        {
+          id: 'scr1',
+          role: 'contractor',
+          customer: { id: 'c1', workInfo: null },
+          deleted_at: null,
+        },
+      ],
+      usageFee: null,
+      managementFee: null,
+      collectiveBurial: null,
+      gravestoneInfo: null,
+    });
+
+    it('createPlot は familyContacts を snake_case で永続化する', async () => {
+      mockPrisma.physicalPlot.create.mockResolvedValue({
+        id: 'pp1',
+        plot_number: 'A-01',
+        area_name: '一般墓地A',
+        area_sqm: new Prisma.Decimal(3.6),
+        status: 'sold_out',
+      });
+      mockPrisma.customer.create.mockResolvedValue({ id: 'c1', name: '山田太郎' });
+      mockPrisma.contractPlot.create.mockResolvedValue({ id: 'cp1', physical_plot_id: 'pp1' });
+      mockPrisma.saleContractRole.create.mockResolvedValue({ id: 'scr1', customer: { id: 'c1' } });
+      mockPrisma.familyContact.create.mockResolvedValue({ id: 'fc1' });
+      mockPrisma.contractPlot.findUnique.mockResolvedValue({
+        id: 'cp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: {
+          id: 'pp1',
+          plot_number: 'A-01',
+          area_name: '一般墓地A',
+          area_sqm: new Prisma.Decimal(3.6),
+        },
+        saleContractRoles: [],
+        usageFee: null,
+        managementFee: null,
+        collectiveBurial: null,
+      });
+
+      mockRequest.body = {
+        physicalPlot: { plotNumber: 'A-01', areaName: '一般墓地A', areaSqm: 3.6 },
+        contractPlot: { contractAreaSqm: 3.6 },
+        saleContract: { contractDate: '2024-01-01' },
+        customer: {
+          name: '山田太郎',
+          nameKana: 'ヤマダタロウ',
+          postalCode: '150-0001',
+          address: '東京都渋谷区',
+          phoneNumber: '0312345678',
+        },
+        familyContacts: [familyContactInput],
+      };
+
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.familyContact.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            contract_plot_id: 'cp1',
+            emergency_contact_flag: true,
+            name: '山田花子',
+            name_kana: 'ヤマダハナコ',
+            relationship: '配偶者',
+            postal_code: '150-0001',
+            address: '東京都渋谷区1-1-1',
+            phone_number: '0312345678',
+            email: 'hanako@example.com',
+            contact_method: 'phone',
+            notes: '日中連絡可',
+          }),
+        })
+      );
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('createPlot は氏名・続柄が空の familyContact をスキップする', async () => {
+      mockPrisma.physicalPlot.create.mockResolvedValue({
+        id: 'pp1',
+        area_sqm: new Prisma.Decimal(3.6),
+      });
+      mockPrisma.customer.create.mockResolvedValue({ id: 'c1' });
+      mockPrisma.contractPlot.create.mockResolvedValue({ id: 'cp1', physical_plot_id: 'pp1' });
+      mockPrisma.saleContractRole.create.mockResolvedValue({ id: 'scr1', customer: { id: 'c1' } });
+      mockPrisma.contractPlot.findUnique.mockResolvedValue({
+        id: 'cp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(3.6) },
+        saleContractRoles: [],
+      });
+
+      mockRequest.body = {
+        physicalPlot: { plotNumber: 'A-01', areaName: '一般墓地A', areaSqm: 3.6 },
+        contractPlot: { contractAreaSqm: 3.6 },
+        saleContract: {},
+        customer: { name: '山田太郎', nameKana: 'ヤマダタロウ' },
+        familyContacts: [{ name: '', relationship: '' }],
+      };
+
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.familyContact.create).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('updatePlot は新規 familyContact（id なし）を create する', async () => {
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(buildExistingPlotForFc());
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.familyContact.findMany.mockResolvedValue([]);
+      mockPrisma.familyContact.create.mockResolvedValue({ id: 'fc1' });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = { familyContacts: [familyContactInput] };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.familyContact.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            contract_plot_id: 'cp1',
+            name: '山田花子',
+            relationship: '配偶者',
+            phone_number: '0312345678',
+          }),
+        })
+      );
+      expect(mockPrisma.familyContact.update).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('updatePlot は既存 familyContact（id あり）を update する', async () => {
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(buildExistingPlotForFc());
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.familyContact.findMany.mockResolvedValue([
+        {
+          id: 'fc1',
+          name: '旧名',
+          name_kana: null,
+          birth_date: null,
+          relationship: '父',
+          phone_number: '0300000000',
+          emergency_contact_flag: false,
+          postal_code: null,
+          address: null,
+          phone_number_2: null,
+          fax_number: null,
+          email: null,
+          registered_address: null,
+          mailing_type: null,
+          work_company_name: null,
+          work_company_name_kana: null,
+          work_address: null,
+          work_phone_number: null,
+          contact_method: null,
+          notes: null,
+        },
+      ]);
+      mockPrisma.familyContact.update.mockResolvedValue({ id: 'fc1' });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = { familyContacts: [{ id: 'fc1', ...familyContactInput }] };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.familyContact.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'fc1' },
+          data: expect.objectContaining({ name: '山田花子', relationship: '配偶者' }),
+        })
+      );
+      expect(mockPrisma.familyContact.create).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('updatePlot は入力に含まれない既存 familyContact を soft-delete する', async () => {
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(buildExistingPlotForFc());
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.familyContact.findMany.mockResolvedValue([
+        {
+          id: 'fc1',
+          name: '削除対象',
+          relationship: '兄',
+          phone_number: '0311112222',
+        },
+      ]);
+      mockPrisma.familyContact.updateMany.mockResolvedValue({ count: 1 });
+
+      mockRequest.params = { id: 'cp1' };
+      // 空配列を送ると既存全件が削除対象になる
+      mockRequest.body = { familyContacts: [] };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.familyContact.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['fc1'] } },
+          data: expect.objectContaining({ deleted_at: expect.any(Date) }),
+        })
+      );
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('updatePlot は familyContacts 未指定なら既存を一切触らない', async () => {
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(buildExistingPlotForFc());
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = { contractPlot: { contractAreaSqm: 3.6 } };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.familyContact.findMany).not.toHaveBeenCalled();
+      expect(mockPrisma.familyContact.create).not.toHaveBeenCalled();
+      expect(mockPrisma.familyContact.updateMany).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
     });
   });
 

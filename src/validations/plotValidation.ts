@@ -251,6 +251,7 @@ export const createPlotSchema = z.object({
   usageFee: contractPlotUsageFeeSchema,
   managementFee: contractPlotManagementFeeSchema,
   collectiveBurial: collectiveBurialSchema,
+  familyContacts: z.array(familyContactSchema).optional(),
 });
 
 /**
@@ -266,6 +267,7 @@ export const updatePlotSchema = z.object({
   billingInfo: contractPlotBillingInfoSchema,
   usageFee: contractPlotUsageFeeSchema,
   managementFee: contractPlotManagementFeeSchema,
+  familyContacts: z.array(familyContactSchema).optional(),
   buriedPersons: z.array(buriedPersonSchema).optional(),
   constructionInfos: z.array(constructionInfoUpdateSchema).optional(),
   collectiveBurial: collectiveBurialSchema,
