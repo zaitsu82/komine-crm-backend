@@ -3,8 +3,16 @@
  *
  * regeneratePdf で DB から復元した template_data を、テンプレ種別ごとの
  * Zod スキーマでパースする。正常系と不正系（ZodError スロー）を検証する。
+ *
+ * generatePdfRequestSchema（POST /documents/generate-pdf の入口検証）も
+ * ここで検証する。discriminated union から envelope-letter/envelope-base が
+ * 欠落していた回帰を防ぐ（types#32）。
  */
-import { parseTemplateData } from '../../src/validations/documentValidation';
+import {
+  parseTemplateData,
+  generatePdfRequestSchema,
+} from '../../src/validations/documentValidation';
+import { DOCUMENT_TEMPLATE_TYPES } from '@komine/types';
 
 const validPostcard = {
   recipientName: '受取 太郎',
@@ -77,5 +85,47 @@ describe('parseTemplateData', () => {
       const r = parseTemplateData('payment-guide', { orgName: '小嶺霊園' });
       expect(r).toMatchObject({ orgName: '小嶺霊園' });
     });
+  });
+});
+
+describe('generatePdfRequestSchema（generate-pdf 入口検証）', () => {
+  // テンプレートタイプごとの最小有効 templateData
+  const MINIMAL_TEMPLATE_DATA: Record<string, unknown> = {
+    invoice: { customerName: '山田太郎' },
+    postcard: {
+      recipientName: '受取 太郎',
+      recipientAddress: '福岡県北九州市1-2-3',
+      recipientPostalCode: '8000000',
+      senderName: '小嶺霊園',
+      senderAddress: '福岡県北九州市4-5-6',
+      senderPostalCode: '8001111',
+      message: 'お知らせ',
+      date: '2026-06-05',
+    },
+    permit: {},
+    'envelope-letter': { recipientName: '受取 太郎' },
+    'envelope-base': { recipientName: '受取 太郎' },
+    'payment-guide': {},
+  };
+
+  // envelope-letter/envelope-base が union から欠落していると
+  // 'No matching discriminator' で封筒PDFが常時400になる（types#32 の回帰防止）
+  it.each(DOCUMENT_TEMPLATE_TYPES.map((t) => [t]))(
+    '全テンプレートタイプを受理する: %s',
+    (templateType) => {
+      const result = generatePdfRequestSchema.safeParse({
+        templateType,
+        templateData: MINIMAL_TEMPLATE_DATA[templateType],
+      });
+      expect(result.success).toBe(true);
+    }
+  );
+
+  it('未知の templateType は拒否する', () => {
+    const result = generatePdfRequestSchema.safeParse({
+      templateType: 'unknown',
+      templateData: {},
+    });
+    expect(result.success).toBe(false);
   });
 });
