@@ -253,6 +253,20 @@ describe('Master Controller', () => {
       });
     });
 
+    it('include_inactive=true で無効マスタも取得対象になること (#238)', async () => {
+      mockPrisma.cemeteryTypeMaster.findMany.mockResolvedValue([]);
+      mockRequest.query = { include_inactive: 'true' };
+
+      await getCemeteryTypeMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.cemeteryTypeMaster.findMany).toHaveBeenCalledWith({
+        where: {},
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      });
+
+      mockRequest.query = {};
+    });
+
     it('エラーが発生した場合、500エラーを返すこと', async () => {
       mockPrisma.cemeteryTypeMaster.findMany.mockRejectedValue(new Error('Database error'));
 
