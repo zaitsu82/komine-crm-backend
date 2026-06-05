@@ -10,6 +10,7 @@ export { createPlot } from './createPlot';
 export { updatePlot } from './updatePlot';
 export { deletePlot } from './deletePlot';
 export { restoreContract } from './restoreContract';
+export { terminateContract } from './terminateContract';
 export { getPlotContracts } from './getPlotContracts';
 export { createPlotContract } from './createPlotContract';
 export { getPlotInventory } from './getPlotInventory';
