@@ -314,6 +314,23 @@ export const updateBilling = async (
     const existing = await prisma.billing.findFirst({ where: { id, deleted_at: null } });
     if (!existing) throw new NotFoundError('請求が見つかりません');
 
+    // status の手動変更は written_off / overdue（とその解除）に限定する（#271）。
+    // それ以外の値は更新直後に入金実績からの自動算出（computeBillingStatus）で
+    // 上書きされ「UIで選べるのに保存されない」無言破棄になっていたため、
+    // 受理できない変更は明示的に 400 で返す。
+    // ※同値送信（フォーム全体送信で現在値をそのまま送るケース）は変更なしとして許容。
+    const MANUAL_STATUSES: string[] = ['written_off', 'overdue'];
+    if (input.status !== undefined && input.status !== existing.status) {
+      const manualTarget = MANUAL_STATUSES.includes(input.status);
+      const manualRelease = MANUAL_STATUSES.includes(existing.status);
+      if (!manualTarget && !manualRelease) {
+        throw new ValidationError(
+          'ステータスは入金実績から自動算出されるため手動変更できません。' +
+            '手動で設定できるのは「貸倒（written_off）」「延滞（overdue）」とその解除のみです'
+        );
+      }
+    }
+
     const data: Prisma.BillingUpdateInput = {};
     if (input.category !== undefined) data.category = input.category;
     if (input.amount !== undefined) data.amount = input.amount;
