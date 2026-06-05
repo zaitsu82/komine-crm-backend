@@ -236,6 +236,29 @@ describe('Staff Controller', () => {
         expect(error.message).toBe('このメールアドレスは既に使用されています');
       });
 
+      it('論理削除済みスタッフのメールの場合、P2002前に専用メッセージで弾く (#204)', async () => {
+        mockRequest.body = {
+          name: 'Test Staff',
+          email: 'deleted@example.com',
+          role: 'viewer',
+        };
+
+        mockPrisma.staff.findFirst.mockResolvedValue({
+          id: 9,
+          email: 'deleted@example.com',
+          deleted_at: new Date('2026-01-01'),
+        });
+
+        await createStaff(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalled();
+        const error = (mockNext as jest.Mock).mock.calls[0][0];
+        expect(error.message).toContain('過去に削除されたスタッフ');
+        // Supabase 招待や create（P2002の発生源）まで到達しないこと
+        expect(mockSupabaseAdminAuth.inviteUserByEmail).not.toHaveBeenCalled();
+        expect(mockPrisma.staff.create).not.toHaveBeenCalled();
+      });
+
       it('Supabaseアカウント作成に失敗した場合、エラーを返す', async () => {
         mockRequest.body = {
           name: 'Test Staff',
@@ -382,6 +405,30 @@ describe('Staff Controller', () => {
         );
       });
 
+      it('最後の有効なadminの削除はValidationErrorになる (#208)', async () => {
+        mockRequest.params = { id: '2' };
+        mockRequest.query = {};
+
+        mockPrisma.staff.findFirst.mockResolvedValue({
+          id: 2,
+          name: 'Last Admin',
+          email: 'lastadmin@example.com',
+          role: 'admin',
+          is_active: true,
+          supabase_uid: 'last-admin-uid',
+        });
+        mockPrisma.staff.count.mockResolvedValue(0); // 他に有効なadminなし
+
+        await deleteStaff(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalled();
+        const error = (mockNext as jest.Mock).mock.calls[0][0];
+        expect(error.message).toContain('最後の有効な管理者');
+        // Supabase アカウント削除・論理削除まで到達しないこと
+        expect(mockSupabaseAdminAuth.deleteUser).not.toHaveBeenCalled();
+        expect(mockPrisma.staff.update).not.toHaveBeenCalled();
+      });
+
       it('deleteSupabaseAccount=falseの場合、Supabaseユーザーを削除しない', async () => {
         mockRequest.params = { id: '2' };
         mockRequest.query = { deleteSupabaseAccount: 'false' };
@@ -509,6 +556,87 @@ describe('Staff Controller', () => {
             success: true,
           })
         );
+      });
+
+      it('最後の有効なadminの降格はValidationErrorになる (#208)', async () => {
+        mockRequest.params = { id: '1' };
+        mockRequest.body = { role: 'viewer' };
+
+        mockPrisma.staff.findFirst.mockResolvedValue({
+          id: 1,
+          name: 'Admin',
+          email: 'admin@example.com',
+          role: 'admin',
+          is_active: true,
+          supabase_uid: 'admin-uid',
+        });
+        mockPrisma.staff.count.mockResolvedValue(0); // 他に有効なadminなし
+
+        await updateStaff(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockPrisma.staff.count).toHaveBeenCalledWith({
+          where: {
+            role: 'admin',
+            is_active: true,
+            deleted_at: null,
+            id: { not: 1 },
+          },
+        });
+        expect(mockNext).toHaveBeenCalled();
+        const error = (mockNext as jest.Mock).mock.calls[0][0];
+        expect(error.message).toContain('最後の有効な管理者');
+        expect(mockPrisma.staff.update).not.toHaveBeenCalled();
+      });
+
+      it('最後の有効なadminの無効化(isActive=false)はValidationErrorになる (#208)', async () => {
+        mockRequest.params = { id: '1' };
+        mockRequest.body = { isActive: false };
+
+        mockPrisma.staff.findFirst.mockResolvedValue({
+          id: 1,
+          name: 'Admin',
+          email: 'admin@example.com',
+          role: 'admin',
+          is_active: true,
+          supabase_uid: 'admin-uid',
+        });
+        mockPrisma.staff.count.mockResolvedValue(0);
+
+        await updateStaff(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalled();
+        const error = (mockNext as jest.Mock).mock.calls[0][0];
+        expect(error.message).toContain('最後の有効な管理者');
+        expect(mockPrisma.staff.update).not.toHaveBeenCalled();
+      });
+
+      it('他に有効なadminがいればadminの降格は成功する (#208)', async () => {
+        mockRequest.params = { id: '1' };
+        mockRequest.body = { role: 'viewer' };
+
+        const mockExistingStaff = {
+          id: 1,
+          name: 'Admin',
+          email: 'admin@example.com',
+          role: 'admin',
+          is_active: true,
+          supabase_uid: 'admin-uid',
+          last_login_at: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+        mockPrisma.staff.findFirst.mockResolvedValue(mockExistingStaff);
+        mockPrisma.staff.count.mockResolvedValue(1); // 他に有効なadminあり
+        mockPrisma.staff.update.mockResolvedValue({ ...mockExistingStaff, role: 'viewer' });
+
+        await updateStaff(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockPrisma.staff.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ role: 'viewer' }),
+          })
+        );
+        expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       });
     });
 
@@ -871,6 +999,50 @@ describe('Staff Controller', () => {
           data: expect.objectContaining({
             isActive: false,
           }),
+        })
+      );
+    });
+
+    it('最後の有効なadminの無効化はValidationErrorになる (#208)', async () => {
+      mockRequest.params = { id: '2' };
+
+      mockPrisma.staff.findFirst.mockResolvedValue({
+        id: 2,
+        name: 'Last Admin',
+        email: 'lastadmin@example.com',
+        role: 'admin',
+        is_active: true,
+      });
+      mockPrisma.staff.count.mockResolvedValue(0); // 他に有効なadminなし
+
+      await toggleStaffActive(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalled();
+      const error = (mockNext as jest.Mock).mock.calls[0][0];
+      expect(error.message).toContain('最後の有効な管理者');
+      expect(mockPrisma.staff.update).not.toHaveBeenCalled();
+    });
+
+    it('無効化済みadminの有効化は最後の1人でも成功する (#208)', async () => {
+      mockRequest.params = { id: '2' };
+
+      const mockExistingStaff = {
+        id: 2,
+        name: 'Inactive Admin',
+        email: 'inactiveadmin@example.com',
+        role: 'admin',
+        is_active: false, // 有効化方向
+      };
+      mockPrisma.staff.findFirst.mockResolvedValue(mockExistingStaff);
+      mockPrisma.staff.update.mockResolvedValue({ ...mockExistingStaff, is_active: true });
+
+      await toggleStaffActive(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.staff.count).not.toHaveBeenCalled();
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({ isActive: true }),
         })
       );
     });
