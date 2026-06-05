@@ -226,11 +226,6 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
       case 'plotNumber':
         orderByCondition = { physicalPlot: { plot_number: sortOrder } };
         break;
-      case 'customerName':
-        // 主契約者名でのソートはリレーション経由のため直接は困難
-        // created_atでフォールバック（取得後にアプリ側でソート）
-        orderByCondition = { created_at: sortOrder };
-        break;
       case 'contractDate':
         orderByCondition = { contract_date: sortOrder };
         break;
@@ -247,58 +242,112 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
         orderByCondition = { created_at: 'desc' };
     }
 
-    // 総件数とデータを並列で取得
-    const [total, contractPlots] = await Promise.all([
-      prisma.contractPlot.count({ where: whereCondition }),
-      prisma.contractPlot.findMany({
-        where: whereCondition,
-        skip,
-        take,
+    // 一覧表示用の include（通常ソート・契約者名ソート共通）
+    const listInclude = {
+      physicalPlot: {
+        select: {
+          plot_number: true,
+          area_name: true,
+          area_sqm: true,
+          status: true,
+        },
+      },
+      saleContractRoles: {
+        where: { deleted_at: null },
         include: {
-          physicalPlot: {
+          customer: {
             select: {
-              plot_number: true,
-              area_name: true,
-              area_sqm: true,
-              status: true,
-            },
-          },
-          saleContractRoles: {
-            where: { deleted_at: null },
-            include: {
-              customer: {
-                select: {
-                  id: true,
-                  name: true,
-                  name_kana: true,
-                  phone_number: true,
-                  address: true,
-                  notes: true,
-                },
-              },
-            },
-          },
-          buriedPersons: {
-            where: { deleted_at: null },
-            select: {
+              id: true,
               name: true,
               name_kana: true,
-            },
-          },
-          managementFee: true,
-          // B10: 年度別請求 status サマリ用。管理料 Billing のみ集計対象
-          billings: {
-            where: { category: 'management_fee', deleted_at: null },
-            select: {
-              use_start_year: true,
-              use_end_year: true,
-              status: true,
+              phone_number: true,
+              address: true,
+              notes: true,
             },
           },
         },
-        orderBy: orderByCondition,
-      }),
-    ]);
+      },
+      buriedPersons: {
+        where: { deleted_at: null },
+        select: {
+          name: true,
+          name_kana: true,
+        },
+      },
+      managementFee: true,
+      // B10: 年度別請求 status サマリ用。管理料 Billing のみ集計対象
+      billings: {
+        where: { category: 'management_fee', deleted_at: null },
+        select: {
+          use_start_year: true,
+          use_end_year: true,
+          status: true,
+        },
+      },
+    } satisfies Prisma.ContractPlotInclude;
+
+    let total: number;
+    let contractPlots: Prisma.ContractPlotGetPayload<{ include: typeof listInclude }>[];
+
+    if (sortBy === 'customerName') {
+      // 契約者名ソート（#216）
+      // 主契約者(role=contractor)は to-many リレーションのため Prisma の orderBy では
+      // 直接ソートできない。該当全件の id + 契約者カナのみ取得してアプリ側で
+      // 五十音ソート → ページ分の id だけ詳細取得する2段階方式で、
+      // ページ跨ぎでも正しい氏名順を実現する。
+      const sortRows = await prisma.contractPlot.findMany({
+        where: whereCondition,
+        select: {
+          id: true,
+          saleContractRoles: {
+            where: { deleted_at: null, role: 'contractor' },
+            select: {
+              customer: { select: { name_kana: true, name: true } },
+            },
+            take: 1,
+          },
+        },
+      });
+
+      const collator = new Intl.Collator('ja');
+      const keyed = sortRows.map((row) => {
+        const customer = row.saleContractRoles[0]?.customer;
+        return { id: row.id, key: customer?.name_kana || customer?.name || null };
+      });
+      keyed.sort((a, b) => {
+        // 契約者なし（空き区画等）は昇順・降順問わず末尾固定
+        if (a.key === null && b.key === null) return 0;
+        if (a.key === null) return 1;
+        if (b.key === null) return -1;
+        const cmp = collator.compare(a.key, b.key);
+        return sortOrder === 'desc' ? -cmp : cmp;
+      });
+
+      total = keyed.length;
+      const pageIds = keyed.slice(skip, skip + take).map((k) => k.id);
+
+      const rows = await prisma.contractPlot.findMany({
+        where: { id: { in: pageIds } },
+        include: listInclude,
+      });
+      // findMany は順序を保証しないため、ソート済み id 順に並べ直す
+      const rowMap = new Map(rows.map((row) => [row.id, row]));
+      contractPlots = pageIds
+        .map((plotId) => rowMap.get(plotId))
+        .filter((row): row is NonNullable<typeof row> => row !== undefined);
+    } else {
+      // 総件数とデータを並列で取得
+      [total, contractPlots] = await Promise.all([
+        prisma.contractPlot.count({ where: whereCondition }),
+        prisma.contractPlot.findMany({
+          where: whereCondition,
+          skip,
+          take,
+          include: listInclude,
+          orderBy: orderByCondition,
+        }),
+      ]);
+    }
 
     const plotList = contractPlots.map((contractPlot) => {
       // 次回請求日の計算（last_billing_monthから1ヶ月後を計算）
