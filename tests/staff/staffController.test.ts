@@ -49,10 +49,15 @@ const mockPrisma = {
     update: jest.fn(),
     count: jest.fn(),
   },
+  // #269: 最後のadmin保護の tx 内再検証用。コールバックに mockPrisma 自身を渡す
+  $transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(mockPrisma)),
 };
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => mockPrisma),
+  Prisma: {
+    TransactionIsolationLevel: { Serializable: 'Serializable' },
+  },
 }));
 
 // 環境変数をモック化
@@ -636,7 +641,45 @@ describe('Staff Controller', () => {
             data: expect.objectContaining({ role: 'viewer' }),
           })
         );
+        // admin を失いうる降格は Serializable tx で原子的に実行される（#269）
+        expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+          isolationLevel: 'Serializable',
+        });
         expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+      });
+
+      it('並行操作で事前チェック通過後に admin が0人になる場合、tx内再検証で拒否される (#269)', async () => {
+        // TOCTOU シナリオ: 事前チェック時は「他に有効adminが1人」だが、
+        // update 後の tx 内再カウント時には並行降格で 0 人になっている
+        mockRequest.params = { id: '1' };
+        mockRequest.body = { role: 'viewer' };
+
+        const mockExistingStaff = {
+          id: 1,
+          name: 'Admin',
+          email: 'admin@example.com',
+          role: 'admin',
+          is_active: true,
+          supabase_uid: 'admin-uid',
+          last_login_at: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+        mockPrisma.staff.findFirst.mockResolvedValue(mockExistingStaff);
+        mockPrisma.staff.count
+          .mockResolvedValueOnce(1) // 事前チェック: 他に有効adminあり（通過）
+          .mockResolvedValueOnce(0); // tx内再検証: 並行降格で有効admin 0人
+        mockPrisma.staff.update.mockResolvedValue({ ...mockExistingStaff, role: 'viewer' });
+
+        await updateStaff(mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalled();
+        const error = (mockNext as jest.Mock).mock.calls[0][0];
+        expect(error.message).toContain('最後の有効な管理者');
+        // 再検証は更新と同一トランザクション内（Serializable）で行われること
+        expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+          isolationLevel: 'Serializable',
+        });
       });
     });
 
