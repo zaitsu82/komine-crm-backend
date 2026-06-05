@@ -1,8 +1,11 @@
 const { PrismaClient } = require('@prisma/client');
+const { PrismaPg } = require('@prisma/adapter-pg');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-const prisma = new PrismaClient();
+// Prisma v7 では driver adapter が必須（#235、src/db/prisma.ts と同構成）
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 // Supabaseクライアントの初期化
 const supabaseUrl = process.env.SUPABASE_URL;
