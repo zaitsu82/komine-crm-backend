@@ -4,6 +4,7 @@ import {
   createPlotSchema,
   updatePlotSchema,
   createPlotContractSchema,
+  familyContactSchema,
 } from '../../src/validations/plotValidation';
 
 describe('Plot Validation (ContractPlot Model)', () => {
@@ -684,6 +685,49 @@ describe('Plot Validation (ContractPlot Model)', () => {
       };
 
       expect(() => createPlotContractSchema.parse(dataWithOptionalFields)).not.toThrow();
+    });
+  });
+
+  describe('familyContactSchema の DB カラム長整合 (#276)', () => {
+    const base = { name: '山田太郎', relationship: '長男' };
+
+    it('DB VarChar 長以内の値は通過する', () => {
+      expect(() =>
+        familyContactSchema.parse({
+          ...base,
+          phoneNumber: '09012345678', // 11文字 = VarChar(11)
+          faxNumber: '0951234567', // 10文字
+          postalCode: '8500000', // 7文字 = VarChar(7)
+          phoneNumber2: '095-123-4567', // 12文字 <= VarChar(15)
+          workPhoneNumber: '095-123-4567',
+        })
+      ).not.toThrow();
+    });
+
+    it('電話番号が VarChar(11) を超えると Zod で弾く（P2000 の 500 を防ぐ）', () => {
+      // 修正前: max(20) で '090-1234-5678'(13文字) が Zod を通過し Prisma P2000 → 500
+      expect(() => familyContactSchema.parse({ ...base, phoneNumber: '090-1234-5678' })).toThrow(
+        /11文字以内/
+      );
+    });
+
+    it('郵便番号が VarChar(7) を超えると Zod で弾く', () => {
+      expect(() => familyContactSchema.parse({ ...base, postalCode: '850-0000' })).toThrow(
+        /7文字以内/
+      );
+    });
+
+    it('FAX番号が VarChar(11) を超えると Zod で弾く', () => {
+      expect(() => familyContactSchema.parse({ ...base, faxNumber: '095-123-45678' })).toThrow(
+        /11文字以内/
+      );
+    });
+
+    it('空文字・未指定は従来どおり許容する（バルク登録のスキップ判定と整合）', () => {
+      expect(() =>
+        familyContactSchema.parse({ ...base, phoneNumber: '', postalCode: '', faxNumber: '' })
+      ).not.toThrow();
+      expect(() => familyContactSchema.parse(base)).not.toThrow();
     });
   });
 });

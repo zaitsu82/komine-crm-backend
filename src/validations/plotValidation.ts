@@ -107,7 +107,29 @@ export const familyContactSchema = sharedFamilyContactSchema.extend({
   name: z.string().max(100).optional().or(z.literal('')),
   relationship: z.string().max(50).optional().or(z.literal('')),
   address: z.string().max(200).optional().or(z.literal('')),
-  phoneNumber: z.string().max(20).optional().or(z.literal('')),
+  // 各上限は DB の VarChar 長に整合させる（#276）。共有スキーマの max(20)/max(10) の
+  // ままだと Zod 通過後に Prisma P2000 → 500 となりトランザクション全体が失敗する。
+  // phone_number/fax_number=VarChar(11), phone_number_2/work_phone_number=VarChar(15),
+  // postal_code=VarChar(7)
+  phoneNumber: z
+    .string()
+    .max(11, '電話番号は11文字以内（ハイフンなし）で入力してください')
+    .optional()
+    .or(z.literal('')),
+  phoneNumber2: z.string().max(15).optional().nullable().or(z.literal('')),
+  faxNumber: z
+    .string()
+    .max(11, 'FAX番号は11文字以内（ハイフンなし）で入力してください')
+    .optional()
+    .nullable()
+    .or(z.literal('')),
+  postalCode: z
+    .string()
+    .max(7, '郵便番号は7文字以内（ハイフンなし）で入力してください')
+    .optional()
+    .nullable()
+    .or(z.literal('')),
+  workPhoneNumber: z.string().max(15).optional().nullable().or(z.literal('')),
 });
 
 /**

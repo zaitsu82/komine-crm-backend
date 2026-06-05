@@ -96,6 +96,41 @@ describe('Error Handler Middleware', () => {
         });
       });
 
+      it('P2000（カラム長超過）は 500 でなく 400 VALIDATION_ERROR を返すこと (#276)', () => {
+        const error = new Prisma.PrismaClientKnownRequestError(
+          'The provided value for the column is too long',
+          {
+            code: 'P2000',
+            clientVersion: '7.0.0',
+            meta: { column_name: 'phone_number' },
+          }
+        );
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(400);
+        const payload = (mockResponse.json as jest.Mock).mock.calls[0][0];
+        expect(payload.error.code).toBe('VALIDATION_ERROR');
+        expect(payload.error.message).toBe('入力値が長すぎます');
+        expect(payload.error.details[0].field).toBe('phone_number');
+        // DB内部情報（テーブル名等）をそのまま返さないこと（#217 と同方針）
+        expect(JSON.stringify(payload)).not.toContain('column is too long');
+      });
+
+      it('P2000（meta.column_name 不在）でも 400 で汎用メッセージを返すこと (#276)', () => {
+        const error = new Prisma.PrismaClientKnownRequestError('Value too long', {
+          code: 'P2000',
+          clientVersion: '7.0.0',
+        });
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(400);
+        const payload = (mockResponse.json as jest.Mock).mock.calls[0][0];
+        expect(payload.error.code).toBe('VALIDATION_ERROR');
+        expect(payload.error.details[0].message).toContain('最大文字数');
+      });
+
       it('P2002（v6 meta.target=string カンマ区切り）を正しく処理すること', () => {
         const error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
           code: 'P2002',

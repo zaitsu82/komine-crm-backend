@@ -315,6 +315,31 @@ const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Res
       });
     }
 
+    case 'P2000': {
+      // 値がカラムの最大長を超過（Zod 上限と DB VarChar 長の不整合等）。
+      // default に落とすと詳細なしの 500 になりトランザクション全体が原因不明で
+      // 失敗するため、400 VALIDATION_ERROR として返す（#276）。
+      // meta.column_name は v7 + driver adapter では取れない場合があるため任意。
+      const meta = error.meta as Record<string, unknown> | undefined;
+      const column =
+        typeof meta?.['column_name'] === 'string' ? (meta['column_name'] as string) : undefined;
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: '入力値が長すぎます',
+          details: [
+            {
+              field: column,
+              message: column
+                ? `${toFieldLabel(column)} が保存可能な最大文字数を超えています`
+                : '入力値が保存可能な最大文字数を超えています',
+            },
+          ],
+        },
+      });
+    }
+
     case 'P2025':
       // Record not found
       return res.status(404).json({
