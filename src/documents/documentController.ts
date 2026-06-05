@@ -649,11 +649,29 @@ export const generatePdf = async (req: Request, res: Response): Promise<void> =>
         return;
       }
 
+      // テンプレート種別の不一致を早期拒否する（#230）。
+      // 旧 template_type のまま template_data だけ新種別形状で上書きすると、
+      // regeneratePdf の parseTemplateData(旧種別, 新形状データ) が ZodError になり
+      // 再生成不能な破損データが生まれる。
+      if (existingDocument.template_type && existingDocument.template_type !== templateType) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'TEMPLATE_TYPE_MISMATCH',
+            message: `指定書類のテンプレート種別（${existingDocument.template_type}）とリクエストの種別（${templateType}）が一致しません`,
+          },
+        });
+        return;
+      }
+
       const updatedDocument = await prisma.document.update({
         where: { id: documentId },
         data: {
           status: 'generated',
           generated_at: new Date(),
+          // template_type 未設定の書類にも種別を保存し、template_data と常に整合させる（#230）
+          template_type: templateType,
+          type: TEMPLATE_TYPE_TO_DOC_TYPE[templateType],
           template_data: templateData as unknown as Prisma.InputJsonValue,
         },
       });
