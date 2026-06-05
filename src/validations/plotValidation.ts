@@ -39,6 +39,9 @@ export const plotSearchQuerySchema = paginationSchema.extend({
   paymentStatus: z
     .enum(['unpaid', 'partial_paid', 'paid', 'overdue', 'refunded', 'cancelled'])
     .optional(),
+  // 契約ステータスフィルター（#200）。台帳問い合わせは vacant 非表示（#167）のため
+  // active / terminated のみ許可する。vacant は在庫系エンドポイントで扱う。
+  contractStatus: z.enum(['active', 'terminated']).optional(),
   sortBy: z
     .enum([
       'plotNumber',
@@ -251,6 +254,7 @@ export const createPlotSchema = z.object({
   usageFee: contractPlotUsageFeeSchema,
   managementFee: contractPlotManagementFeeSchema,
   collectiveBurial: collectiveBurialSchema,
+  familyContacts: z.array(familyContactSchema).optional(),
 });
 
 /**
@@ -266,6 +270,7 @@ export const updatePlotSchema = z.object({
   billingInfo: contractPlotBillingInfoSchema,
   usageFee: contractPlotUsageFeeSchema,
   managementFee: contractPlotManagementFeeSchema,
+  familyContacts: z.array(familyContactSchema).optional(),
   buriedPersons: z.array(buriedPersonSchema).optional(),
   constructionInfos: z.array(constructionInfoUpdateSchema).optional(),
   collectiveBurial: collectiveBurialSchema,

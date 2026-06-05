@@ -28,38 +28,62 @@ export function parseDate(str: string | null | undefined): Date | null {
 }
 
 /**
- * 和暦変換（令和）
+ * 現在時刻（または指定時刻）を JST の暦日として解釈し、
+ * その暦日の UTC 00:00 を表す Date を返す（#214）。
+ *
+ * Prisma の @db.Date 列は UTC 基準で日付部分を切り出すため、
+ * 時刻付き Date（ローカル時刻）をそのまま書き込むと、
+ * JST 00:00〜08:59 の処理で保存日付が前日にずれる。
+ * @db.Date 列への保存値・比較基準日はこのヘルパで正規化すること。
+ */
+export function todayJstAsUtcDate(base: Date = new Date()): Date {
+  // en-CA ロケールは YYYY-MM-DD 形式を返す
+  const jstDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(base);
+  return new Date(`${jstDateStr}T00:00:00Z`);
+}
+
+/**
+ * UTC 00:00 正規化済みの Date に対して年だけを加算する（#214）。
+ * setFullYear（ローカル時刻ベース）と異なり UTC 00:00 を維持する。
+ */
+export function addYearsUtc(date: Date, years: number): Date {
+  return new Date(Date.UTC(date.getUTCFullYear() + years, date.getUTCMonth(), date.getUTCDate()));
+}
+
+// 元号の開始日（ローカル暦日比較用）
+const REIWA_START = new Date(2019, 4, 1); // 2019-05-01
+const HEISEI_START = new Date(1989, 0, 8); // 1989-01-08
+const SHOWA_START = new Date(1926, 11, 25); // 1926-12-25
+
+/**
+ * 日付から元号と元号年を判定する（#215）。
+ * 年単位でなく境界日で判定する（frontend formatDateWithEra と同一基準）。
+ * 元号適用外（昭和より前）は null を返す。
+ */
+function resolveJapaneseEra(date: Date): { era: string; eraYear: number } | null {
+  if (date >= REIWA_START) return { era: '令和', eraYear: date.getFullYear() - 2018 };
+  if (date >= HEISEI_START) return { era: '平成', eraYear: date.getFullYear() - 1988 };
+  if (date >= SHOWA_START) return { era: '昭和', eraYear: date.getFullYear() - 1925 };
+  return null;
+}
+
+/**
+ * 和暦変換（境界日判定: 令和=2019-05-01〜 / 平成=1989-01-08〜 / 昭和=1926-12-25〜）
  */
 export function toJapaneseDate(date: Date | null | undefined): string | null {
   if (!date) return null;
 
-  const year = date.getFullYear();
   const month = date.getMonth() + 1;
   const day = date.getDate();
+  const era = resolveJapaneseEra(date);
 
-  // 令和元年は2019年5月1日から
-  if (year >= 2019) {
-    const reiwaYear = year - 2018;
-    const yearStr = reiwaYear === 1 ? '元' : String(reiwaYear);
-    return `令和${yearStr}年${month}月${day}日`;
+  if (era) {
+    const yearStr = era.eraYear === 1 ? '元' : String(era.eraYear);
+    return `${era.era}${yearStr}年${month}月${day}日`;
   }
 
-  // 平成は1989年1月8日から2019年4月30日まで
-  if (year >= 1989) {
-    const heiseiYear = year - 1988;
-    const yearStr = heiseiYear === 1 ? '元' : String(heiseiYear);
-    return `平成${yearStr}年${month}月${day}日`;
-  }
-
-  // 昭和は1926年12月25日から1989年1月7日まで
-  if (year >= 1926) {
-    const showaYear = year - 1925;
-    const yearStr = showaYear === 1 ? '元' : String(showaYear);
-    return `昭和${yearStr}年${month}月${day}日`;
-  }
-
-  // それ以前は西暦で返す
-  return `${year}年${month}月${day}日`;
+  // 元号適用外は西暦で返す
+  return `${date.getFullYear()}年${month}月${day}日`;
 }
 
 /**
@@ -68,20 +92,14 @@ export function toJapaneseDate(date: Date | null | undefined): string | null {
 export function toJapaneseYearMonth(date: Date | null | undefined): string | null {
   if (!date) return null;
 
-  const year = date.getFullYear();
   const month = date.getMonth() + 1;
+  const era = resolveJapaneseEra(date);
 
-  if (year >= 2019) {
-    const reiwaYear = year - 2018;
-    return `令和${reiwaYear}年${month}月`;
+  if (era) {
+    return `${era.era}${era.eraYear}年${month}月`;
   }
 
-  if (year >= 1989) {
-    const heiseiYear = year - 1988;
-    return `平成${heiseiYear}年${month}月`;
-  }
-
-  return `${year}年${month}月`;
+  return `${date.getFullYear()}年${month}月`;
 }
 
 /**

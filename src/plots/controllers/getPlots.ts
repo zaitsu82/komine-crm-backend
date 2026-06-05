@@ -16,6 +16,7 @@ interface PlotSearchQuery {
   status?: 'available' | 'partially_sold' | 'sold_out';
   cemeteryType?: string;
   paymentStatus?: 'unpaid' | 'partial_paid' | 'paid' | 'overdue' | 'refunded';
+  contractStatus?: 'active' | 'terminated';
   sortBy?:
     | 'plotNumber'
     | 'customerName'
@@ -94,6 +95,7 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
       status,
       cemeteryType,
       paymentStatus,
+      contractStatus,
       sortBy,
       sortOrder = 'asc',
       nameKanaPrefix,
@@ -171,6 +173,12 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
     // 入金ステータスフィルター
     if (paymentStatus) {
       whereCondition.payment_status = paymentStatus;
+    }
+
+    // 契約ステータスフィルター（#200）
+    // スキーマで active / terminated に限定済みのため、既定の vacant 除外と矛盾しない
+    if (contractStatus) {
+      whereCondition.contract_status = contractStatus;
     }
 
     // 区分フィルター（grave_kind / grave_kubun / grave_type）

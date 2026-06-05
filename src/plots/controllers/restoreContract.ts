@@ -12,6 +12,7 @@ import prisma from '../../db/prisma';
 import { NotFoundError, ConflictError } from '../../middleware/errorHandler';
 import { recordEntityUpdated } from '../services/historyService';
 import { contractStatusService } from '../services/contractStatusService';
+import { updatePhysicalPlotStatus } from '../utils';
 import type { RestoreContractRequest } from '../../validations/plotValidation';
 
 export const restoreContract = async (
@@ -48,6 +49,12 @@ export const restoreContract = async (
         where: { id },
         data: { contract_status: ContractStatus.active },
       });
+
+      // 物理区画ステータスを再計算する（#210）。
+      // 解約時に available 等へ戻った PhysicalPlot.status を据え置くと、
+      // 在庫サマリー（plot.status 基準で集計）に復活分が反映されず過大表示になる。
+      // create/update/delete 系コントローラと同様に復活でも再計算する。
+      await updatePhysicalPlotStatus(tx, contractPlot.physical_plot_id);
 
       await recordEntityUpdated(tx, {
         entityType: 'ContractPlot',

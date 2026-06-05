@@ -203,8 +203,16 @@ describe('Logger Middleware', () => {
 
       expect(mockResponse.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
       expect(mockResponse.setHeader).toHaveBeenCalledWith('X-Frame-Options', 'DENY');
-      expect(mockResponse.setHeader).toHaveBeenCalledWith('X-XSS-Protection', '1; mode=block');
       expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('X-XSS-Protection は設定しないこと（helmet の xssFilter へ一本化 #227）', () => {
+      securityHeaders(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockResponse.setHeader).not.toHaveBeenCalledWith(
+        'X-XSS-Protection',
+        expect.any(String)
+      );
     });
 
     it('HTTPSリクエストの場合、Strict-Transport-Securityヘッダーを設定すること', () => {

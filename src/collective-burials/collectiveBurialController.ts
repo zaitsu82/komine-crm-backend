@@ -6,6 +6,7 @@ import { Request, Response, NextFunction } from 'express';
 import { BillingStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler';
 import prisma from '../db/prisma';
+import { updateCollectiveBurialCount } from './utils';
 
 /** リクエストボディの型（Express の req.body は any のため、境界で明示的に型付けする） */
 interface CreateCollectiveBurialBody {
@@ -87,6 +88,8 @@ export const getCollectiveBurialList = async (
           {
             saleContractRoles: {
               some: {
+                // 論理削除済みの旧役割（解約・差し替えで外れた顧客）を検索対象から除外（#206）
+                deleted_at: null,
                 customer: {
                   OR: [
                     { name: { contains: search as string, mode: 'insensitive' } },
@@ -301,32 +304,51 @@ export const createCollectiveBurial = async (
     // 契約区画の存在確認
     const contractPlot = await prisma.contractPlot.findFirst({
       where: { id: contractPlotId, deleted_at: null },
-      include: {
-        collectiveBurial: true,
-      },
     });
 
     if (!contractPlot) {
       throw new NotFoundError('契約区画が見つかりません');
     }
 
-    // 既存の合祀情報がないか確認
-    if (contractPlot.collectiveBurial) {
+    // 既存の合祀情報の確認
+    // contract_plot_id は deleted_at を含まない単独 @unique のため、
+    // ソフトデリート済みの行が残っていると create が P2002 になる（#202）。
+    // 生きている行のみ重複エラーとし、ソフトデリート済み行は復活させる。
+    const existingCollectiveBurial = await prisma.collectiveBurial.findUnique({
+      where: { contract_plot_id: contractPlotId },
+    });
+
+    if (existingCollectiveBurial && !existingCollectiveBurial.deleted_at) {
       throw new ValidationError('この契約区画には既に合祀情報が登録されています');
     }
 
-    // 合祀情報作成
-    const collectiveBurial = await prisma.collectiveBurial.create({
-      data: {
-        contract_plot_id: contractPlotId,
-        burial_capacity: burialCapacity,
-        current_burial_count: 0,
-        validity_period_years: validityPeriodYears,
-        billing_status: 'pending',
-        billing_amount: billingAmount || null,
-        notes: notes || null,
-      },
-    });
+    // 合祀情報作成（ソフトデリート済み行があれば新規値で復活させる）
+    const collectiveBurial = existingCollectiveBurial
+      ? await prisma.collectiveBurial.update({
+          where: { id: existingCollectiveBurial.id },
+          data: {
+            burial_capacity: burialCapacity,
+            current_burial_count: 0,
+            validity_period_years: validityPeriodYears,
+            capacity_reached_date: null,
+            billing_scheduled_date: null,
+            billing_status: 'pending',
+            billing_amount: billingAmount || null,
+            notes: notes || null,
+            deleted_at: null,
+          },
+        })
+      : await prisma.collectiveBurial.create({
+          data: {
+            contract_plot_id: contractPlotId,
+            burial_capacity: burialCapacity,
+            current_burial_count: 0,
+            validity_period_years: validityPeriodYears,
+            billing_status: 'pending',
+            billing_amount: billingAmount || null,
+            notes: notes || null,
+          },
+        });
 
     res.status(201).json({
       success: true,
@@ -543,44 +565,22 @@ export const syncBurialCount = async (
     // 合祀情報取得
     const collectiveBurial = await prisma.collectiveBurial.findFirst({
       where: { id, deleted_at: null },
-      include: {
-        contractPlot: {
-          include: {
-            buriedPersons: {
-              where: { deleted_at: null },
-            },
-          },
-        },
-      },
     });
 
     if (!collectiveBurial) {
       throw new NotFoundError('合祀情報が見つかりません');
     }
 
-    const newCount = collectiveBurial.contractPlot.buriedPersons.length;
-    const capacityReached = newCount >= collectiveBurial.burial_capacity;
+    // 集計・上限判定・日付セット/リセットは utils の単一実装へ委譲する（#203）。
+    // 旧実装は上限到達時のセットのみで、人数が上限を下回った際に
+    // capacity_reached_date / billing_scheduled_date をリセットせず、
+    // ゆうちょ請求対象抽出（billing_scheduled_date ベース）に誤って載っていた。
+    const updated = await updateCollectiveBurialCount(prisma, collectiveBurial.contract_plot_id);
 
-    // 更新データ
-    const updateData: Record<string, unknown> = {
-      current_burial_count: newCount,
-    };
-
-    // 上限到達時の処理
-    if (capacityReached && !collectiveBurial.capacity_reached_date) {
-      const now = new Date();
-      updateData['capacity_reached_date'] = now;
-      // 請求予定日を計算（上限到達日 + 有効期間）
-      const billingDate = new Date(now);
-      billingDate.setFullYear(billingDate.getFullYear() + collectiveBurial.validity_period_years);
-      updateData['billing_scheduled_date'] = billingDate;
+    if (!updated) {
+      // 直前に存在確認済みのため通常到達しない（競合削除時の保険）
+      throw new NotFoundError('合祀情報が見つかりません');
     }
-
-    // 更新
-    const updated = await prisma.collectiveBurial.update({
-      where: { id },
-      data: updateData,
-    });
 
     res.status(200).json({
       success: true,
@@ -588,7 +588,7 @@ export const syncBurialCount = async (
         id: updated.id,
         currentBurialCount: updated.current_burial_count,
         burialCapacity: updated.burial_capacity,
-        capacityReached,
+        capacityReached: updated.current_burial_count >= updated.burial_capacity,
         capacityReachedDate: updated.capacity_reached_date?.toISOString().split('T')[0] || null,
         billingScheduledDate: updated.billing_scheduled_date?.toISOString().split('T')[0] || null,
       },
@@ -608,6 +608,8 @@ export const getStatsByYear = async (
 ): Promise<void> => {
   try {
     // 請求予定年ごとの集計
+    // 金額（total_amount / paid_amount）もサーバ側で集計し、
+    // ページ制限された items の reduce による過少表示を防ぐ（frontend #226）。
     const stats = await prisma.$queryRaw<
       Array<{
         year: number;
@@ -615,6 +617,8 @@ export const getStatsByYear = async (
         pending_count: bigint;
         billed_count: bigint;
         paid_count: bigint;
+        total_amount: bigint;
+        paid_amount: bigint;
       }>
     >`
       SELECT
@@ -622,7 +626,9 @@ export const getStatsByYear = async (
         COUNT(*)::bigint as count,
         COUNT(CASE WHEN billing_status = 'pending' THEN 1 END)::bigint as pending_count,
         COUNT(CASE WHEN billing_status = 'billed' THEN 1 END)::bigint as billed_count,
-        COUNT(CASE WHEN billing_status = 'paid' THEN 1 END)::bigint as paid_count
+        COUNT(CASE WHEN billing_status = 'paid' THEN 1 END)::bigint as paid_count,
+        COALESCE(SUM(billing_amount), 0)::bigint as total_amount,
+        COALESCE(SUM(CASE WHEN billing_status = 'paid' THEN billing_amount END), 0)::bigint as paid_amount
       FROM collective_burials
       WHERE deleted_at IS NULL
         AND billing_scheduled_date IS NOT NULL
@@ -638,6 +644,8 @@ export const getStatsByYear = async (
         pendingCount: Number(s.pending_count),
         billedCount: Number(s.billed_count),
         paidCount: Number(s.paid_count),
+        totalAmount: Number(s.total_amount),
+        paidAmount: Number(s.paid_amount),
       })),
     });
   } catch (error) {

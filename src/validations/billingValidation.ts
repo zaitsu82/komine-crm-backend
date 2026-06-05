@@ -80,3 +80,22 @@ export const listBillingsQuerySchema = z.object({
 });
 
 export type ListBillingsQuery = z.infer<typeof listBillingsQuerySchema>;
+
+// サマリー集計クエリ（一覧クエリからページネーション/ソートを除いたフィルタのみ。
+// フィルタ一致の全件を集計するため page/limit は受けない）
+export const billingSummaryQuerySchema = z.object({
+  contractPlotId: z.string().uuid().optional(),
+  customerId: z.string().uuid().optional(),
+  category: billingCategoryEnum.optional(),
+  status: billingStatusEnum.optional(),
+  billingDateFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  billingDateTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+});
+
+export type BillingSummaryQuery = z.infer<typeof billingSummaryQuerySchema>;

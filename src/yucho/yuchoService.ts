@@ -7,6 +7,7 @@
 
 import { PaymentStatus } from '@prisma/client';
 import prisma from '../db/prisma';
+import { getRequestLogger } from '../utils/logger';
 import type { YuchoBillingItem, YuchoBillingResponse } from '../validations/yuchoValidation';
 import { isExportableBillingItem } from './yuchoCsv';
 
@@ -29,14 +30,28 @@ const parseBillingMonth = (value: string | null | undefined): number | null => {
 };
 
 /**
- * 文字列の管理料金額を整数(円)に変換。"10,000" や "10000円" などの表記も許容。
+ * 文字列の管理料金額を整数(円)に変換。"10,000" や "10000円" などの表記を許容。
+ *
+ * 金額は円単位の正整数であるべきため、数字以外（小数点・ハイフン含む）は
+ * すべて除去する（#212）。旧実装はハイフン・小数を温存していたため、
+ * '-1000'→-1000（負額）、'3.6'→4（四捨五入誤額）がゆうちょ振替の
+ * 引落金額に出力されうる問題があった。
+ * 数字以外を含む値は異常データ検知のため warn ログを出す（黙って出力しない）。
  */
-const parseManagementFeeAmount = (value: string | null | undefined): number => {
+const parseManagementFeeAmount = (value: string | null | undefined, sourceId?: string): number => {
   if (!value) return 0;
-  const cleaned = value.replace(/[^\d.-]/g, '');
+  // 桁区切りカンマと円表記のみ正常系として無警告で除去
+  const normalized = value.replace(/[,，円\s]/g, '');
+  const cleaned = normalized.replace(/[^\d]/g, '');
+  if (cleaned !== normalized) {
+    getRequestLogger().warn(
+      { managementFeeId: sourceId, rawValue: value },
+      '管理料金額に数字以外の文字が含まれています（数字のみ抽出して処理）'
+    );
+  }
   if (!cleaned) return 0;
-  const num = parseFloat(cleaned);
-  return isNaN(num) ? 0 : Math.round(num);
+  const num = parseInt(cleaned, 10);
+  return isNaN(num) ? 0 : num;
 };
 
 type PayerCustomer = {
@@ -130,7 +145,7 @@ const fetchManagementBillingItems = async (params: FetchParams): Promise<YuchoBi
     // 月指定なし(年単位)の場合は billing_month が設定されているもののみ
     if (month == null && billingMonth == null) continue;
 
-    const amount = parseManagementFeeAmount(fee.management_fee);
+    const amount = parseManagementFeeAmount(fee.management_fee, fee.id);
     if (amount <= 0) continue;
 
     const payer = pickPayer(fee.contractPlot.saleContractRoles);

@@ -39,6 +39,19 @@ describe('Plot Validation (ContractPlot Model)', () => {
       expect(result.page).toBe(2);
       expect(result.limit).toBe(50);
     });
+
+    it('contractStatus に active / terminated を指定できること（#200）', () => {
+      expect(plotSearchQuerySchema.parse({ contractStatus: 'active' }).contractStatus).toBe(
+        'active'
+      );
+      expect(plotSearchQuerySchema.parse({ contractStatus: 'terminated' }).contractStatus).toBe(
+        'terminated'
+      );
+    });
+
+    it('contractStatus に vacant は指定できないこと（台帳問い合わせは vacant 非表示 #167）', () => {
+      expect(() => plotSearchQuerySchema.parse({ contractStatus: 'vacant' })).toThrow();
+    });
   });
 
   describe('plotIdParamsSchema', () => {

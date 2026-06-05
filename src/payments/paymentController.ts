@@ -187,12 +187,23 @@ export const createPayment = async (
     const input = parsed.data;
 
     // 紐付け先の存在チェック
+    let billing: { id: string; contract_plot_id: string; customer_id: string | null } | null = null;
     if (input.billingId) {
-      const billing = await prisma.billing.findFirst({
+      billing = await prisma.billing.findFirst({
         where: { id: input.billingId, deleted_at: null },
-        select: { id: true },
+        select: { id: true, contract_plot_id: true, customer_id: true },
       });
       if (!billing) throw new NotFoundError('指定の請求が見つかりません');
+
+      // 入金集計は Billing 経由（billing.contract_plot_id）で行われるため、
+      // Payment 側に別区画/別顧客を記録すると表示と集計が乖離する（#213）。
+      // 不一致は明示エラーとし、未指定時は billing 側の値で正規化する。
+      if (input.contractPlotId && input.contractPlotId !== billing.contract_plot_id) {
+        throw new ValidationError('指定された契約区画が請求の契約区画と一致しません');
+      }
+      if (input.customerId && billing.customer_id && input.customerId !== billing.customer_id) {
+        throw new ValidationError('指定された顧客が請求の顧客と一致しません');
+      }
     }
     if (input.customerId) {
       const customer = await prisma.customer.findFirst({
@@ -213,8 +224,10 @@ export const createPayment = async (
       const payment = await tx.payment.create({
         data: {
           billing_id: input.billingId ?? null,
-          customer_id: input.customerId ?? null,
-          contract_plot_id: input.contractPlotId ?? null,
+          // billing 紐付け時は billing 側の値で正規化（区画コンテキストの
+          // 入金一覧と集計の一致を不変条件として強制する #213）
+          customer_id: billing ? billing.customer_id : (input.customerId ?? null),
+          contract_plot_id: billing ? billing.contract_plot_id : (input.contractPlotId ?? null),
           scheduled_date: toDateOrNull(input.scheduledDate),
           scheduled_amount: input.scheduledAmount ?? null,
           payment_date: toDateOrNull(input.paymentDate),
@@ -264,6 +277,38 @@ export const updatePayment = async (
     const existing = await prisma.payment.findFirst({ where: { id, deleted_at: null } });
     if (!existing) throw new NotFoundError('入金が見つかりません');
 
+    // billing 紐付けの設定/変更時は、区画・顧客の整合を検証し billing 側へ正規化する（#213）
+    let connectedBilling: {
+      id: string;
+      contract_plot_id: string;
+      customer_id: string | null;
+    } | null = null;
+    if (input.billingId) {
+      connectedBilling = await prisma.billing.findFirst({
+        where: { id: input.billingId, deleted_at: null },
+        select: { id: true, contract_plot_id: true, customer_id: true },
+      });
+      if (!connectedBilling) throw new NotFoundError('指定の請求が見つかりません');
+
+      const effectiveContractPlotId =
+        input.contractPlotId !== undefined ? input.contractPlotId : existing.contract_plot_id;
+      if (
+        effectiveContractPlotId &&
+        effectiveContractPlotId !== connectedBilling.contract_plot_id
+      ) {
+        throw new ValidationError('指定された契約区画が請求の契約区画と一致しません');
+      }
+      const effectiveCustomerId =
+        input.customerId !== undefined ? input.customerId : existing.customer_id;
+      if (
+        effectiveCustomerId &&
+        connectedBilling.customer_id &&
+        effectiveCustomerId !== connectedBilling.customer_id
+      ) {
+        throw new ValidationError('指定された顧客が請求の顧客と一致しません');
+      }
+    }
+
     const data: Prisma.PaymentUpdateInput = {};
     if (input.billingId !== undefined) {
       data.billing = input.billingId ? { connect: { id: input.billingId } } : { disconnect: true };
@@ -277,6 +322,13 @@ export const updatePayment = async (
       data.contractPlot = input.contractPlotId
         ? { connect: { id: input.contractPlotId } }
         : { disconnect: true };
+    }
+    // billing 紐付け時は区画・顧客を billing 側の値で正規化（未指定でも揃える）
+    if (connectedBilling) {
+      data.contractPlot = { connect: { id: connectedBilling.contract_plot_id } };
+      if (connectedBilling.customer_id) {
+        data.customer = { connect: { id: connectedBilling.customer_id } };
+      }
     }
     if (input.scheduledDate !== undefined) data.scheduled_date = toDateOrNull(input.scheduledDate);
     if (input.scheduledAmount !== undefined) data.scheduled_amount = input.scheduledAmount;

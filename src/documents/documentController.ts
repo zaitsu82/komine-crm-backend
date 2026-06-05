@@ -5,7 +5,8 @@
  * - PDFはオンデマンド生成してブラウザに直接返す（Base64）
  * - DBにはメタデータ（template_data等）のみ保存
  * - 再度必要な場合はtemplate_dataから再生成可能
- * - ファイルストレージ（S3/ローカル）は使用しない
+ * - 添付ファイル（アップロード）はローカルディレクトリ（UPLOAD_DIR）に保存し、
+ *   DBには file_key（相対パス）とメタデータを保存する（fileStorage.ts 参照）
  */
 
 import { Request, Response } from 'express';
@@ -21,6 +22,12 @@ import {
 } from '@komine/types';
 import { generatePdfRequestSchema, parseTemplateData } from '../validations/documentValidation';
 import prisma from '../db/prisma';
+import {
+  buildDocumentFileKey,
+  deleteDocumentFile,
+  resolveDocumentFilePath,
+  saveDocumentFile,
+} from './fileStorage';
 import {
   recordDocumentCreated,
   recordDocumentUpdated,
@@ -209,6 +216,9 @@ export const getDocuments = async (req: Request, res: Response): Promise<void> =
       templateType: doc.template_type,
       generatedAt: doc.generated_at?.toISOString() || null,
       sentAt: doc.sent_at?.toISOString() || null,
+      fileName: doc.file_name,
+      fileSize: doc.file_size,
+      mimeType: doc.mime_type,
       createdBy: doc.created_by,
       notes: doc.notes,
       createdAt: doc.created_at.toISOString(),
@@ -316,6 +326,10 @@ export const getDocumentById = async (req: Request, res: Response): Promise<void
         templateData: document.template_data,
         generatedAt: document.generated_at?.toISOString() || null,
         sentAt: document.sent_at?.toISOString() || null,
+        fileKey: document.file_key,
+        fileName: document.file_name,
+        fileSize: document.file_size,
+        mimeType: document.mime_type,
         createdBy: document.created_by,
         notes: document.notes,
         createdAt: document.created_at.toISOString(),
@@ -522,6 +536,9 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
         templateData: document.template_data,
         generatedAt: document.generated_at?.toISOString() || null,
         sentAt: document.sent_at?.toISOString() || null,
+        fileName: document.file_name,
+        fileSize: document.file_size,
+        mimeType: document.mime_type,
         notes: document.notes,
         createdAt: document.created_at.toISOString(),
         updatedAt: document.updated_at.toISOString(),
@@ -843,6 +860,212 @@ export const regeneratePdf = async (req: Request, res: Response): Promise<void> 
       error: {
         code: 'INTERNAL_SERVER_ERROR',
         message: 'PDF再生成に失敗しました',
+      },
+    });
+  }
+};
+
+/**
+ * 書類ファイルアップロード
+ * multipart/form-data の file を UPLOAD_DIR 配下へ保存し、
+ * Document の file_key / file_name / file_size / mime_type を更新する。
+ */
+export const uploadDocumentFile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params as Record<string, string>;
+
+    const document = await prisma.document.findFirst({
+      where: { id, deleted_at: null },
+    });
+
+    if (!document) {
+      res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: '書類が見つかりません',
+        },
+      });
+      return;
+    }
+
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'ファイルが指定されていません',
+        },
+      });
+      return;
+    }
+
+    // multer は originalname を latin1 として扱うため UTF-8 に戻す（日本語ファイル名対応）
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8').slice(0, 200);
+    const fileKey = buildDocumentFileKey(document.id, originalName);
+
+    await saveDocumentFile(fileKey, file.buffer);
+
+    const previousKey = document.file_key;
+    const updated = await prisma.document.update({
+      where: { id },
+      data: {
+        file_key: fileKey,
+        file_name: originalName,
+        file_size: file.size,
+        mime_type: file.mimetype,
+      },
+    });
+
+    // 差し替え時は旧ファイルを削除（失敗してもアップロード自体は成功扱い）
+    if (previousKey && previousKey !== fileKey) {
+      try {
+        await deleteDocumentFile(previousKey);
+      } catch (cleanupError) {
+        getRequestLogger().warn(
+          { err: cleanupError, fileKey: previousKey },
+          'Failed to delete previous document file'
+        );
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: updated.id,
+        fileName: updated.file_name,
+        fileSize: updated.file_size,
+        mimeType: updated.mime_type,
+      },
+    });
+  } catch (error) {
+    getRequestLogger().error({ err: error }, 'Error uploading document file');
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'ファイルのアップロードに失敗しました',
+      },
+    });
+  }
+};
+
+/**
+ * ダウンロードURL取得
+ * ローカル運用のためPre-signed URLではなく、認証付きのファイル配信
+ * エンドポイント（GET /documents/:id/file）の相対URLを返す。
+ */
+export const getDocumentDownloadUrl = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params as Record<string, string>;
+
+    const document = await prisma.document.findFirst({
+      where: { id, deleted_at: null },
+    });
+
+    if (!document) {
+      res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: '書類が見つかりません',
+        },
+      });
+      return;
+    }
+
+    if (!document.file_key) {
+      res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'アップロードされたファイルがありません',
+        },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        url: `/api/v1/documents/${document.id}/file`,
+        fileName: document.file_name,
+        mimeType: document.mime_type,
+        expiresIn: 0, // 認証付きエンドポイントのため有効期限なし
+      },
+    });
+  } catch (error) {
+    getRequestLogger().error({ err: error }, 'Error getting download URL');
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'ダウンロードURLの取得に失敗しました',
+      },
+    });
+  }
+};
+
+/**
+ * 書類ファイル本体の配信（認証付きダウンロード）
+ */
+export const getDocumentFile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params as Record<string, string>;
+
+    const document = await prisma.document.findFirst({
+      where: { id, deleted_at: null },
+    });
+
+    if (!document || !document.file_key) {
+      res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'ファイルが見つかりません',
+        },
+      });
+      return;
+    }
+
+    let filePath: string;
+    try {
+      filePath = resolveDocumentFilePath(document.file_key);
+    } catch {
+      // file_key が不正（パストラバーサル等）の場合は404扱い
+      res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'ファイルが見つかりません',
+        },
+      });
+      return;
+    }
+
+    res.download(filePath, document.file_name || 'download', (err) => {
+      if (err && !res.headersSent) {
+        getRequestLogger().error(
+          { err, fileKey: document.file_key },
+          'Error sending document file'
+        );
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'ファイルが見つかりません',
+          },
+        });
+      }
+    });
+  } catch (error) {
+    getRequestLogger().error({ err: error }, 'Error downloading document file');
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'ファイルのダウンロードに失敗しました',
       },
     });
   }

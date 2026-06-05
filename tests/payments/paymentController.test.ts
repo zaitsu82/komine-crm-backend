@@ -248,6 +248,59 @@ describe('paymentController', () => {
 
       expect(next).toHaveBeenCalledWith(expect.objectContaining({ name: 'NotFoundError' }));
     });
+
+    it('billingの区画と異なるcontractPlotIdはValidationErrorになる (#213)', async () => {
+      mockPrisma.billing.findFirst.mockResolvedValue({
+        id: BILLING_UUID,
+        contract_plot_id: PLOT_UUID,
+        customer_id: CUSTOMER_UUID,
+      });
+      const otherPlotId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+      mockPrisma.contractPlot.findFirst.mockResolvedValue({ id: otherPlotId });
+
+      const req = buildRequest({
+        body: {
+          billingId: BILLING_UUID,
+          contractPlotId: otherPlotId,
+          paymentAmount: 10000,
+        },
+      });
+      await createPayment(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ name: 'ValidationError' }));
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('billing紐付け時は区画・顧客がbilling側の値で正規化される (#213)', async () => {
+      mockPrisma.billing.findFirst.mockResolvedValue({
+        id: BILLING_UUID,
+        contract_plot_id: PLOT_UUID,
+        customer_id: CUSTOMER_UUID,
+      });
+      const txMock = {
+        payment: { create: jest.fn().mockResolvedValue(buildPaymentRow()) },
+      };
+      mockPrisma.$transaction.mockImplementation(async (cb) => cb(txMock));
+
+      const req = buildRequest({
+        body: {
+          billingId: BILLING_UUID,
+          paymentAmount: 10000,
+        },
+      });
+      await createPayment(req as Request, res as Response, next);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(txMock.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            billing_id: BILLING_UUID,
+            contract_plot_id: PLOT_UUID,
+            customer_id: CUSTOMER_UUID,
+          }),
+        })
+      );
+    });
   });
 
   describe('updatePayment', () => {
@@ -255,6 +308,11 @@ describe('paymentController', () => {
       mockPrisma.payment.findFirst.mockResolvedValue({
         id: PAYMENT_UUID,
         billing_id: BILLING_UUID,
+      });
+      mockPrisma.billing.findFirst.mockResolvedValue({
+        id: ANOTHER_BILLING_UUID,
+        contract_plot_id: PLOT_UUID,
+        customer_id: CUSTOMER_UUID,
       });
       const txMock = {
         payment: {
@@ -274,6 +332,62 @@ describe('paymentController', () => {
       expect(res.status).toHaveBeenCalledWith(200);
       expect(recalculateBillingPaymentsMock).toHaveBeenCalledWith(txMock, BILLING_UUID);
       expect(recalculateBillingPaymentsMock).toHaveBeenCalledWith(txMock, ANOTHER_BILLING_UUID);
+      // billing 紐付け時は区画・顧客が billing 側の値へ正規化される（#213）
+      expect(txMock.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            contractPlot: { connect: { id: PLOT_UUID } },
+            customer: { connect: { id: CUSTOMER_UUID } },
+          }),
+        })
+      );
+    });
+
+    it('billingの区画と異なるcontractPlotId指定はValidationErrorになる (#213)', async () => {
+      mockPrisma.payment.findFirst.mockResolvedValue({
+        id: PAYMENT_UUID,
+        billing_id: null,
+        contract_plot_id: null,
+        customer_id: null,
+      });
+      mockPrisma.billing.findFirst.mockResolvedValue({
+        id: BILLING_UUID,
+        contract_plot_id: PLOT_UUID,
+        customer_id: CUSTOMER_UUID,
+      });
+      const otherPlotId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+
+      const req = buildRequest({
+        params: { id: PAYMENT_UUID },
+        body: { billingId: BILLING_UUID, contractPlotId: otherPlotId },
+      });
+      await updatePayment(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ name: 'ValidationError' }));
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('billingの区画と異なる既存contract_plot_idもValidationErrorになる (#213)', async () => {
+      const otherPlotId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+      mockPrisma.payment.findFirst.mockResolvedValue({
+        id: PAYMENT_UUID,
+        billing_id: null,
+        contract_plot_id: otherPlotId, // 既存の区画が billing と不一致
+        customer_id: null,
+      });
+      mockPrisma.billing.findFirst.mockResolvedValue({
+        id: BILLING_UUID,
+        contract_plot_id: PLOT_UUID,
+        customer_id: CUSTOMER_UUID,
+      });
+
+      const req = buildRequest({
+        params: { id: PAYMENT_UUID },
+        body: { billingId: BILLING_UUID },
+      });
+      await updatePayment(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ name: 'ValidationError' }));
     });
 
     it('disconnects billing when billingId set to null', async () => {

@@ -205,10 +205,20 @@ export async function updatePlotCore(
 
   // 3. 顧客役割の更新
   if (input.saleContract?.roles !== undefined) {
+    // 申込者(applicant)ロールの正規管理経路はセクション6.5（input.applicant）。
+    // roles 配列には通常 contractor 系しか含まれないため、applicant を含まない
+    // roles を送られた場合に既存 applicant まで削除して消滅させない（#201）。
+    // roles に applicant が明示的に含まれる場合のみ従来どおり全件入替の対象にする。
+    const inputContainsApplicant = input.saleContract.roles.some(
+      (roleData) => roleData.role === ContractRole.applicant
+    );
+    const roleScope = inputContainsApplicant ? {} : { role: { not: ContractRole.applicant } };
+
     const existingRoles = await tx.saleContractRole.findMany({
       where: {
         contract_plot_id: id,
         deleted_at: null,
+        ...roleScope,
       },
     });
 
@@ -216,6 +226,7 @@ export async function updatePlotCore(
       where: {
         contract_plot_id: id,
         deleted_at: null,
+        ...roleScope,
       },
       data: {
         deleted_at: new Date(),
@@ -974,6 +985,156 @@ export async function updatePlotCore(
         });
       }
     }
+  }
+
+  // 9.5. 家族連絡先の全置換（issue #219: 送信されても保存されず無音破棄されるバグ修正）
+  // 埋葬者(buriedPersons)と同じ id 突合方式で同期する。
+  // 入力に id が存在しない既存レコードは soft-delete、id ありは update、id 無しは create。
+  if (input.familyContacts !== undefined) {
+    const existingFamilyContacts = await tx.familyContact.findMany({
+      where: { contract_plot_id: id, deleted_at: null },
+    });
+    const existingFcIds = existingFamilyContacts.map((fc) => fc.id);
+    const existingFcMap = new Map(existingFamilyContacts.map((fc) => [fc.id, fc]));
+    const inputFcIds = input.familyContacts.filter((fc) => fc.id).map((fc) => fc.id as string);
+
+    // バッチ用履歴エントリ（issue #66 と同様に末尾で一括 INSERT）
+    const fcHistoryEntries: CreateHistoryInput[] = [];
+
+    const fcIdsToDelete = existingFcIds.filter((eid) => !inputFcIds.includes(eid));
+    if (fcIdsToDelete.length > 0) {
+      await tx.familyContact.updateMany({
+        where: { id: { in: fcIdsToDelete } },
+        data: { deleted_at: new Date() },
+      });
+      for (const delId of fcIdsToDelete) {
+        const before = existingFcMap.get(delId)!;
+        fcHistoryEntries.push({
+          entityType: 'FamilyContact',
+          entityId: delId,
+          physicalPlotId,
+          contractPlotId: id,
+          actionType: 'DELETE',
+          beforeRecord: {
+            id: before.id,
+            name: before.name,
+            relationship: before.relationship,
+            phone_number: before.phone_number,
+          },
+          req,
+        });
+      }
+    }
+
+    for (const fc of input.familyContacts) {
+      // 氏名・続柄は NOT NULL 制約。空行（フロントの空フォーム）はスキップして DB エラーを防ぐ。
+      const fcName = fc.name?.trim();
+      const fcRelationship = fc.relationship?.trim();
+      if (!fcName || !fcRelationship) {
+        continue;
+      }
+
+      const fcData = {
+        emergency_contact_flag: fc.emergencyContactFlag ?? false,
+        name: fcName,
+        name_kana: fc.nameKana || null,
+        birth_date: fc.birthDate ? new Date(fc.birthDate) : null,
+        relationship: fcRelationship,
+        postal_code: fc.postalCode || null,
+        address: fc.address || null,
+        phone_number: fc.phoneNumber || null,
+        phone_number_2: fc.phoneNumber2 || null,
+        fax_number: fc.faxNumber || null,
+        email: fc.email || null,
+        registered_address: fc.registeredAddress || null,
+        mailing_type: fc.mailingType || null,
+        work_company_name: fc.workCompanyName || null,
+        work_company_name_kana: fc.workCompanyNameKana || null,
+        work_address: fc.workAddress || null,
+        work_phone_number: fc.workPhoneNumber || null,
+        contact_method: fc.contactMethod || null,
+        notes: fc.notes || null,
+      };
+
+      const serializeFc = (data: typeof fcData) => ({
+        emergency_contact_flag: data.emergency_contact_flag,
+        name: data.name,
+        name_kana: data.name_kana,
+        birth_date: data.birth_date?.toISOString() ?? null,
+        relationship: data.relationship,
+        postal_code: data.postal_code,
+        address: data.address,
+        phone_number: data.phone_number,
+        phone_number_2: data.phone_number_2,
+        fax_number: data.fax_number,
+        email: data.email,
+        registered_address: data.registered_address,
+        mailing_type: data.mailing_type,
+        work_company_name: data.work_company_name,
+        work_company_name_kana: data.work_company_name_kana,
+        work_address: data.work_address,
+        work_phone_number: data.work_phone_number,
+        contact_method: data.contact_method,
+        notes: data.notes,
+      });
+
+      if (fc.id && existingFcIds.includes(fc.id)) {
+        const before = existingFcMap.get(fc.id)!;
+        await tx.familyContact.update({
+          where: { id: fc.id },
+          data: fcData,
+        });
+        fcHistoryEntries.push({
+          entityType: 'FamilyContact',
+          entityId: fc.id,
+          physicalPlotId,
+          contractPlotId: id,
+          actionType: 'UPDATE',
+          beforeRecord: {
+            emergency_contact_flag: before.emergency_contact_flag,
+            name: before.name,
+            name_kana: before.name_kana,
+            birth_date: before.birth_date?.toISOString() ?? null,
+            relationship: before.relationship,
+            postal_code: before.postal_code,
+            address: before.address,
+            phone_number: before.phone_number,
+            phone_number_2: before.phone_number_2,
+            fax_number: before.fax_number,
+            email: before.email,
+            registered_address: before.registered_address,
+            mailing_type: before.mailing_type,
+            work_company_name: before.work_company_name,
+            work_company_name_kana: before.work_company_name_kana,
+            work_address: before.work_address,
+            work_phone_number: before.work_phone_number,
+            contact_method: before.contact_method,
+            notes: before.notes,
+          },
+          afterRecord: serializeFc(fcData),
+          req,
+        });
+      } else {
+        const created = await tx.familyContact.create({
+          data: {
+            contract_plot_id: id,
+            ...fcData,
+          },
+        });
+        fcHistoryEntries.push({
+          entityType: 'FamilyContact',
+          entityId: created.id,
+          physicalPlotId,
+          contractPlotId: id,
+          actionType: 'CREATE',
+          afterRecord: { id: created.id, ...serializeFc(fcData) },
+          req,
+        });
+      }
+    }
+
+    // 履歴エントリをまとめて INSERT（issue #66）
+    await recordHistoryBatch(tx, fcHistoryEntries);
   }
 
   // 10. 埋葬者の全置換

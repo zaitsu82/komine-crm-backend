@@ -137,6 +137,12 @@ paths:
           description: 区画区分フィルタ（grave_type、レガシー tinyint 値）
           schema:
             type: integer
+        - name: contractStatus
+          in: query
+          description: 契約ステータスフィルタ（台帳問い合わせはvacant非表示のためactive/terminatedのみ指定可）
+          schema:
+            type: string
+            enum: [active, terminated]
       responses:
         "200":
           description: 取得成功
@@ -1382,7 +1388,7 @@ paths:
       tags:
         - Documents
       summary: ダウンロードURL取得
-      description: ファイルのダウンロードURL（Pre-signed URL）を取得
+      description: ファイルのダウンロードURL（認証付きファイル配信エンドポイントの相対URL）を取得
       security:
         - bearerAuth: []
       parameters:
@@ -1410,7 +1416,8 @@ paths:
                       url:
                         type: string
                         format: uri
-                        description: ダウンロードURL（有効期限15分）
+                        description: ファイル配信エンドポイントの相対URL（要Bearer認証）
+                        example: /api/v1/documents/123e4567-e89b-42d3-a456-426614174000/file
                       fileName:
                         type: string
                         example: invoice_2024.pdf
@@ -1419,28 +1426,29 @@ paths:
                         example: application/pdf
                       expiresIn:
                         type: integer
-                        description: 有効期限（秒）
-                        example: 900
+                        description: 有効期限（秒）。0は無期限（認証付きエンドポイントのため）
+                        example: 0
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/v1/documents/file/{fileKey}:
+  /api/v1/documents/{id}/file:
     get:
       tags:
         - Documents
-      summary: ローカルファイルダウンロード
-      description: ローカルストレージからファイルを直接ダウンロード（開発環境用）
+      summary: ファイル本体ダウンロード
+      description: アップロードされたファイル本体をローカルストレージ（UPLOAD_DIR）から配信
       security:
         - bearerAuth: []
       parameters:
-        - name: fileKey
+        - name: id
           in: path
           required: true
-          description: ファイルキー
+          description: 書類ID
           schema:
             type: string
+            format: uuid
       responses:
         "200":
           description: ファイルダウンロード
@@ -3027,7 +3035,7 @@ components:
               example: partial
         contracts:
           type: array
-          description: 既存契約一覧
+          description: 既存契約一覧（vacant/terminated 含む。在庫計算は active のみで算定）
           items:
             type: object
             properties:
@@ -3037,11 +3045,13 @@ components:
               contractAreaSqm:
                 type: number
                 format: float
-              saleStatus:
+              contractStatus:
                 type: string
-                nullable: true
+                enum: [vacant, active, terminated]
+                description: 契約ステータス
               customerName:
                 type: string
+                nullable: true
 
     # ==================== リクエストスキーマ ====================
 

@@ -308,6 +308,52 @@ export async function createPlotCore(
     });
   }
 
+  // 9.5. 家族連絡先の作成（issue #219: 送信されても保存されない無音破棄バグの修正）
+  const createdFamilyContacts: Array<{ id: string; data: Record<string, unknown> }> = [];
+  if (input.familyContacts?.length) {
+    for (const fc of input.familyContacts) {
+      // 氏名・続柄は NOT NULL 制約。空行はスキップして DB エラーを防ぐ。
+      const fcName = fc.name?.trim();
+      const fcRelationship = fc.relationship?.trim();
+      if (!fcName || !fcRelationship) {
+        continue;
+      }
+
+      const created = await tx.familyContact.create({
+        data: {
+          contract_plot_id: contractPlot.id,
+          emergency_contact_flag: fc.emergencyContactFlag ?? false,
+          name: fcName,
+          name_kana: fc.nameKana || null,
+          birth_date: fc.birthDate ? new Date(fc.birthDate) : null,
+          relationship: fcRelationship,
+          postal_code: fc.postalCode || null,
+          address: fc.address || null,
+          phone_number: fc.phoneNumber || null,
+          phone_number_2: fc.phoneNumber2 || null,
+          fax_number: fc.faxNumber || null,
+          email: fc.email || null,
+          registered_address: fc.registeredAddress || null,
+          mailing_type: fc.mailingType || null,
+          work_company_name: fc.workCompanyName || null,
+          work_company_name_kana: fc.workCompanyNameKana || null,
+          work_address: fc.workAddress || null,
+          work_phone_number: fc.workPhoneNumber || null,
+          contact_method: fc.contactMethod || null,
+          notes: fc.notes || null,
+        },
+      });
+      createdFamilyContacts.push({
+        id: created.id,
+        data: {
+          name: fcName,
+          relationship: fcRelationship,
+          phone_number: fc.phoneNumber || null,
+        },
+      });
+    }
+  }
+
   // 10. 物理区画のステータス更新
   await updatePhysicalPlotStatus(tx, physicalPlot.id);
 
@@ -397,6 +443,16 @@ export async function createPlotCore(
         role: role.role,
         customer_id: role.customer_id,
       },
+      req,
+    });
+  }
+  for (const fc of createdFamilyContacts) {
+    await recordEntityCreated(tx, {
+      entityType: 'FamilyContact',
+      entityId: fc.id,
+      physicalPlotId: physicalPlot.id,
+      contractPlotId: contractPlot.id,
+      afterRecord: { id: fc.id, ...fc.data },
       req,
     });
   }

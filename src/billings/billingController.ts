@@ -1,13 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
+import type { BillingSummaryResponse } from '@komine/types';
 import prisma from '../db/prisma';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler';
 import { recalculateContractPlotPaymentStatus } from '../plots/services/paymentStatusService';
+import { recalculateBillingPayments } from './billingService';
 import {
   createBillingSchema,
   updateBillingSchema,
   listBillingsQuerySchema,
+  billingSummaryQuerySchema,
 } from '../validations/billingValidation';
 
 type BillingWithRelations = Prisma.BillingGetPayload<{
@@ -115,6 +118,67 @@ export const getBillings = async (
         },
       },
     });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      next(new ValidationError(error.issues[0]?.message ?? 'Invalid query'));
+      return;
+    }
+    next(error);
+  }
+};
+
+/**
+ * 請求サマリー集計取得
+ *
+ * フィルタ一致の「全件」を集計する（GET /billings/summary）。
+ * 一覧はページネーションされるため、画面上部の請求総額/入金済/未入金/
+ * 延滞件数 StatCard をページ分の reduce で出すと誤読される
+ * （frontend #225）。サーバ側で aggregate して返す。
+ */
+export const getBillingsSummary = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const parsed = billingSummaryQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues[0]?.message ?? 'Invalid query');
+    }
+    const q = parsed.data;
+
+    const where: Prisma.BillingWhereInput = { deleted_at: null };
+    if (q.contractPlotId) where.contract_plot_id = q.contractPlotId;
+    if (q.customerId) where.customer_id = q.customerId;
+    if (q.category) where.category = q.category;
+    if (q.status) where.status = q.status;
+    if (q.billingDateFrom || q.billingDateTo) {
+      where.billing_date = {
+        ...(q.billingDateFrom && { gte: new Date(`${q.billingDateFrom}T00:00:00Z`) }),
+        ...(q.billingDateTo && { lte: new Date(`${q.billingDateTo}T23:59:59Z`) }),
+      };
+    }
+
+    const [sums, totalCount, overdueCount] = await Promise.all([
+      prisma.billing.aggregate({
+        where,
+        _sum: { amount: true, paid_amount: true },
+      }),
+      prisma.billing.count({ where }),
+      prisma.billing.count({ where: { ...where, status: 'overdue' } }),
+    ]);
+
+    const totalAmount = sums._sum.amount ?? 0;
+    const paidAmount = sums._sum.paid_amount ?? 0;
+    const data: BillingSummaryResponse = {
+      totalAmount,
+      paidAmount,
+      unpaidAmount: totalAmount - paidAmount,
+      overdueCount,
+      totalCount,
+    };
+
+    res.status(200).json({ success: true, data });
   } catch (error) {
     if (error instanceof ZodError) {
       next(new ValidationError(error.issues[0]?.message ?? 'Invalid query'));
@@ -268,15 +332,23 @@ export const updateBilling = async (
     if (input.notes !== undefined) data.notes = input.notes;
 
     const updated = await prisma.$transaction(async (tx) => {
-      const billing = await tx.billing.update({
+      await tx.billing.update({
         where: { id },
         data,
+      });
+      // 請求額・解約フラグの変更で paid/partial_paid/terminated 等の status が
+      // 変わりうるため、入金合計から status・paid_amount・last_payment_date を
+      // 再算出する（#211）。内部で ContractPlot の payment_status 再計算（#162）も行う。
+      // written_off / overdue の手動ステータスは computeBillingStatus 側で尊重される。
+      await recalculateBillingPayments(tx, existing.id);
+      // status が再書き込みされるため、レスポンスは再計算後の値を取得し直す
+      return tx.billing.findFirst({
+        where: { id: existing.id },
         include: includeRelations,
       });
-      // 請求額・解約フラグの変更が入金状況に影響しうるので再計算（#162）
-      await recalculateContractPlotPaymentStatus(tx, existing.contract_plot_id);
-      return billing;
     });
+
+    if (!updated) throw new NotFoundError('請求が見つかりません');
 
     res.status(200).json({ success: true, data: formatBilling(updated) });
   } catch (error) {
