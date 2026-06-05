@@ -158,6 +158,43 @@ describe('collectiveBurialController — バグ修正回帰', () => {
       });
       expect(responseStatus).toHaveBeenCalledWith(201);
     });
+
+    it('復活時に残存する埋葬者から count・上限到達日・請求予定日を再同期する (#281)', async () => {
+      // シナリオ: 合祀のみ削除（BuriedPerson 7名は ContractPlot 紐付けで残存）→ 同区画で再作成
+      mockPrisma.contractPlot.findFirst.mockResolvedValue({ id: 'cp1' });
+      // 1回目: 既存チェック（ソフトデリート済み行）/ 2回目: 再同期内の取得（復活済み行）
+      mockPrisma.collectiveBurial.findUnique
+        .mockResolvedValueOnce({ ...CB_ROW, deleted_at: new Date('2026-05-01') })
+        .mockResolvedValueOnce({ ...CB_ROW, burial_capacity: 5, deleted_at: null });
+      // 1回目: 復活 update / 2回目: 再同期 update
+      const restoredRow = { ...CB_ROW, burial_capacity: 5, current_burial_count: 0 };
+      const syncedRow = {
+        ...CB_ROW,
+        burial_capacity: 5,
+        current_burial_count: 7,
+        capacity_reached_date: new Date('2026-06-06'),
+        billing_scheduled_date: new Date('2059-06-06'),
+      };
+      mockPrisma.collectiveBurial.update
+        .mockResolvedValueOnce(restoredRow)
+        .mockResolvedValueOnce(syncedRow);
+      mockPrisma.buriedPerson.count.mockResolvedValue(7);
+
+      mockRequest.body = { ...validBody, burialCapacity: 5 };
+      await createCollectiveBurial(mockRequest as Request, mockResponse as Response, mockNext);
+
+      // 再同期 update（2回目）が実埋葬者数で行われ、上限到達日・請求予定日もセットされること
+      expect(mockPrisma.collectiveBurial.update).toHaveBeenCalledTimes(2);
+      const syncCall = mockPrisma.collectiveBurial.update.mock.calls[1][0];
+      expect(syncCall.data).toMatchObject({ current_burial_count: 7 });
+      expect(syncCall.data.capacity_reached_date).toBeInstanceOf(Date);
+      expect(syncCall.data.billing_scheduled_date).toBeInstanceOf(Date);
+
+      // レスポンスは再同期後の値（count=0 固定でない）こと
+      expect(responseStatus).toHaveBeenCalledWith(201);
+      const payload = responseJson.mock.calls[0][0];
+      expect(payload.data.currentBurialCount).toBe(7);
+    });
   });
 
   describe('syncBurialCount (#203)', () => {
