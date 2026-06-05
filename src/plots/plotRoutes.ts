@@ -7,6 +7,7 @@ import {
   updatePlot,
   deletePlot,
   restoreContract,
+  terminateContract,
   getPlotContracts,
   createPlotContract,
   getPlotInventory,
@@ -27,6 +28,7 @@ import {
   updatePlotSchema,
   createPlotContractSchema,
   restoreContractSchema,
+  terminateContractSchema,
 } from '../validations/plotValidation';
 import {
   inventorySummaryQuerySchema,
@@ -132,6 +134,15 @@ router.delete(
   requirePermission(['manager', 'admin']),
   validate({ params: plotIdParamsSchema }),
   withLogging('Plots', 'deletePlot', deletePlot)
+);
+
+// 契約解約（active → terminated #236。論理削除と異なり解約後も参照・復活可能）
+router.post(
+  '/:id/terminate',
+  authenticate,
+  requirePermission(['operator', 'manager', 'admin']),
+  validate({ params: plotIdParamsSchema, body: terminateContractSchema }),
+  withLogging('Plots', 'terminateContract', terminateContract)
 );
 
 // 契約復活（terminated → active、誤操作リカバリ用）

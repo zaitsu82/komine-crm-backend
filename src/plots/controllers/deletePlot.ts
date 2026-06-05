@@ -3,7 +3,9 @@
  * DELETE /api/v1/plots/:id
  *
  * ContractPlot と関連データを論理削除します。
- * 契約キャンセル時に使用します。
+ * 誤登録レコードの整理用です。契約の解約には POST /:id/terminate を
+ * 使用してください（#236）。論理削除すると履歴・詳細・一覧から参照
+ * 不能になり、restoreContract でも復活できません。
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -14,7 +16,7 @@ import { recordEntityDeleted } from '../services/historyService';
 
 /**
  * ContractPlot削除（論理削除）
- * 契約をキャンセルし、関連データも論理削除します。
+ * 誤登録レコードの整理用。解約は terminateContract を使用すること。
  */
 export const deletePlot = async (
   req: Request,
