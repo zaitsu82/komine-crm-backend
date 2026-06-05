@@ -246,13 +246,36 @@ describe('Server Index', () => {
   it('should register all middleware and routes correctly', () => {
     require('../src/index');
 
-    // セキュリティミドルウェア（helmet, cors, hpp, json, urlencoded, cookieParser, sanitizeInput, rateLimiter）
+    // セキュリティミドルウェア（helmet, cors, rateLimiter, json, urlencoded, hpp, cookieParser, sanitizeInput）
     // + requestIdMiddleware + ログミドルウェア（requestLogger, securityHeaders）
     // + Swagger UI + 9 API routes (auth, plots, masters, staff, collective-burials, documents, yucho, billings, payments)
     // + notFoundHandler + errorHandler = 23 use calls
     expect(mockApp.use).toHaveBeenCalledTimes(23);
     // 1 health check endpoint
     expect(mockApp.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('should wire rate limiter before body parsers and hpp after them (#226, #219)', () => {
+    require('../src/index');
+
+    const useArgs = (mockApp.use as jest.Mock).mock.calls.map((call) => call[0]);
+    const security = jest.requireMock('../src/middleware/security');
+    const rateLimiterInstance = (security.createRateLimiter as jest.Mock).mock.results[0]?.value;
+
+    const rateLimiterIdx = useArgs.indexOf(rateLimiterInstance);
+    const jsonIdx = useArgs.indexOf('json-middleware');
+    const urlencodedIdx = useArgs.indexOf('urlencoded-middleware');
+    const hppIdx = useArgs.indexOf(security.hppProtection);
+    const sanitizeIdx = useArgs.indexOf(security.sanitizeInput);
+
+    // Rate Limiter はボディパーサより前（壊れボディ/サイズ超過でも制限を消費させる #226）
+    expect(rateLimiterIdx).toBeGreaterThanOrEqual(0);
+    expect(rateLimiterIdx).toBeLessThan(jsonIdx);
+    // HPP はボディパーサより後（req.body 検査を有効化する #219）
+    expect(hppIdx).toBeGreaterThan(jsonIdx);
+    expect(hppIdx).toBeGreaterThan(urlencodedIdx);
+    // sanitizeInput もパーサ後
+    expect(sanitizeIdx).toBeGreaterThan(jsonIdx);
   });
 
   it('should initialize Sentry', () => {
