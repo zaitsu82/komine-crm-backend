@@ -357,8 +357,10 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
         if (match && match[1] && match[2]) {
           const year = parseInt(match[1]);
           const month = parseInt(match[2]);
-          const nextDate = new Date(year, month, 1); // 次の月の1日
-          nextBillingDate = nextDate;
+          // 次の月の1日。ローカルTZ の new Date(year, month, 1) だと toISOString で
+          // 前月末日の UTC datetime に化け、非JST環境やソート集計で月境界がずれる
+          // ため UTC で構築する（#277、#214 の UTC 正規化と同方針）
+          nextBillingDate = new Date(Date.UTC(year, month, 1));
         }
       }
 
