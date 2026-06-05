@@ -131,7 +131,12 @@ async function truncateNewDb(prisma: PrismaClient): Promise<void> {
     prisma.contractPlot.deleteMany(),
     prisma.physicalPlot.deleteMany(),
     prisma.workInfo.deleteMany(),
-    prisma.customer.deleteMany({ where: { legacy_danka_cd: { not: null } } }),
+    // 申込者として移行作成された Customer（legacy_applicant_danka_cd）も削除対象に含める（#221）
+    prisma.customer.deleteMany({
+      where: {
+        OR: [{ legacy_danka_cd: { not: null } }, { legacy_applicant_danka_cd: { not: null } }],
+      },
+    }),
     prisma.relationshipMaster.deleteMany({ where: { code: { startsWith: '2009-' } } }),
     // Staff は admin が手動で作るので残す（supabase_uid 'legacy-tancd-*' のみ削除）
     prisma.staff.deleteMany({ where: { supabase_uid: { startsWith: 'legacy-tancd-' } } }),

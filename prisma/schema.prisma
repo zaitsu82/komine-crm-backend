@@ -218,31 +218,34 @@ model ContractPlot {
 
 // 顧客マスタ: 人物情報を一元管理（役割はSaleContractRoleで管理）
 model Customer {
-  id                     String    @id @default(uuid()) @map("customer_id")
-  name                   String    @db.VarChar(100) // 氏名
-  name_kana              String    @db.VarChar(100) // 氏名カナ
-  birth_date             DateTime? @db.Date // 生年月日
-  gender                 Gender? // 性別
-  postal_code            String    @db.VarChar(7) // 郵便番号
-  address                String    @db.VarChar(200) // 住所
-  address_line_2         String?   @db.VarChar(200) // 住所2（2行目）
-  registered_postal_code String?   @db.VarChar(7) // 本籍郵便番号（レガシー t_danka.honseki_zip）
-  registered_address     String?   @db.VarChar(200) // 本籍地
-  phone_number           String?   @db.VarChar(11) // 電話番号（nullable: レガシー実データに欠損あり）
-  fax_number             String?   @db.VarChar(11) // FAX番号
-  email                  String?   @db.VarChar(254) // メールアドレス（RFC 5321準拠）
+  id                        String    @id @default(uuid()) @map("customer_id")
+  name                      String    @db.VarChar(100) // 氏名
+  name_kana                 String    @db.VarChar(100) // 氏名カナ
+  birth_date                DateTime? @db.Date // 生年月日
+  gender                    Gender? // 性別
+  postal_code               String    @db.VarChar(7) // 郵便番号
+  address                   String    @db.VarChar(200) // 住所
+  address_line_2            String?   @db.VarChar(200) // 住所2（2行目）
+  registered_postal_code    String?   @db.VarChar(7) // 本籍郵便番号（レガシー t_danka.honseki_zip）
+  registered_address        String?   @db.VarChar(200) // 本籍地
+  phone_number              String?   @db.VarChar(11) // 電話番号（nullable: レガシー実データに欠損あり）
+  fax_number                String?   @db.VarChar(11) // FAX番号
+  email                     String?   @db.VarChar(254) // メールアドレス（RFC 5321準拠）
   // 振込先情報（ゆうちょ自動払込CSV 出力用。レガシーで0件運用、新システムで入力していく）
-  bank_name              String?   @db.VarChar(50) // 銀行名
-  branch_name            String?   @db.VarChar(50) // 支店名
-  account_type           String?   @db.VarChar(10) // 預金種目（ordinary/current/savings）
-  account_number         String?   @db.VarChar(20) // 口座番号
-  account_holder         String?   @db.VarChar(100) // 口座名義
-  notes                  String?   @db.Text // 備考
-  staff_id               Int? // 担当スタッフFK（レガシー tancd → matant）
-  legacy_danka_cd        Int? // 移行用（レガシー t_danka.danka_cd）
-  created_at             DateTime  @default(now())
-  updated_at             DateTime  @updatedAt
-  deleted_at             DateTime?
+  bank_name                 String?   @db.VarChar(50) // 銀行名
+  branch_name               String?   @db.VarChar(50) // 支店名
+  account_type              String?   @db.VarChar(10) // 預金種目（ordinary/current/savings）
+  account_number            String?   @db.VarChar(20) // 口座番号
+  account_holder            String?   @db.VarChar(100) // 口座名義
+  notes                     String?   @db.Text // 備考
+  staff_id                  Int? // 担当スタッフFK（レガシー tancd → matant）
+  legacy_danka_cd           Int? // 移行用（レガシー t_danka.danka_cd）
+  // 申込者（契約者と別人）として移行時に作成された Customer の識別用（#221）。
+  // truncate / cleanup の削除条件と step06 の冪等チェックに使う。
+  legacy_applicant_danka_cd Int?
+  created_at                DateTime  @default(now())
+  updated_at                DateTime  @updatedAt
+  deleted_at                DateTime?
 
   // Relations
   staff             Staff?             @relation(fields: [staff_id], references: [id], onDelete: SetNull)
@@ -404,6 +407,8 @@ model ConstructionInfo {
   updated_at           DateTime  @updatedAt
   deleted_at           DateTime?
 
+  legacy_construction_id Int? @unique // レガシー t_foundlog.construction_id（移行の冪等キー #220）
+
   // Relations
   contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
 
@@ -439,6 +444,8 @@ model FamilyContact {
   updated_at             DateTime     @updatedAt
   deleted_at             DateTime?
 
+  legacy_family_cd Int? @unique // レガシー t_family.family_cd（移行の冪等キー #220）
+
   // Relations
   contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
   customer     Customer?    @relation(fields: [customer_id], references: [id], onDelete: SetNull)
@@ -471,6 +478,8 @@ model BuriedPerson {
   created_at                 DateTime  @default(now())
   updated_at                 DateTime  @updatedAt
   deleted_at                 DateTime?
+
+  legacy_maisou_cd Int? @unique // レガシー t_maisou.maisou_cd（移行の冪等キー #220）
 
   // Relations
   contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)

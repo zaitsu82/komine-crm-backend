@@ -98,7 +98,8 @@ export const stepContractPlot: MigrationStep = {
   name: 'contractPlot',
   dependsOn: ['physicalPlot'],
   async run({ prisma, logger, idMaps, dryRun }) {
-    if (!dryRun) await rebuildIdMap(prisma, idMaps, 'physicalPlot', logger);
+    // dry-run でも resume 用に再構築（読み取り専用・冪等、full dry-run では no-op #224）
+    await rebuildIdMap(prisma, idMaps, 'physicalPlot', logger);
     assertIdMapsReady('contractPlot', idMaps, ['physicalPlot']);
 
     const rows = await legacyQuery<BochiContractRow>(
