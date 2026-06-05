@@ -4,7 +4,7 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { getRequestLogger } from '../utils/logger';
-import { StaffRole } from '@prisma/client';
+import { Prisma, StaffRole } from '@prisma/client';
 import { NotFoundError, ConflictError, ValidationError } from '../middleware/errorHandler';
 import prisma from '../db/prisma';
 import {
@@ -53,6 +53,36 @@ const assertNotLastActiveAdmin = async (staffId: number, operationLabel: string)
     );
   }
 };
+
+/**
+ * 最後の有効 admin を失いうる更新を「更新＋再検証」の Serializable トランザクションで
+ * 原子的に実行する（#269）。
+ * 事前チェック（assertNotLastActiveAdmin）だけでは count→update の間に並行する
+ * 降格・無効化・削除が挟まる TOCTOU レースで admin が 0 人になりうる
+ * （例: admin が2人のとき互いを同時降格すると両方の事前チェックが通過する）。
+ * 更新後に同一トランザクション内で有効 admin を再カウントし、0 人ならロールバックする。
+ * Serializable 分離レベルにより競合するトランザクションは直列化される。
+ */
+const updateStaffGuardingLastAdmin = async (
+  staffId: number,
+  data: Prisma.StaffUncheckedUpdateInput,
+  operationLabel: string
+) =>
+  prisma.$transaction(
+    async (tx) => {
+      const updated = await tx.staff.update({ where: { id: staffId }, data });
+      const remainingAdmins = await tx.staff.count({
+        where: { role: 'admin', is_active: true, deleted_at: null },
+      });
+      if (remainingAdmins === 0) {
+        throw new ValidationError(
+          `最後の有効な管理者のため${operationLabel}できません。先に別のスタッフへ管理者権限を付与してください`
+        );
+      }
+      return updated;
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+  );
 
 /**
  * スタッフ一覧取得
@@ -413,8 +443,11 @@ export const updateStaff = async (
     // 最後の有効な admin の降格・無効化を防ぐ（#208）
     const demoting = role !== undefined && ['viewer', 'operator', 'manager'].includes(role);
     const deactivating = isActive === false;
-    if (existingStaff.role === 'admin' && existingStaff.is_active && (demoting || deactivating)) {
-      await assertNotLastActiveAdmin(staffId, demoting ? '権限を変更' : '無効化');
+    const needsLastAdminGuard =
+      existingStaff.role === 'admin' && existingStaff.is_active && (demoting || deactivating);
+    const guardLabel = demoting ? '権限を変更' : '無効化';
+    if (needsLastAdminGuard) {
+      await assertNotLastActiveAdmin(staffId, guardLabel);
     }
 
     // Supabase 側メールを更新したかどうか（DB更新失敗時の補償戻し判定用 #233）
@@ -479,10 +512,13 @@ export const updateStaff = async (
     // createStaff の補償削除と同様に、失敗時は Supabase 側を旧メールへ戻す（#233）。
     let updatedStaff;
     try {
-      updatedStaff = await prisma.staff.update({
-        where: { id: staffId },
-        data: updateData,
-      });
+      // admin を失いうる更新は tx 内再検証つきで原子的に行う（#269）
+      updatedStaff = needsLastAdminGuard
+        ? await updateStaffGuardingLastAdmin(staffId, updateData, guardLabel)
+        : await prisma.staff.update({
+            where: { id: staffId },
+            data: updateData,
+          });
     } catch (dbError) {
       if (supabaseEmailUpdated && existingStaff.supabase_uid) {
         try {
@@ -567,7 +603,8 @@ export const deleteStaff = async (
 
     // 最後の有効な admin の削除を防ぐ（#208）
     // Supabase アカウント削除より前に判定する（認証アカウントだけ消える事故を防ぐ）
-    if (existingStaff.role === 'admin' && existingStaff.is_active) {
+    const needsLastAdminGuard = existingStaff.role === 'admin' && existingStaff.is_active;
+    if (needsLastAdminGuard) {
       await assertNotLastActiveAdmin(staffId, '削除');
     }
 
@@ -588,14 +625,13 @@ export const deleteStaff = async (
       }
     }
 
-    // 論理削除実行
-    await prisma.staff.update({
-      where: { id: staffId },
-      data: {
-        deleted_at: new Date(),
-        is_active: false,
-      },
-    });
+    // 論理削除実行（admin を失いうる削除は tx 内再検証つきで原子的に行う #269）
+    const deleteData = { deleted_at: new Date(), is_active: false };
+    if (needsLastAdminGuard) {
+      await updateStaffGuardingLastAdmin(staffId, deleteData, '削除');
+    } else {
+      await prisma.staff.update({ where: { id: staffId }, data: deleteData });
+    }
 
     res.json({
       success: true,
@@ -644,17 +680,20 @@ export const toggleStaffActive = async (
     }
 
     // 最後の有効な admin の無効化を防ぐ（#208）
-    if (existingStaff.role === 'admin' && existingStaff.is_active) {
+    const needsLastAdminGuard = existingStaff.role === 'admin' && existingStaff.is_active;
+    if (needsLastAdminGuard) {
       await assertNotLastActiveAdmin(staffId, '無効化');
     }
 
-    // 有効/無効を切り替え
-    const updatedStaff = await prisma.staff.update({
-      where: { id: staffId },
-      data: {
-        is_active: !existingStaff.is_active,
-      },
-    });
+    // 有効/無効を切り替え（admin を失いうる無効化は tx 内再検証つきで原子的に行う #269）
+    const updatedStaff = needsLastAdminGuard
+      ? await updateStaffGuardingLastAdmin(staffId, { is_active: false }, '無効化')
+      : await prisma.staff.update({
+          where: { id: staffId },
+          data: {
+            is_active: !existingStaff.is_active,
+          },
+        });
 
     res.json({
       success: true,
