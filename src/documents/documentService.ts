@@ -191,6 +191,33 @@ function escapeHtml(str: string): string {
 }
 
 /**
+ * Chromium 同時起動数の制限（#229）
+ *
+ * generatePdfFromHtml はリクエスト毎に puppeteer.launch() で Chromium を
+ * フル起動する（各プロセス数百MB）。同時生成が重なると事務所サーバ1台の
+ * 運用でメモリ/プロセス/FD枯渇を起こすため、簡易セマフォで同時起動数を
+ * 制限する。permit/envelope 系（pdf-lib 経路）は Chromium を使わないため対象外。
+ */
+const MAX_CONCURRENT_CHROMIUM = 2;
+let activeChromiumCount = 0;
+const chromiumWaitQueue: Array<() => void> = [];
+
+async function acquireChromiumSlot(): Promise<void> {
+  if (activeChromiumCount < MAX_CONCURRENT_CHROMIUM) {
+    activeChromiumCount++;
+    return;
+  }
+  await new Promise<void>((resolve) => chromiumWaitQueue.push(resolve));
+  activeChromiumCount++;
+}
+
+function releaseChromiumSlot(): void {
+  activeChromiumCount--;
+  const next = chromiumWaitQueue.shift();
+  if (next) next();
+}
+
+/**
  * HTMLからPDFを生成
  */
 export async function generatePdfFromHtml(
@@ -207,6 +234,9 @@ export async function generatePdfFromHtml(
   } = {}
 ): Promise<{ success: boolean; buffer?: Buffer; error?: string }> {
   let browser = null;
+
+  // 同時起動数を制限（#229）。空きが出るまで待機する
+  await acquireChromiumSlot();
 
   try {
     // puppeteerをサンドボックスモードで起動
@@ -251,8 +281,12 @@ export async function generatePdfFromHtml(
       error: error instanceof Error ? error.message : 'PDF生成に失敗しました',
     };
   } finally {
-    if (browser) {
-      await browser.close();
+    try {
+      if (browser) {
+        await browser.close();
+      }
+    } finally {
+      releaseChromiumSlot();
     }
   }
 }

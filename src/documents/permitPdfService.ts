@@ -115,8 +115,14 @@ export async function generatePermitPdfFromPages(
     const fonts = loadFonts();
     const outDoc = await PDFDocument.create();
     outDoc.registerFontkit(fontkit);
-    const fontRegular = await outDoc.embedFont(fonts.regular, { subset: false });
-    const fontBold = await outDoc.embedFont(fonts.bold, { subset: false });
+    // subset: true で使用グリフのみ埋め込む（#237）。
+    // NotoSansJP Regular/Bold は各約5MBあり、subset: false（全グリフ埋め込み）だと
+    // 1ページの許可証PDFが約6.3MB（base64で約8.5MB）になる。subset: true なら約340KB。
+    // 初版では「subset=true だと CIDマップ不整合で一部文字が欠ける」懸念から
+    // 全グリフ埋め込みにしていたが、現行の pdf-lib + fontkit では縦書き・回転を
+    // 含む全テンプレート文字の描画をテストで回帰担保した上でサブセット化する。
+    const fontRegular = await outDoc.embedFont(fonts.regular, { subset: true });
+    const fontBold = await outDoc.embedFont(fonts.bold, { subset: true });
 
     for (const pageDef of pages) {
       if (!pageDef.enabled) continue;
