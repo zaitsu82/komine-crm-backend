@@ -39,6 +39,16 @@ describe('fileStorage', () => {
       delete process.env.UPLOAD_DIR;
       expect(getUploadDir()).toBe(path.resolve(process.cwd(), 'uploads'));
     });
+
+    it('末尾スラッシュ付きの UPLOAD_DIR を正規化する (#274)', () => {
+      process.env.UPLOAD_DIR = `${tmpDir}${path.sep}`;
+      expect(getUploadDir()).toBe(tmpDir);
+    });
+
+    it('相対パスの UPLOAD_DIR を絶対パスへ解決する (#274)', () => {
+      process.env.UPLOAD_DIR = 'relative-uploads';
+      expect(getUploadDir()).toBe(path.resolve(process.cwd(), 'relative-uploads'));
+    });
   });
 
   describe('buildDocumentFileKey', () => {
@@ -69,6 +79,21 @@ describe('fileStorage', () => {
       expect(() => resolveDocumentFilePath('documents/../../etc/passwd')).toThrow(
         'Invalid file key'
       );
+    });
+
+    it('末尾スラッシュ付き UPLOAD_DIR でも正規キーが解決できる（無言全停止の回帰防止 #274）', () => {
+      process.env.UPLOAD_DIR = `${tmpDir}${path.sep}`;
+      const resolved = resolveDocumentFilePath('documents/abc/file.pdf');
+      expect(resolved).toBe(path.join(tmpDir, 'documents', 'abc', 'file.pdf'));
+    });
+
+    it('相対パス UPLOAD_DIR でも正規キーが解決でき、トラバーサルは拒否される (#274)', () => {
+      process.env.UPLOAD_DIR = 'relative-uploads';
+      const resolved = resolveDocumentFilePath('documents/abc/file.pdf');
+      expect(resolved).toBe(
+        path.resolve(process.cwd(), 'relative-uploads', 'documents', 'abc', 'file.pdf')
+      );
+      expect(() => resolveDocumentFilePath('../outside.txt')).toThrow('Invalid file key');
     });
   });
 

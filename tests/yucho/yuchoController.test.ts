@@ -281,6 +281,46 @@ describe('yuchoController', () => {
       ).toBeUndefined();
     });
 
+    it('管理料の金額パースで小数の桁結合・全角数字の0円化を発生させない (#275/#279)', async () => {
+      mockPrisma.managementFee.findMany.mockResolvedValue([
+        {
+          id: 'f1',
+          contract_plot_id: 'cp-1',
+          billing_month: '4',
+          management_fee: '3.6', // 小数表記 → '36'(10倍) に桁結合せず整数部 3 を採用
+          contractPlot: buildContractPlot(),
+        },
+        {
+          id: 'f2',
+          contract_plot_id: 'cp-2',
+          billing_month: '4',
+          management_fee: '１２０００', // 全角数字 → 0円扱いで除外せず 12000 として処理
+          contractPlot: buildContractPlot({ id: 'cp-2' }),
+        },
+        {
+          id: 'f3',
+          contract_plot_id: 'cp-3',
+          billing_month: '4',
+          management_fee: '12,000.50円', // 複合: 全角混在なし・カンマ円・小数 → 12000
+          contractPlot: buildContractPlot({ id: 'cp-3' }),
+        },
+      ]);
+      mockPrisma.collectiveBurial.findMany.mockResolvedValue([]);
+
+      const req = buildRequest({ year: '2026', month: '4', category: 'management' });
+      await getYuchoBilling(req as Request, res as Response, next);
+
+      const payload = (res.json as jest.Mock).mock.calls[0][0];
+      const byId = (id: string) =>
+        payload.data.items.find((i: { sourceId: string }) => i.sourceId === id);
+      // '3.6' は 36 にならず整数部 3（warn ログ対象）
+      expect(byId('f1').billingAmount).toBe(3);
+      // 全角 '１２０００' は除外されず 12000
+      expect(byId('f2').billingAmount).toBe(12000);
+      // '12,000.50円' は 12000
+      expect(byId('f3').billingAmount).toBe(12000);
+    });
+
     it('honours category=collective by skipping management fee query', async () => {
       mockPrisma.collectiveBurial.findMany.mockResolvedValue([]);
 

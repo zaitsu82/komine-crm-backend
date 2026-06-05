@@ -123,7 +123,8 @@ type Judgment = '✅' | '⚠️' | '❌';
 export function judgeCount(
   actual: number,
   legacy: number | null,
-  expectedInserted: number | null
+  expectedInserted: number | null,
+  opts?: { allowGrowth?: boolean }
 ): Judgment {
   const reference = legacy ?? expectedInserted;
   if (reference == null) return '⚠️';
@@ -134,8 +135,13 @@ export function judgeCount(
   // 上振れ検出（#223）: 冪等性バグ等による重複投入（件数倍増）を見逃さない。
   // skip により target < legacy となるステップがあるため、上限基準は
   // target 単体でなく Math.max(target, reference) を取る（正常上限は通し、~2x は弾く）。
+  // allowGrowth（#265/#267）: アプリ運用で移行後に正当に増えるテーブル
+  // （マスタの手動追加等）は上振れを ❌ にせず下限チェックのみ行う。
   const upper = Math.max(target, reference);
-  if (reference > 0 && actual > upper * 1.05) return '❌';
+  if (reference > 0 && actual > upper * 1.05) {
+    if (!opts?.allowGrowth) return '❌';
+    return '✅'; // 下限チェックは通過済み。正当な増加とみなす
+  }
   const tolerance = Math.max(5, Math.round(target * 0.02));
   if (Math.abs(actual - target) <= tolerance) return '✅';
   if (actual >= reference * 0.9) return '✅';
@@ -184,6 +190,8 @@ async function reconcileCounts(prisma: PrismaClient, legacyOn: boolean): Promise
     staff,
     physicalPlots,
     customers,
+    applicantCustomers,
+    applicantRoles,
     contractPlots,
     saleContractRoles,
     familyContacts,
@@ -193,9 +201,20 @@ async function reconcileCounts(prisma: PrismaClient, legacyOn: boolean): Promise
     payments,
   ] = await Promise.all([
     prisma.relationshipMaster.count(),
-    prisma.staff.count({ where: { deleted_at: null } }),
+    // 移行由来のみ（#267）: bootstrap admin 等の手動追加スタッフを混ぜると
+    // ベースライン(11)超過で誤 ❌ になるため supabase_uid プレフィクスで絞る
+    prisma.staff.count({
+      where: { deleted_at: null, supabase_uid: { startsWith: 'legacy-tancd-' } },
+    }),
     prisma.physicalPlot.count({ where: { deleted_at: null } }),
-    prisma.customer.count({ where: { deleted_at: null } }),
+    // 契約者由来のみ（#265）: step06 の申込者展開 Customer（1:N）を混ぜると
+    // ベースライン(t_danka=契約者のみ)超過で誤 ❌ になるため legacy_danka_cd で絞る
+    prisma.customer.count({ where: { deleted_at: null, legacy_danka_cd: { not: null } } }),
+    // 申込者展開 Customer は別行で検証（applicant ロール数との整合）
+    prisma.customer.count({
+      where: { deleted_at: null, legacy_applicant_danka_cd: { not: null } },
+    }),
+    prisma.saleContractRole.count({ where: { role: 'applicant', deleted_at: null } }),
     prisma.contractPlot.count({ where: { deleted_at: null } }),
     prisma.saleContractRole.count(),
     prisma.familyContact.count({ where: { deleted_at: null } }),
@@ -240,10 +259,13 @@ async function reconcileCounts(prisma: PrismaClient, legacyOn: boolean): Promise
       actual: relationshipMaster,
       baselineLegacy: null,
       baselineInserted: b.insertedCounts.relationship_master,
-      judgment: judgeCount(relationshipMaster, null, b.insertedCounts.relationship_master),
+      // マスタは admin がアプリから追加しうるため上振れを許容（#265/#267 同根）
+      judgment: judgeCount(relationshipMaster, null, b.insertedCounts.relationship_master, {
+        allowGrowth: true,
+      }),
     },
     {
-      label: 'Staff (matant + 手動)',
+      label: 'Staff (matant 由来のみ)',
       legacyTable: 'matant',
       legacy: null,
       actual: staff,
@@ -261,13 +283,26 @@ async function reconcileCounts(prisma: PrismaClient, legacyOn: boolean): Promise
       judgment: judgeCount(physicalPlots, legPhysical, b.insertedCounts.physical_plots),
     },
     {
-      label: 'Customer',
+      label: 'Customer (契約者: legacy_danka_cd 有)',
       legacyTable: 't_danka',
       legacy: legCustomer,
       actual: customers,
       baselineLegacy: b.legacyCounts.customers,
       baselineInserted: b.insertedCounts.customers,
       judgment: judgeCount(customers, legCustomer, b.insertedCounts.customers),
+    },
+    {
+      // 申込者展開（step06: applicant != contractor の場合の別 Customer）。
+      // ベースライン件数を持たないため、applicant ロール数との整合で検証する:
+      // 申込者 Customer は必ず applicant ロールに紐づくので、ロール数を超えたら
+      // 重複生成（冪等性バグ）の疑い（#223 の検知目的を維持しつつ誤 ❌ を排除）。
+      label: 'Customer (申込者展開: applicant ロール数以下であること)',
+      legacyTable: 't_danka (request_*)',
+      legacy: null,
+      actual: applicantCustomers,
+      baselineLegacy: null,
+      baselineInserted: applicantRoles,
+      judgment: applicantCustomers <= applicantRoles ? '✅' : '❌',
     },
     {
       label: 'ContractPlot',

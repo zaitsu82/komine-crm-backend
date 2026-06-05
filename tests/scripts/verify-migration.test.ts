@@ -52,4 +52,37 @@ describe('judgeCount (#223)', () => {
       expect(judgeCount(1049, 1000, null)).not.toBe('❌');
     });
   });
+
+  describe('正当な超過の許容（#265/#267）', () => {
+    it('allowGrowth ならベースライン超過でも ❌ にしない（マスタの手動追加等）', () => {
+      // RelationshipMaster: baseline=35 に admin がアプリから追加して 50 件
+      expect(judgeCount(50, null, 35, { allowGrowth: true })).toBe('✅');
+      // 2倍超でも growth テーブルは ❌ にしない
+      expect(judgeCount(80, null, 35, { allowGrowth: true })).toBe('✅');
+    });
+
+    it('allowGrowth でも下限チェック（未投入/大幅不足）は維持する', () => {
+      expect(judgeCount(0, null, 35, { allowGrowth: true })).toBe('❌');
+      expect(judgeCount(10, null, 35, { allowGrowth: true })).toBe('❌');
+    });
+
+    it('allowGrowth 未指定の従来呼び出しは上振れ ❌ のまま（#223 の回帰防止）', () => {
+      expect(judgeCount(80, null, 35)).toBe('❌');
+    });
+
+    it('Customer: 契約者のみに絞った actual が legacy=baseline と一致すれば ✅（#265 の回帰防止）', () => {
+      // 修正前: actual=4587(申込者展開込) > 3487*1.05 で必発 ❌ だった。
+      // 修正後は legacy_danka_cd 有のみを数えるため 3487 で比較される。
+      expect(judgeCount(3487, 3487, 3487)).toBe('✅');
+    });
+
+    it('Customer: 契約者のみ集計でも重複投入（約2倍）は ❌ を維持', () => {
+      expect(judgeCount(6974, 3487, 3487)).toBe('❌');
+    });
+
+    it('Staff: 移行由来のみに絞った actual=11 はベースライン一致で ✅（#267 の回帰防止）', () => {
+      // 修正前: bootstrap admin を含む actual>=12 > 11*1.05 で必発 ❌ だった
+      expect(judgeCount(11, null, 11)).toBe('✅');
+    });
+  });
 });

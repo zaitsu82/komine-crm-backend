@@ -255,4 +255,95 @@ describe('isExportableBillingItem', () => {
   it('is false when amount is 0', () => {
     expect(isExportableBillingItem(baseItem({ billingAmount: 0 }))).toBe(false);
   });
+
+  describe('口座番号欠損の除外（#266）', () => {
+    it('銀行名だけあり口座番号が null なら出力対象外（全0の不正振替行を防ぐ）', () => {
+      const item = baseItem({
+        billingInfo: { ...baseItem().billingInfo!, accountNumber: null, branchName: null },
+      });
+      expect(isExportableBillingItem(item)).toBe(false);
+    });
+
+    it('口座番号が空文字なら出力対象外', () => {
+      const item = baseItem({
+        billingInfo: { ...baseItem().billingInfo!, accountNumber: '' },
+      });
+      expect(isExportableBillingItem(item)).toBe(false);
+    });
+
+    it('口座番号が全0（実在しない値）なら出力対象外', () => {
+      const item = baseItem({
+        billingInfo: { ...baseItem().billingInfo!, accountNumber: '0000000' },
+      });
+      expect(isExportableBillingItem(item)).toBe(false);
+    });
+
+    it('口座番号が数字を含まない（記号のみ）なら出力対象外', () => {
+      const item = baseItem({
+        billingInfo: { ...baseItem().billingInfo!, accountNumber: '---' },
+      });
+      expect(isExportableBillingItem(item)).toBe(false);
+    });
+
+    it('ハイフン区切りの正常な口座番号は出力対象', () => {
+      const item = baseItem({
+        billingInfo: { ...baseItem().billingInfo!, accountNumber: '123-4567' },
+      });
+      expect(isExportableBillingItem(item)).toBe(true);
+    });
+  });
+});
+
+describe('口座名義の二重引用符エスケープ（#273）', () => {
+  /** RFC4180 準拠の最小 CSV 行パーサ（囲みフィールド内の "" と , を解釈） */
+  const splitRfc4180 = (line: string): string[] => {
+    const out: string[] = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cur += ch;
+        }
+      } else if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        out.push(cur);
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur);
+    return out;
+  };
+
+  it('名義に半角 " が含まれても囲みフィールドが破損しない（RFC4180 "" 二重化）', () => {
+    const item = baseItem({
+      billingInfo: { ...baseItem().billingInfo!, accountHolder: 'ヤマ"ダ"タロウ' },
+    });
+    const row = buildDataRow(item);
+    // 列10 は "..." 囲みのまま、内部の " は "" に二重化される
+    expect(row).toContain('"ﾔﾏ""ﾀﾞ""ﾀﾛｳ');
+    // RFC4180 パーサで読んだとき列数が 12 のままで、名義が正しく復元されること
+    const fields = splitRfc4180(row);
+    expect(fields.length).toBe(12);
+    expect(fields[9]).toContain('ﾔﾏ"ﾀﾞ"ﾀﾛｳ');
+    // 後続フィールド（引落金額・フラグ）が列ズレしていないこと
+    expect(fields[10]).toBe('12000');
+  });
+
+  it('名義に " が無い場合は従来どおり', () => {
+    const cells = buildDataRow(baseItem()).split(',');
+    expect(cells[9]?.startsWith('"')).toBe(true);
+    expect(cells[9]?.includes('""')).toBe(false);
+  });
 });

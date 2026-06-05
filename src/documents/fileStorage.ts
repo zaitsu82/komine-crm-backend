@@ -14,7 +14,11 @@ import path from 'path';
 
 /** アップロードファイルの保存先ルートディレクトリ */
 export function getUploadDir(): string {
-  return process.env['UPLOAD_DIR'] || path.resolve(process.cwd(), 'uploads');
+  // env 生値をそのまま使うと、末尾スラッシュ付き（.../uploads/）や相対パスの設定で
+  // resolveDocumentFilePath の startsWith ガードが常に偽になり、全アップロード・
+  // ダウンロードが「ファイルが見つかりません」で無言全停止する（#274）。
+  // path.resolve で常に正規化済み絶対パスに揃える（末尾スラッシュ除去・相対→絶対）。
+  return path.resolve(process.env['UPLOAD_DIR'] || path.join(process.cwd(), 'uploads'));
 }
 
 /**

@@ -350,19 +350,26 @@ export const createCollectiveBurial = async (
           },
         });
 
+    // 実埋葬者から件数・上限到達日・請求予定日を再同期する（#281）。
+    // BuriedPerson は ContractPlot 紐付けのため合祀のソフトデリートでは消えない。
+    // 復活時に 0 固定のままだと「count=0 なのに埋葬者一覧に実データが並ぶ」矛盾や、
+    // 上限到達済みでも billing_scheduled_date が null でゆうちょ請求対象から漏れる。
+    const synced = await updateCollectiveBurialCount(prisma, contractPlotId);
+    const result = synced ?? collectiveBurial;
+
     res.status(201).json({
       success: true,
       data: {
-        id: collectiveBurial.id,
-        contractPlotId: collectiveBurial.contract_plot_id,
-        burialCapacity: collectiveBurial.burial_capacity,
-        currentBurialCount: collectiveBurial.current_burial_count,
-        validityPeriodYears: collectiveBurial.validity_period_years,
-        billingStatus: collectiveBurial.billing_status,
-        billingAmount: collectiveBurial.billing_amount,
-        notes: collectiveBurial.notes,
-        createdAt: collectiveBurial.created_at.toISOString(),
-        updatedAt: collectiveBurial.updated_at.toISOString(),
+        id: result.id,
+        contractPlotId: result.contract_plot_id,
+        burialCapacity: result.burial_capacity,
+        currentBurialCount: result.current_burial_count,
+        validityPeriodYears: result.validity_period_years,
+        billingStatus: result.billing_status,
+        billingAmount: result.billing_amount,
+        notes: result.notes,
+        createdAt: result.created_at.toISOString(),
+        updatedAt: result.updated_at.toISOString(),
       },
     });
   } catch (error) {

@@ -225,6 +225,31 @@ describe('billingController', () => {
       });
     });
 
+    it('未入金額は解約済・貸倒請求を除いた回収可能債権のみで算出する (#272)', async () => {
+      mockPrisma.billing.aggregate
+        // 1回目: フィルタ一致の全件（解約済 200,000 円を含む）
+        .mockResolvedValueOnce({ _sum: { amount: 500000, paid_amount: 200000 } })
+        // 2回目: 回収可能（terminated/written_off 除外）のみ
+        .mockResolvedValueOnce({ _sum: { amount: 300000, paid_amount: 200000 } });
+      mockPrisma.billing.count.mockResolvedValueOnce(120).mockResolvedValueOnce(7);
+
+      const req = buildRequest({ query: {} });
+      await getBillingsSummary(req as Request, res as Response, next);
+
+      const payload = (res.json as jest.Mock).mock.calls[0][0];
+      // 全件差の 300,000 ではなく回収可能のみの 100,000（#170 の未収規則と整合）
+      expect(payload.data.unpaidAmount).toBe(100000);
+      expect(payload.data.totalAmount).toBe(500000);
+      expect(payload.data.paidAmount).toBe(200000);
+      // 2回目の aggregate に除外条件が AND 合成されること（ユーザーフィルタは維持）
+      const collectibleWhere = mockPrisma.billing.aggregate.mock.calls[1][0].where;
+      expect(collectibleWhere.AND[1]).toEqual({
+        terminated: false,
+        status: { notIn: ['written_off', 'terminated'] },
+      });
+      expect(collectibleWhere.AND[0]).toMatchObject({ deleted_at: null });
+    });
+
     it('applies filter conditions and adds overdue status for overdue count', async () => {
       mockPrisma.billing.aggregate.mockResolvedValue({
         _sum: { amount: null, paid_amount: null },
@@ -422,6 +447,75 @@ describe('billingController', () => {
       await updateBilling(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(expect.objectContaining({ name: 'NotFoundError' }));
+    });
+
+    it('notes のみの編集では入金再集計を呼ばない（移行済み paid_amount の保全 #264）', async () => {
+      mockPrisma.billing.findFirst
+        .mockResolvedValueOnce({
+          id: VALID_UUID,
+          contract_plot_id: PLOT_UUID,
+          amount: 15000,
+          terminated: false,
+          status: 'paid',
+          billing_date: new Date('2020-03-01'),
+        })
+        .mockResolvedValueOnce(buildBillingRow({ amount: 15000, status: 'paid' }));
+      mockPrisma.billing.update.mockResolvedValue(buildBillingRow({ amount: 15000 }));
+
+      const req = buildRequest({
+        params: { id: VALID_UUID },
+        body: { notes: '備考のみ更新' },
+      });
+      await updateBilling(req as Request, res as Response, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(recalculateBillingPaymentsMock).not.toHaveBeenCalled();
+    });
+
+    it('amount が既存と同値なら入金再集計を呼ばない (#264)', async () => {
+      mockPrisma.billing.findFirst
+        .mockResolvedValueOnce({
+          id: VALID_UUID,
+          contract_plot_id: PLOT_UUID,
+          amount: 15000,
+          terminated: false,
+          status: 'paid',
+          billing_date: null,
+        })
+        .mockResolvedValueOnce(buildBillingRow({ amount: 15000, status: 'paid' }));
+      mockPrisma.billing.update.mockResolvedValue(buildBillingRow({ amount: 15000 }));
+
+      const req = buildRequest({
+        params: { id: VALID_UUID },
+        body: { amount: 15000, notes: 'フォーム全体送信を想定' },
+      });
+      await updateBilling(req as Request, res as Response, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(recalculateBillingPaymentsMock).not.toHaveBeenCalled();
+    });
+
+    it('terminated の変更では入金再集計を呼ぶ (#264)', async () => {
+      mockPrisma.billing.findFirst
+        .mockResolvedValueOnce({
+          id: VALID_UUID,
+          contract_plot_id: PLOT_UUID,
+          amount: 15000,
+          terminated: false,
+          status: 'billed',
+          billing_date: new Date('2026-03-01'),
+        })
+        .mockResolvedValueOnce(buildBillingRow({ amount: 15000, status: 'terminated' }));
+      mockPrisma.billing.update.mockResolvedValue(buildBillingRow({ amount: 15000 }));
+
+      const req = buildRequest({
+        params: { id: VALID_UUID },
+        body: { terminated: true },
+      });
+      await updateBilling(req as Request, res as Response, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(recalculateBillingPaymentsMock).toHaveBeenCalledWith(mockPrisma, VALID_UUID);
     });
 
     it('自動算出対象ステータスへの手動変更は 400 で明示的に拒否される (#271)', async () => {

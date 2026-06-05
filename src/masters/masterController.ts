@@ -569,11 +569,7 @@ const MASTER_CODE_MAX_LENGTH: Record<MasterType, number> = {
  * 参照側が孤児コード化して「旧コード: X」表示に化けるのを事前に防ぐ。
  * 参照箇所が特定できないマスタタイプは 0 を返す（従来動作を維持）。
  */
-const countMasterCodeUsage = async (
-  masterType: MasterType,
-  code: string,
-  masterId: number
-): Promise<number> => {
+const countMasterCodeUsage = async (masterType: MasterType, code: string): Promise<number> => {
   switch (masterType) {
     case 'tax-type': {
       const [usage, management] = await Promise.all([
@@ -609,11 +605,20 @@ const countMasterCodeUsage = async (
       });
     case 'contractor':
       return prisma.constructionInfo.count({ where: { contractor: code, deleted_at: null } });
-    // direction/position は GravestoneInfo が int の id を保持し code === String(id) で解決する
-    case 'direction':
-      return prisma.gravestoneInfo.count({ where: { direction_id: masterId, deleted_at: null } });
-    case 'position':
-      return prisma.gravestoneInfo.count({ where: { position_id: masterId, deleted_at: null } });
+    // direction/position は GravestoneInfo が int を保持し、名称解決は Number(code) と
+    // 突合する（seed / フロント resolveMasterName と整合）。PK id は API 追加・再seed・
+    // 移行 backfill で code とドリフトしうるため、id でなく code 基準で数える（#268）。
+    // ※フレッシュ seed 直後は偶然 id === Number(code) のため従来実装でも一致していた。
+    case 'direction': {
+      const codeNum = Number(code);
+      if (!Number.isInteger(codeNum)) return 0;
+      return prisma.gravestoneInfo.count({ where: { direction_id: codeNum, deleted_at: null } });
+    }
+    case 'position': {
+      const codeNum = Number(code);
+      if (!Number.isInteger(codeNum)) return 0;
+      return prisma.gravestoneInfo.count({ where: { position_id: codeNum, deleted_at: null } });
+    }
     default:
       return 0;
   }
@@ -800,7 +805,7 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
     if (rest.code !== undefined) {
       const existing = await delegate.findUnique({ where: { id: masterId } });
       if (existing && existing.code !== rest.code) {
-        const usageCount = await countMasterCodeUsage(masterType, existing.code, masterId);
+        const usageCount = await countMasterCodeUsage(masterType, existing.code);
         if (usageCount > 0) {
           const label = masterTypeLabels[masterType];
           res.status(409).json({
@@ -956,7 +961,7 @@ export const deleteMaster = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const usageCount = await countMasterCodeUsage(masterType, existing.code, masterId);
+    const usageCount = await countMasterCodeUsage(masterType, existing.code);
     if (usageCount > 0) {
       res.status(409).json({
         success: false,
