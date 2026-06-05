@@ -427,14 +427,17 @@ describe('Validation Middleware', () => {
         expect(() => yearMonthSchema.parse('')).not.toThrow();
       });
 
-      it('表記揺れ（2024-01 / 2024/01）はYYYY年M月形式へ正規化されること（types#35）', () => {
+      it('表記揺れは正規化して受理されること（types#31）', () => {
+        // レガシー移行データ・UI入力の 'YYYY-MM'/'YYYY/MM'/'YYYYMM' は
+        // @komine/types の yearMonthSchema が preprocess で正規化する
         expect(yearMonthSchema.parse('2024-01')).toBe('2024年1月');
         expect(yearMonthSchema.parse('2024/01')).toBe('2024年1月');
+        expect(yearMonthSchema.parse('202404')).toBe('2024年4月');
       });
 
-      it('正規化できない形式でエラーが発生すること', () => {
-        expect(() => yearMonthSchema.parse('invalid')).toThrow();
-        expect(() => yearMonthSchema.parse('2024年')).toThrow();
+      it('無効な形式でエラーが発生すること', () => {
+        expect(() => yearMonthSchema.parse('2024-13')).toThrow();
+        expect(() => yearMonthSchema.parse('abc')).toThrow();
       });
 
       it('未定義でも許可されること', () => {
