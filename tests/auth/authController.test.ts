@@ -891,6 +891,31 @@ describe('Auth Controller', () => {
         expect(mockResponse.status).toHaveBeenCalledWith(200);
         expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       });
+
+      it('大文字・前後空白入りメールでも正規化してルックアップ・リセット送信すること (#280)', async () => {
+        // Staff.email は trim().toLowerCase() で保存されるため、生入力のままでは
+        // ルックアップがヒットせず招待未完了検知（#234）が偽陰性になっていた
+        mockRequest.body = { email: '  Pending@Example.COM ' };
+        mockPrisma.staff.findFirst.mockResolvedValue({
+          id: 5,
+          supabase_uid: 'pending_1748000000000',
+        });
+
+        await forgotPassword(mockRequest as Request, mockResponse as Response);
+
+        // 診断ルックアップは正規化済みメールで行われること
+        expect(mockPrisma.staff.findFirst).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { email: 'pending@example.com', deleted_at: null },
+          })
+        );
+        // リセット送信も正規化済みメールで行われること
+        expect(mockSupabaseAuth.resetPasswordForEmail).toHaveBeenCalledWith(
+          'pending@example.com',
+          expect.any(Object)
+        );
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
     });
   }); // Supabase環境変数が設定されている場合の終了
 
