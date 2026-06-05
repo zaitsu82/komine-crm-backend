@@ -699,7 +699,11 @@ export const forgotPassword = async (req: Request, res: Response) => {
       });
     }
 
-    const { email } = req.body as { email: string };
+    const { email: rawEmail } = req.body as { email: string };
+    // Staff.email は createStaff/updateStaff で trim().toLowerCase() 保存される。
+    // 入力をそのまま使うと大文字混じり・前後空白でルックアップがヒットせず、
+    // 招待未完了検知（#234）が偽陰性になるため同じ正規化を通す（#280）。
+    const email = rawEmail.trim().toLowerCase();
 
     log.info({ email }, 'Auth: password reset request');
 
