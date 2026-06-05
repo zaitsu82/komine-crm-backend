@@ -57,6 +57,22 @@ export const recalculateBillingPayments = async (
     select: { payment_amount: true, payment_date: true },
   });
 
+  // レガシー移行の入金実績の保全（#264）:
+  // 移行 Billing（legacy_seikyu_cd 有）の paid_amount は t_seikyu.nyukin_goukei から
+  // 直接投入され、対応する Payment 行が存在しないことがある（del_flg=1 入金は未移行、
+  // 孤児入金は billing 未紐付け）。Payment 行が 0 件のままなら移行値を上書きせず、
+  // status のみ既存 paid_amount から再算出する。
+  // ※非レガシー Billing は対象外（最後の入金を削除→0 円に戻す正常系を維持）
+  if (payments.length === 0 && billing.legacy_seikyu_cd !== null && billing.paid_amount > 0) {
+    const preservedStatus = computeBillingStatus(billing, billing.paid_amount);
+    await client.billing.update({
+      where: { id: billingId },
+      data: { status: preservedStatus },
+    });
+    await recalculateContractPlotPaymentStatus(client, billing.contract_plot_id);
+    return;
+  }
+
   const paidAmount = payments.reduce((sum, p) => sum + p.payment_amount, 0);
   const lastPaymentDate = payments.reduce<Date | null>((latest, p) => {
     if (!p.payment_date) return latest;
