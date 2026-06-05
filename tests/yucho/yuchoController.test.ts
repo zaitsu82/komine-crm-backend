@@ -237,6 +237,50 @@ describe('yuchoController', () => {
       expect(payload.data.items).toHaveLength(0);
     });
 
+    it('管理料の金額パースで負額・小数丸めを発生させない (#212)', async () => {
+      mockPrisma.managementFee.findMany.mockResolvedValue([
+        {
+          id: 'f1',
+          contract_plot_id: 'cp-1',
+          billing_month: '4',
+          management_fee: '-', // 未設定の意味のハイフン → 0 として除外
+          contractPlot: buildContractPlot(),
+        },
+        {
+          id: 'f2',
+          contract_plot_id: 'cp-2',
+          billing_month: '4',
+          management_fee: '-1000', // 負号混入 → 負額にしない
+          contractPlot: buildContractPlot({ id: 'cp-2' }),
+        },
+        {
+          id: 'f3',
+          contract_plot_id: 'cp-3',
+          billing_month: '4',
+          management_fee: '10,000円', // 正常系の表記ゆれ
+          contractPlot: buildContractPlot({ id: 'cp-3' }),
+        },
+      ]);
+      mockPrisma.collectiveBurial.findMany.mockResolvedValue([]);
+
+      const req = buildRequest({ year: '2026', month: '4', category: 'management' });
+      await getYuchoBilling(req as Request, res as Response, next);
+
+      const payload = (res.json as jest.Mock).mock.calls[0][0];
+      const amounts = payload.data.items.map(
+        (i: { sourceId: string; billingAmount: number }) => i.billingAmount
+      );
+      // 負の金額は一切含まれない
+      expect(amounts.every((a: number) => a > 0)).toBe(true);
+      // '10,000円' は 10000 として正常にパースされる
+      const f3 = payload.data.items.find((i: { sourceId: string }) => i.sourceId === 'f3');
+      expect(f3.billingAmount).toBe(10000);
+      // '-' は除外される
+      expect(
+        payload.data.items.find((i: { sourceId: string }) => i.sourceId === 'f1')
+      ).toBeUndefined();
+    });
+
     it('honours category=collective by skipping management fee query', async () => {
       mockPrisma.collectiveBurial.findMany.mockResolvedValue([]);
 
