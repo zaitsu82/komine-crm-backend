@@ -49,7 +49,18 @@ interface MasterDelegate {
   create: (args: { data: Record<string, unknown> }) => Promise<MasterRow>;
   update: (args: { where: { id: number }; data: Record<string, unknown> }) => Promise<MasterRow>;
   delete: (args: { where: { id: number } }) => Promise<MasterRow>;
+  findUnique: (args: { where: { id: number } }) => Promise<MasterRow | null>;
 }
+
+/**
+ * マスタGET用の where 句を組み立てる（#238）。
+ * 既定は有効（is_active: true）のみ。`?include_inactive=true` を付けると
+ * 無効化済みも含めて返す。無効マスタの code を参照している過去データの
+ * 名称解決（frontend resolveMasterName）が「旧コード: X」に化けるのを防ぐため、
+ * 名称解決用のフェッチはこのパラメータを使う（フォームの選択肢は既定のまま）。
+ */
+const buildMasterWhere = (req: Request): { is_active?: boolean } =>
+  req.query?.['include_inactive'] === 'true' ? {} : { is_active: true };
 
 /**
  * エラーオブジェクト（Prisma など）から `code` を安全に取り出す。
@@ -67,10 +78,10 @@ const getErrorCode = (error: unknown): string | undefined => {
  * 墓地タイプマスタ取得
  * GET /api/v1/masters/cemetery-type
  */
-export const getCemeteryTypeMaster = async (_req: Request, res: Response) => {
+export const getCemeteryTypeMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.cemeteryTypeMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -103,10 +114,10 @@ export const getCemeteryTypeMaster = async (_req: Request, res: Response) => {
  * 支払方法マスタ取得
  * GET /api/v1/masters/payment-method
  */
-export const getPaymentMethodMaster = async (_req: Request, res: Response) => {
+export const getPaymentMethodMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.paymentMethodMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -139,10 +150,10 @@ export const getPaymentMethodMaster = async (_req: Request, res: Response) => {
  * 税タイプマスタ取得
  * GET /api/v1/masters/tax-type
  */
-export const getTaxTypeMaster = async (_req: Request, res: Response) => {
+export const getTaxTypeMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.taxTypeMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -176,10 +187,10 @@ export const getTaxTypeMaster = async (_req: Request, res: Response) => {
  * 計算タイプマスタ取得
  * GET /api/v1/masters/calc-type
  */
-export const getCalcTypeMaster = async (_req: Request, res: Response) => {
+export const getCalcTypeMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.calcTypeMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -212,10 +223,10 @@ export const getCalcTypeMaster = async (_req: Request, res: Response) => {
  * 請求タイプマスタ取得
  * GET /api/v1/masters/billing-type
  */
-export const getBillingTypeMaster = async (_req: Request, res: Response) => {
+export const getBillingTypeMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.billingTypeMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -248,10 +259,10 @@ export const getBillingTypeMaster = async (_req: Request, res: Response) => {
  * 受取人タイプマスタ取得
  * GET /api/v1/masters/recipient-type
  */
-export const getRecipientTypeMaster = async (_req: Request, res: Response) => {
+export const getRecipientTypeMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.recipientTypeMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -284,10 +295,10 @@ export const getRecipientTypeMaster = async (_req: Request, res: Response) => {
  * 工事タイプマスタ取得
  * GET /api/v1/masters/construction-type
  */
-export const getConstructionTypeMaster = async (_req: Request, res: Response) => {
+export const getConstructionTypeMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.constructionTypeMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -320,10 +331,10 @@ export const getConstructionTypeMaster = async (_req: Request, res: Response) =>
  * 区画名マスタ取得
  * GET /api/v1/masters/section-name
  */
-export const getSectionNameMaster = async (_req: Request, res: Response) => {
+export const getSectionNameMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.sectionNameMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -357,10 +368,10 @@ export const getSectionNameMaster = async (_req: Request, res: Response) => {
  * 続柄マスタ取得
  * GET /api/v1/masters/relationship
  */
-export const getRelationshipMaster = async (_req: Request, res: Response) => {
+export const getRelationshipMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.relationshipMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -393,10 +404,10 @@ export const getRelationshipMaster = async (_req: Request, res: Response) => {
  * 工事業者マスタ取得
  * GET /api/v1/masters/contractor
  */
-export const getContractorMaster = async (_req: Request, res: Response) => {
+export const getContractorMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.contractorMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -429,10 +440,10 @@ export const getContractorMaster = async (_req: Request, res: Response) => {
  * 方角マスタ取得
  * GET /api/v1/masters/direction
  */
-export const getDirectionMaster = async (_req: Request, res: Response) => {
+export const getDirectionMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.directionMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -465,10 +476,10 @@ export const getDirectionMaster = async (_req: Request, res: Response) => {
  * 位置マスタ取得
  * GET /api/v1/masters/position
  */
-export const getPositionMaster = async (_req: Request, res: Response) => {
+export const getPositionMaster = async (req: Request, res: Response) => {
   try {
     const data = await prisma.positionMaster.findMany({
-      where: { is_active: true },
+      where: buildMasterWhere(req),
       orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     });
 
@@ -534,6 +545,81 @@ const masterTypeLabels: Record<MasterType, string> = {
 };
 
 /**
+ * 各マスタの code カラム長（prisma/schema.prisma の @db.VarChar に整合 #232）。
+ * code 自動生成時の切り詰めに使う。
+ */
+const MASTER_CODE_MAX_LENGTH: Record<MasterType, number> = {
+  'cemetery-type': 10,
+  'payment-method': 10,
+  'tax-type': 10,
+  'calc-type': 10,
+  'billing-type': 10,
+  'recipient-type': 10,
+  'construction-type': 10,
+  'section-name': 20,
+  relationship: 10,
+  contractor: 20,
+  direction: 10,
+  position: 10,
+};
+
+/**
+ * マスタ code（direction/position は id）の使用箇所件数を集計する（#231）。
+ * マスタ参照は FK ではなく String カラムのため、削除やコード変更で
+ * 参照側が孤児コード化して「旧コード: X」表示に化けるのを事前に防ぐ。
+ * 参照箇所が特定できないマスタタイプは 0 を返す（従来動作を維持）。
+ */
+const countMasterCodeUsage = async (
+  masterType: MasterType,
+  code: string,
+  masterId: number
+): Promise<number> => {
+  switch (masterType) {
+    case 'tax-type': {
+      const [usage, management] = await Promise.all([
+        prisma.usageFee.count({ where: { tax_type: code, deleted_at: null } }),
+        prisma.managementFee.count({ where: { tax_type: code, deleted_at: null } }),
+      ]);
+      return usage + management;
+    }
+    case 'calc-type': {
+      const [usage, management] = await Promise.all([
+        prisma.usageFee.count({ where: { calculation_type: code, deleted_at: null } }),
+        prisma.managementFee.count({ where: { calculation_type: code, deleted_at: null } }),
+      ]);
+      return usage + management;
+    }
+    case 'billing-type': {
+      const [usage, management] = await Promise.all([
+        prisma.usageFee.count({ where: { billing_type: code, deleted_at: null } }),
+        prisma.managementFee.count({ where: { billing_type: code, deleted_at: null } }),
+      ]);
+      return usage + management;
+    }
+    case 'payment-method': {
+      const [usage, management] = await Promise.all([
+        prisma.usageFee.count({ where: { payment_method: code, deleted_at: null } }),
+        prisma.managementFee.count({ where: { payment_method: code, deleted_at: null } }),
+      ]);
+      return usage + management;
+    }
+    case 'construction-type':
+      return prisma.constructionInfo.count({
+        where: { construction_type: code, deleted_at: null },
+      });
+    case 'contractor':
+      return prisma.constructionInfo.count({ where: { contractor: code, deleted_at: null } });
+    // direction/position は GravestoneInfo が int の id を保持し code === String(id) で解決する
+    case 'direction':
+      return prisma.gravestoneInfo.count({ where: { direction_id: masterId, deleted_at: null } });
+    case 'position':
+      return prisma.gravestoneInfo.count({ where: { position_id: masterId, deleted_at: null } });
+    default:
+      return 0;
+  }
+};
+
+/**
  * マスタデータ作成
  * POST /api/v1/masters/:masterType
  */
@@ -576,8 +662,10 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
     const { taxRate, sortOrder, isActive, period, ...rest } = parsed.data;
 
     // Auto-generate code from name if not provided
+    // カラム長（VarChar(10)系が大半）を超えると P2000 で原因不明の500になるため、
+    // masterType ごとの実カラム長で切り詰める（#232）
     if (!rest.code) {
-      rest.code = rest.name.substring(0, 20);
+      rest.code = rest.name.substring(0, MASTER_CODE_MAX_LENGTH[masterType]);
     }
 
     const createData: Record<string, unknown> = {
@@ -626,6 +714,19 @@ export const createMaster = async (req: Request, res: Response): Promise<void> =
           code: 'CONFLICT',
           message: `${label}マスタのコードが重複しています`,
           details: [],
+        },
+      });
+      return;
+    }
+
+    // 文字列長超過（明示指定の code が長すぎる等）は 500 でなく 400 で返す（#232）
+    if (getErrorCode(error) === 'P2000') {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `${label}マスタのコードが長すぎます（最大${MASTER_CODE_MAX_LENGTH[masterType]}文字）`,
+          details: [{ field: 'code', message: 'コードが長すぎます' }],
         },
       });
       return;
@@ -695,6 +796,26 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
     const delegate = getMasterDelegate(masterType);
     const { taxRate, sortOrder, isActive, period, ...rest } = parsed.data;
 
+    // 使用中マスタの code 改名は既存参照（String カラム）を孤児化するため拒否する（#231）
+    if (rest.code !== undefined) {
+      const existing = await delegate.findUnique({ where: { id: masterId } });
+      if (existing && existing.code !== rest.code) {
+        const usageCount = await countMasterCodeUsage(masterType, existing.code, masterId);
+        if (usageCount > 0) {
+          const label = masterTypeLabels[masterType];
+          res.status(409).json({
+            success: false,
+            error: {
+              code: 'CONFLICT',
+              message: `${label}マスタのコード「${existing.code}」は${usageCount}件のデータで使用中のため変更できません`,
+              details: [],
+            },
+          });
+          return;
+        }
+      }
+    }
+
     const updateData: Record<string, unknown> = { ...rest };
     if (sortOrder !== undefined) updateData['sort_order'] = sortOrder;
     if (isActive !== undefined) updateData['is_active'] = isActive;
@@ -758,6 +879,19 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // 文字列長超過は 500 でなく 400 で返す（#232）
+    if (getErrorCode(error) === 'P2000') {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `${label}マスタのコードが長すぎます（最大${MASTER_CODE_MAX_LENGTH[masterType]}文字）`,
+          details: [{ field: 'code', message: 'コードが長すぎます' }],
+        },
+      });
+      return;
+    }
+
     getRequestLogger().error({ err: error, masterType }, 'Error updating master');
     res.status(500).json({
       success: false,
@@ -806,6 +940,35 @@ export const deleteMaster = async (req: Request, res: Response): Promise<void> =
     const delegate = getMasterDelegate(masterType);
     const label = masterTypeLabels[masterType];
 
+    // 使用中チェック（#231）: マスタ参照は FK でなく String カラムのため、
+    // 物理削除すると参照側が孤児コード化し「旧コード: X」表示に化ける。
+    // 使用中の場合は削除を拒否し、論理無効化（isActive=false）を案内する。
+    const existing = await delegate.findUnique({ where: { id: masterId } });
+    if (!existing) {
+      res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: `${label}マスタが見つかりません (ID: ${id})`,
+          details: [],
+        },
+      });
+      return;
+    }
+
+    const usageCount = await countMasterCodeUsage(masterType, existing.code, masterId);
+    if (usageCount > 0) {
+      res.status(409).json({
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: `${label}マスタ「${existing.name}」は${usageCount}件のデータで使用中のため削除できません。先に無効化してください`,
+          details: [],
+        },
+      });
+      return;
+    }
+
     await delegate.delete({ where: { id: masterId } });
 
     res.status(200).json({
@@ -842,7 +1005,7 @@ export const deleteMaster = async (req: Request, res: Response): Promise<void> =
  * 全マスタデータ一括取得
  * GET /api/v1/masters/all
  */
-export const getAllMasters = async (_req: Request, res: Response) => {
+export const getAllMasters = async (req: Request, res: Response) => {
   try {
     const [
       cemeteryType,
@@ -859,51 +1022,51 @@ export const getAllMasters = async (_req: Request, res: Response) => {
       position,
     ] = await Promise.all([
       prisma.cemeteryTypeMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.paymentMethodMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.taxTypeMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.calcTypeMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.billingTypeMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.recipientTypeMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.constructionTypeMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.sectionNameMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.relationshipMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.contractorMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.directionMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.positionMaster.findMany({
-        where: { is_active: true },
+        where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
     ]);
