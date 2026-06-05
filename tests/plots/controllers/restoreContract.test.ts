@@ -53,6 +53,11 @@ jest.mock('../../../src/plots/services/historyService', () => ({
   recordEntityUpdated: (...args: unknown[]) => mockRecordEntityUpdated(...args),
 }));
 
+const mockUpdatePhysicalPlotStatus = jest.fn();
+jest.mock('../../../src/plots/utils', () => ({
+  updatePhysicalPlotStatus: (...args: unknown[]) => mockUpdatePhysicalPlotStatus(...args),
+}));
+
 import { restoreContract } from '../../../src/plots/controllers/restoreContract';
 import { NotFoundError, ConflictError } from '../../../src/middleware/errorHandler';
 
@@ -110,6 +115,8 @@ describe('restoreContract', () => {
         where: { id: 'cp-1' },
         data: { contract_status: 'active' },
       });
+      // 物理区画ステータスの再計算がトランザクション内で呼ばれること（#210）
+      expect(mockUpdatePhysicalPlotStatus).toHaveBeenCalledWith(mockPrisma, 'pp-1');
       expect(mockRecordEntityUpdated).toHaveBeenCalledTimes(1);
       const historyCall = mockRecordEntityUpdated.mock.calls[0]?.[1] as Record<string, unknown>;
       expect(historyCall).toMatchObject({
