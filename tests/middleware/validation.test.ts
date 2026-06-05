@@ -427,9 +427,14 @@ describe('Validation Middleware', () => {
         expect(() => yearMonthSchema.parse('')).not.toThrow();
       });
 
-      it('無効な形式でエラーが発生すること', () => {
-        expect(() => yearMonthSchema.parse('2024-01')).toThrow();
-        expect(() => yearMonthSchema.parse('2024/01')).toThrow();
+      it('表記揺れ（2024-01 / 2024/01）はYYYY年M月形式へ正規化されること（types#35）', () => {
+        expect(yearMonthSchema.parse('2024-01')).toBe('2024年1月');
+        expect(yearMonthSchema.parse('2024/01')).toBe('2024年1月');
+      });
+
+      it('正規化できない形式でエラーが発生すること', () => {
+        expect(() => yearMonthSchema.parse('invalid')).toThrow();
+        expect(() => yearMonthSchema.parse('2024年')).toThrow();
       });
 
       it('未定義でも許可されること', () => {
