@@ -120,7 +120,7 @@ function parseArgs(argv: string[]): Options {
 type Judgment = '✅' | '⚠️' | '❌';
 
 /** 新件数とレガシー/ベースライン件数から判定する */
-function judgeCount(
+export function judgeCount(
   actual: number,
   legacy: number | null,
   expectedInserted: number | null
@@ -131,6 +131,11 @@ function judgeCount(
   if (reference > 0 && actual < reference * 0.5) return '❌'; // 大幅不足(投入失敗の疑い)
   // ベースラインがあれば ±2% を許容、なければレガシー比 90% 以上で OK
   const target = expectedInserted ?? reference;
+  // 上振れ検出（#223）: 冪等性バグ等による重複投入（件数倍増）を見逃さない。
+  // skip により target < legacy となるステップがあるため、上限基準は
+  // target 単体でなく Math.max(target, reference) を取る（正常上限は通し、~2x は弾く）。
+  const upper = Math.max(target, reference);
+  if (reference > 0 && actual > upper * 1.05) return '❌';
   const tolerance = Math.max(5, Math.round(target * 0.02));
   if (Math.abs(actual - target) <= tolerance) return '✅';
   if (actual >= reference * 0.9) return '✅';
@@ -570,7 +575,7 @@ function buildReport(args: {
   }
   lines.push('');
   lines.push(
-    '> ❌ = 新システム件数が 0 または期待の 50% 未満（投入失敗の疑い）。⚠️ = 許容差を超える乖離。✅ = ベースライン ±2% またはレガシー比 90% 以上。'
+    '> ❌ = 新システム件数が 0、期待の 50% 未満（投入失敗の疑い）、または期待の 105% 超（重複投入の疑い）。⚠️ = 許容差を超える乖離。✅ = ベースライン ±2% またはレガシー比 90% 以上。'
   );
   lines.push('');
 
@@ -686,7 +691,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err: unknown) => {
-  console.error(err);
-  process.exit(1);
-});
+// テストから judgeCount 等を import できるよう、直接実行時のみ main を起動する
+if (require.main === module) {
+  main().catch((err: unknown) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

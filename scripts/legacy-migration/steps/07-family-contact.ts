@@ -66,6 +66,7 @@ export const stepFamilyContact: MigrationStep = {
 
     let inserted = 0;
     let skipped = 0;
+    let skipExisting = 0;
     let skipMissingName = 0;
     let skipDankaNotMapped = 0;
     let skipContractPlotNotMapped = 0;
@@ -107,10 +108,21 @@ export const stepFamilyContact: MigrationStep = {
         continue;
       }
 
+      // 冪等性（#220）: 再実行時は legacy_family_cd で既存をスキップ
+      const existing = await prisma.familyContact.findUnique({
+        where: { legacy_family_cd: row.family_cd },
+      });
+      if (existing) {
+        skipped++;
+        skipExisting++;
+        continue;
+      }
+
       await prisma.familyContact.create({
         data: {
           contract_plot_id: contractPlotId,
           customer_id: customerId,
+          legacy_family_cd: row.family_cd,
           name,
           name_kana: joinName(row.family_sei_kana, row.family_mei_kana),
           birth_date: parseLegacyDate(row.birthday),
@@ -142,6 +154,7 @@ export const stepFamilyContact: MigrationStep = {
         skip_missing_name: skipMissingName,
         skip_danka_not_mapped: skipDankaNotMapped,
         skip_contract_plot_not_mapped: skipContractPlotNotMapped,
+        skip_existing: skipExisting,
       },
     };
   },
