@@ -20,6 +20,7 @@ declare global {
 const mockSupabaseAuth = {
   signInWithPassword: jest.fn(),
   getUser: jest.fn(),
+  resetPasswordForEmail: jest.fn(),
   admin: {
     signOut: jest.fn(),
     updateUserById: jest.fn(),
@@ -39,6 +40,7 @@ jest.mock('@supabase/supabase-js', () => ({
 const mockPrisma = {
   staff: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
   },
 };
@@ -764,6 +766,130 @@ describe('Auth Controller', () => {
             details: [],
           },
         });
+      });
+    });
+
+    describe('updateProfile の分散整合（#233）', () => {
+      let updateProfile: any;
+
+      beforeEach(async () => {
+        const authController = await import('../../src/auth/authController');
+        updateProfile = authController.updateProfile;
+
+        mockRequest.user = {
+          id: 1,
+          email: 'old@example.com',
+          name: 'テストユーザー',
+          role: 'admin',
+          is_active: true,
+          supabase_uid: 'supabase-uid-123',
+        };
+      });
+
+      it('Supabase更新成功後にDB更新が失敗したら、Supabaseメールを旧値へ戻すこと', async () => {
+        mockRequest.body = { email: 'new@example.com' };
+
+        mockPrisma.staff.findFirst.mockResolvedValue(null); // 重複なし
+        mockSupabaseAuth.admin.updateUserById.mockResolvedValue({ data: {}, error: null });
+        mockPrisma.staff.update.mockRejectedValue(new Error('connection lost'));
+
+        await updateProfile(mockRequest as Request, mockResponse as Response);
+
+        // 1回目: 新メールへ更新 / 2回目: 補償で旧メールへ戻す
+        expect(mockSupabaseAuth.admin.updateUserById).toHaveBeenCalledTimes(2);
+        expect(mockSupabaseAuth.admin.updateUserById).toHaveBeenNthCalledWith(
+          1,
+          'supabase-uid-123',
+          { email: 'new@example.com' }
+        );
+        expect(mockSupabaseAuth.admin.updateUserById).toHaveBeenNthCalledWith(
+          2,
+          'supabase-uid-123',
+          { email: 'old@example.com' }
+        );
+        expect(mockResponse.status).toHaveBeenCalledWith(500);
+      });
+
+      it('メール変更を伴わないDB更新失敗では補償を行わないこと', async () => {
+        mockRequest.body = { name: '新しい名前' };
+
+        mockPrisma.staff.update.mockRejectedValue(new Error('connection lost'));
+
+        await updateProfile(mockRequest as Request, mockResponse as Response);
+
+        expect(mockSupabaseAuth.admin.updateUserById).not.toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(500);
+      });
+
+      it('正常系: メール変更がSupabase/DBの両方へ反映されること', async () => {
+        mockRequest.body = { email: 'new@example.com' };
+
+        mockPrisma.staff.findFirst.mockResolvedValue(null);
+        mockSupabaseAuth.admin.updateUserById.mockResolvedValue({ data: {}, error: null });
+        mockPrisma.staff.update.mockResolvedValue({
+          id: 1,
+          name: 'テストユーザー',
+          email: 'new@example.com',
+          role: 'admin',
+          is_active: true,
+          supabase_uid: 'supabase-uid-123',
+        });
+
+        await updateProfile(mockRequest as Request, mockResponse as Response);
+
+        expect(mockSupabaseAuth.admin.updateUserById).toHaveBeenCalledTimes(1);
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+    });
+
+    describe('forgotPassword の招待未完了検知（#234）', () => {
+      let forgotPassword: any;
+
+      beforeEach(async () => {
+        const authController = await import('../../src/auth/authController');
+        forgotPassword = authController.forgotPassword;
+        mockSupabaseAuth.resetPasswordForEmail.mockResolvedValue({ error: null });
+      });
+
+      it('pending_ スタッフでも応答は一律成功（列挙対策維持）でリセットも呼ぶこと', async () => {
+        mockRequest.body = { email: 'pending@example.com' };
+        mockPrisma.staff.findFirst.mockResolvedValue({
+          id: 5,
+          supabase_uid: 'pending_1748000000000',
+        });
+
+        await forgotPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+        expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+        // タイミング差での列挙を避けるため resetPasswordForEmail は従来どおり呼ぶ
+        expect(mockSupabaseAuth.resetPasswordForEmail).toHaveBeenCalledWith(
+          'pending@example.com',
+          expect.any(Object)
+        );
+      });
+
+      it('通常スタッフでも同一応答であること', async () => {
+        mockRequest.body = { email: 'active@example.com' };
+        mockPrisma.staff.findFirst.mockResolvedValue({
+          id: 6,
+          supabase_uid: 'real-uid',
+        });
+
+        await forgotPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+        expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+      });
+
+      it('存在しないメールでも同一応答であること（列挙対策）', async () => {
+        mockRequest.body = { email: 'unknown@example.com' };
+        mockPrisma.staff.findFirst.mockResolvedValue(null);
+
+        await forgotPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+        expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       });
     });
   }); // Supabase環境変数が設定されている場合の終了

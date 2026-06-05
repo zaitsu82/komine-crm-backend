@@ -417,6 +417,9 @@ export const updateStaff = async (
       await assertNotLastActiveAdmin(staffId, demoting ? '権限を変更' : '無効化');
     }
 
+    // Supabase 側メールを更新したかどうか（DB更新失敗時の補償戻し判定用 #233）
+    let supabaseEmailUpdated = false;
+
     // メールアドレスの重複チェック
     if (normalizedEmail && normalizedEmail !== existingStaff.email) {
       const emailExists = await prisma.staff.findFirst({
@@ -451,6 +454,7 @@ export const updateStaff = async (
             updateResult.error || 'Supabaseメールアドレスの更新に失敗しました'
           );
         }
+        supabaseEmailUpdated = true;
       }
     }
 
@@ -470,10 +474,39 @@ export const updateStaff = async (
     if (isActive !== undefined) updateData.is_active = isActive;
 
     // 更新実行
-    const updatedStaff = await prisma.staff.update({
-      where: { id: staffId },
-      data: updateData,
-    });
+    // Supabase メール更新成功後に DB 更新が失敗すると Supabase=新 / DB=旧 の
+    // 分散不整合が残り、再招待・パスワードリセットが誤メール宛になる。
+    // createStaff の補償削除と同様に、失敗時は Supabase 側を旧メールへ戻す（#233）。
+    let updatedStaff;
+    try {
+      updatedStaff = await prisma.staff.update({
+        where: { id: staffId },
+        data: updateData,
+      });
+    } catch (dbError) {
+      if (supabaseEmailUpdated && existingStaff.supabase_uid) {
+        try {
+          const revert = await updateSupabaseUserEmail(
+            existingStaff.supabase_uid,
+            existingStaff.email
+          );
+          if (!revert.success) {
+            getRequestLogger().warn(
+              { staffId, error: revert.error },
+              'DB更新失敗後のSupabaseメール補償戻しに失敗（不整合が残存している可能性）'
+            );
+          } else {
+            getRequestLogger().warn({ staffId }, 'DB更新失敗のためSupabaseメールを旧値へ戻した');
+          }
+        } catch (revertException) {
+          getRequestLogger().warn(
+            { staffId, err: revertException },
+            'Supabaseメール補償戻しで例外（不整合が残存している可能性）'
+          );
+        }
+      }
+      throw dbError;
+    }
 
     const response: StaffDetail = {
       id: updatedStaff.id,

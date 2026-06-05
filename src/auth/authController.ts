@@ -615,18 +615,51 @@ export const updateProfile = async (req: Request, res: Response) => {
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) updateData.email = email;
 
-    const updatedStaff = await prisma.staff.update({
-      where: { id: req.user.id },
-      data: updateData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        is_active: true,
-        supabase_uid: true,
-      },
-    });
+    // Supabase メール更新成功後に DB 更新が失敗すると Supabase=新メール / DB=旧メール の
+    // 分散不整合が残り、以後どちらのメールでもログイン不能になりうる。
+    // createStaff の補償削除と同様に、失敗時は Supabase 側を旧メールへ戻す（#233）。
+    const emailChanged = Boolean(email && email !== req.user.email);
+    let updatedStaff;
+    try {
+      updatedStaff = await prisma.staff.update({
+        where: { id: req.user.id },
+        data: updateData,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          is_active: true,
+          supabase_uid: true,
+        },
+      });
+    } catch (dbError) {
+      if (emailChanged) {
+        try {
+          const { error: revertError } = await supabase.auth.admin.updateUserById(
+            req.user.supabase_uid,
+            { email: req.user.email }
+          );
+          if (revertError) {
+            log.warn(
+              { staffId: req.user.id, error: revertError.message },
+              'Auth: DB更新失敗後のSupabaseメール補償戻しに失敗（不整合が残存している可能性）'
+            );
+          } else {
+            log.warn(
+              { staffId: req.user.id },
+              'Auth: DB更新失敗のためSupabaseメールを旧値へ戻した'
+            );
+          }
+        } catch (revertException) {
+          log.warn(
+            { staffId: req.user.id, err: revertException },
+            'Auth: Supabaseメール補償戻しで例外（不整合が残存している可能性）'
+          );
+        }
+      }
+      throw dbError;
+    }
 
     log.info({ staffId: req.user.id }, 'Auth: profile update success');
     return res.status(200).json({
@@ -669,6 +702,24 @@ export const forgotPassword = async (req: Request, res: Response) => {
     const { email } = req.body as { email: string };
 
     log.info({ email }, 'Auth: password reset request');
+
+    // 招待未完了（supabase_uid が pending_）のスタッフは Supabase 側にユーザーが
+    // 存在せずリセットメールが届かないため、運用検知用の warn を残す（#234）。
+    // 列挙対策のため応答は一律成功のまま変えず、タイミング差を避けるため
+    // resetPasswordForEmail も従来どおり呼ぶ（このルックアップはログ用途のみ）。
+    const staffForDiagnostics = await prisma.staff.findFirst({
+      where: { email, deleted_at: null },
+      select: { id: true, supabase_uid: true },
+    });
+    if (
+      staffForDiagnostics &&
+      (!staffForDiagnostics.supabase_uid || staffForDiagnostics.supabase_uid.startsWith('pending_'))
+    ) {
+      log.warn(
+        { staffId: staffForDiagnostics.id, email },
+        'Auth: 招待未完了スタッフへのパスワードリセット要求（メールは届かない。管理者による再招待が必要）'
+      );
+    }
 
     const frontendUrl = process.env['FRONTEND_URL'] || 'http://localhost:3000';
     const redirectTo = `${frontendUrl}/reset-password`;
