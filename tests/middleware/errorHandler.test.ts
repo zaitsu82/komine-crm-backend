@@ -272,7 +272,8 @@ describe('Error Handler Middleware', () => {
           error: {
             code: 'VALIDATION_ERROR',
             message: '関連するデータが存在しません',
-            details: [{ message: error.message }],
+            // 内部スキーマ情報を含む error.message は返さない（#217）
+            details: [],
           },
         });
       });
@@ -291,7 +292,8 @@ describe('Error Handler Middleware', () => {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'リレーションの制約違反',
-            details: [{ message: error.message }],
+            // 内部スキーマ情報を含む error.message は返さない（#217）
+            details: [],
           },
         });
       });
@@ -310,7 +312,8 @@ describe('Error Handler Middleware', () => {
           error: {
             code: 'DATABASE_ERROR',
             message: 'データベースエラーが発生しました',
-            details: [{ message: error.message }],
+            // 内部スキーマ情報を含む error.message は返さない（#217）
+            details: [],
           },
         });
       });
@@ -328,7 +331,8 @@ describe('Error Handler Middleware', () => {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'データベースバリデーションエラー',
-            details: [{ message: error.message }],
+            // 内部スキーマ情報を含む error.message は返さない（#217）
+            details: [],
           },
         });
       });
@@ -529,7 +533,8 @@ describe('Error Handler Middleware', () => {
           success: false,
           error: {
             code: 'TEAPOT',
-            message: 'カスタムエラー',
+            // 4xx は raw な err.message を返さず汎用文言に置換（#225）
+            message: 'リクエストを処理できませんでした',
             details: [],
           },
         });
@@ -567,6 +572,96 @@ describe('Error Handler Middleware', () => {
         });
       });
     });
+
+    describe('body-parser / Express 由来エラー処理 (#225)', () => {
+      it('JSONパース失敗（entity.parse.failed）は 400 BAD_REQUEST 固定文言になること', () => {
+        const error: any = new SyntaxError(
+          `Unexpected token 'b', "{"email": broken" is not valid JSON`
+        );
+        error.status = 400;
+        error.type = 'entity.parse.failed';
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(400);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'リクエストボディの形式が不正です',
+            details: [],
+          },
+        });
+      });
+
+      it('サイズ超過（entity.too.large）は 413 PAYLOAD_TOO_LARGE 固定文言になること', () => {
+        const error: any = new Error('request entity too large');
+        error.status = 413;
+        error.type = 'entity.too.large';
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(413);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'PAYLOAD_TOO_LARGE',
+            message: 'リクエストボディが大きすぎます',
+            details: [],
+          },
+        });
+      });
+
+      it('URIデコード失敗（URIError）は 400 BAD_REQUEST 固定文言になること', () => {
+        const error = new URIError("Failed to decode param '%E0%A4%A'");
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(400);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'リクエストURLの形式が不正です',
+            details: [],
+          },
+        });
+      });
+
+      it('コードを持たない未知の 4xx はステータスに応じたコードへマップされること', () => {
+        const error: any = new Error('some internal http-errors message');
+        error.status = 415;
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(415);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'UNSUPPORTED_MEDIA_TYPE',
+            message: 'リクエストを処理できませんでした',
+            details: [],
+          },
+        });
+      });
+
+      it('5xx は従来どおり INTERNAL_SERVER_ERROR を返すこと', () => {
+        const error: any = new Error('upstream failure');
+        error.status = 502;
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(502);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'upstream failure',
+            details: [],
+          },
+        });
+      });
+    });
   });
 
   describe('notFoundHandler', () => {
@@ -583,7 +678,8 @@ describe('Error Handler Middleware', () => {
         success: false,
         error: {
           code: 'NOT_FOUND',
-          message: 'ルート POST /api/nonexistent が見つかりません',
+          // リクエストパスを反映しない固定文言（#228 入力リフレクション対策）
+          message: 'リクエストされたルートが見つかりません',
           details: [],
         },
       });
