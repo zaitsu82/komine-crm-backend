@@ -13,7 +13,33 @@ interface HandledError {
   status?: number;
   code?: string;
   details?: unknown[];
+  /** body-parser (http-errors) が設定するエラー種別（例: 'entity.parse.failed'） */
+  type?: string;
 }
+
+/** 4xx ステータスをクライアントエラーコードへマップする（#225） */
+const clientErrorCodeForStatus = (status: number): string => {
+  switch (status) {
+    case 400:
+      return 'BAD_REQUEST';
+    case 401:
+      return 'UNAUTHORIZED';
+    case 403:
+      return 'FORBIDDEN';
+    case 404:
+      return 'NOT_FOUND';
+    case 409:
+      return 'CONFLICT';
+    case 413:
+      return 'PAYLOAD_TOO_LARGE';
+    case 415:
+      return 'UNSUPPORTED_MEDIA_TYPE';
+    case 429:
+      return 'TOO_MANY_REQUESTS';
+    default:
+      return 'BAD_REQUEST';
+  }
+};
 
 /**
  * グローバルエラーハンドラー
@@ -87,12 +113,50 @@ export const errorHandler = (error: unknown, req: Request, res: Response, _next:
   }
 
   if (error instanceof Prisma.PrismaClientValidationError) {
+    // error.message にはテーブル名・カラム名・期待型等のスキーマ情報が含まれるため
+    // クライアントには返さない（#217）。詳細はサーバログ・Sentryに記録済み。
     return res.status(400).json({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
         message: 'データベースバリデーションエラー',
-        details: [{ message: error.message }],
+        details: [],
+      },
+    });
+  }
+
+  // body-parser / Express 由来のエラー（#225）
+  // これらは status を持つが code を持たず、message に内部実装文言
+  // （送信ボディ断片を含む）が入るため、固定文言・適切なコードへ変換する。
+  if (err.type === 'entity.too.large' || err.status === 413) {
+    return res.status(413).json({
+      success: false,
+      error: {
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'リクエストボディが大きすぎます',
+        details: [],
+      },
+    });
+  }
+
+  if (err.type === 'entity.parse.failed' || (error instanceof SyntaxError && err.status === 400)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'リクエストボディの形式が不正です',
+        details: [],
+      },
+    });
+  }
+
+  if (error instanceof URIError) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'リクエストURLの形式が不正です',
+        details: [],
       },
     });
   }
@@ -154,6 +218,20 @@ export const errorHandler = (error: unknown, req: Request, res: Response, _next:
   }
 
   // デフォルトのエラーレスポンス
+  // 未知の 4xx（http-errors 由来等）は INTERNAL_SERVER_ERROR と誤分類せず、
+  // ステータスに応じたクライアントエラーコード＋汎用文言へ安全側に倒す（#225）。
+  // 生の err.message は内部実装情報を含みうるためクライアントへ返さない。
+  if (err.status && err.status >= 400 && err.status < 500) {
+    return res.status(err.status).json({
+      success: false,
+      error: {
+        code: err.code || clientErrorCodeForStatus(err.status),
+        message: 'リクエストを処理できませんでした',
+        details: [],
+      },
+    });
+  }
+
   return res.status(err.status || 500).json({
     success: false,
     error: {
@@ -248,6 +326,8 @@ const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Res
         },
       });
 
+    // 以下の分岐では error.message（テーブル名・制約名等のDB内部情報を含む）を
+    // クライアントへ返さない（#217）。詳細はサーバログ・Sentryに記録済み。
     case 'P2003':
       // Foreign key constraint violation
       return res.status(400).json({
@@ -255,7 +335,7 @@ const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Res
         error: {
           code: 'VALIDATION_ERROR',
           message: '関連するデータが存在しません',
-          details: [{ message: error.message }],
+          details: [],
         },
       });
 
@@ -266,7 +346,7 @@ const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Res
         error: {
           code: 'VALIDATION_ERROR',
           message: 'リレーションの制約違反',
-          details: [{ message: error.message }],
+          details: [],
         },
       });
 
@@ -276,7 +356,7 @@ const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Res
         error: {
           code: 'DATABASE_ERROR',
           message: 'データベースエラーが発生しました',
-          details: [{ message: error.message }],
+          details: [],
         },
       });
   }
@@ -286,12 +366,14 @@ const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Res
  * 404エラーハンドラー
  * ルートが見つからない場合に実行される
  */
-export const notFoundHandler = (req: Request, res: Response) => {
+export const notFoundHandler = (_req: Request, res: Response) => {
+  // req.path はクライアント任意の文字列のためレスポンスに反映しない（#228、入力リフレクション対策）。
+  // パスは requestLogger が構造化ログ（method/path フィールド）で記録済み。
   return res.status(404).json({
     success: false,
     error: {
       code: 'NOT_FOUND',
-      message: `ルート ${req.method} ${req.path} が見つかりません`,
+      message: 'リクエストされたルートが見つかりません',
       details: [],
     },
   });
