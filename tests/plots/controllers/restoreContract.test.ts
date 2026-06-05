@@ -54,8 +54,10 @@ jest.mock('../../../src/plots/services/historyService', () => ({
 }));
 
 const mockUpdatePhysicalPlotStatus = jest.fn();
+const mockValidateContractArea = jest.fn();
 jest.mock('../../../src/plots/utils', () => ({
   updatePhysicalPlotStatus: (...args: unknown[]) => mockUpdatePhysicalPlotStatus(...args),
+  validateContractArea: (...args: unknown[]) => mockValidateContractArea(...args),
 }));
 
 import { restoreContract } from '../../../src/plots/controllers/restoreContract';
@@ -90,6 +92,8 @@ const buildReq = (overrides: Partial<Request> = {}): Request => {
 describe('restoreContract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // 既定: 面積検証は通過（#270 の検証は個別テストで上書き）
+    mockValidateContractArea.mockResolvedValue({ isValid: true, availableArea: 3.6 });
   });
 
   describe('成功ケース', () => {
@@ -98,6 +102,7 @@ describe('restoreContract', () => {
         id: 'cp-1',
         physical_plot_id: 'pp-1',
         contract_status: 'terminated',
+        contract_area_sqm: 3.6,
         deleted_at: null,
       });
       mockPrisma.contractPlot.update.mockResolvedValue({
@@ -138,10 +143,43 @@ describe('restoreContract', () => {
         },
       });
       expect(next).not.toHaveBeenCalled();
+      // 面積検証がトランザクション内で正しい引数で呼ばれること（#270）
+      expect(mockValidateContractArea).toHaveBeenCalledWith(mockPrisma, 'pp-1', 3.6, 'cp-1');
     });
   });
 
   describe('失敗ケース', () => {
+    it('復活面積が物理区画の空きを超える場合は ConflictError で拒否される (#270)', async () => {
+      // シナリオ: P(3.6㎡) で A(3.6) 解約 → B(3.6) 新規販売 → A 復活を試行
+      mockPrisma.contractPlot.findUnique.mockResolvedValue({
+        id: 'cp-1',
+        physical_plot_id: 'pp-1',
+        contract_status: 'terminated',
+        contract_area_sqm: 3.6,
+        deleted_at: null,
+      });
+      mockValidateContractArea.mockResolvedValue({
+        isValid: false,
+        availableArea: 0,
+        message: '空き面積 0㎡ に対して 3.6㎡ は契約できません',
+      });
+
+      const req = buildReq();
+      const res = buildRes();
+      const next = jest.fn() as NextFunction;
+
+      await restoreContract(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      const err = (next as jest.Mock).mock.calls[0]?.[0] as Error;
+      expect(err).toBeInstanceOf(ConflictError);
+      expect(err.message).toContain('復活できません');
+      // active への更新・物理区画再計算・履歴記録のいずれも実行されないこと
+      expect(mockPrisma.contractPlot.update).not.toHaveBeenCalled();
+      expect(mockUpdatePhysicalPlotStatus).not.toHaveBeenCalled();
+      expect(mockRecordEntityUpdated).not.toHaveBeenCalled();
+    });
+
     it('存在しない ContractPlot は NotFoundError', async () => {
       mockPrisma.contractPlot.findUnique.mockResolvedValue(null);
 

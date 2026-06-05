@@ -12,7 +12,7 @@ import prisma from '../../db/prisma';
 import { NotFoundError, ConflictError } from '../../middleware/errorHandler';
 import { recordEntityUpdated } from '../services/historyService';
 import { contractStatusService } from '../services/contractStatusService';
-import { updatePhysicalPlotStatus } from '../utils';
+import { updatePhysicalPlotStatus, validateContractArea } from '../utils';
 import type { RestoreContractRequest } from '../../validations/plotValidation';
 
 export const restoreContract = async (
@@ -45,6 +45,23 @@ export const restoreContract = async (
     contractStatusService.validateTransitionWithReason(beforeStatus, ContractStatus.active, reason);
 
     await prisma.$transaction(async (tx) => {
+      // 復活面積が物理区画の空きに収まるか検証する（#270）。
+      // 解約で空いた面積に別契約が販売されている場合（A解約→B販売→A復活）、
+      // 無検証で active に戻すと物理面積を超える過剰割当が成立してしまう。
+      // 自分自身は terminated のため集計外だが、明示的に除外して将来の状態変更に備える。
+      const areaValidation = await validateContractArea(
+        tx,
+        contractPlot.physical_plot_id,
+        Number(contractPlot.contract_area_sqm),
+        id
+      );
+      if (!areaValidation.isValid) {
+        throw new ConflictError(
+          `契約面積が物理区画の空き面積を超えるため復活できません: ${areaValidation.message ?? ''}` +
+            `（復活には他契約の解約または面積の調整が必要です）`
+        );
+      }
+
       await tx.contractPlot.update({
         where: { id },
         data: { contract_status: ContractStatus.active },
