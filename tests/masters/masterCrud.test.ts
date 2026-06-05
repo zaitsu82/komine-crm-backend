@@ -91,6 +91,13 @@ const mockPrisma: any = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  directionMaster: {
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
 };
 
 jest.mock('@prisma/client', () => ({
@@ -585,6 +592,45 @@ describe('Master CRUD Controller', () => {
       // 後続テストのためにリセット
       mockPrisma.usageFee.count.mockResolvedValue(0);
       mockPrisma.managementFee.count.mockResolvedValue(0);
+    });
+
+    it('方角マスタの使用中チェックは PK id でなく code 基準で照合すること (#268)', async () => {
+      // PK id と code がドリフトした状態（再seed・API追加後）:
+      // id=12, code='3' のマスタに対し direction_id=3 の区画が存在 → 使用中
+      mockRequest.params = { masterType: 'direction', id: '12' };
+      mockPrisma.directionMaster.findUnique.mockResolvedValue({
+        id: 12,
+        code: '3',
+        name: '南東',
+      });
+      mockPrisma.gravestoneInfo.count.mockResolvedValue(4);
+
+      await deleteMaster(mockRequest as Request, mockResponse as Response);
+
+      // 旧実装は masterId=12 で照合して 0 件→削除を許可していた（孤児コード化）
+      expect(mockPrisma.gravestoneInfo.count).toHaveBeenCalledWith({
+        where: { direction_id: 3, deleted_at: null },
+      });
+      expect(mockResponse.status).toHaveBeenCalledWith(409);
+      expect(mockPrisma.directionMaster.delete).not.toHaveBeenCalled();
+
+      // 後続テストのためにリセット
+      mockPrisma.gravestoneInfo.count.mockResolvedValue(0);
+    });
+
+    it('数値でない code の方角マスタは使用中 0 扱いで削除できること（NaN 照合をしない）(#268)', async () => {
+      mockRequest.params = { masterType: 'direction', id: '13' };
+      mockPrisma.directionMaster.findUnique.mockResolvedValue({
+        id: 13,
+        code: 'NE',
+        name: '北東',
+      });
+      mockPrisma.directionMaster.delete.mockResolvedValue({ id: 13 });
+
+      await deleteMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.gravestoneInfo.count).not.toHaveBeenCalled();
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
     });
 
     it('存在しないIDの場合、404エラーを返すこと', async () => {
