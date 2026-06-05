@@ -205,10 +205,20 @@ export async function updatePlotCore(
 
   // 3. 顧客役割の更新
   if (input.saleContract?.roles !== undefined) {
+    // 申込者(applicant)ロールの正規管理経路はセクション6.5（input.applicant）。
+    // roles 配列には通常 contractor 系しか含まれないため、applicant を含まない
+    // roles を送られた場合に既存 applicant まで削除して消滅させない（#201）。
+    // roles に applicant が明示的に含まれる場合のみ従来どおり全件入替の対象にする。
+    const inputContainsApplicant = input.saleContract.roles.some(
+      (roleData) => roleData.role === ContractRole.applicant
+    );
+    const roleScope = inputContainsApplicant ? {} : { role: { not: ContractRole.applicant } };
+
     const existingRoles = await tx.saleContractRole.findMany({
       where: {
         contract_plot_id: id,
         deleted_at: null,
+        ...roleScope,
       },
     });
 
@@ -216,6 +226,7 @@ export async function updatePlotCore(
       where: {
         contract_plot_id: id,
         deleted_at: null,
+        ...roleScope,
       },
       data: {
         deleted_at: new Date(),

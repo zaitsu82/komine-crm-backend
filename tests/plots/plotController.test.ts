@@ -41,6 +41,7 @@ const mockPrisma: any = {
     create: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   customer: {
     create: jest.fn(),
@@ -1260,6 +1261,131 @@ describe('Plot Controller (ContractPlot Model)', () => {
           data: expect.objectContaining({ deleted_at: expect.any(Date) }),
         })
       );
+    });
+
+    it('should preserve applicant role when roles array without applicant is sent (#201)', async () => {
+      const mockExistingPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: { id: 'c1', workInfo: null },
+            customer_id: 'c1',
+            deleted_at: null,
+          },
+          {
+            id: 'scr2',
+            role: 'applicant',
+            customer: { id: 'c2', name: '山田花子' },
+            customer_id: 'c2',
+            deleted_at: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+      };
+
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.saleContractRole.findMany.mockResolvedValue([
+        {
+          id: 'scr1',
+          role: 'contractor',
+          customer_id: 'c1',
+        },
+      ]);
+      mockPrisma.saleContractRole.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.saleContractRole.create.mockResolvedValue({
+        id: 'scr3',
+        role: 'contractor',
+        customer_id: 'c3',
+      });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        saleContract: {
+          roles: [{ role: 'contractor', customerId: 'c3' }],
+        },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      // applicant を除外した削除・再作成になっていること
+      expect(mockPrisma.saleContractRole.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contract_plot_id: 'cp1',
+            deleted_at: null,
+            role: { not: 'applicant' },
+          }),
+        })
+      );
+      expect(mockPrisma.saleContractRole.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            role: { not: 'applicant' },
+          }),
+        })
+      );
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('should replace all roles including applicant when roles array contains applicant (#201)', async () => {
+      const mockExistingPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: { id: 'c1', workInfo: null },
+            customer_id: 'c1',
+            deleted_at: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+      };
+
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.saleContractRole.findMany.mockResolvedValue([]);
+      mockPrisma.saleContractRole.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.saleContractRole.create.mockResolvedValue({
+        id: 'scr2',
+        role: 'applicant',
+        customer_id: 'c2',
+      });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        saleContract: {
+          roles: [
+            { role: 'contractor', customerId: 'c1' },
+            { role: 'applicant', customerId: 'c2' },
+          ],
+        },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      // applicant を含む場合は従来どおり全件入替（role 条件なし）
+      expect(mockPrisma.saleContractRole.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            contract_plot_id: 'cp1',
+            deleted_at: null,
+          },
+        })
+      );
+      expect(mockPrisma.saleContractRole.create).toHaveBeenCalledTimes(2);
+      expect(mockNext).not.toHaveBeenCalled();
     });
   });
 
