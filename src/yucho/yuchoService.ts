@@ -32,21 +32,28 @@ const parseBillingMonth = (value: string | null | undefined): number | null => {
 /**
  * 文字列の管理料金額を整数(円)に変換。"10,000" や "10000円" などの表記を許容。
  *
- * 金額は円単位の正整数であるべきため、数字以外（小数点・ハイフン含む）は
- * すべて除去する（#212）。旧実装はハイフン・小数を温存していたため、
- * '-1000'→-1000（負額）、'3.6'→4（四捨五入誤額）がゆうちょ振替の
- * 引落金額に出力されうる問題があった。
+ * 金額は円単位の正整数であるべきため、数字以外（ハイフン等）は除去する（#212）。
+ * 旧実装はハイフン・小数を温存していたため、'-1000'→-1000（負額）が
+ * ゆうちょ振替の引落金額に出力されうる問題があった。
+ * - 全角数字は半角へ正規化して扱う（#279: 全角金額が 0 円扱いになり振替対象から
+ *   無言で除外されるのを防ぐ）
+ * - 小数表記は整数部のみ採用する（#275: 小数点だけを除去すると '3.6'→'36' に
+ *   桁結合して 10 倍の引落金額になるため）
  * 数字以外を含む値は異常データ検知のため warn ログを出す（黙って出力しない）。
  */
 const parseManagementFeeAmount = (value: string | null | undefined, sourceId?: string): number => {
   if (!value) return 0;
+  // 全角数字 → 半角（#279）
+  const halfWidth = value.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
   // 桁区切りカンマと円表記のみ正常系として無警告で除去
-  const normalized = value.replace(/[,，円\s]/g, '');
-  const cleaned = normalized.replace(/[^\d]/g, '');
+  const normalized = halfWidth.replace(/[,，円\s]/g, '');
+  // 小数表記は整数部のみ（#275）
+  const integerPart = normalized.split('.')[0] ?? '';
+  const cleaned = integerPart.replace(/[^\d]/g, '');
   if (cleaned !== normalized) {
     getRequestLogger().warn(
       { managementFeeId: sourceId, rawValue: value },
-      '管理料金額に数字以外の文字が含まれています（数字のみ抽出して処理）'
+      '管理料金額に数字以外の文字が含まれています（整数部の数字のみ抽出して処理）'
     );
   }
   if (!cleaned) return 0;

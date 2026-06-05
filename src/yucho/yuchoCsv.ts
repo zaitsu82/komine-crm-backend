@@ -227,8 +227,11 @@ const extractBranchCode = (branchName: string): string => {
  */
 export const buildDataRow = (item: YuchoBillingItem): string => {
   const info = item.billingInfo;
+  // 口座名義は唯一の二重引用符囲みフィールド。toHalfWidthKana は ASCII を素通し
+  // するため、名義に半角 " が残ると囲みが途中で閉じて列ズレを起こす。
+  // RFC4180 に従い内部の " を "" に二重化してから囲む（#273）。
   const accountHolder = padRight(
-    toHalfWidthKana(info?.accountHolder ?? item.customerNameKana ?? ''),
+    toHalfWidthKana(info?.accountHolder ?? item.customerNameKana ?? '').replace(/"/g, '""'),
     ACCOUNT_HOLDER_WIDTH
   );
 
@@ -254,13 +257,25 @@ interface BuildCsvParams {
 }
 
 /**
+ * 口座番号として使える値か（数字を1桁以上含み、全0でないこと）。
+ * buildDataRow は口座番号空を `0000000`、店番空を `000` で埋めるため、
+ * ここで弾かないと「構造上正しいが口座が存在しない」不正振替行が出力される（#266）。
+ */
+const hasUsableAccountNumber = (item: YuchoBillingItem): boolean => {
+  const digits = (item.billingInfo?.accountNumber ?? '').replace(/[^\d]/g, '');
+  return digits.length > 0 && Number(digits) > 0;
+};
+
+/**
  * CSV（振替ファイル）のデータ行として出力可能な請求項目かどうか。
- * 口座情報（billingInfo）があり、かつ請求金額が正であること。
+ * 口座情報（billingInfo）があり、口座番号が実在しうる値で、かつ請求金額が正であること。
  * 件数表示の整合性のため、この判定を CSV 生成（buildYuchoCsv）と
  * 集計（yuchoService の summary）で共用する。これが実出力件数の唯一の基準となる。
+ * 口座番号欠損はここで弾くことで excludedNoAccountCount（請求漏れ検知 #172）に
+ * 自動計上される（#266）。
  */
 export const isExportableBillingItem = (item: YuchoBillingItem): boolean =>
-  Boolean(item.billingInfo) && item.billingAmount > 0;
+  Boolean(item.billingInfo) && hasUsableAccountNumber(item) && item.billingAmount > 0;
 
 /**
  * ゆうちょ自動払込みCSV (12列カンマ区切り) を生成する。
