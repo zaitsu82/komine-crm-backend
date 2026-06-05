@@ -39,6 +39,9 @@ export const plotSearchQuerySchema = paginationSchema.extend({
   paymentStatus: z
     .enum(['unpaid', 'partial_paid', 'paid', 'overdue', 'refunded', 'cancelled'])
     .optional(),
+  // 契約ステータスフィルター（#200）。台帳問い合わせは vacant 非表示（#167）のため
+  // active / terminated のみ許可する。vacant は在庫系エンドポイントで扱う。
+  contractStatus: z.enum(['active', 'terminated']).optional(),
   sortBy: z
     .enum([
       'plotNumber',
@@ -303,6 +306,18 @@ export const restoreContractSchema = z.object({
 });
 
 /**
+ * 契約解約リクエストのバリデーションスキーマ（#236）
+ * 解約理由は履歴に記録するため必須（restore と対称）
+ */
+export const terminateContractSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(1, '解約理由は必須です')
+    .max(200, '解約理由は200文字以内で入力してください'),
+});
+
+/**
  * 型エクスポート
  */
 export type PlotSearchQuery = z.infer<typeof plotSearchQuerySchema>;
@@ -311,6 +326,7 @@ export type CreatePlotRequest = z.infer<typeof createPlotSchema>;
 export type UpdatePlotRequest = z.infer<typeof updatePlotSchema>;
 export type CreatePlotContractRequest = z.infer<typeof createPlotContractSchema>;
 export type RestoreContractRequest = z.infer<typeof restoreContractSchema>;
+export type TerminateContractRequest = z.infer<typeof terminateContractSchema>;
 
 // dateSchema も従来通り再エクスポート（他モジュールからの参照互換性維持）
 export { dateSchema };

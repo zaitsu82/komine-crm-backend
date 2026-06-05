@@ -68,6 +68,7 @@ export const stepConstructionInfo: MigrationStep = {
 
     let inserted = 0;
     let skipped = 0;
+    let skipExisting = 0;
 
     for (const row of rows) {
       const contractPlotId = idMaps.contractPlot.get(row.grave_cd);
@@ -82,9 +83,20 @@ export const stepConstructionInfo: MigrationStep = {
         continue;
       }
 
+      // 冪等性（#220）: 再実行時は legacy_construction_id で既存をスキップ
+      const existing = await prisma.constructionInfo.findUnique({
+        where: { legacy_construction_id: row.construction_id },
+      });
+      if (existing) {
+        skipped++;
+        skipExisting++;
+        continue;
+      }
+
       await prisma.constructionInfo.create({
         data: {
           contract_plot_id: contractPlotId,
+          legacy_construction_id: row.construction_id,
           construction_type: cleanStr(row.construction_type),
           start_date: parseLegacyDate(row.construction_start),
           completion_date: parseLegacyDate(row.construction_end),
@@ -102,7 +114,11 @@ export const stepConstructionInfo: MigrationStep = {
     return {
       inserted,
       skipped,
-      notes: { source_rows: rows.length, contractor_masters_upserted: mastersUpserted },
+      notes: {
+        source_rows: rows.length,
+        contractor_masters_upserted: mastersUpserted,
+        skip_existing: skipExisting,
+      },
     };
   },
 };

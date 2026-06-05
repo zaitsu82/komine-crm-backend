@@ -165,6 +165,37 @@ export const requirePermission = (requiredRoles: Role[]) => {
   };
 };
 
+/** 正規表現のメタ文字をエスケープする */
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * API_PERMISSIONS のキーと突き合わせて必要ロールを解決する（#207）。
+ * - 完全一致を最優先
+ * - キー中の `*` は1つ以上のパスセグメントに一致するワイルドカードとして評価
+ *   （例: `GET /masters/*` は `GET /masters/all` にも `PUT /masters/＊/＊` 形の
+ *   2セグメントパスにも一致する前方一致相当）
+ * - 複数一致時はより具体的なキー（ワイルドカードが少ない→リテラルが長い）を優先
+ */
+export const resolveApiPermission = (apiKey: string): Role[] | undefined => {
+  const exact = API_PERMISSIONS[apiKey];
+  if (exact) return exact;
+
+  const candidates = Object.entries(API_PERMISSIONS)
+    .filter(([key]) => key.includes('*'))
+    .filter(([key]) => {
+      const pattern = new RegExp(`^${key.split('*').map(escapeRegExp).join('.+')}$`);
+      return pattern.test(apiKey);
+    })
+    .sort(([keyA], [keyB]) => {
+      const wildcardsA = keyA.split('*').length;
+      const wildcardsB = keyB.split('*').length;
+      if (wildcardsA !== wildcardsB) return wildcardsA - wildcardsB;
+      return keyB.length - keyA.length;
+    });
+
+  return candidates[0]?.[1];
+};
+
 /**
  * API パスに基づいて自動で権限チェック
  */
@@ -183,13 +214,16 @@ export const checkApiPermission = () => {
 
     const method = req.method;
     const route = req.route as { path?: string } | undefined;
-    const path = route?.path || req.path;
-    const apiKey = `${method} ${path}`;
+    // サブルーター配下では req.route.path はマウントパスを含まない相対パス
+    // （例: GET /api/v1/masters/all → '/all'）になるため、req.baseUrl と
+    // 連結してフルパス化し、API_PERMISSIONS のキー（/masters/* 等）と照合する（#207）
+    const fullPath = `${req.baseUrl || ''}${route?.path ?? req.path}`;
+    const normalizedPath = fullPath.replace(/^\/api\/v1/, '').replace(/(.)\/$/, '$1');
 
     // パスパラメータをワイルドカードに変換
-    const normalizedApiKey = apiKey.replace(/\/:\w+/g, '/*');
+    const apiKey = `${method} ${normalizedPath}`.replace(/\/:\w+/g, '/*');
 
-    const requiredRoles = API_PERMISSIONS[normalizedApiKey];
+    const requiredRoles = resolveApiPermission(apiKey);
 
     if (!requiredRoles) {
       // 権限定義がない場合はadminのみ許可

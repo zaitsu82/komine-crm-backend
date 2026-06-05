@@ -56,6 +56,59 @@ describe('collectiveBurialUtils', () => {
       expect(result.getMonth()).toBe(5); // June
       expect(result.getDate()).toBe(30);
     });
+
+    it('UTC 00:00 正規化済みの入力に対し UTC 00:00 を維持する (#214)', () => {
+      const capacityReachedDate = new Date('2026-06-05T00:00:00Z');
+
+      const result = calculateBillingScheduledDate(capacityReachedDate, 33);
+
+      // setFullYear（ローカル基準）だと TZ により時刻成分が混入しうるが、
+      // UTC ベース加算では暦日が厳密に維持される
+      expect(result.toISOString()).toBe('2059-06-05T00:00:00.000Z');
+    });
+  });
+
+  describe('@db.Date 列への JST 暦日正規化 (#214)', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('JST 早朝（年末年始境界）の上限到達で保存日付が前日・前年にずれない', async () => {
+      // UTC 2026-12-31 20:00 = JST 2027-01-01 05:00
+      jest.useFakeTimers().setSystemTime(new Date('2026-12-31T20:00:00Z'));
+
+      const mockCollectiveBurial = {
+        id: 'cb-1',
+        contract_plot_id: 'plot-1',
+        burial_capacity: 10,
+        current_burial_count: 9,
+        capacity_reached_date: null,
+        validity_period_years: 3,
+        deleted_at: null,
+      };
+      mockPrisma.collectiveBurial.findUnique.mockResolvedValue(mockCollectiveBurial);
+      mockPrisma.buriedPerson.count.mockResolvedValue(10);
+      mockPrisma.collectiveBurial.update.mockResolvedValue({ ...mockCollectiveBurial });
+
+      await updateCollectiveBurialCount(mockPrisma as any, 'plot-1');
+
+      const updateCall = mockPrisma.collectiveBurial.update.mock.calls[0][0];
+      // JST の暦日 2027-01-01 が UTC 00:00 で保存される（2026-12-31 にならない）
+      expect(updateCall.data.capacity_reached_date.toISOString()).toBe('2027-01-01T00:00:00.000Z');
+      expect(updateCall.data.billing_scheduled_date.toISOString()).toBe('2030-01-01T00:00:00.000Z');
+    });
+
+    it('getBillingTargets の基準日も JST 暦日の UTC 00:00 に正規化される', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-12-31T20:00:00Z'));
+      mockPrisma.collectiveBurial.findMany.mockResolvedValue([]);
+
+      await getBillingTargets(mockPrisma as any);
+
+      const callArgs = mockPrisma.collectiveBurial.findMany.mock.calls[0][0];
+      expect(callArgs.where.billing_scheduled_date.lte.toISOString()).toBe(
+        '2027-01-01T00:00:00.000Z'
+      );
+    });
   });
 
   describe('updateCollectiveBurialCount', () => {

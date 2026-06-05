@@ -1,0 +1,269 @@
+/**
+ * 合祀バグ修正の回帰テスト
+ * - #202: ソフトデリート後の同一区画での再作成
+ * - #203: syncBurialCount の上限割れ時の日付リセット（utils 実装へ委譲）
+ * - #206: 一覧検索で論理削除済み役割の顧客名を除外
+ */
+import { Request, Response, NextFunction } from 'express';
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      user?: {
+        id: number;
+        email: string;
+        name: string;
+        role: string;
+        is_active: boolean;
+        supabase_uid: string;
+      };
+    }
+  }
+}
+
+const mockPrisma: any = {
+  collectiveBurial: {
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    count: jest.fn(),
+  },
+  contractPlot: {
+    findFirst: jest.fn(),
+  },
+  buriedPerson: {
+    count: jest.fn(),
+  },
+};
+
+jest.mock('../../src/db/prisma', () => ({
+  __esModule: true,
+  default: mockPrisma,
+}));
+
+jest.mock('@prisma/client', () => ({
+  BillingStatus: { pending: 'pending', billed: 'billed', paid: 'paid' },
+  PrismaClient: jest.fn(),
+}));
+
+import {
+  createCollectiveBurial,
+  syncBurialCount,
+  getCollectiveBurialList,
+} from '../../src/collective-burials/collectiveBurialController';
+import { ValidationError } from '../../src/middleware/errorHandler';
+
+const CB_ROW = {
+  id: 'cb1',
+  contract_plot_id: 'cp1',
+  burial_capacity: 10,
+  current_burial_count: 0,
+  capacity_reached_date: null,
+  validity_period_years: 33,
+  billing_scheduled_date: null,
+  billing_status: 'pending',
+  billing_amount: null,
+  notes: null,
+  deleted_at: null,
+  created_at: new Date('2026-01-01'),
+  updated_at: new Date('2026-01-01'),
+};
+
+describe('collectiveBurialController — バグ修正回帰', () => {
+  let mockRequest: Partial<Request>;
+  let mockResponse: Partial<Response>;
+  let responseJson: jest.Mock;
+  let responseStatus: jest.Mock;
+  let mockNext: NextFunction;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    responseJson = jest.fn().mockReturnThis();
+    responseStatus = jest.fn().mockReturnThis();
+    mockResponse = { status: responseStatus, json: responseJson };
+    mockNext = jest.fn();
+    mockRequest = { params: {}, body: {}, query: {} };
+  });
+
+  describe('createCollectiveBurial (#202)', () => {
+    const validBody = {
+      contractPlotId: 'cp1',
+      burialCapacity: 10,
+      validityPeriodYears: 33,
+    };
+
+    it('生きている合祀が既に存在する場合は ValidationError', async () => {
+      mockPrisma.contractPlot.findFirst.mockResolvedValue({ id: 'cp1' });
+      mockPrisma.collectiveBurial.findUnique.mockResolvedValue({ ...CB_ROW, deleted_at: null });
+
+      mockRequest.body = validBody;
+      await createCollectiveBurial(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(expect.any(ValidationError));
+      expect(mockPrisma.collectiveBurial.create).not.toHaveBeenCalled();
+      expect(mockPrisma.collectiveBurial.update).not.toHaveBeenCalled();
+    });
+
+    it('ソフトデリート済みの合祀が残っている場合は新規値で復活させる（P2002回避）', async () => {
+      mockPrisma.contractPlot.findFirst.mockResolvedValue({ id: 'cp1' });
+      mockPrisma.collectiveBurial.findUnique.mockResolvedValue({
+        ...CB_ROW,
+        current_burial_count: 5,
+        capacity_reached_date: new Date('2025-01-01'),
+        billing_scheduled_date: new Date('2058-01-01'),
+        billing_status: 'billed',
+        deleted_at: new Date('2026-05-01'),
+      });
+      mockPrisma.collectiveBurial.update.mockResolvedValue({
+        ...CB_ROW,
+        burial_capacity: 20,
+        validity_period_years: 30,
+      });
+
+      mockRequest.body = { ...validBody, burialCapacity: 20, validityPeriodYears: 30 };
+      await createCollectiveBurial(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.collectiveBurial.create).not.toHaveBeenCalled();
+      expect(mockPrisma.collectiveBurial.update).toHaveBeenCalledWith({
+        where: { id: 'cb1' },
+        data: expect.objectContaining({
+          burial_capacity: 20,
+          current_burial_count: 0,
+          validity_period_years: 30,
+          capacity_reached_date: null,
+          billing_scheduled_date: null,
+          billing_status: 'pending',
+          deleted_at: null,
+        }),
+      });
+      expect(responseStatus).toHaveBeenCalledWith(201);
+    });
+
+    it('既存が無ければ従来どおり create する', async () => {
+      mockPrisma.contractPlot.findFirst.mockResolvedValue({ id: 'cp1' });
+      mockPrisma.collectiveBurial.findUnique.mockResolvedValue(null);
+      mockPrisma.collectiveBurial.create.mockResolvedValue(CB_ROW);
+
+      mockRequest.body = validBody;
+      await createCollectiveBurial(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.collectiveBurial.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          contract_plot_id: 'cp1',
+          burial_capacity: 10,
+        }),
+      });
+      expect(responseStatus).toHaveBeenCalledWith(201);
+    });
+  });
+
+  describe('syncBurialCount (#203)', () => {
+    it('上限到達後に人数が減ったら上限到達日・請求予定日がリセットされる', async () => {
+      mockPrisma.collectiveBurial.findFirst.mockResolvedValue({
+        ...CB_ROW,
+        current_burial_count: 10,
+        capacity_reached_date: new Date('2025-01-01'),
+        billing_scheduled_date: new Date('2058-01-01'),
+      });
+      // updateCollectiveBurialCount（utils）内の取得
+      mockPrisma.collectiveBurial.findUnique.mockResolvedValue({
+        ...CB_ROW,
+        current_burial_count: 10,
+        capacity_reached_date: new Date('2025-01-01'),
+        billing_scheduled_date: new Date('2058-01-01'),
+      });
+      mockPrisma.buriedPerson.count.mockResolvedValue(9); // 上限(10)を下回った
+      mockPrisma.collectiveBurial.update.mockResolvedValue({
+        ...CB_ROW,
+        current_burial_count: 9,
+        capacity_reached_date: null,
+        billing_scheduled_date: null,
+      });
+
+      mockRequest.params = { id: 'cb1' };
+      await syncBurialCount(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.collectiveBurial.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            current_burial_count: 9,
+            capacity_reached_date: null,
+            billing_scheduled_date: null,
+          }),
+        })
+      );
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            currentBurialCount: 9,
+            capacityReached: false,
+            capacityReachedDate: null,
+            billingScheduledDate: null,
+          }),
+        })
+      );
+    });
+
+    it('上限到達（初回）で上限到達日・請求予定日がセットされる', async () => {
+      mockPrisma.collectiveBurial.findFirst.mockResolvedValue(CB_ROW);
+      mockPrisma.collectiveBurial.findUnique.mockResolvedValue(CB_ROW);
+      mockPrisma.buriedPerson.count.mockResolvedValue(10);
+      mockPrisma.collectiveBurial.update.mockResolvedValue({
+        ...CB_ROW,
+        current_burial_count: 10,
+        capacity_reached_date: new Date('2026-06-05'),
+        billing_scheduled_date: new Date('2059-06-05'),
+      });
+
+      mockRequest.params = { id: 'cb1' };
+      await syncBurialCount(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.collectiveBurial.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            current_burial_count: 10,
+            capacity_reached_date: expect.any(Date),
+            billing_scheduled_date: expect.any(Date),
+          }),
+        })
+      );
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ capacityReached: true }),
+        })
+      );
+    });
+  });
+
+  describe('getCollectiveBurialList 検索 (#206)', () => {
+    it('顧客名検索の some 句に deleted_at: null が付与される', async () => {
+      mockPrisma.collectiveBurial.findMany.mockResolvedValue([]);
+      mockPrisma.collectiveBurial.count.mockResolvedValue(0);
+
+      mockRequest.query = { search: '山田' };
+      await getCollectiveBurialList(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.collectiveBurial.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contractPlot: expect.objectContaining({
+              OR: expect.arrayContaining([
+                expect.objectContaining({
+                  saleContractRoles: {
+                    some: expect.objectContaining({
+                      deleted_at: null,
+                    }),
+                  },
+                }),
+              ]),
+            }),
+          }),
+        })
+      );
+    });
+  });
+});

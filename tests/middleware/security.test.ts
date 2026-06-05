@@ -121,61 +121,72 @@ describe('Security Middleware', () => {
   });
 
   describe('sanitizeInput', () => {
-    it('リクエストボディの文字列をサニタイズすること', () => {
+    // 方針変更（#218）: HTML エスケープは行わず保存値を維持する。
+    // XSS 対策は出力時エスケープ（React 既定 + documentService.escapeHtml）に一本化。
+    it('リクエストボディの文字列をHTMLエスケープしないこと（保存値を破壊しない #218）', () => {
       mockRequest.body = {
-        name: '<script>alert("XSS")</script>',
+        name: "O'Brien & Sons / 丸&商店",
         email: 'user@example.com',
       };
 
       sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockRequest.body.name).toBe(
-        '&lt;script&gt;alert(&quot;XSS&quot;)&lt;&#x2F;script&gt;'
-      );
+      expect(mockRequest.body.name).toBe("O'Brien & Sons / 丸&商店");
       expect(mockRequest.body.email).toBe('user@example.com');
       expect(mockNext).toHaveBeenCalled();
     });
 
-    it('クエリパラメータをサニタイズすること', () => {
+    it('制御文字は除去すること', () => {
+      mockRequest.body = {
+        name: 'テスト\u0000名前\u0007',
+        memo: '行1\n行2\tタブ', // タブ・改行は許容
+      };
+
+      sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockRequest.body.name).toBe('テスト名前');
+      expect(mockRequest.body.memo).toBe('行1\n行2\tタブ');
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('クエリパラメータの値も変更しないこと', () => {
       mockRequest.query = {
         search: '<img src=x onerror=alert(1)>',
       };
 
       sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockRequest.query.search).toBe('&lt;img src=x onerror=alert(1)&gt;');
+      expect(mockRequest.query.search).toBe('<img src=x onerror=alert(1)>');
       expect(mockNext).toHaveBeenCalled();
     });
 
-    it('ネストされたオブジェクトをサニタイズすること', () => {
+    it('ネストされたオブジェクトも値を維持すること', () => {
       mockRequest.body = {
         user: {
           name: '<b>Bold</b>',
           address: {
-            street: '<a href="#">Link</a>',
+            street: 'A/B棟 1-2-3',
           },
         },
       };
 
       sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockRequest.body.user.name).toBe('&lt;b&gt;Bold&lt;&#x2F;b&gt;');
-      expect(mockRequest.body.user.address.street).toBe(
-        '&lt;a href=&quot;#&quot;&gt;Link&lt;&#x2F;a&gt;'
-      );
+      expect(mockRequest.body.user.name).toBe('<b>Bold</b>');
+      expect(mockRequest.body.user.address.street).toBe('A/B棟 1-2-3');
       expect(mockNext).toHaveBeenCalled();
     });
 
-    it('配列内の文字列をサニタイズすること', () => {
+    it('配列内の文字列も値を維持すること', () => {
       mockRequest.body = {
-        tags: ['<script>evil</script>', 'normal', '<div>html</div>'],
+        tags: ['<script>evil</script>', 'normal', '制御\u0001文字'],
       };
 
       sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockRequest.body.tags[0]).toBe('&lt;script&gt;evil&lt;&#x2F;script&gt;');
+      expect(mockRequest.body.tags[0]).toBe('<script>evil</script>');
       expect(mockRequest.body.tags[1]).toBe('normal');
-      expect(mockRequest.body.tags[2]).toBe('&lt;div&gt;html&lt;&#x2F;div&gt;');
+      expect(mockRequest.body.tags[2]).toBe('制御文字');
       expect(mockNext).toHaveBeenCalled();
     });
 
@@ -207,14 +218,14 @@ describe('Security Middleware', () => {
       expect(mockNext).toHaveBeenCalled();
     });
 
-    it('特殊文字をすべてエスケープすること', () => {
+    it('特殊文字（& < > \" \' /）をエスケープせず維持すること（#218）', () => {
       mockRequest.body = {
         text: '& < > " \' /',
       };
 
       sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockRequest.body.text).toBe('&amp; &lt; &gt; &quot; &#x27; &#x2F;');
+      expect(mockRequest.body.text).toBe('& < > " \' /');
       expect(mockNext).toHaveBeenCalled();
     });
 
@@ -235,14 +246,14 @@ describe('Security Middleware', () => {
 
       sanitizeInput(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(mockRequest.body.mixed.string).toBe('&lt;script&gt;');
+      expect(mockRequest.body.mixed.string).toBe('<script>');
       expect(mockRequest.body.mixed.number).toBe(123);
       expect(mockRequest.body.mixed.boolean).toBe(true);
       expect(mockRequest.body.mixed.nullValue).toBeNull();
-      expect(mockRequest.body.mixed.array[0]).toBe('&lt;b&gt;test&lt;&#x2F;b&gt;');
+      expect(mockRequest.body.mixed.array[0]).toBe('<b>test</b>');
       expect(mockRequest.body.mixed.array[1]).toBe(456);
       expect(mockRequest.body.mixed.array[2]).toBe(false);
-      expect(mockRequest.body.mixed.nested.html).toBe('&lt;div&gt;content&lt;&#x2F;div&gt;');
+      expect(mockRequest.body.mixed.nested.html).toBe('<div>content</div>');
       expect(mockRequest.body.mixed.nested.count).toBe(42);
       expect(mockNext).toHaveBeenCalled();
     });

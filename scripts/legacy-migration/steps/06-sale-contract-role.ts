@@ -34,10 +34,9 @@ export const stepSaleContractRole: MigrationStep = {
   name: 'saleContractRole',
   dependsOn: ['customer', 'contractPlot'],
   async run({ prisma, logger, idMaps, dryRun }) {
-    if (!dryRun) {
-      await rebuildIdMap(prisma, idMaps, 'customer', logger);
-      await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
-    }
+    // dry-run でも resume 用に再構築（読み取り専用・冪等、full dry-run では no-op #224）
+    await rebuildIdMap(prisma, idMaps, 'customer', logger);
+    await rebuildIdMap(prisma, idMaps, 'contractPlot', logger);
     assertIdMapsReady('saleContractRole', idMaps, ['customer', 'contractPlot']);
 
     const rows = await legacyQuery<DankaRoleRow>(
@@ -163,6 +162,21 @@ export const stepSaleContractRole: MigrationStep = {
         continue;
       }
 
+      // 冪等性（#222）: 1契約に applicant は1名の業務前提に基づき、
+      // 既に applicant ロールが存在すれば申込者 Customer の生成ごとスキップする
+      // （同一人物パスと同様のガードを別人パスにも適用）
+      const existingApplicantRole = await prisma.saleContractRole.findFirst({
+        where: {
+          contract_plot_id: contractPlotId,
+          role: 'applicant',
+          deleted_at: null,
+        },
+      });
+      if (existingApplicantRole) {
+        applicantInserted++;
+        continue;
+      }
+
       const applicantCustomer = await prisma.customer.create({
         data: {
           name: requestName,
@@ -171,6 +185,8 @@ export const stepSaleContractRole: MigrationStep = {
           address: reqAddress,
           phone_number: reqPhone,
           notes: `legacy applicant of danka_cd=${row.danka_cd}`,
+          // 申込者として移行作成された Customer の識別用（truncate/cleanup で削除可能にする #221）
+          legacy_applicant_danka_cd: row.danka_cd,
         },
       });
 

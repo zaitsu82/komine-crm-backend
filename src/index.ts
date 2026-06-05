@@ -43,11 +43,22 @@ app.set('trust proxy', 1);
 // セキュリティミドルウェアの設定（最初に適用）
 app.use(getHelmetOptions()); // Helmet: セキュリティヘッダー
 app.use(cors(getCorsOptions())); // CORS設定（厳格化）
-app.use(hppProtection); // HTTP Parameter Pollution対策
+
+// Rate Limiting（全体）
+// ボディパーサより前に適用する（#226）。パーサ後に置くと、壊れたJSONや
+// サイズ超過のリクエストがパーサ段階で例外になり Limiter に到達せず、
+// レート制限を消費しないDoS増幅経路になる。keyGenerator は req.ip ベースで
+// ボディに依存しないためパーサ前でも安全。/health は limiter 側の skip で除外。
+app.use(createRateLimiter());
 
 // ボディパーサー
 app.use(express.json({ limit: '10mb' })); // JSONパーサー（サイズ制限付き）
 app.use(express.urlencoded({ extended: true, limit: '10mb' })); // URLエンコードされたボディのパーサー
+
+// HTTP Parameter Pollution対策
+// req.body を検査するためボディパーサの後に適用する（#219）。
+// パーサ前に置くと req.body が未パースでボディ側のHPP保護が無効だった。
+app.use(hppProtection);
 
 // Cookieパーサー（HttpOnly Cookie認証用）
 app.use(cookieParser());
@@ -55,7 +66,7 @@ app.use(cookieParser());
 // 入力サニタイゼーション（パーサーの後に適用）
 app.use(sanitizeInput);
 
-// ヘルスチェックエンドポイント（Rate Limiterの前に配置 — Renderヘルスチェックが429で失敗するのを防止）
+// ヘルスチェックエンドポイント（Rate Limiter は skip 設定で /health を除外済み — Renderヘルスチェックが429で失敗するのを防止）
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -80,9 +91,6 @@ app.get('/health', async (_req, res) => {
     });
   }
 });
-
-// Rate Limiting（全体）
-app.use(createRateLimiter());
 
 // リクエストID付与（requestLoggerの前に配置）
 app.use(requestIdMiddleware);

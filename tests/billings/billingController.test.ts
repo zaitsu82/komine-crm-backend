@@ -44,6 +44,12 @@ jest.mock('../../src/db/prisma', () => ({
   prisma: mockPrisma,
 }));
 
+// updateBilling から呼ばれる再集計（#211）。ロジック自体は billingService.test.ts で検証。
+const recalculateBillingPaymentsMock = jest.fn();
+jest.mock('../../src/billings/billingService', () => ({
+  recalculateBillingPayments: (...args: unknown[]) => recalculateBillingPaymentsMock(...args),
+}));
+
 import {
   getBillings,
   getBillingsSummary,
@@ -380,10 +386,13 @@ describe('billingController', () => {
   });
 
   describe('updateBilling', () => {
-    it('partially updates a billing', async () => {
-      mockPrisma.billing.findFirst.mockResolvedValue({ id: VALID_UUID });
+    it('partially updates a billing and recalculates status (#211)', async () => {
+      // 1回目: 存在チェック / 2回目: 再計算後のレスポンス用再取得
+      mockPrisma.billing.findFirst
+        .mockResolvedValueOnce({ id: VALID_UUID, contract_plot_id: PLOT_UUID })
+        .mockResolvedValueOnce(buildBillingRow({ amount: 15000, status: 'partial_paid' }));
       mockPrisma.billing.update.mockResolvedValue(
-        buildBillingRow({ amount: 15000, status: 'partial_paid' })
+        buildBillingRow({ amount: 15000, status: 'paid' })
       );
 
       const req = buildRequest({
@@ -396,6 +405,11 @@ describe('billingController', () => {
       const updateCall = mockPrisma.billing.update.mock.calls[0][0];
       expect(updateCall.where).toEqual({ id: VALID_UUID });
       expect(updateCall.data).toEqual({ amount: 15000 });
+      // 請求額変更後に status / paid_amount を入金合計から再算出すること（#211）
+      expect(recalculateBillingPaymentsMock).toHaveBeenCalledWith(mockPrisma, VALID_UUID);
+      // レスポンスは再計算後の値（status: partial_paid）であること
+      const payload = (res.json as jest.Mock).mock.calls[0][0];
+      expect(payload.data.status).toBe('partial_paid');
     });
 
     it('returns NotFoundError when billing does not exist', async () => {

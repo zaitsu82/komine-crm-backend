@@ -37,7 +37,10 @@ async function main(): Promise<void> {
     const paymentWhere = { legacy_nyukin_cd: { not: null } } as const;
     const billingWhere = { legacy_seikyu_cd: { not: null } } as const;
     const contractPlotWhere = { legacy_grave_cd: { not: null } } as const;
-    const customerWhere = { legacy_danka_cd: { not: null } } as const;
+    // 申込者として移行作成された Customer（legacy_applicant_danka_cd）も対象に含める（#221）
+    const customerWhere = {
+      OR: [{ legacy_danka_cd: { not: null } }, { legacy_applicant_danka_cd: { not: null } }],
+    } as const;
     const physicalPlotWhere = { plot_number: { startsWith: 'legacy-' } } as const;
     const staffWhere = { supabase_uid: { startsWith: 'legacy-tancd-' } } as const;
     const relationshipMasterWhere = { code: { startsWith: '2009-' } } as const;

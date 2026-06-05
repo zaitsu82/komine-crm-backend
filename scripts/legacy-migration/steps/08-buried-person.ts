@@ -57,6 +57,7 @@ export const stepBuriedPerson: MigrationStep = {
 
     let inserted = 0;
     let skipped = 0;
+    let skipExisting = 0;
     let skipMissingName = 0;
     let skipNoGraveCd = 0;
     let skipContractPlotNotMapped = 0;
@@ -87,9 +88,20 @@ export const stepBuriedPerson: MigrationStep = {
         continue;
       }
 
+      // 冪等性（#220）: 再実行時は legacy_maisou_cd で既存をスキップ
+      const existing = await prisma.buriedPerson.findUnique({
+        where: { legacy_maisou_cd: row.maisou_cd },
+      });
+      if (existing) {
+        skipped++;
+        skipExisting++;
+        continue;
+      }
+
       await prisma.buriedPerson.create({
         data: {
           contract_plot_id: contractPlotId,
+          legacy_maisou_cd: row.maisou_cd,
           name,
           name_kana: joinName(row.maisousha_sei_kana, row.maisousha_mei_kana),
           birth_date: parseLegacyDate(row.birthday),
@@ -118,6 +130,7 @@ export const stepBuriedPerson: MigrationStep = {
         source_rows: rows.length,
         skip_missing_name: skipMissingName,
         skip_no_grave_cd: skipNoGraveCd,
+        skip_existing: skipExisting,
         skip_contract_plot_not_mapped: skipContractPlotNotMapped,
       },
     };

@@ -5,6 +5,7 @@ import type { BillingSummaryResponse } from '@komine/types';
 import prisma from '../db/prisma';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler';
 import { recalculateContractPlotPaymentStatus } from '../plots/services/paymentStatusService';
+import { recalculateBillingPayments } from './billingService';
 import {
   createBillingSchema,
   updateBillingSchema,
@@ -331,15 +332,23 @@ export const updateBilling = async (
     if (input.notes !== undefined) data.notes = input.notes;
 
     const updated = await prisma.$transaction(async (tx) => {
-      const billing = await tx.billing.update({
+      await tx.billing.update({
         where: { id },
         data,
+      });
+      // 請求額・解約フラグの変更で paid/partial_paid/terminated 等の status が
+      // 変わりうるため、入金合計から status・paid_amount・last_payment_date を
+      // 再算出する（#211）。内部で ContractPlot の payment_status 再計算（#162）も行う。
+      // written_off / overdue の手動ステータスは computeBillingStatus 側で尊重される。
+      await recalculateBillingPayments(tx, existing.id);
+      // status が再書き込みされるため、レスポンスは再計算後の値を取得し直す
+      return tx.billing.findFirst({
+        where: { id: existing.id },
         include: includeRelations,
       });
-      // 請求額・解約フラグの変更が入金状況に影響しうるので再計算（#162）
-      await recalculateContractPlotPaymentStatus(tx, existing.contract_plot_id);
-      return billing;
     });
+
+    if (!updated) throw new NotFoundError('請求が見つかりません');
 
     res.status(200).json({ success: true, data: formatBilling(updated) });
   } catch (error) {

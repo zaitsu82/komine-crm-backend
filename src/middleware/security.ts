@@ -79,6 +79,9 @@ export const createRateLimiter = () => {
     },
     standardHeaders: true, // `RateLimit-*` ヘッダーを返す
     legacyHeaders: false, // `X-RateLimit-*` ヘッダーを無効化
+    // ボディパーサより前に適用するため（#226）、/health は明示的に除外する
+    // （Render等のヘルスチェックが429で失敗するのを防止）
+    skip: (req) => req.path === '/health',
     // デフォルトのkeyGeneratorを使用（IPv6対応済み）
   });
 };
@@ -171,12 +174,22 @@ export const getHelmetOptions = () => {
 /**
  * HTTP Parameter Pollution (HPP) 対策
  * 重複したクエリパラメータやボディパラメータを防止
+ *
+ * 注意: req.body を検査するためボディパーサより後に適用すること（#219）。
+ * 本APIは JSON 主体のため実効はほぼ query 側だが、urlencoded ボディの
+ * 重複パラメータ除去もパーサ後配置で機能する。
  */
 export const hppProtection = hpp();
 
 /**
  * 入力サニタイゼーションミドルウェア
- * XSS攻撃を防ぐため、危険な文字をエスケープ
+ *
+ * 方針変更（#218）: 旧実装は全入力文字列を HTML エスケープ（& < > " ' /）して
+ * DB に永続化していたため、顧客名・住所・口座名義等の元データを破壊し、
+ * ゆうちょ振替CSVの名義不正や帳票出力時の二重エスケープ（&amp;amp;）を
+ * 引き起こしていた。XSS 対策は出力時エスケープ（React の既定エスケープ＋
+ * documentService.escapeHtml）に一本化し、入力側は保存値を変えない無害化
+ * （制御文字の除去）のみに限定する。
  */
 export const sanitizeInput = (req: Request, _res: Response, next: NextFunction) => {
   // リクエストボディのサニタイゼーション
@@ -221,18 +234,17 @@ const sanitizeObject = (obj: unknown): unknown => {
 
 /**
  * 文字列のサニタイゼーション
- * XSS攻撃に使用される可能性のある文字をエスケープ
+ *
+ * 保存値を変えない無害化のみ行う（#218）:
+ * - C0/C1 制御文字（タブ・改行・復帰を除く）の除去
+ * HTML エスケープは行わない（出力時エスケープに一本化。入力時に行うと
+ * DB 保存値が破壊され、CSV/帳票出力の名義不正・二重エスケープの実害が出る）。
  */
 const sanitizeString = (str: string): string => {
   if (typeof str !== 'string') {
     return str;
   }
 
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
 };

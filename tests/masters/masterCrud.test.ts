@@ -16,62 +16,77 @@ declare global {
 }
 
 const mockPrisma: any = {
+  // 使用中チェック（#231）が参照する集計用デリゲート
+  usageFee: { count: jest.fn().mockResolvedValue(0) },
+  managementFee: { count: jest.fn().mockResolvedValue(0) },
+  constructionInfo: { count: jest.fn().mockResolvedValue(0) },
+  gravestoneInfo: { count: jest.fn().mockResolvedValue(0) },
   cemeteryTypeMaster: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
   paymentMethodMaster: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
   taxTypeMaster: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
   calcTypeMaster: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
   billingTypeMaster: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
   accountTypeMaster: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
   recipientTypeMaster: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
   constructionTypeMaster: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
   sectionNameMaster: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
   relationshipMaster: {
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -228,6 +243,74 @@ describe('Master CRUD Controller', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(409);
     });
 
+    it('code 自動生成がカラム長（VarChar(10)系）で切り詰められること (#232)', async () => {
+      mockRequest.params = { masterType: 'payment-method' };
+      mockRequest.body = { name: 'クレジットカード分割払い' }; // 11文字超
+
+      mockPrisma.paymentMethodMaster.create.mockResolvedValue({
+        id: 10,
+        code: 'クレジットカード分割',
+        name: 'クレジットカード分割払い',
+        description: null,
+        sort_order: null,
+        is_active: true,
+      });
+
+      await createMaster(mockRequest as Request, mockResponse as Response);
+
+      const createCall = mockPrisma.paymentMethodMaster.create.mock.calls[0][0];
+      // VarChar(10) に収まるよう10文字で切り詰め（従来は20文字でP2000の500になっていた）
+      expect(createCall.data.code).toBe('クレジットカード分割');
+      expect(createCall.data.code.length).toBeLessThanOrEqual(10);
+      expect(mockResponse.status).toHaveBeenCalledWith(201);
+    });
+
+    it('section-name は code 20文字まで許容されること (#232)', async () => {
+      mockRequest.params = { masterType: 'section-name' };
+      mockRequest.body = {
+        name: '一二三四五六七八九十一二三四五六七八九十超過分',
+        period: '第1期',
+      };
+
+      mockPrisma.sectionNameMaster.create.mockResolvedValue({
+        id: 11,
+        code: '一二三四五六七八九十一二三四五六七八九十',
+        name: '一二三四五六七八九十一二三四五六七八九十超過分',
+        description: null,
+        sort_order: null,
+        is_active: true,
+        period: '第1期',
+      });
+
+      await createMaster(mockRequest as Request, mockResponse as Response);
+
+      const createCall = mockPrisma.sectionNameMaster.create.mock.calls[0][0];
+      expect(createCall.data.code.length).toBeLessThanOrEqual(20);
+      expect(mockResponse.status).toHaveBeenCalledWith(201);
+    });
+
+    it('文字列長超過（P2000）は 500 でなく 400 VALIDATION_ERROR になること (#232)', async () => {
+      mockRequest.params = { masterType: 'payment-method' };
+      // Zod は20文字まで許容するが payment-method のカラムは VarChar(10) のため P2000 になる
+      mockRequest.body = { name: '銀行振込', code: 'a'.repeat(15) };
+
+      const prismaError: any = new Error('value too long');
+      prismaError.code = 'P2000';
+      mockPrisma.paymentMethodMaster.create.mockRejectedValue(prismaError);
+
+      await createMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            code: 'VALIDATION_ERROR',
+            message: expect.stringContaining('コードが長すぎます'),
+          }),
+        })
+      );
+    });
+
     it('DB障害の場合、500エラーを返すこと', async () => {
       mockRequest.params = { masterType: 'cemetery-type' };
       mockRequest.body = { code: 'test', name: 'テスト' };
@@ -346,6 +429,49 @@ describe('Master CRUD Controller', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(200);
     });
 
+    it('使用中マスタの code 変更は 409 で拒否されること (#231)', async () => {
+      mockRequest.params = { masterType: 'tax-type', id: '3' };
+      mockRequest.body = { code: 'newcode' };
+
+      mockPrisma.taxTypeMaster.findUnique.mockResolvedValue({
+        id: 3,
+        code: 'tax10',
+        name: '消費税10%',
+      });
+      mockPrisma.usageFee.count.mockResolvedValue(5); // 使用中
+
+      await updateMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(409);
+      expect(mockPrisma.taxTypeMaster.update).not.toHaveBeenCalled();
+
+      mockPrisma.usageFee.count.mockResolvedValue(0);
+    });
+
+    it('未使用マスタの code 変更は成功すること (#231)', async () => {
+      mockRequest.params = { masterType: 'tax-type', id: '3' };
+      mockRequest.body = { code: 'newcode' };
+
+      mockPrisma.taxTypeMaster.findUnique.mockResolvedValue({
+        id: 3,
+        code: 'tax10',
+        name: '消費税10%',
+      });
+      mockPrisma.taxTypeMaster.update.mockResolvedValue({
+        id: 3,
+        code: 'newcode',
+        name: '消費税10%',
+        description: null,
+        sort_order: null,
+        is_active: true,
+        tax_rate: null,
+      });
+
+      await updateMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+    });
+
     it('無効なIDの場合、400エラーを返すこと', async () => {
       mockRequest.params = { masterType: 'cemetery-type', id: 'abc' };
       mockRequest.body = { name: 'テスト' };
@@ -403,9 +529,15 @@ describe('Master CRUD Controller', () => {
   });
 
   describe('deleteMaster', () => {
-    it('マスタデータを正常に削除できること', async () => {
+    it('未使用のマスタデータを正常に削除できること', async () => {
       mockRequest.params = { masterType: 'construction-type', id: '2' };
 
+      mockPrisma.constructionTypeMaster.findUnique.mockResolvedValue({
+        id: 2,
+        code: 'repair',
+        name: '修繕',
+      });
+      mockPrisma.constructionInfo.count.mockResolvedValue(0); // 未使用
       mockPrisma.constructionTypeMaster.delete.mockResolvedValue({
         id: 2,
         code: 'repair',
@@ -424,16 +556,46 @@ describe('Master CRUD Controller', () => {
       });
     });
 
+    it('使用中のマスタは 409 で削除を拒否すること (#231)', async () => {
+      mockRequest.params = { masterType: 'tax-type', id: '3' };
+
+      mockPrisma.taxTypeMaster.findUnique.mockResolvedValue({
+        id: 3,
+        code: 'tax10',
+        name: '消費税10%',
+      });
+      // UsageFee 2件 + ManagementFee 1件で使用中
+      mockPrisma.usageFee.count.mockResolvedValue(2);
+      mockPrisma.managementFee.count.mockResolvedValue(1);
+
+      await deleteMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(409);
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({
+            code: 'CONFLICT',
+            message: expect.stringContaining('使用中のため削除できません'),
+          }),
+        })
+      );
+      expect(mockPrisma.taxTypeMaster.delete).not.toHaveBeenCalled();
+
+      // 後続テストのためにリセット
+      mockPrisma.usageFee.count.mockResolvedValue(0);
+      mockPrisma.managementFee.count.mockResolvedValue(0);
+    });
+
     it('存在しないIDの場合、404エラーを返すこと', async () => {
       mockRequest.params = { masterType: 'cemetery-type', id: '999' };
 
-      const prismaError: any = new Error('Not found');
-      prismaError.code = 'P2025';
-      mockPrisma.cemeteryTypeMaster.delete.mockRejectedValue(prismaError);
+      mockPrisma.cemeteryTypeMaster.findUnique.mockResolvedValue(null);
 
       await deleteMaster(mockRequest as Request, mockResponse as Response);
 
       expect(mockResponse.status).toHaveBeenCalledWith(404);
+      expect(mockPrisma.cemeteryTypeMaster.delete).not.toHaveBeenCalled();
     });
 
     it('無効なIDの場合、400エラーを返すこと', async () => {
@@ -455,6 +617,11 @@ describe('Master CRUD Controller', () => {
     it('DB障害の場合、500エラーを返すこと', async () => {
       mockRequest.params = { masterType: 'cemetery-type', id: '1' };
 
+      mockPrisma.cemeteryTypeMaster.findUnique.mockResolvedValue({
+        id: 1,
+        code: 'public',
+        name: '公営',
+      });
       mockPrisma.cemeteryTypeMaster.delete.mockRejectedValue(new Error('DB error'));
 
       await deleteMaster(mockRequest as Request, mockResponse as Response);

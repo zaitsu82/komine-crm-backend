@@ -42,6 +42,11 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
 /**
  * セキュリティヘッダーミドルウェア
  * セキュリティ関連のHTTPヘッダーを設定
+ *
+ * 注意: X-XSS-Protection は helmet（xssFilter: true → `0`）へ一本化した（#227）。
+ * 旧来ここで `1; mode=block` を上書きしていたが、これは非推奨値であり、
+ * かつボディパーサ段階のエラー応答では本ミドルウェアを通らず helmet 値が
+ * 返るため、応答間でヘッダが不整合になっていた。
  */
 export const securityHeaders = (req: Request, res: Response, next: NextFunction) => {
   // X-Content-Type-Options
@@ -49,9 +54,6 @@ export const securityHeaders = (req: Request, res: Response, next: NextFunction)
 
   // X-Frame-Options
   res.setHeader('X-Frame-Options', 'DENY');
-
-  // X-XSS-Protection
-  res.setHeader('X-XSS-Protection', '1; mode=block');
 
   // Strict-Transport-Security (HTTPSの場合のみ)
   if (req.secure) {

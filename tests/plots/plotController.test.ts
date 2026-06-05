@@ -41,6 +41,7 @@ const mockPrisma: any = {
     create: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   customer: {
     create: jest.fn(),
@@ -264,6 +265,128 @@ describe('Plot Controller (ContractPlot Model)', () => {
       );
     });
 
+    it('should sort by contractor name kana across pages when sortBy=customerName (#216)', async () => {
+      const buildSortRow = (id: string, nameKana: string | null) => ({
+        id,
+        saleContractRoles: nameKana ? [{ customer: { name_kana: nameKana, name: '氏名' } }] : [],
+      });
+      const buildListRow = (id: string, nameKana: string) => ({
+        id,
+        physical_plot_id: `pp-${id}`,
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        location_description: null,
+        created_at: new Date('2024-01-01'),
+        updated_at: new Date('2024-01-01'),
+        deleted_at: null,
+        contract_date: new Date('2024-01-01'),
+        price: null,
+        payment_status: 'unpaid',
+        physicalPlot: {
+          plot_number: `A-${id}`,
+          area_name: '第1期',
+          area_sqm: new Prisma.Decimal(3.6),
+          status: 'sold_out',
+        },
+        saleContractRoles: [
+          {
+            id: `scr-${id}`,
+            role: 'contractor',
+            customer: {
+              id: `c-${id}`,
+              name: '氏名',
+              name_kana: nameKana,
+              phone_number: null,
+              address: null,
+              notes: null,
+            },
+          },
+        ],
+        buriedPersons: [],
+        managementFee: null,
+        billings: [],
+      });
+
+      // 1回目: ソートキー取得（登録日順とは異なる順序で返す）
+      // 2回目: ページ分の詳細取得（わざと順序をシャッフルして返す）
+      mockPrisma.contractPlot.findMany
+        .mockResolvedValueOnce([
+          buildSortRow('cp1', 'ヤマダ'),
+          buildSortRow('cp2', 'アオキ'),
+          buildSortRow('cp3', null), // 契約者なし → 末尾
+          buildSortRow('cp4', 'サトウ'),
+        ])
+        .mockResolvedValueOnce([
+          buildListRow('cp4', 'サトウ'),
+          buildListRow('cp1', 'ヤマダ'),
+          buildListRow('cp2', 'アオキ'),
+        ]);
+
+      mockRequest.query = { page: '1', limit: '3', sortBy: 'customerName', sortOrder: 'asc' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(responseStatus).toHaveBeenCalledWith(200);
+      const payload = responseJson.mock.calls[0][0];
+      // 五十音順: アオキ → サトウ → ヤマダ（cp3 は2ページ目=末尾）
+      expect(payload.data.data.map((p: { id: string }) => p.id)).toEqual(['cp2', 'cp4', 'cp1']);
+      // total は全件数（ページサイズではない）
+      expect(payload.data.pagination.total).toBe(4);
+      // count は使わない（ソートキー取得結果から導出）
+      expect(mockPrisma.contractPlot.count).not.toHaveBeenCalled();
+    });
+
+    it('should place plots without contractor at the end for desc order too (#216)', async () => {
+      mockPrisma.contractPlot.findMany
+        .mockResolvedValueOnce([
+          { id: 'cp1', saleContractRoles: [{ customer: { name_kana: 'アオキ', name: 'a' } }] },
+          { id: 'cp2', saleContractRoles: [] }, // 契約者なし
+          { id: 'cp3', saleContractRoles: [{ customer: { name_kana: 'ヤマダ', name: 'y' } }] },
+        ])
+        .mockResolvedValueOnce([]);
+
+      mockRequest.query = { page: '1', limit: '10', sortBy: 'customerName', sortOrder: 'desc' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      // 2回目の findMany（詳細取得）に渡る id 順: ヤマダ → アオキ → 契約者なし
+      const secondCall = mockPrisma.contractPlot.findMany.mock.calls[1][0];
+      expect(secondCall.where.id.in).toEqual(['cp3', 'cp1', 'cp2']);
+    });
+
+    it('should filter by contractStatus when specified (#200)', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
+
+      mockRequest.query = { page: '1', limit: '10', contractStatus: 'terminated' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.contractPlot.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contract_status: 'terminated',
+          }),
+        })
+      );
+    });
+
+    it('should exclude vacant plots by default (#167)', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
+
+      mockRequest.query = { page: '1', limit: '10' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.contractPlot.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contract_status: { not: 'vacant' },
+          }),
+        })
+      );
+    });
+
     it('should calculate next billing date from last_billing_month', async () => {
       const mockContractPlots = [
         {
@@ -460,18 +583,25 @@ describe('Plot Controller (ContractPlot Model)', () => {
         deleted_at: null,
         contract_date: new Date('2024-01-01'),
         price: 1000000,
+        contract_status: 'active',
         payment_status: 'paid',
         reservation_date: null,
+        request_date: new Date('2023-12-01'),
         acceptance_number: null,
         permit_date: null,
         start_date: null,
         notes: null,
+        grave_kind: 1,
+        grave_kubun: 2,
+        grave_type: 3,
+        legacy_grave_cd: 101,
         physicalPlot: {
           id: 'pp1',
           plot_number: 'A-01',
           area_name: '一般墓地A',
           area_sqm: new Prisma.Decimal(3.6),
           status: 'sold_out',
+          map_id: 7,
           notes: null,
         },
         buriedPersons: [],
@@ -519,10 +649,24 @@ describe('Plot Controller (ContractPlot Model)', () => {
         })
       );
       expect(responseStatus).toHaveBeenCalledWith(200);
+      // PlotDetailResponse の必須フィールド欠落を回帰検知する（#199）
       expect(responseJson).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          data: expect.any(Object),
+          data: expect.objectContaining({
+            id: 'cp1',
+            contractStatus: 'active',
+            paymentStatus: 'paid',
+            requestDate: new Date('2023-12-01'),
+            graveKind: 1,
+            graveKubun: 2,
+            graveType: 3,
+            legacyGraveCd: 101,
+            physicalPlot: expect.objectContaining({
+              id: 'pp1',
+              mapId: 7,
+            }),
+          }),
         })
       );
     });
@@ -1206,6 +1350,131 @@ describe('Plot Controller (ContractPlot Model)', () => {
         })
       );
     });
+
+    it('should preserve applicant role when roles array without applicant is sent (#201)', async () => {
+      const mockExistingPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: { id: 'c1', workInfo: null },
+            customer_id: 'c1',
+            deleted_at: null,
+          },
+          {
+            id: 'scr2',
+            role: 'applicant',
+            customer: { id: 'c2', name: '山田花子' },
+            customer_id: 'c2',
+            deleted_at: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+      };
+
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.saleContractRole.findMany.mockResolvedValue([
+        {
+          id: 'scr1',
+          role: 'contractor',
+          customer_id: 'c1',
+        },
+      ]);
+      mockPrisma.saleContractRole.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.saleContractRole.create.mockResolvedValue({
+        id: 'scr3',
+        role: 'contractor',
+        customer_id: 'c3',
+      });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        saleContract: {
+          roles: [{ role: 'contractor', customerId: 'c3' }],
+        },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      // applicant を除外した削除・再作成になっていること
+      expect(mockPrisma.saleContractRole.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contract_plot_id: 'cp1',
+            deleted_at: null,
+            role: { not: 'applicant' },
+          }),
+        })
+      );
+      expect(mockPrisma.saleContractRole.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            role: { not: 'applicant' },
+          }),
+        })
+      );
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('should replace all roles including applicant when roles array contains applicant (#201)', async () => {
+      const mockExistingPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: { id: 'c1', workInfo: null },
+            customer_id: 'c1',
+            deleted_at: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+      };
+
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.saleContractRole.findMany.mockResolvedValue([]);
+      mockPrisma.saleContractRole.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.saleContractRole.create.mockResolvedValue({
+        id: 'scr2',
+        role: 'applicant',
+        customer_id: 'c2',
+      });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        saleContract: {
+          roles: [
+            { role: 'contractor', customerId: 'c1' },
+            { role: 'applicant', customerId: 'c2' },
+          ],
+        },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      // applicant を含む場合は従来どおり全件入替（role 条件なし）
+      expect(mockPrisma.saleContractRole.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            contract_plot_id: 'cp1',
+            deleted_at: null,
+          },
+        })
+      );
+      expect(mockPrisma.saleContractRole.create).toHaveBeenCalledTimes(2);
+      expect(mockNext).not.toHaveBeenCalled();
+    });
   });
 
   describe('GravestoneInfo persistence (issue #154)', () => {
@@ -1788,6 +2057,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           {
             id: 'cp1',
             contract_area_sqm: new Prisma.Decimal(3.6),
+            contract_status: 'active',
             saleContractRoles: [
               {
                 id: 'scr1',
@@ -1816,6 +2086,87 @@ describe('Plot Controller (ContractPlot Model)', () => {
               allocatedArea: 3.6,
               availableArea: 3.6,
               utilizationRate: 50,
+              status: 'partial',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should treat vacant placeholder contracts as available (#209)', async () => {
+      // 空き区画は ContractPlot 無しでなく contract_status='vacant' の器契約で表現される。
+      // vacant の面積を割当済みに含めると空き区画が sold_out と誤判定される。
+      const mockPhysicalPlot = {
+        id: 'pp1',
+        plot_number: 'A-01',
+        area_name: '一般墓地A',
+        area_sqm: new Prisma.Decimal(3.6),
+        status: 'available',
+        contractPlots: [
+          {
+            id: 'cp1',
+            contract_area_sqm: new Prisma.Decimal(3.6),
+            contract_status: 'vacant',
+            saleContractRoles: [],
+          },
+        ],
+      };
+
+      mockPrisma.physicalPlot.findUnique.mockResolvedValue(mockPhysicalPlot);
+      mockRequest.params = { id: 'pp1' };
+
+      await getPlotInventory(mockRequest as Request, mockResponse as Response);
+
+      expect(responseStatus).toHaveBeenCalledWith(200);
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            inventory: expect.objectContaining({
+              allocatedArea: 0,
+              availableArea: 3.6,
+              status: 'available',
+            }),
+            // 表示用一覧には vacant 契約も contractStatus 付きで含まれる
+            contracts: [expect.objectContaining({ id: 'cp1', contractStatus: 'vacant' })],
+          }),
+        })
+      );
+    });
+
+    it('should exclude terminated contracts from allocated area (#209)', async () => {
+      const mockPhysicalPlot = {
+        id: 'pp1',
+        plot_number: 'A-01',
+        area_name: '一般墓地A',
+        area_sqm: new Prisma.Decimal(7.2),
+        status: 'partial',
+        contractPlots: [
+          {
+            id: 'cp1',
+            contract_area_sqm: new Prisma.Decimal(3.6),
+            contract_status: 'active',
+            saleContractRoles: [],
+          },
+          {
+            id: 'cp2',
+            contract_area_sqm: new Prisma.Decimal(3.6),
+            contract_status: 'terminated',
+            saleContractRoles: [],
+          },
+        ],
+      };
+
+      mockPrisma.physicalPlot.findUnique.mockResolvedValue(mockPhysicalPlot);
+      mockRequest.params = { id: 'pp1' };
+
+      await getPlotInventory(mockRequest as Request, mockResponse as Response);
+
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            inventory: expect.objectContaining({
+              allocatedArea: 3.6, // active のみ
+              availableArea: 3.6,
               status: 'partial',
             }),
           }),
