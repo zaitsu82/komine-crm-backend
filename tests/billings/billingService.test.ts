@@ -138,6 +138,83 @@ describe('recalculateBillingPayments', () => {
     });
   });
 
+  it('レガシー移行 Billing（legacy_seikyu_cd 有・Payment 0件）は移行済み paid_amount を保全し status のみ再算出する (#264)', async () => {
+    const client = buildClient();
+    billingFindFirst.mockResolvedValue({
+      id: 'b1',
+      amount: 10000,
+      billing_date: new Date('2020-03-01'),
+      terminated: false,
+      status: 'paid',
+      paid_amount: 10000, // t_seikyu.nyukin_goukei 由来（対応する Payment 行は未移行）
+      legacy_seikyu_cd: 12345,
+      contract_plot_id: 'cp1',
+    });
+    paymentFindMany.mockResolvedValue([]);
+
+    await recalculateBillingPayments(client, 'b1');
+
+    // paid_amount / last_payment_date は上書きせず、status のみ既存 paid_amount から再算出
+    expect(billingUpdate).toHaveBeenCalledWith({
+      where: { id: 'b1' },
+      data: { status: 'paid' },
+    });
+  });
+
+  it('レガシー移行 Billing でも Payment 行が存在すれば通常どおり再集計する (#264)', async () => {
+    const client = buildClient();
+    billingFindFirst.mockResolvedValue({
+      id: 'b1',
+      amount: 10000,
+      billing_date: new Date('2020-03-01'),
+      terminated: false,
+      status: 'paid',
+      paid_amount: 10000,
+      legacy_seikyu_cd: 12345,
+      contract_plot_id: 'cp1',
+    });
+    paymentFindMany.mockResolvedValue([
+      { payment_amount: 4000, payment_date: new Date('2020-04-01') },
+    ]);
+
+    await recalculateBillingPayments(client, 'b1');
+
+    expect(billingUpdate).toHaveBeenCalledWith({
+      where: { id: 'b1' },
+      data: {
+        paid_amount: 4000,
+        last_payment_date: new Date('2020-04-01'),
+        status: 'partial_paid',
+      },
+    });
+  });
+
+  it('非レガシー Billing は Payment 0件で paid_amount を 0 に戻す（最後の入金削除の正常系を維持） (#264)', async () => {
+    const client = buildClient();
+    billingFindFirst.mockResolvedValue({
+      id: 'b1',
+      amount: 10000,
+      billing_date: new Date('2026-03-01'),
+      terminated: false,
+      status: 'partial_paid',
+      paid_amount: 5000,
+      legacy_seikyu_cd: null,
+      contract_plot_id: 'cp1',
+    });
+    paymentFindMany.mockResolvedValue([]);
+
+    await recalculateBillingPayments(client, 'b1');
+
+    expect(billingUpdate).toHaveBeenCalledWith({
+      where: { id: 'b1' },
+      data: {
+        paid_amount: 0,
+        last_payment_date: null,
+        status: 'billed',
+      },
+    });
+  });
+
   it('skips update when billing not found', async () => {
     const client = buildClient();
     billingFindFirst.mockResolvedValue(null);

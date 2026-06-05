@@ -331,6 +331,19 @@ export const updateBilling = async (
       data.terminated_date = toDateOrNull(input.terminatedDate);
     if (input.notes !== undefined) data.notes = input.notes;
 
+    // 入金集計・status 算出に影響するフィールドが「実際に変化した」時だけ再集計する（#264）。
+    // レガシー移行の Billing は paid_amount を t_seikyu.nyukin_goukei から直接投入しており
+    // Payment 行と独立のため（del_flg=1 入金は未移行等）、notes 等の無関係な編集で
+    // 無条件に再集計すると移行済みの入金実績が Payment 合計で上書きされ消失する。
+    const dateEquals = (a: Date | null, b: Date | null): boolean =>
+      (a?.getTime() ?? null) === (b?.getTime() ?? null);
+    const paymentRelevantChanged =
+      (input.amount !== undefined && input.amount !== existing.amount) ||
+      (input.terminated !== undefined && input.terminated !== existing.terminated) ||
+      (input.status !== undefined && input.status !== existing.status) ||
+      (input.billingDate !== undefined &&
+        !dateEquals(toDateOrNull(input.billingDate), existing.billing_date));
+
     const updated = await prisma.$transaction(async (tx) => {
       await tx.billing.update({
         where: { id },
@@ -340,8 +353,10 @@ export const updateBilling = async (
       // 変わりうるため、入金合計から status・paid_amount・last_payment_date を
       // 再算出する（#211）。内部で ContractPlot の payment_status 再計算（#162）も行う。
       // written_off / overdue の手動ステータスは computeBillingStatus 側で尊重される。
-      await recalculateBillingPayments(tx, existing.id);
-      // status が再書き込みされるため、レスポンスは再計算後の値を取得し直す
+      if (paymentRelevantChanged) {
+        await recalculateBillingPayments(tx, existing.id);
+      }
+      // status が再書き込みされうるため、レスポンスは再計算後の値を取得し直す
       return tx.billing.findFirst({
         where: { id: existing.id },
         include: includeRelations,

@@ -423,6 +423,75 @@ describe('billingController', () => {
 
       expect(next).toHaveBeenCalledWith(expect.objectContaining({ name: 'NotFoundError' }));
     });
+
+    it('notes のみの編集では入金再集計を呼ばない（移行済み paid_amount の保全 #264）', async () => {
+      mockPrisma.billing.findFirst
+        .mockResolvedValueOnce({
+          id: VALID_UUID,
+          contract_plot_id: PLOT_UUID,
+          amount: 15000,
+          terminated: false,
+          status: 'paid',
+          billing_date: new Date('2020-03-01'),
+        })
+        .mockResolvedValueOnce(buildBillingRow({ amount: 15000, status: 'paid' }));
+      mockPrisma.billing.update.mockResolvedValue(buildBillingRow({ amount: 15000 }));
+
+      const req = buildRequest({
+        params: { id: VALID_UUID },
+        body: { notes: '備考のみ更新' },
+      });
+      await updateBilling(req as Request, res as Response, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(recalculateBillingPaymentsMock).not.toHaveBeenCalled();
+    });
+
+    it('amount が既存と同値なら入金再集計を呼ばない (#264)', async () => {
+      mockPrisma.billing.findFirst
+        .mockResolvedValueOnce({
+          id: VALID_UUID,
+          contract_plot_id: PLOT_UUID,
+          amount: 15000,
+          terminated: false,
+          status: 'paid',
+          billing_date: null,
+        })
+        .mockResolvedValueOnce(buildBillingRow({ amount: 15000, status: 'paid' }));
+      mockPrisma.billing.update.mockResolvedValue(buildBillingRow({ amount: 15000 }));
+
+      const req = buildRequest({
+        params: { id: VALID_UUID },
+        body: { amount: 15000, notes: 'フォーム全体送信を想定' },
+      });
+      await updateBilling(req as Request, res as Response, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(recalculateBillingPaymentsMock).not.toHaveBeenCalled();
+    });
+
+    it('terminated の変更では入金再集計を呼ぶ (#264)', async () => {
+      mockPrisma.billing.findFirst
+        .mockResolvedValueOnce({
+          id: VALID_UUID,
+          contract_plot_id: PLOT_UUID,
+          amount: 15000,
+          terminated: false,
+          status: 'billed',
+          billing_date: new Date('2026-03-01'),
+        })
+        .mockResolvedValueOnce(buildBillingRow({ amount: 15000, status: 'terminated' }));
+      mockPrisma.billing.update.mockResolvedValue(buildBillingRow({ amount: 15000 }));
+
+      const req = buildRequest({
+        params: { id: VALID_UUID },
+        body: { terminated: true },
+      });
+      await updateBilling(req as Request, res as Response, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(recalculateBillingPaymentsMock).toHaveBeenCalledWith(mockPrisma, VALID_UUID);
+    });
   });
 
   describe('deleteBilling', () => {
