@@ -1,18 +1,19 @@
 import { PrismaClient, Prisma, CollectiveBurial } from '@prisma/client';
+import { todayJstAsUtcDate, addYearsUtc } from '../utils/dateUtils';
 
 /**
  * 請求予定日を計算
- * @param capacityReachedDate 上限到達日
+ * @param capacityReachedDate 上限到達日（UTC 00:00 正規化済みの Date を渡すこと #214）
  * @param validityPeriodYears 有効期間（年単位）
- * @returns 請求予定日
+ * @returns 請求予定日（UTC 00:00 を維持）
  */
 export const calculateBillingScheduledDate = (
   capacityReachedDate: Date,
   validityPeriodYears: number
 ): Date => {
-  const billingDate = new Date(capacityReachedDate);
-  billingDate.setFullYear(billingDate.getFullYear() + validityPeriodYears);
-  return billingDate;
+  // setFullYear（ローカル時刻ベース）は JST 環境で @db.Date 保存時に
+  // 前日へずれるため、UTC ベースで年加算する（#214）
+  return addYearsUtc(capacityReachedDate, validityPeriodYears);
 };
 
 /**
@@ -52,7 +53,8 @@ export const updateCollectiveBurialCount = async (
 
   if (capacityReached && !wasCapacityReached) {
     // 上限到達（初回）: 上限到達日と請求予定日を設定
-    const capacityReachedDate = new Date();
+    // @db.Date 列への保存のため JST 暦日を UTC 00:00 に正規化（#214）
+    const capacityReachedDate = todayJstAsUtcDate();
     updateData.capacity_reached_date = capacityReachedDate;
     updateData.billing_scheduled_date = calculateBillingScheduledDate(
       capacityReachedDate,
@@ -97,8 +99,9 @@ export const isCapacityReached = async (prisma: PrismaClient, plotId: string): P
  * @returns 請求対象の合祀情報リスト
  */
 export const getBillingTargets = async (prisma: PrismaClient) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); // 時刻を0:00:00に設定
+  // billing_scheduled_date は @db.Date（UTC 00:00 として読まれる）のため、
+  // 比較基準日も JST 暦日の UTC 00:00 に正規化して境界を一致させる（#214）
+  const today = todayJstAsUtcDate();
 
   return await prisma.collectiveBurial.findMany({
     where: {
