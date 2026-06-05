@@ -1969,6 +1969,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
           {
             id: 'cp1',
             contract_area_sqm: new Prisma.Decimal(3.6),
+            contract_status: 'active',
             saleContractRoles: [
               {
                 id: 'scr1',
@@ -1997,6 +1998,87 @@ describe('Plot Controller (ContractPlot Model)', () => {
               allocatedArea: 3.6,
               availableArea: 3.6,
               utilizationRate: 50,
+              status: 'partial',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should treat vacant placeholder contracts as available (#209)', async () => {
+      // 空き区画は ContractPlot 無しでなく contract_status='vacant' の器契約で表現される。
+      // vacant の面積を割当済みに含めると空き区画が sold_out と誤判定される。
+      const mockPhysicalPlot = {
+        id: 'pp1',
+        plot_number: 'A-01',
+        area_name: '一般墓地A',
+        area_sqm: new Prisma.Decimal(3.6),
+        status: 'available',
+        contractPlots: [
+          {
+            id: 'cp1',
+            contract_area_sqm: new Prisma.Decimal(3.6),
+            contract_status: 'vacant',
+            saleContractRoles: [],
+          },
+        ],
+      };
+
+      mockPrisma.physicalPlot.findUnique.mockResolvedValue(mockPhysicalPlot);
+      mockRequest.params = { id: 'pp1' };
+
+      await getPlotInventory(mockRequest as Request, mockResponse as Response);
+
+      expect(responseStatus).toHaveBeenCalledWith(200);
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            inventory: expect.objectContaining({
+              allocatedArea: 0,
+              availableArea: 3.6,
+              status: 'available',
+            }),
+            // 表示用一覧には vacant 契約も contractStatus 付きで含まれる
+            contracts: [expect.objectContaining({ id: 'cp1', contractStatus: 'vacant' })],
+          }),
+        })
+      );
+    });
+
+    it('should exclude terminated contracts from allocated area (#209)', async () => {
+      const mockPhysicalPlot = {
+        id: 'pp1',
+        plot_number: 'A-01',
+        area_name: '一般墓地A',
+        area_sqm: new Prisma.Decimal(7.2),
+        status: 'partial',
+        contractPlots: [
+          {
+            id: 'cp1',
+            contract_area_sqm: new Prisma.Decimal(3.6),
+            contract_status: 'active',
+            saleContractRoles: [],
+          },
+          {
+            id: 'cp2',
+            contract_area_sqm: new Prisma.Decimal(3.6),
+            contract_status: 'terminated',
+            saleContractRoles: [],
+          },
+        ],
+      };
+
+      mockPrisma.physicalPlot.findUnique.mockResolvedValue(mockPhysicalPlot);
+      mockRequest.params = { id: 'pp1' };
+
+      await getPlotInventory(mockRequest as Request, mockResponse as Response);
+
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            inventory: expect.objectContaining({
+              allocatedArea: 3.6, // active のみ
+              availableArea: 3.6,
               status: 'partial',
             }),
           }),

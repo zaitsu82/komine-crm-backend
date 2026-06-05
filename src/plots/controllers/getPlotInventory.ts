@@ -26,6 +26,7 @@ export const getPlotInventory = async (req: Request, res: Response): Promise<Res
           select: {
             id: true,
             contract_area_sqm: true,
+            contract_status: true,
             saleContractRoles: {
               where: { deleted_at: null, role: 'contractor' },
               select: {
@@ -52,11 +53,14 @@ export const getPlotInventory = async (req: Request, res: Response): Promise<Res
     }
 
     // 在庫計算
+    // 割当済面積は active（契約中）のみで算定する（#209）。
+    // vacant の器契約（空き区画の表現方式）・terminated（解約済み）を含めると、
+    // 空き区画が sold_out と誤判定され、calculateAvailableArea /
+    // validateContractArea（utils.ts）の active 限定基準とも矛盾する。
     const totalArea = physicalPlot.area_sqm.toNumber();
-    const allocatedArea = physicalPlot.contractPlots.reduce(
-      (sum, contract) => sum + contract.contract_area_sqm.toNumber(),
-      0
-    );
+    const allocatedArea = physicalPlot.contractPlots
+      .filter((contract) => contract.contract_status === 'active')
+      .reduce((sum, contract) => sum + contract.contract_area_sqm.toNumber(), 0);
     const availableArea = totalArea - allocatedArea;
     const utilizationRate = totalArea > 0 ? (allocatedArea / totalArea) * 100 : 0;
 
@@ -86,6 +90,8 @@ export const getPlotInventory = async (req: Request, res: Response): Promise<Res
           utilizationRate: Math.round(utilizationRate * 100) / 100,
           status: inventoryStatus,
         },
+        // 表示用の契約一覧は在庫計算と用途が異なるため全契約（vacant/terminated含む）を返し、
+        // 区別できるよう contractStatus を付与する
         contracts: physicalPlot.contractPlots.map((contract) => {
           // 主契約者を取得（role='contractor'）
           const primaryRole = contract.saleContractRoles?.[0];
@@ -94,6 +100,7 @@ export const getPlotInventory = async (req: Request, res: Response): Promise<Res
           return {
             id: contract.id,
             contractAreaSqm: contract.contract_area_sqm.toNumber(),
+            contractStatus: contract.contract_status,
             customerName: primaryCustomer?.name || null,
           };
         }),

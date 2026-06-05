@@ -3035,7 +3035,7 @@ components:
               example: partial
         contracts:
           type: array
-          description: 既存契約一覧
+          description: 既存契約一覧（vacant/terminated 含む。在庫計算は active のみで算定）
           items:
             type: object
             properties:
@@ -3045,11 +3045,13 @@ components:
               contractAreaSqm:
                 type: number
                 format: float
-              saleStatus:
+              contractStatus:
                 type: string
-                nullable: true
+                enum: [vacant, active, terminated]
+                description: 契約ステータス
               customerName:
                 type: string
+                nullable: true
 
     # ==================== リクエストスキーマ ====================
 

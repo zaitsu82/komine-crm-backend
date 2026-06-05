@@ -103,6 +103,27 @@ interface GetInventoryOptions {
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 /**
+ * 在庫集計に算入する契約区画の取得条件（#209）。
+ * vacant の器契約（空き区画の表現方式）と terminated（解約済み）を
+ * 契約済み面積から除外し、calculateAvailableArea / validateContractArea
+ * （plots/utils.ts）と母数を統一する。
+ */
+const ACTIVE_CONTRACT_PLOTS_INCLUDE = {
+  where: { deleted_at: null, contract_status: 'active' },
+  select: { contract_area_sqm: true },
+} as const;
+
+/**
+ * partially_sold 区画の使用割合を算出する（#205）。
+ * 移行データ等で契約面積合計が物理面積を超えても 1 を上限にクランプし、
+ * usedCount > totalCount による残数の負値化を防ぐ。
+ */
+function clampedUsedPortion(contractedArea: number, plotArea: number): number {
+  if (plotArea <= 0) return 0;
+  return Math.min(1, contractedArea / plotArea);
+}
+
+/**
  * 全体サマリーを取得
  */
 export async function getOverallSummary(prisma: DbClient): Promise<InventorySummaryData> {
@@ -110,10 +131,7 @@ export async function getOverallSummary(prisma: DbClient): Promise<InventorySumm
   const physicalPlots = await prisma.physicalPlot.findMany({
     where: { deleted_at: null },
     include: {
-      contractPlots: {
-        where: { deleted_at: null },
-        select: { contract_area_sqm: true },
-      },
+      contractPlots: ACTIVE_CONTRACT_PLOTS_INCLUDE,
     },
   });
 
@@ -138,10 +156,10 @@ export async function getOverallSummary(prisma: DbClient): Promise<InventorySumm
       usedCount += 1;
       usedAreaSqm += plotArea;
     } else if (plot.status === 'partially_sold' && contractedArea > 0) {
-      // 部分的に売却されている場合、面積比率で計算
-      usedAreaSqm += contractedArea;
+      // 部分的に売却されている場合、面積比率で計算（物理面積を上限にクランプ #205）
+      usedAreaSqm += Math.min(plotArea, contractedArea);
       // カウントは部分的としてカウント
-      usedCount += contractedArea / plotArea;
+      usedCount += clampedUsedPortion(contractedArea, plotArea);
     }
   }
 
@@ -149,8 +167,8 @@ export async function getOverallSummary(prisma: DbClient): Promise<InventorySumm
   // （別経路でMath.roundするとused + remaining ≠ totalになるケースがある）
   const roundedTotalCount = Math.round(totalCount);
   const roundedUsedCount = Math.round(usedCount);
-  const remainingCount = roundedTotalCount - roundedUsedCount;
-  const remainingAreaSqm = totalAreaSqm - usedAreaSqm;
+  const remainingCount = Math.max(0, roundedTotalCount - roundedUsedCount);
+  const remainingAreaSqm = Math.max(0, totalAreaSqm - usedAreaSqm);
   const usageRate = totalCount > 0 ? (usedCount / totalCount) * 100 : 0;
 
   return {
@@ -182,10 +200,7 @@ export async function getPeriodSummaries(
       area_name: { in: periodsToQuery },
     },
     include: {
-      contractPlots: {
-        where: { deleted_at: null },
-        select: { contract_area_sqm: true },
-      },
+      contractPlots: ACTIVE_CONTRACT_PLOTS_INCLUDE,
     },
   });
 
@@ -213,7 +228,7 @@ export async function getPeriodSummaries(
     if (plot.status === 'sold_out') {
       periodData.usedCount += 1;
     } else if (plot.status === 'partially_sold' && contractedArea > 0) {
-      periodData.usedCount += contractedArea / plotArea;
+      periodData.usedCount += clampedUsedPortion(contractedArea, plotArea);
     }
   }
 
@@ -223,7 +238,7 @@ export async function getPeriodSummaries(
     // 丸め整合性のため、usedCountを先に丸めてremainingCountをそこから導出
     const roundedTotalCount = Math.round(data.totalCount);
     const roundedUsedCount = Math.round(data.usedCount);
-    const remainingCount = roundedTotalCount - roundedUsedCount;
+    const remainingCount = Math.max(0, roundedTotalCount - roundedUsedCount);
     const usageRate = data.totalCount > 0 ? (data.usedCount / data.totalCount) * 100 : 0;
 
     return {
@@ -271,10 +286,7 @@ export async function getSectionInventory(
   const physicalPlots = await prisma.physicalPlot.findMany({
     where: whereClause,
     include: {
-      contractPlots: {
-        where: { deleted_at: null },
-        select: { contract_area_sqm: true },
-      },
+      contractPlots: ACTIVE_CONTRACT_PLOTS_INCLUDE,
     },
   });
 
@@ -304,7 +316,7 @@ export async function getSectionInventory(
     if (plot.status === 'sold_out') {
       usedPortion = 1;
     } else if (plot.status === 'partially_sold' && contractedArea > 0) {
-      usedPortion = contractedArea / plotArea;
+      usedPortion = clampedUsedPortion(contractedArea, plotArea);
     }
 
     if (sectionMap.has(key)) {
@@ -327,7 +339,7 @@ export async function getSectionInventory(
     // 丸め整合性のため、usedCountを先に丸めてremainingCountをそこから導出
     const roundedTotalCount = Math.round(item.totalCount);
     const roundedUsedCount = Math.round(item.usedCount);
-    const remainingCount = roundedTotalCount - roundedUsedCount;
+    const remainingCount = Math.max(0, roundedTotalCount - roundedUsedCount);
     const usageRate = item.totalCount > 0 ? (item.usedCount / item.totalCount) * 100 : 0;
 
     return {
@@ -410,10 +422,7 @@ export async function getAreaInventory(
   const physicalPlots = await prisma.physicalPlot.findMany({
     where: whereClause,
     include: {
-      contractPlots: {
-        where: { deleted_at: null },
-        select: { contract_area_sqm: true },
-      },
+      contractPlots: ACTIVE_CONTRACT_PLOTS_INCLUDE,
     },
   });
 
@@ -448,8 +457,8 @@ export async function getAreaInventory(
       usedPortion = 1;
       usedAreaForPlot = plotArea;
     } else if (plot.status === 'partially_sold' && contractedArea > 0) {
-      usedPortion = contractedArea / plotArea;
-      usedAreaForPlot = contractedArea;
+      usedPortion = clampedUsedPortion(contractedArea, plotArea);
+      usedAreaForPlot = Math.min(plotArea, contractedArea);
     }
 
     if (areaMap.has(key)) {
@@ -476,8 +485,8 @@ export async function getAreaInventory(
     // 丸め整合性のため、usedCountを先に丸めてremainingCountをそこから導出
     const roundedTotalCount = Math.round(item.totalCount);
     const roundedUsedCount = Math.round(item.usedCount);
-    const remainingCount = roundedTotalCount - roundedUsedCount;
-    const remainingAreaSqm = item.totalAreaSqm - item.usedAreaSqm;
+    const remainingCount = Math.max(0, roundedTotalCount - roundedUsedCount);
+    const remainingAreaSqm = Math.max(0, item.totalAreaSqm - item.usedAreaSqm);
 
     return {
       period: item.period,
