@@ -105,14 +105,17 @@ export const getPlotById = async (
         areaName: contractPlot.physicalPlot.area_name,
         areaSqm: contractPlot.physicalPlot.area_sqm.toNumber(),
         status: contractPlot.physicalPlot.status,
+        mapId: contractPlot.physicalPlot.map_id,
         notes: contractPlot.physicalPlot.notes,
       },
 
       // 販売契約情報（ContractPlotに統合済み）
       contractDate: contractPlot.contract_date,
       price: contractPlot.price,
+      contractStatus: contractPlot.contract_status,
       paymentStatus: contractPlot.payment_status,
       reservationDate: contractPlot.reservation_date,
+      requestDate: contractPlot.request_date,
       acceptanceNumber: contractPlot.acceptance_number,
       acceptanceDate: contractPlot.acceptance_date,
       staffInCharge: contractPlot.staff_in_charge,
@@ -123,11 +126,19 @@ export const getPlotById = async (
       uncollectedAmount: contractPlot.uncollected_amount,
       contractNotes: contractPlot.notes,
 
+      // レガシー由来の区分コード
+      graveKind: contractPlot.grave_kind,
+      graveKubun: contractPlot.grave_kubun,
+      graveType: contractPlot.grave_type,
+      legacyGraveCd: contractPlot.legacy_grave_cd,
+
       // 使用料情報
       usageFee: contractPlot.usageFee
         ? {
             calculationType: contractPlot.usageFee.calculation_type,
             taxType: contractPlot.usageFee.tax_type,
+            billingType: contractPlot.usageFee.billing_type,
+            billingYears: contractPlot.usageFee.billing_years,
             usageFee: contractPlot.usageFee.usage_fee,
             area: contractPlot.usageFee.area,
             unitPrice: contractPlot.usageFee.unit_price,
@@ -165,6 +176,10 @@ export const getPlotById = async (
         posthumousName: person.posthumous_name,
         reportDate: person.report_date,
         religion: person.religion,
+        deathPlace: person.death_place,
+        causeOfDeath: person.cause_of_death,
+        chiefMournerName: person.chief_mourner_name,
+        chiefMournerRelationship: person.chief_mourner_relationship,
         notes: person.notes,
       })),
 
