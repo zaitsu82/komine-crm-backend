@@ -159,9 +159,23 @@ export const getBillingsSummary = async (
       };
     }
 
-    const [sums, totalCount, overdueCount] = await Promise.all([
+    // 未入金は回収可能な債権のみで算出する（#272）。
+    // 解約済み（terminated）・貸倒（written_off）は債務/債権が消滅しており、
+    // 含めると回収不能金額が「未入金」に積み上がる。#170 の
+    // deriveContractPlotPayment（terminated 除外）と同一規則を適用し、
+    // 区画詳細の uncollected_amount とサマリー StatCard を整合させる。
+    // AND 合成でユーザー指定の status 等のフィルタは維持する。
+    const collectibleWhere: Prisma.BillingWhereInput = {
+      AND: [where, { terminated: false, status: { notIn: ['written_off', 'terminated'] } }],
+    };
+
+    const [sums, collectibleSums, totalCount, overdueCount] = await Promise.all([
       prisma.billing.aggregate({
         where,
+        _sum: { amount: true, paid_amount: true },
+      }),
+      prisma.billing.aggregate({
+        where: collectibleWhere,
         _sum: { amount: true, paid_amount: true },
       }),
       prisma.billing.count({ where }),
@@ -170,10 +184,13 @@ export const getBillingsSummary = async (
 
     const totalAmount = sums._sum.amount ?? 0;
     const paidAmount = sums._sum.paid_amount ?? 0;
+    const collectibleAmount = collectibleSums._sum.amount ?? 0;
+    const collectiblePaid = collectibleSums._sum.paid_amount ?? 0;
     const data: BillingSummaryResponse = {
       totalAmount,
       paidAmount,
-      unpaidAmount: totalAmount - paidAmount,
+      // 過入金で負にしない（uncollectedFromTotals と同じ規約）
+      unpaidAmount: Math.max(0, collectibleAmount - collectiblePaid),
       overdueCount,
       totalCount,
     };

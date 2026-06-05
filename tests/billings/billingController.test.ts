@@ -225,6 +225,31 @@ describe('billingController', () => {
       });
     });
 
+    it('未入金額は解約済・貸倒請求を除いた回収可能債権のみで算出する (#272)', async () => {
+      mockPrisma.billing.aggregate
+        // 1回目: フィルタ一致の全件（解約済 200,000 円を含む）
+        .mockResolvedValueOnce({ _sum: { amount: 500000, paid_amount: 200000 } })
+        // 2回目: 回収可能（terminated/written_off 除外）のみ
+        .mockResolvedValueOnce({ _sum: { amount: 300000, paid_amount: 200000 } });
+      mockPrisma.billing.count.mockResolvedValueOnce(120).mockResolvedValueOnce(7);
+
+      const req = buildRequest({ query: {} });
+      await getBillingsSummary(req as Request, res as Response, next);
+
+      const payload = (res.json as jest.Mock).mock.calls[0][0];
+      // 全件差の 300,000 ではなく回収可能のみの 100,000（#170 の未収規則と整合）
+      expect(payload.data.unpaidAmount).toBe(100000);
+      expect(payload.data.totalAmount).toBe(500000);
+      expect(payload.data.paidAmount).toBe(200000);
+      // 2回目の aggregate に除外条件が AND 合成されること（ユーザーフィルタは維持）
+      const collectibleWhere = mockPrisma.billing.aggregate.mock.calls[1][0].where;
+      expect(collectibleWhere.AND[1]).toEqual({
+        terminated: false,
+        status: { notIn: ['written_off', 'terminated'] },
+      });
+      expect(collectibleWhere.AND[0]).toMatchObject({ deleted_at: null });
+    });
+
     it('applies filter conditions and adds overdue status for overdue count', async () => {
       mockPrisma.billing.aggregate.mockResolvedValue({
         _sum: { amount: null, paid_amount: null },
