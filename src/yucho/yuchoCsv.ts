@@ -230,10 +230,13 @@ export const buildDataRow = (item: YuchoBillingItem): string => {
   // 口座名義は唯一の二重引用符囲みフィールド。toHalfWidthKana は ASCII を素通し
   // するため、名義に半角 " が残ると囲みが途中で閉じて列ズレを起こす。
   // RFC4180 に従い内部の " を "" に二重化してから囲む（#273）。
+  // 固定幅整形は「論理値を幅に収めてからエスケープ」の順で行うこと（#300）。
+  // エスケープ後に切詰めると "" のペアが30桁境界で割れて単独の " が残り、
+  // 囲みの引用符が不均衡になって #273 が防いだ列ズレが再発する。
   const accountHolder = padRight(
-    toHalfWidthKana(info?.accountHolder ?? item.customerNameKana ?? '').replace(/"/g, '""'),
+    toHalfWidthKana(info?.accountHolder ?? item.customerNameKana ?? ''),
     ACCOUNT_HOLDER_WIDTH
-  );
+  ).replace(/"/g, '""');
 
   const cells = [
     '', // 1: 空
