@@ -9,7 +9,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { ContractStatus } from '@prisma/client';
+import { ContractStatus, Prisma } from '@prisma/client';
 import prisma from '../../db/prisma';
 import { NotFoundError, ConflictError } from '../../middleware/errorHandler';
 import { recordEntityUpdated } from '../services/historyService';
@@ -26,46 +26,52 @@ export const terminateContract = async (
     const id = (req.params as Record<string, string>)['id'] as string;
     const { reason } = req.body as TerminateContractRequest;
 
-    const contractPlot = await prisma.contractPlot.findUnique({
-      where: { id, deleted_at: null },
-    });
+    // 現在ステータスの読取り・検証・更新を単一の Serializable トランザクションで
+    // 原子化する（#278）。tx 外で読んだ状態を前提に更新すると、解約の2連打や
+    // 並行する復活・契約追加と交錯して二重遷移・status 不整合が成立しうる。
+    await prisma.$transaction(
+      async (tx) => {
+        const contractPlot = await tx.contractPlot.findUnique({
+          where: { id, deleted_at: null },
+        });
 
-    if (!contractPlot) {
-      throw new NotFoundError('指定された契約区画が見つかりません');
-    }
+        if (!contractPlot) {
+          throw new NotFoundError('指定された契約区画が見つかりません');
+        }
 
-    const beforeStatus = contractPlot.contract_status;
+        const beforeStatus = contractPlot.contract_status;
 
-    // 解約エンドポイントは active 状態のみ受け付ける
-    if (beforeStatus !== ContractStatus.active) {
-      throw new ConflictError(
-        `現在のステータス '${beforeStatus}' から解約はできません（active のみ解約可能）`
-      );
-    }
+        // 解約エンドポイントは active 状態のみ受け付ける
+        if (beforeStatus !== ContractStatus.active) {
+          throw new ConflictError(
+            `現在のステータス '${beforeStatus}' から解約はできません（active のみ解約可能）`
+          );
+        }
 
-    // サービス層の遷移定義（active → terminated）と整合させる
-    contractStatusService.validateTransition(beforeStatus, ContractStatus.terminated);
+        // サービス層の遷移定義（active → terminated）と整合させる
+        contractStatusService.validateTransition(beforeStatus, ContractStatus.terminated);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.contractPlot.update({
-        where: { id },
-        data: { contract_status: ContractStatus.terminated },
-      });
+        await tx.contractPlot.update({
+          where: { id },
+          data: { contract_status: ContractStatus.terminated },
+        });
 
-      // active 契約が外れるため物理区画ステータスを再計算する（restore #210 と対称）
-      await updatePhysicalPlotStatus(tx, contractPlot.physical_plot_id);
+        // active 契約が外れるため物理区画ステータスを再計算する（restore #210 と対称）
+        await updatePhysicalPlotStatus(tx, contractPlot.physical_plot_id);
 
-      await recordEntityUpdated(tx, {
-        entityType: 'ContractPlot',
-        entityId: id,
-        physicalPlotId: contractPlot.physical_plot_id,
-        contractPlotId: id,
-        beforeRecord: { contract_status: beforeStatus },
-        afterRecord: { contract_status: ContractStatus.terminated },
-        changeReason: reason,
-        req,
-      });
-    });
+        await recordEntityUpdated(tx, {
+          entityType: 'ContractPlot',
+          entityId: id,
+          physicalPlotId: contractPlot.physical_plot_id,
+          contractPlotId: id,
+          beforeRecord: { contract_status: beforeStatus },
+          afterRecord: { contract_status: ContractStatus.terminated },
+          changeReason: reason,
+          req,
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
 
     res.status(200).json({
       success: true,

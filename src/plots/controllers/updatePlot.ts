@@ -1507,6 +1507,8 @@ export const updatePlot = async (
       },
       {
         timeout: 10000,
+        // 在庫面積・status再計算を含むため並行更新と直列化する（#278）
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       }
     );
 

@@ -375,6 +375,20 @@ const handlePrismaError = (error: Prisma.PrismaClientKnownRequestError, res: Res
         },
       });
 
+    case 'P2034':
+      // Serializable トランザクションの直列化競合（write conflict / deadlock）。
+      // check-then-act を原子化した在庫検証・契約解約復活等（#278）で並行更新が
+      // 衝突した場合に発生する。データは壊れておらずリトライで成功するため、
+      // 500 でなく 409 として再試行を案内する。
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: '同時更新が競合しました。もう一度お試しください',
+          details: [],
+        },
+      });
+
     default:
       return res.status(500).json({
         success: false,

@@ -33,6 +33,10 @@ const mockPrisma: any = {
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => mockPrisma),
+  // Serializable tx 化（#278）で参照される分離レベル定数
+  Prisma: {
+    TransactionIsolationLevel: { Serializable: 'Serializable' },
+  },
   ContractStatus: {
     vacant: 'vacant',
     active: 'active',
@@ -121,6 +125,11 @@ describe('terminateContract (#236)', () => {
 
       // 物理区画ステータスの再計算（restore #210 と対称）
       expect(mockUpdatePhysicalPlotStatus).toHaveBeenCalledWith(mockPrisma, 'pp-1');
+
+      // 読取り・検証・更新は単一 Serializable tx で原子化される（#278）
+      expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'Serializable',
+      });
 
       // 履歴記録
       expect(mockRecordEntityUpdated).toHaveBeenCalledTimes(1);
