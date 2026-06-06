@@ -12,6 +12,7 @@ import {
   updatePhysicalPlotStatus,
   buildGravestoneInfoData,
   syncPrimaryContractorNameKana,
+  syncContractorNameKanaForCustomer,
 } from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
@@ -341,6 +342,12 @@ export async function updatePlotCore(
           where: { id: customerId },
           data: customerUpdateData,
         });
+        // 共有契約者（レガシー移行で複数区画が同一 Customer を契約者として参照）の
+        // 氏名・カナ変更は編集対象外の区画の snapshot も陳腐化させるため、
+        // 顧客起点で該当する全契約区画を再同期する（#301）
+        if (customerUpdateData.name !== undefined || customerUpdateData.name_kana !== undefined) {
+          await syncContractorNameKanaForCustomer(tx, customerId);
+        }
       }
 
       // 5. WorkInfoの更新/作成/削除
@@ -521,6 +528,11 @@ export async function updatePlotCore(
           physicalPlotId,
           req
         );
+        // 申込者として編集した顧客が他区画の契約者を兼ねる場合（共有 Customer）も
+        // snapshot が陳腐化するため、氏名・カナ変更時は顧客起点で再同期する（#301）
+        if (applicantUpdateData.name !== undefined || applicantUpdateData.name_kana !== undefined) {
+          await syncContractorNameKanaForCustomer(tx, applicantCustomerId);
+        }
       }
     } else {
       // 新規 Customer + applicant role を作成

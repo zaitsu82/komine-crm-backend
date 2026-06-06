@@ -122,6 +122,7 @@ jest.mock('../../src/plots/utils', () => {
     validateContractArea: jest.fn(),
     updatePhysicalPlotStatus: jest.fn(),
     syncPrimaryContractorNameKana: jest.fn(),
+    syncContractorNameKanaForCustomer: jest.fn(),
     buildGravestoneInfoData: actual.buildGravestoneInfoData,
   };
 });
@@ -148,7 +149,11 @@ import {
   createPlotContract,
   getPlotInventory,
 } from '../../src/plots/controllers';
-import { validateContractArea, updatePhysicalPlotStatus } from '../../src/plots/utils';
+import {
+  validateContractArea,
+  updatePhysicalPlotStatus,
+  syncContractorNameKanaForCustomer,
+} from '../../src/plots/utils';
 import { ValidationError, NotFoundError } from '../../src/middleware/errorHandler';
 
 describe('Plot Controller (ContractPlot Model)', () => {
@@ -348,6 +353,24 @@ describe('Plot Controller (ContractPlot Model)', () => {
       const query = mockPrisma.contractPlot.findMany.mock.calls[0][0];
       expect(query.orderBy).toEqual([
         { primary_contractor_name_kana: { sort: 'desc', nulls: 'last' } },
+        { id: 'asc' },
+      ]);
+    });
+
+    it('一覧 include の saleContractRoles を snapshot と同一順序（created_at asc, id asc）で取得する (#303)', async () => {
+      // 同一区画に contractor ロールが複数ある場合、orderBy 無しでは DB 返却順が
+      // 任意のため、ソートキー（snapshot は created_at asc の顧客）と表示名
+      // （find の先頭一致）が別人になりうる。表示側を snapshot の選択順に揃える
+      mockPrisma.contractPlot.findMany.mockResolvedValueOnce([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
+
+      mockRequest.query = { page: '1', limit: '10' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      const query = mockPrisma.contractPlot.findMany.mock.calls[0][0];
+      expect(query.include.saleContractRoles.orderBy).toEqual([
+        { created_at: 'asc' },
         { id: 'asc' },
       ]);
     });
@@ -1305,6 +1328,85 @@ describe('Plot Controller (ContractPlot Model)', () => {
         })
       );
       expect(mockPrisma.saleContractRole.create).not.toHaveBeenCalled();
+      // 申込者として編集した顧客が他区画の契約者を兼ねるケース（共有 Customer）の
+      // snapshot 陳腐化を防ぐため、氏名変更時は顧客起点の再同期も呼ばれる（#301）
+      expect(syncContractorNameKanaForCustomer).toHaveBeenCalledWith(expect.anything(), 'c2');
+    });
+
+    it('契約者氏名・カナの更新で顧客起点の snapshot 再同期が呼ばれる (#301)', async () => {
+      // 共有契約者（同一 Customer が複数区画の契約者）の氏名編集は、編集対象の
+      // 区画だけ再同期すると他区画の primary_contractor_name_kana が陳腐化し、
+      // 五十音ソート位置と表示名が乖離する
+      const mockExistingPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: { id: 'c1', workInfo: null, billingInfo: null },
+            customer_id: 'c1',
+            deleted_at: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+      };
+
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.customer.update.mockResolvedValue({ id: 'c1', name: '山田改' });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        customer: { name: '山田改', nameKana: 'ヤマダカイ' },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.customer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'c1' },
+          data: expect.objectContaining({ name: '山田改', name_kana: 'ヤマダカイ' }),
+        })
+      );
+      expect(syncContractorNameKanaForCustomer).toHaveBeenCalledWith(expect.anything(), 'c1');
+    });
+
+    it('契約者の氏名以外（電話番号等）の更新では顧客起点の再同期は呼ばれない (#301)', async () => {
+      const mockExistingPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: { id: 'c1', workInfo: null, billingInfo: null },
+            customer_id: 'c1',
+            deleted_at: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+      };
+
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.customer.update.mockResolvedValue({ id: 'c1' });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        customer: { phoneNumber: '0312345678' },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.customer.update).toHaveBeenCalled();
+      expect(syncContractorNameKanaForCustomer).not.toHaveBeenCalled();
     });
 
     it('should soft-delete applicant role when applicant=null', async () => {

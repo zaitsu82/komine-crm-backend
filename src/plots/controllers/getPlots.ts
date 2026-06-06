@@ -254,6 +254,11 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
       },
       saleContractRoles: {
         where: { deleted_at: null },
+        // 表示名の contractor 選択を snapshot（syncPrimaryContractorNameKana）の
+        // 「最初の有効な contractor ロール（created_at asc, id asc）」と同一順序に
+        // 揃える（#303）。orderBy 無しだと DB 返却順が任意のため、同一区画に
+        // contractor ロールが複数ある場合にソートキーのカナと表示名が別人になる。
+        orderBy: [{ created_at: 'asc' as const }, { id: 'asc' as const }],
         include: {
           customer: {
             select: {
