@@ -9,8 +9,9 @@ import { recalculateContractPlotPaymentStatus } from '../plots/services/paymentS
  *  - written_off (貸倒処理): 自動遷移しない（手動設定を尊重）
  *  - terminated=true: 'terminated'
  *  - 入金合計 >= 請求額 (請求額 > 0): 'paid'
+ *  - 現状 overdue: 'overdue' を維持（手動で設定された延滞ステータスを尊重。
+ *    部分入金があっても全額入金までは延滞のまま — #302。解除は手動 #271）
  *  - 入金合計 > 0: 'partial_paid'
- *  - 現状 overdue: 'overdue' を維持（手動で設定された延滞ステータスを尊重）
  *  - billing_date 設定済: 'billed'
  *  - それ以外: 'pending'
  */
@@ -26,8 +27,11 @@ export const computeBillingStatus = (
   if (billing.status === 'written_off') return 'written_off';
   if (billing.terminated) return 'terminated';
   if (billing.amount > 0 && paidAmount >= billing.amount) return 'paid';
-  if (paidAmount > 0) return 'partial_paid';
+  // 手動 overdue は partial_paid 算出より先に評価する（#302）。
+  // 後に評価すると paid_amount>0 の請求への overdue 設定が 200 のまま
+  // partial_paid に黙って巻き戻り、#271 が解消した無言破棄が残存する。
   if (billing.status === 'overdue') return 'overdue';
+  if (paidAmount > 0) return 'partial_paid';
   if (billing.billing_date) return 'billed';
   return 'pending';
 };
