@@ -238,6 +238,32 @@ export async function syncPrimaryContractorNameKana(
 }
 
 /**
+ * 指定顧客を契約者とする全契約区画のスナップショットを再同期する（#301）。
+ *
+ * レガシー移行は 1 danka_cd = 1 Customer のため、同一顧客が複数区画の契約者を
+ * 兼ねる実データが生じる。顧客の氏名・カナを書き換えると編集対象以外の区画の
+ * primary_contractor_name_kana も陳腐化するので、顧客名を更新した経路では
+ * contractPlotId 起点の同期に加えてこちらを呼ぶこと。
+ *
+ * @param prisma Prismaクライアント（トランザクション対応）
+ * @param customerId 顧客ID
+ */
+export async function syncContractorNameKanaForCustomer(
+  prisma: Prisma.TransactionClient,
+  customerId: string
+): Promise<void> {
+  const roles = await prisma.saleContractRole.findMany({
+    where: { customer_id: customerId, role: 'contractor', deleted_at: null },
+    select: { contract_plot_id: true },
+  });
+  // 同一区画に重複ロールがあっても再同期は1回で足りる
+  const contractPlotIds = [...new Set(roles.map((r) => r.contract_plot_id))];
+  for (const contractPlotId of contractPlotIds) {
+    await syncPrimaryContractorNameKana(prisma, contractPlotId);
+  }
+}
+
+/**
  * 物理区画が完全に利用可能か（契約がない状態）
  * @param prisma Prismaクライアント（トランザクション対応）
  * @param physicalPlotId 物理区画ID

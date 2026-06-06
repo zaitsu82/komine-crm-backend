@@ -6,12 +6,16 @@
  * スナップショット列の同期ロジックを固定する。
  */
 
-import { syncPrimaryContractorNameKana } from '../../src/plots/utils';
+import {
+  syncPrimaryContractorNameKana,
+  syncContractorNameKanaForCustomer,
+} from '../../src/plots/utils';
 
-const buildTx = (roleResult: unknown) =>
+const buildTx = (roleResult: unknown, roleListResult: unknown[] = []) =>
   ({
     saleContractRole: {
       findFirst: jest.fn().mockResolvedValue(roleResult),
+      findMany: jest.fn().mockResolvedValue(roleListResult),
     },
     contractPlot: {
       update: jest.fn().mockResolvedValue({}),
@@ -57,5 +61,51 @@ describe('syncPrimaryContractorNameKana (#282)', () => {
       where: { id: 'cp-1' },
       data: { primary_contractor_name_kana: null },
     });
+  });
+});
+
+describe('syncContractorNameKanaForCustomer (#301)', () => {
+  it('顧客を契約者とする全契約区画のスナップショットを再同期する', async () => {
+    // 共有契約者: cust-1 が cp-1 / cp-2 / cp-3 の契約者を兼ねる
+    const tx = buildTx({ customer: { name_kana: 'ヤマダタロウ', name: '山田太郎' } }, [
+      { contract_plot_id: 'cp-1' },
+      { contract_plot_id: 'cp-2' },
+      { contract_plot_id: 'cp-3' },
+    ]);
+
+    await syncContractorNameKanaForCustomer(tx, 'cust-1');
+
+    // 顧客起点で contractor ロールを検索すること
+    expect(tx.saleContractRole.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { customer_id: 'cust-1', role: 'contractor', deleted_at: null },
+      })
+    );
+    // 3区画すべての snapshot が更新されること（編集対象以外も陳腐化させない）
+    expect(tx.contractPlot.update).toHaveBeenCalledTimes(3);
+    for (const id of ['cp-1', 'cp-2', 'cp-3']) {
+      expect(tx.contractPlot.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id } })
+      );
+    }
+  });
+
+  it('同一区画の重複ロールは1回だけ再同期する', async () => {
+    const tx = buildTx({ customer: { name_kana: 'ヤマダタロウ', name: '山田太郎' } }, [
+      { contract_plot_id: 'cp-1' },
+      { contract_plot_id: 'cp-1' },
+    ]);
+
+    await syncContractorNameKanaForCustomer(tx, 'cust-1');
+
+    expect(tx.contractPlot.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('contractor ロールを持たない顧客（申込者のみ等）では何も更新しない', async () => {
+    const tx = buildTx(null, []);
+
+    await syncContractorNameKanaForCustomer(tx, 'cust-1');
+
+    expect(tx.contractPlot.update).not.toHaveBeenCalled();
   });
 });
