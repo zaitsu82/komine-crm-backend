@@ -346,4 +346,40 @@ describe('口座名義の二重引用符エスケープ（#273）', () => {
     expect(cells[9]?.startsWith('"')).toBe(true);
     expect(cells[9]?.includes('""')).toBe(false);
   });
+
+  describe('30桁切詰め境界でのエスケープ破損（#300）', () => {
+    it('30桁目に " がある名義でも "" ペアが切詰めで割れず列ズレしない', () => {
+      // 29文字 + " で論理値がちょうど30桁。エスケープ→切詰めの順だと
+      // "" の2文字目が30桁境界で切られ、単独の " が残って囲みが不均衡になる
+      const item = baseItem({
+        billingInfo: {
+          ...baseItem().billingInfo!,
+          accountHolder: 'ア'.repeat(29) + '"' + 'イウ',
+        },
+      });
+      const row = buildDataRow(item);
+      const fields = splitRfc4180(row);
+      // 12列のまま列ズレしないこと（旧実装では10〜11列に化ける）
+      expect(fields.length).toBe(12);
+      // 論理値は30桁に切詰められ、" は復元される
+      expect(fields[9]).toBe('ｱ'.repeat(29) + '"');
+      // 後続フィールド（引落金額・フラグ）が無事なこと
+      expect(fields[10]).toBe('12000');
+      expect(fields[11]).toBe('1');
+    });
+
+    it('切詰めで " が幅外に落ちる場合はエスケープ対象自体が消える', () => {
+      const item = baseItem({
+        billingInfo: {
+          ...baseItem().billingInfo!,
+          accountHolder: 'ア'.repeat(30) + '"タロウ',
+        },
+      });
+      const row = buildDataRow(item);
+      const fields = splitRfc4180(row);
+      expect(fields.length).toBe(12);
+      expect(fields[9]).toBe('ｱ'.repeat(30));
+      expect(fields[10]).toBe('12000');
+    });
+  });
 });
