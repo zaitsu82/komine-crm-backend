@@ -121,6 +121,7 @@ jest.mock('../../src/plots/utils', () => {
   return {
     validateContractArea: jest.fn(),
     updatePhysicalPlotStatus: jest.fn(),
+    syncPrimaryContractorNameKana: jest.fn(),
     buildGravestoneInfoData: actual.buildGravestoneInfoData,
   };
 });
@@ -267,11 +268,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
       );
     });
 
-    it('should sort by contractor name kana across pages when sortBy=customerName (#216)', async () => {
-      const buildSortRow = (id: string, nameKana: string | null) => ({
-        id,
-        saleContractRoles: nameKana ? [{ customer: { name_kana: nameKana, name: '氏名' } }] : [],
-      });
+    it('should sort by contractor name kana via DB-side paging when sortBy=customerName (#216 → #282)', async () => {
       const buildListRow = (id: string, nameKana: string) => ({
         id,
         physical_plot_id: `pp-${id}`,
@@ -308,20 +305,13 @@ describe('Plot Controller (ContractPlot Model)', () => {
         billings: [],
       });
 
-      // 1回目: ソートキー取得（登録日順とは異なる順序で返す）
-      // 2回目: ページ分の詳細取得（わざと順序をシャッフルして返す）
-      mockPrisma.contractPlot.findMany
-        .mockResolvedValueOnce([
-          buildSortRow('cp1', 'ヤマダ'),
-          buildSortRow('cp2', 'アオキ'),
-          buildSortRow('cp3', null), // 契約者なし → 末尾
-          buildSortRow('cp4', 'サトウ'),
-        ])
-        .mockResolvedValueOnce([
-          buildListRow('cp4', 'サトウ'),
-          buildListRow('cp1', 'ヤマダ'),
-          buildListRow('cp2', 'アオキ'),
-        ]);
+      // DB 側ソート済みのページ分のみ返る（スナップショット列 orderBy + skip/take #282）
+      mockPrisma.contractPlot.findMany.mockResolvedValueOnce([
+        buildListRow('cp2', 'アオキ'),
+        buildListRow('cp4', 'サトウ'),
+        buildListRow('cp1', 'ヤマダ'),
+      ]);
+      mockPrisma.contractPlot.count.mockResolvedValue(4);
 
       mockRequest.query = { page: '1', limit: '3', sortBy: 'customerName', sortOrder: 'asc' };
 
@@ -329,30 +319,37 @@ describe('Plot Controller (ContractPlot Model)', () => {
 
       expect(responseStatus).toHaveBeenCalledWith(200);
       const payload = responseJson.mock.calls[0][0];
-      // 五十音順: アオキ → サトウ → ヤマダ（cp3 は2ページ目=末尾）
       expect(payload.data.data.map((p: { id: string }) => p.id)).toEqual(['cp2', 'cp4', 'cp1']);
-      // total は全件数（ページサイズではない）
+      // total は count から（旧実装は全件ロードから導出していた）
       expect(payload.data.pagination.total).toBe(4);
-      // count は使わない（ソートキー取得結果から導出）
-      expect(mockPrisma.contractPlot.count).not.toHaveBeenCalled();
+
+      // 全件ロード＋アプリ側ソートではなく、スナップショット列への
+      // orderBy + skip/take で DB 側ページングしていることを固定する（#282）
+      expect(mockPrisma.contractPlot.findMany).toHaveBeenCalledTimes(1);
+      const query = mockPrisma.contractPlot.findMany.mock.calls[0][0];
+      // テストはコントローラ直叩きのため limit は query 生文字列のまま渡る
+      expect(Number(query.skip)).toBe(0);
+      expect(Number(query.take)).toBe(3);
+      expect(query.orderBy).toEqual([
+        { primary_contractor_name_kana: { sort: 'asc', nulls: 'last' } },
+        { id: 'asc' },
+      ]);
     });
 
-    it('should place plots without contractor at the end for desc order too (#216)', async () => {
-      mockPrisma.contractPlot.findMany
-        .mockResolvedValueOnce([
-          { id: 'cp1', saleContractRoles: [{ customer: { name_kana: 'アオキ', name: 'a' } }] },
-          { id: 'cp2', saleContractRoles: [] }, // 契約者なし
-          { id: 'cp3', saleContractRoles: [{ customer: { name_kana: 'ヤマダ', name: 'y' } }] },
-        ])
-        .mockResolvedValueOnce([]);
+    it('should keep nulls last for desc order too (#216 → #282)', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValueOnce([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
 
       mockRequest.query = { page: '1', limit: '10', sortBy: 'customerName', sortOrder: 'desc' };
 
       await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
 
-      // 2回目の findMany（詳細取得）に渡る id 順: ヤマダ → アオキ → 契約者なし
-      const secondCall = mockPrisma.contractPlot.findMany.mock.calls[1][0];
-      expect(secondCall.where.id.in).toEqual(['cp3', 'cp1', 'cp2']);
+      // 契約者なし（null）は降順でも末尾固定
+      const query = mockPrisma.contractPlot.findMany.mock.calls[0][0];
+      expect(query.orderBy).toEqual([
+        { primary_contractor_name_kana: { sort: 'desc', nulls: 'last' } },
+        { id: 'asc' },
+      ]);
     });
 
     it('should filter by contractStatus when specified (#200)', async () => {

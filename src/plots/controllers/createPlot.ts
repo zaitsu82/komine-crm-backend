@@ -16,7 +16,12 @@ import {
   AddressType,
 } from '@prisma/client';
 import { CreatePlotRequest } from '@komine/types';
-import { validateContractArea, updatePhysicalPlotStatus, buildGravestoneInfoData } from '../utils';
+import {
+  validateContractArea,
+  updatePhysicalPlotStatus,
+  buildGravestoneInfoData,
+  syncPrimaryContractorNameKana,
+} from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 import {
@@ -356,6 +361,9 @@ export async function createPlotCore(
 
   // 10. 物理区画のステータス更新
   await updatePhysicalPlotStatus(tx, physicalPlot.id);
+
+  // 10.5. 主契約者カナのスナップショット同期（#282、契約者名ソートの DB 側ページング用）
+  await syncPrimaryContractorNameKana(tx, contractPlot.id);
 
   // 11. 履歴の自動記録
   if (!input.physicalPlot.id) {

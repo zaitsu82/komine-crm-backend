@@ -200,6 +200,28 @@ export const stepSaleContractRole: MigrationStep = {
       applicantInserted++;
     }
 
+    // 主契約者カナのスナップショット一括同期（#282）。
+    // contractor ロール作成後に primary_contractor_name_kana を backfill する。
+    // 個別 create では同期されないため、ステップ末尾に SQL 一括更新で冪等に反映する
+    // （migration 20260606120000 の backfill と同一クエリ）。
+    if (!dryRun) {
+      const synced = await prisma.$executeRaw`
+        UPDATE "contract_plots" cp
+        SET "primary_contractor_name_kana" = sub.kana
+        FROM (
+          SELECT DISTINCT ON (scr."contract_plot_id")
+                 scr."contract_plot_id" AS contract_plot_id,
+                 COALESCE(NULLIF(c."name_kana", ''), c."name") AS kana
+          FROM "sale_contract_roles" scr
+          JOIN "customers" c ON c."customer_id" = scr."customer_id"
+          WHERE scr."role" = 'contractor'
+            AND scr."deleted_at" IS NULL
+          ORDER BY scr."contract_plot_id", scr."created_at" ASC, scr."sale_contract_role_id" ASC
+        ) sub
+        WHERE cp."contract_plot_id" = sub.contract_plot_id`;
+      logger.info({ synced }, 'primary_contractor_name_kana backfilled (#282)');
+    }
+
     return {
       inserted: contractorInserted + applicantInserted,
       skipped,

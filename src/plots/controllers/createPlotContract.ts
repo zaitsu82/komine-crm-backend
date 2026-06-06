@@ -8,7 +8,12 @@
 import { Request, Response } from 'express';
 import { Prisma, PaymentStatus, ContractRole, ContractStatus } from '@prisma/client';
 import { CreatePlotRequest } from '@komine/types';
-import { validateContractArea, updatePhysicalPlotStatus, buildGravestoneInfoData } from '../utils';
+import {
+  validateContractArea,
+  updatePhysicalPlotStatus,
+  buildGravestoneInfoData,
+  syncPrimaryContractorNameKana,
+} from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError } from '../../middleware/errorHandler';
 import { getRequestLogger } from '../../utils/logger';
@@ -206,6 +211,9 @@ export const createPlotContract = async (req: Request, res: Response): Promise<R
 
         // PhysicalPlotのステータス更新
         await updatePhysicalPlotStatus(tx, physicalPlotId);
+
+        // 主契約者カナのスナップショット同期（#282、契約者名ソートの DB 側ページング用）
+        await syncPrimaryContractorNameKana(tx, contractPlot.id);
 
         return { contractPlot, customer };
       },
