@@ -4,11 +4,20 @@ import prisma from '../db/prisma';
 import { getRequestLogger, logger } from '../utils/logger';
 
 // Cookie設定の定数
+// secure/sameSite は NODE_ENV ではなく実際の提供スキームに連動させる（#299）。
+// 平文HTTPでは Secure 属性付きCookieがブラウザに保存されず、SameSite=None は
+// Secure を要求するため、HTTPのローカル本番運用では COOKIE_SECURE=false を設定する。
+//   COOKIE_SECURE=true  → secure:true / sameSite:'none'（HTTPS提供）
+//   COOKIE_SECURE=false → secure:false / sameSite:'lax'（平文HTTP・同一オリジン運用）
+//   未設定              → 従来どおり NODE_ENV==='production' で判定
 const isProduction = process.env['NODE_ENV'] === 'production';
+const cookieSecureEnv = process.env['COOKIE_SECURE'];
+const cookieSecure =
+  cookieSecureEnv === 'true' ? true : cookieSecureEnv === 'false' ? false : isProduction;
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: isProduction, // 本番環境ではHTTPS必須
-  sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+  secure: cookieSecure,
+  sameSite: (cookieSecure ? 'none' : 'lax') as 'none' | 'lax',
   path: '/',
 };
 

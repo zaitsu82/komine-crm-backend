@@ -76,6 +76,20 @@ cp .env.example .env
 | `SUPABASE_URL` | SupabaseプロジェクトURL | `https://xxx.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabaseサービスキー | `eyJ...` |
 
+### 認証Cookieの Secure 属性（COOKIE_SECURE）
+
+認証Cookie（access_token / refresh_token）の `Secure` / `SameSite` 属性を制御します。
+
+| 値 | 挙動 | 用途 |
+|----|------|------|
+| `true` | `Secure` + `SameSite=None` | HTTPS提供（クロスオリジン許容） |
+| `false` | 非Secure + `SameSite=Lax` | 平文HTTP・同一オリジン運用（事務所サーバのローカル運用） |
+| 未設定 | `NODE_ENV=production` なら `true` 相当 | 従来挙動 |
+
+> ⚠️ **平文HTTPで本番運用する場合は必ず `COOKIE_SECURE=false` を設定してください。**
+> `Secure` 属性付きCookieはHTTP接続ではブラウザに保存されず、`SameSite=None` は
+> `Secure` を要求するため、未設定のままだとログインが成立しません。
+
 ### CORS設定
 
 - **開発環境**: `ALLOWED_ORIGINS`未設定で全オリジン許可
