@@ -8,7 +8,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma, ContractRole } from '@prisma/client';
 import { UpdatePlotRequest } from '@komine/types';
-import { updatePhysicalPlotStatus, buildGravestoneInfoData } from '../utils';
+import {
+  updatePhysicalPlotStatus,
+  buildGravestoneInfoData,
+  syncPrimaryContractorNameKana,
+} from '../utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 import {
@@ -1484,6 +1488,10 @@ export async function updatePlotCore(
       );
     }
   }
+
+  // 主契約者カナのスナップショット同期（#282）: ロール構成・顧客名の変更を反映する。
+  // 契約者名ソート（sortBy=customerName）の DB 側ページングが参照する。
+  await syncPrimaryContractorNameKana(tx, id);
 }
 
 /**

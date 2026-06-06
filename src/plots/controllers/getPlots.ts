@@ -290,51 +290,32 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
     let contractPlots: Prisma.ContractPlotGetPayload<{ include: typeof listInclude }>[];
 
     if (sortBy === 'customerName') {
-      // 契約者名ソート（#216）
-      // 主契約者(role=contractor)は to-many リレーションのため Prisma の orderBy では
-      // 直接ソートできない。該当全件の id + 契約者カナのみ取得してアプリ側で
-      // 五十音ソート → ページ分の id だけ詳細取得する2段階方式で、
-      // ページ跨ぎでも正しい氏名順を実現する。
-      const sortRows = await prisma.contractPlot.findMany({
-        where: whereCondition,
-        select: {
-          id: true,
-          saleContractRoles: {
-            where: { deleted_at: null, role: 'contractor' },
-            select: {
-              customer: { select: { name_kana: true, name: true } },
+      // 契約者名ソート（#216 → #282）
+      // 旧実装は whereCondition 一致の全件 id + 契約者カナをロードしアプリ側で
+      // 五十音ソートしており、数千区画ではページ送りの度にデータセット全体を
+      // メモリ展開していた。ロール・顧客の書込み経路で同期するスナップショット列
+      // primary_contractor_name_kana への orderBy + skip/take で DB 側ページングに置換。
+      // 契約者なし（null）は昇順・降順問わず末尾固定（旧実装と同挙動）。
+      // ※並び順は Intl.Collator('ja') から DB 照合順（カナはコードポイント順 ≒ 五十音順）に変わる。
+      [total, contractPlots] = await Promise.all([
+        prisma.contractPlot.count({ where: whereCondition }),
+        prisma.contractPlot.findMany({
+          where: whereCondition,
+          skip,
+          take,
+          orderBy: [
+            {
+              primary_contractor_name_kana: {
+                sort: sortOrder === 'desc' ? 'desc' : 'asc',
+                nulls: 'last',
+              },
             },
-            take: 1,
-          },
-        },
-      });
-
-      const collator = new Intl.Collator('ja');
-      const keyed = sortRows.map((row) => {
-        const customer = row.saleContractRoles[0]?.customer;
-        return { id: row.id, key: customer?.name_kana || customer?.name || null };
-      });
-      keyed.sort((a, b) => {
-        // 契約者なし（空き区画等）は昇順・降順問わず末尾固定
-        if (a.key === null && b.key === null) return 0;
-        if (a.key === null) return 1;
-        if (b.key === null) return -1;
-        const cmp = collator.compare(a.key, b.key);
-        return sortOrder === 'desc' ? -cmp : cmp;
-      });
-
-      total = keyed.length;
-      const pageIds = keyed.slice(skip, skip + take).map((k) => k.id);
-
-      const rows = await prisma.contractPlot.findMany({
-        where: { id: { in: pageIds } },
-        include: listInclude,
-      });
-      // findMany は順序を保証しないため、ソート済み id 順に並べ直す
-      const rowMap = new Map(rows.map((row) => [row.id, row]));
-      contractPlots = pageIds
-        .map((plotId) => rowMap.get(plotId))
-        .filter((row): row is NonNullable<typeof row> => row !== undefined);
+            // 同カナ・契約者なし同士のページ跨ぎ順序を安定化
+            { id: 'asc' },
+          ],
+          include: listInclude,
+        }),
+      ]);
     } else {
       // 総件数とデータを並列で取得
       [total, contractPlots] = await Promise.all([

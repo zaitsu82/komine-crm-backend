@@ -175,6 +175,8 @@ describe('step06 別人申込者パスの冪等性 (#221, #222)', () => {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({}),
       },
+      // 主契約者カナの一括 backfill（#282）が使う raw クエリ
+      $executeRaw: jest.fn().mockResolvedValue(0),
       ...overrides,
     }) as unknown as PrismaClient;
 

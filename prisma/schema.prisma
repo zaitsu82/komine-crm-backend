@@ -188,6 +188,12 @@ model ContractPlot {
   // 移行用（後で削除可能）
   legacy_grave_cd Int? // レガシー m_bochi.grave_cd 保持
 
+  // 主契約者カナのスナップショット（#282）: 契約者名ソートを DB 側 orderBy + take で
+  // ページングするための非正規化列。値は「最初の有効な contractor ロールの
+  // customer.name_kana || name」。ロール・顧客を書き換える各経路の tx 末尾で
+  // syncPrimaryContractorNameKana により同期する。
+  primary_contractor_name_kana String? @db.VarChar(100)
+
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
   deleted_at DateTime?
@@ -213,6 +219,7 @@ model ContractPlot {
   @@index([payment_status])
   @@index([deleted_at])
   @@index([legacy_grave_cd])
+  @@index([primary_contractor_name_kana])
   @@map("contract_plots")
 }
 

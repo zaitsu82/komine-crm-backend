@@ -207,6 +207,37 @@ export async function updatePhysicalPlotStatus(
 }
 
 /**
+ * 主契約者カナのスナップショット（primary_contractor_name_kana）を同期する（#282）。
+ *
+ * 契約者名ソートを DB 側 orderBy + take でページングするための非正規化列。
+ * 「最初の有効な contractor ロールの customer.name_kana || name」を書き込む。
+ * ロール・顧客名を書き換える経路（createPlot / createPlotContract / updatePlot）の
+ * トランザクション末尾で呼ぶこと。契約者がいない場合は null（一覧では末尾固定）。
+ *
+ * @param prisma Prismaクライアント（トランザクション対応）
+ * @param contractPlotId 契約区画ID
+ */
+export async function syncPrimaryContractorNameKana(
+  prisma: Prisma.TransactionClient,
+  contractPlotId: string
+): Promise<void> {
+  const role = await prisma.saleContractRole.findFirst({
+    where: { contract_plot_id: contractPlotId, role: 'contractor', deleted_at: null },
+    orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+    select: {
+      customer: { select: { name_kana: true, name: true } },
+    },
+  });
+
+  const kana = role?.customer ? role.customer.name_kana || role.customer.name || null : null;
+
+  await prisma.contractPlot.update({
+    where: { id: contractPlotId },
+    data: { primary_contractor_name_kana: kana },
+  });
+}
+
+/**
  * 物理区画が完全に利用可能か（契約がない状態）
  * @param prisma Prismaクライアント（トランザクション対応）
  * @param physicalPlotId 物理区画ID
