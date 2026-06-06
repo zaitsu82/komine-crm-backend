@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../db/prisma';
+import { ConflictError, NotFoundError } from '../middleware/errorHandler';
 import { getRequestLogger } from '../utils/logger';
 import {
   createMasterSchema,
@@ -509,22 +511,27 @@ export const getPositionMaster = async (req: Request, res: Response) => {
 };
 
 /**
+ * マスタ CRUD で使う DB クライアント。トランザクション内では tx を渡す（#278）。
+ */
+type MasterDbClient = typeof prisma | Prisma.TransactionClient;
+
+/**
  * マスタタイプからPrismaモデルデリゲートを取得
  */
-const getMasterDelegate = (masterType: MasterType): MasterDelegate => {
+const getMasterDelegate = (masterType: MasterType, db: MasterDbClient = prisma): MasterDelegate => {
   const delegateMap: Record<MasterType, unknown> = {
-    'cemetery-type': prisma.cemeteryTypeMaster,
-    'payment-method': prisma.paymentMethodMaster,
-    'tax-type': prisma.taxTypeMaster,
-    'calc-type': prisma.calcTypeMaster,
-    'billing-type': prisma.billingTypeMaster,
-    'recipient-type': prisma.recipientTypeMaster,
-    'construction-type': prisma.constructionTypeMaster,
-    'section-name': prisma.sectionNameMaster,
-    relationship: prisma.relationshipMaster,
-    contractor: prisma.contractorMaster,
-    direction: prisma.directionMaster,
-    position: prisma.positionMaster,
+    'cemetery-type': db.cemeteryTypeMaster,
+    'payment-method': db.paymentMethodMaster,
+    'tax-type': db.taxTypeMaster,
+    'calc-type': db.calcTypeMaster,
+    'billing-type': db.billingTypeMaster,
+    'recipient-type': db.recipientTypeMaster,
+    'construction-type': db.constructionTypeMaster,
+    'section-name': db.sectionNameMaster,
+    relationship: db.relationshipMaster,
+    contractor: db.contractorMaster,
+    direction: db.directionMaster,
+    position: db.positionMaster,
   };
   return delegateMap[masterType] as MasterDelegate;
 };
@@ -569,42 +576,46 @@ const MASTER_CODE_MAX_LENGTH: Record<MasterType, number> = {
  * 参照側が孤児コード化して「旧コード: X」表示に化けるのを事前に防ぐ。
  * 参照箇所が特定できないマスタタイプは 0 を返す（従来動作を維持）。
  */
-const countMasterCodeUsage = async (masterType: MasterType, code: string): Promise<number> => {
+const countMasterCodeUsage = async (
+  masterType: MasterType,
+  code: string,
+  db: MasterDbClient = prisma
+): Promise<number> => {
   switch (masterType) {
     case 'tax-type': {
       const [usage, management] = await Promise.all([
-        prisma.usageFee.count({ where: { tax_type: code, deleted_at: null } }),
-        prisma.managementFee.count({ where: { tax_type: code, deleted_at: null } }),
+        db.usageFee.count({ where: { tax_type: code, deleted_at: null } }),
+        db.managementFee.count({ where: { tax_type: code, deleted_at: null } }),
       ]);
       return usage + management;
     }
     case 'calc-type': {
       const [usage, management] = await Promise.all([
-        prisma.usageFee.count({ where: { calculation_type: code, deleted_at: null } }),
-        prisma.managementFee.count({ where: { calculation_type: code, deleted_at: null } }),
+        db.usageFee.count({ where: { calculation_type: code, deleted_at: null } }),
+        db.managementFee.count({ where: { calculation_type: code, deleted_at: null } }),
       ]);
       return usage + management;
     }
     case 'billing-type': {
       const [usage, management] = await Promise.all([
-        prisma.usageFee.count({ where: { billing_type: code, deleted_at: null } }),
-        prisma.managementFee.count({ where: { billing_type: code, deleted_at: null } }),
+        db.usageFee.count({ where: { billing_type: code, deleted_at: null } }),
+        db.managementFee.count({ where: { billing_type: code, deleted_at: null } }),
       ]);
       return usage + management;
     }
     case 'payment-method': {
       const [usage, management] = await Promise.all([
-        prisma.usageFee.count({ where: { payment_method: code, deleted_at: null } }),
-        prisma.managementFee.count({ where: { payment_method: code, deleted_at: null } }),
+        db.usageFee.count({ where: { payment_method: code, deleted_at: null } }),
+        db.managementFee.count({ where: { payment_method: code, deleted_at: null } }),
       ]);
       return usage + management;
     }
     case 'construction-type':
-      return prisma.constructionInfo.count({
+      return db.constructionInfo.count({
         where: { construction_type: code, deleted_at: null },
       });
     case 'contractor':
-      return prisma.constructionInfo.count({ where: { contractor: code, deleted_at: null } });
+      return db.constructionInfo.count({ where: { contractor: code, deleted_at: null } });
     // direction/position は GravestoneInfo が int を保持し、名称解決は Number(code) と
     // 突合する（seed / フロント resolveMasterName と整合）。PK id は API 追加・再seed・
     // 移行 backfill で code とドリフトしうるため、id でなく code 基準で数える（#268）。
@@ -612,12 +623,12 @@ const countMasterCodeUsage = async (masterType: MasterType, code: string): Promi
     case 'direction': {
       const codeNum = Number(code);
       if (!Number.isInteger(codeNum)) return 0;
-      return prisma.gravestoneInfo.count({ where: { direction_id: codeNum, deleted_at: null } });
+      return db.gravestoneInfo.count({ where: { direction_id: codeNum, deleted_at: null } });
     }
     case 'position': {
       const codeNum = Number(code);
       if (!Number.isInteger(codeNum)) return 0;
-      return prisma.gravestoneInfo.count({ where: { position_id: codeNum, deleted_at: null } });
+      return db.gravestoneInfo.count({ where: { position_id: codeNum, deleted_at: null } });
     }
     default:
       return 0;
@@ -798,28 +809,7 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
   }
 
   try {
-    const delegate = getMasterDelegate(masterType);
     const { taxRate, sortOrder, isActive, period, ...rest } = parsed.data;
-
-    // 使用中マスタの code 改名は既存参照（String カラム）を孤児化するため拒否する（#231）
-    if (rest.code !== undefined) {
-      const existing = await delegate.findUnique({ where: { id: masterId } });
-      if (existing && existing.code !== rest.code) {
-        const usageCount = await countMasterCodeUsage(masterType, existing.code);
-        if (usageCount > 0) {
-          const label = masterTypeLabels[masterType];
-          res.status(409).json({
-            success: false,
-            error: {
-              code: 'CONFLICT',
-              message: `${label}マスタのコード「${existing.code}」は${usageCount}件のデータで使用中のため変更できません`,
-              details: [],
-            },
-          });
-          return;
-        }
-      }
-    }
 
     const updateData: Record<string, unknown> = { ...rest };
     if (sortOrder !== undefined) updateData['sort_order'] = sortOrder;
@@ -831,10 +821,34 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
       updateData['period'] = period;
     }
 
-    const updated = await delegate.update({
-      where: { id: masterId },
-      data: updateData,
-    });
+    // 使用中チェックと更新を単一 Serializable tx で原子化する（#278）。
+    // check と act が別 tx だと、count=0 確認〜update の間に同 code を参照する
+    // 契約が並行コミットされて孤児コード化する（#231 事象の同時実行版）。
+    const updated = await prisma.$transaction(
+      async (tx) => {
+        const delegate = getMasterDelegate(masterType, tx);
+
+        // 使用中マスタの code 改名は既存参照（String カラム）を孤児化するため拒否する（#231）
+        if (rest.code !== undefined) {
+          const existing = await delegate.findUnique({ where: { id: masterId } });
+          if (existing && existing.code !== rest.code) {
+            const usageCount = await countMasterCodeUsage(masterType, existing.code, tx);
+            if (usageCount > 0) {
+              const label = masterTypeLabels[masterType];
+              throw new ConflictError(
+                `${label}マスタのコード「${existing.code}」は${usageCount}件のデータで使用中のため変更できません`
+              );
+            }
+          }
+        }
+
+        return delegate.update({
+          where: { id: masterId },
+          data: updateData,
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
 
     const label = masterTypeLabels[masterType];
     const formatted: Record<string, unknown> = {
@@ -859,6 +873,32 @@ export const updateMaster = async (req: Request, res: Response): Promise<void> =
     });
   } catch (error: unknown) {
     const label = masterTypeLabels[masterType];
+
+    // tx 内の使用中チェックで拒否されたケース（#231 / #278）
+    if (error instanceof ConflictError) {
+      res.status(409).json({
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: error.message,
+          details: [],
+        },
+      });
+      return;
+    }
+
+    // Serializable トランザクションの直列化競合。リトライで成功するため 409（#278）
+    if (getErrorCode(error) === 'P2034') {
+      res.status(409).json({
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: '同時更新が競合しました。もう一度お試しください',
+          details: [],
+        },
+      });
+      return;
+    }
 
     if (getErrorCode(error) === 'P2025') {
       res.status(404).json({
@@ -942,39 +982,34 @@ export const deleteMaster = async (req: Request, res: Response): Promise<void> =
   }
 
   try {
-    const delegate = getMasterDelegate(masterType);
     const label = masterTypeLabels[masterType];
 
     // 使用中チェック（#231）: マスタ参照は FK でなく String カラムのため、
     // 物理削除すると参照側が孤児コード化し「旧コード: X」表示に化ける。
     // 使用中の場合は削除を拒否し、論理無効化（isActive=false）を案内する。
-    const existing = await delegate.findUnique({ where: { id: masterId } });
-    if (!existing) {
-      res.status(404).json({
-        success: false,
-        error: {
-          code: 'NOT_FOUND',
-          message: `${label}マスタが見つかりません (ID: ${id})`,
-          details: [],
-        },
-      });
-      return;
-    }
+    // チェックと削除は単一 Serializable tx で原子化する（#278）: 別 tx だと
+    // count=0 確認〜delete の間に同 code を参照する契約が並行コミットされて
+    // 孤児コード化する。
+    await prisma.$transaction(
+      async (tx) => {
+        const delegate = getMasterDelegate(masterType, tx);
 
-    const usageCount = await countMasterCodeUsage(masterType, existing.code);
-    if (usageCount > 0) {
-      res.status(409).json({
-        success: false,
-        error: {
-          code: 'CONFLICT',
-          message: `${label}マスタ「${existing.name}」は${usageCount}件のデータで使用中のため削除できません。先に無効化してください`,
-          details: [],
-        },
-      });
-      return;
-    }
+        const existing = await delegate.findUnique({ where: { id: masterId } });
+        if (!existing) {
+          throw new NotFoundError(`${label}マスタが見つかりません (ID: ${id})`);
+        }
 
-    await delegate.delete({ where: { id: masterId } });
+        const usageCount = await countMasterCodeUsage(masterType, existing.code, tx);
+        if (usageCount > 0) {
+          throw new ConflictError(
+            `${label}マスタ「${existing.name}」は${usageCount}件のデータで使用中のため削除できません。先に無効化してください`
+          );
+        }
+
+        await delegate.delete({ where: { id: masterId } });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
 
     res.status(200).json({
       success: true,
@@ -982,6 +1017,45 @@ export const deleteMaster = async (req: Request, res: Response): Promise<void> =
     });
   } catch (error: unknown) {
     const label = masterTypeLabels[masterType];
+
+    // tx 内の存在チェックで弾かれたケース（#278）
+    if (error instanceof NotFoundError) {
+      res.status(404).json({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: error.message,
+          details: [],
+        },
+      });
+      return;
+    }
+
+    // tx 内の使用中チェックで拒否されたケース（#231 / #278）
+    if (error instanceof ConflictError) {
+      res.status(409).json({
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: error.message,
+          details: [],
+        },
+      });
+      return;
+    }
+
+    // Serializable トランザクションの直列化競合。リトライで成功するため 409（#278）
+    if (getErrorCode(error) === 'P2034') {
+      res.status(409).json({
+        success: false,
+        error: {
+          code: 'CONFLICT',
+          message: '同時更新が競合しました。もう一度お試しください',
+          details: [],
+        },
+      });
+      return;
+    }
 
     if (getErrorCode(error) === 'P2025') {
       res.status(404).json({

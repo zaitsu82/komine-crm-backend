@@ -16,6 +16,8 @@ declare global {
 }
 
 const mockPrisma: any = {
+  // 使用中チェック＋更新/削除の Serializable tx 化（#278）: tx クライアントとして自身を渡す
+  $transaction: jest.fn((callback: any) => Promise.resolve(callback(mockPrisma))),
   // 使用中チェック（#231）が参照する集計用デリゲート
   usageFee: { count: jest.fn().mockResolvedValue(0) },
   managementFee: { count: jest.fn().mockResolvedValue(0) },
@@ -102,6 +104,10 @@ const mockPrisma: any = {
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => mockPrisma),
+  // Serializable tx 化（#278）で参照される分離レベル定数
+  Prisma: {
+    TransactionIsolationLevel: { Serializable: 'Serializable' },
+  },
 }));
 
 import { createMaster, updateMaster, deleteMaster } from '../../src/masters/masterController';
@@ -433,7 +439,31 @@ describe('Master CRUD Controller', () => {
         where: { id: 1 },
         data: { name: '公営（更新）' },
       });
+      // 使用中チェックと更新は単一 Serializable tx で原子化される（#278）
+      expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'Serializable',
+      });
       expect(mockResponse.status).toHaveBeenCalledWith(200);
+    });
+
+    it('直列化競合（P2034）は 409 CONFLICT を返すこと (#278)', async () => {
+      mockRequest.params = { masterType: 'cemetery-type', id: '1' };
+      mockRequest.body = { name: '公営（更新）' };
+
+      mockPrisma.$transaction.mockRejectedValueOnce({ code: 'P2034' });
+
+      await updateMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(409);
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({
+            code: 'CONFLICT',
+            message: expect.stringContaining('同時更新が競合しました'),
+          }),
+        })
+      );
     });
 
     it('使用中マスタの code 変更は 409 で拒否されること (#231)', async () => {
@@ -588,6 +618,11 @@ describe('Master CRUD Controller', () => {
         })
       );
       expect(mockPrisma.taxTypeMaster.delete).not.toHaveBeenCalled();
+
+      // 使用中チェックと削除は単一 Serializable tx で原子化される（#278）
+      expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'Serializable',
+      });
 
       // 後続テストのためにリセット
       mockPrisma.usageFee.count.mockResolvedValue(0);

@@ -333,6 +333,28 @@ describe('Error Handler Middleware', () => {
         });
       });
 
+      it('P2034（直列化競合）を 409 CONFLICT として処理すること（#278）', () => {
+        const error = new Prisma.PrismaClientKnownRequestError(
+          'Transaction failed due to a write conflict or a deadlock',
+          {
+            code: 'P2034',
+            clientVersion: '5.0.0',
+          }
+        );
+
+        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(409);
+        expect(mockResponse.json).toHaveBeenCalledWith({
+          success: false,
+          error: {
+            code: 'CONFLICT',
+            message: '同時更新が競合しました。もう一度お試しください',
+            details: [],
+          },
+        });
+      });
+
       it('その他のPrismaエラーを正しく処理すること', () => {
         const error = new Prisma.PrismaClientKnownRequestError('Unknown error', {
           code: 'P9999',

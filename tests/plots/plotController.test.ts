@@ -90,6 +90,8 @@ const mockPrisma: any = {
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => mockPrisma),
   Prisma: {
+    // Serializable tx 化（#278）で参照される分離レベル定数
+    TransactionIsolationLevel: { Serializable: 'Serializable' },
     Decimal: class MockDecimal {
       constructor(private value: number) {}
       toNumber() {
@@ -2042,6 +2044,51 @@ describe('Plot Controller (ContractPlot Model)', () => {
       await createPlotContract(mockRequest as Request, mockResponse as Response);
 
       expect(responseStatus).toHaveBeenCalledWith(400);
+    });
+
+    it('面積検証は Serializable トランザクション内で行われること（#278）', async () => {
+      (validateContractArea as jest.Mock).mockResolvedValue({
+        isValid: false,
+        message: '契約面積が利用可能面積を超えています',
+      });
+
+      mockPrisma.physicalPlot.findUnique.mockResolvedValue({ id: 'pp1' });
+      mockRequest.params = { id: 'pp1' };
+      mockRequest.body = {
+        contractPlot: { contractAreaSqm: 10.0 },
+        saleContract: {},
+        customer: {},
+      };
+
+      await createPlotContract(mockRequest as Request, mockResponse as Response);
+
+      // 検証〜作成の check-then-act を tx 内へ移したことを固定する
+      expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'Serializable',
+      });
+      // tx クライアント（モックでは mockPrisma 自身）で検証している
+      expect(validateContractArea).toHaveBeenCalledWith(mockPrisma, 'pp1', 10.0);
+    });
+
+    it('直列化競合（P2034）は 409 CONFLICT を返すこと（#278）', async () => {
+      mockPrisma.physicalPlot.findUnique.mockResolvedValue({ id: 'pp1' });
+      mockPrisma.$transaction.mockRejectedValueOnce({ code: 'P2034' });
+      mockRequest.params = { id: 'pp1' };
+      mockRequest.body = {
+        contractPlot: { contractAreaSqm: 3.6 },
+        saleContract: {},
+        customer: {},
+      };
+
+      await createPlotContract(mockRequest as Request, mockResponse as Response);
+
+      expect(responseStatus).toHaveBeenCalledWith(409);
+      expect(responseJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({ code: 'CONFLICT' }),
+        })
+      );
     });
   });
 

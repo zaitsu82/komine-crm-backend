@@ -476,9 +476,13 @@ export const createPlot = async (
   try {
     const input = req.body as CreatePlotRequest;
 
-    const result = await prisma.$transaction(async (tx) => {
-      return createPlotCore(tx, input, req);
-    });
+    const result = await prisma.$transaction(
+      async (tx) => {
+        return createPlotCore(tx, input, req);
+      },
+      // 在庫面積の検証・作成・status再計算を並行更新と直列化する（#278）
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
 
     // 作成完了後、詳細情報を取得して返却
     const createdContractPlot = await prisma.contractPlot.findUnique({
