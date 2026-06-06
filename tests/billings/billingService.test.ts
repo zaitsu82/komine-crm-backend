@@ -37,8 +37,17 @@ describe('computeBillingStatus', () => {
     expect(computeBillingStatus({ ...baseBilling, status: 'overdue' }, 0)).toBe('overdue');
   });
 
+  it('preserves "overdue" status with partial payment (manual overdue not silently reverted, #302)', () => {
+    // 部分入金済みの請求に手動 overdue を設定しても partial_paid に巻き戻らないこと。
+    // 旧実装は paidAmount>0 判定が先に評価され、200 を返しつつ別 status が保存される
+    // 無言破棄（#271 が解消したはずの挙動）が残存していた
+    expect(computeBillingStatus({ ...baseBilling, status: 'overdue' }, 5000)).toBe('overdue');
+    expect(computeBillingStatus({ ...baseBilling, status: 'overdue' }, 9999)).toBe('overdue');
+  });
+
   it('transitions from overdue to paid when fully paid', () => {
     expect(computeBillingStatus({ ...baseBilling, status: 'overdue' }, 10000)).toBe('paid');
+    expect(computeBillingStatus({ ...baseBilling, status: 'overdue' }, 12000)).toBe('paid');
   });
 
   it('returns "billed" when billing_date is set and no payment yet', () => {
