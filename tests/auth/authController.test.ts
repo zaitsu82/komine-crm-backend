@@ -917,6 +917,99 @@ describe('Auth Controller', () => {
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
     });
+
+    describe('COOKIE_SECURE によるCookie属性制御（#299）', () => {
+      const originalNodeEnv = process.env.NODE_ENV;
+
+      afterEach(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+        delete process.env.COOKIE_SECURE;
+      });
+
+      // 指定envでログインを実行し、access_token Cookie のオプションを返す
+      const loginAndGetCookieOptions = async (env: {
+        nodeEnv: string;
+        cookieSecure?: string;
+      }): Promise<Record<string, unknown>> => {
+        process.env.NODE_ENV = env.nodeEnv;
+        if (env.cookieSecure !== undefined) {
+          process.env.COOKIE_SECURE = env.cookieSecure;
+        } else {
+          delete process.env.COOKIE_SECURE;
+        }
+        jest.resetModules();
+        const { login } = await import('../../src/auth/authController');
+
+        mockRequest.body = { email: 'test@example.com', password: 'password123' };
+        mockSupabaseAuth.signInWithPassword.mockResolvedValue({
+          data: {
+            user: { id: 'supabase-uid-123', email: 'test@example.com' },
+            session: {
+              access_token: 'test-access-token',
+              refresh_token: 'test-refresh-token',
+              expires_at: 1234567890,
+            },
+          },
+          error: null,
+        });
+        const mockStaff = {
+          id: 1,
+          name: 'テストユーザー',
+          email: 'test@example.com',
+          role: 'admin',
+          is_active: true,
+          supabase_uid: 'supabase-uid-123',
+        };
+        mockPrisma.staff.findUnique.mockResolvedValue(mockStaff);
+        mockPrisma.staff.update.mockResolvedValue(mockStaff);
+
+        await login(mockRequest as Request, mockResponse as Response);
+
+        const cookieCalls = (mockResponse.cookie as jest.Mock).mock.calls;
+        const accessTokenCall = cookieCalls.find((call) => call[0] === 'access_token');
+        expect(accessTokenCall).toBeDefined();
+        return accessTokenCall![2];
+      };
+
+      it('COOKIE_SECURE未設定 + production では secure:true / sameSite:none（従来挙動）', async () => {
+        const options = await loginAndGetCookieOptions({ nodeEnv: 'production' });
+        expect(options.secure).toBe(true);
+        expect(options.sameSite).toBe('none');
+      });
+
+      it('COOKIE_SECURE=false なら production でも secure:false / sameSite:lax（平文HTTPローカル運用）', async () => {
+        const options = await loginAndGetCookieOptions({
+          nodeEnv: 'production',
+          cookieSecure: 'false',
+        });
+        expect(options.secure).toBe(false);
+        expect(options.sameSite).toBe('lax');
+      });
+
+      it('COOKIE_SECURE=true なら development でも secure:true / sameSite:none', async () => {
+        const options = await loginAndGetCookieOptions({
+          nodeEnv: 'development',
+          cookieSecure: 'true',
+        });
+        expect(options.secure).toBe(true);
+        expect(options.sameSite).toBe('none');
+      });
+
+      it('COOKIE_SECURE未設定 + development では secure:false / sameSite:lax', async () => {
+        const options = await loginAndGetCookieOptions({ nodeEnv: 'development' });
+        expect(options.secure).toBe(false);
+        expect(options.sameSite).toBe('lax');
+      });
+
+      it('COOKIE_SECURE に不正値が設定された場合は NODE_ENV ベースの従来挙動にフォールバックすること', async () => {
+        const options = await loginAndGetCookieOptions({
+          nodeEnv: 'production',
+          cookieSecure: 'yes',
+        });
+        expect(options.secure).toBe(true);
+        expect(options.sameSite).toBe('none');
+      });
+    });
   }); // Supabase環境変数が設定されている場合の終了
 
   describe('Supabase環境変数が設定されていない場合', () => {
