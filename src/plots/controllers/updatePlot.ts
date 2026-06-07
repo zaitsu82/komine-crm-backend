@@ -26,7 +26,10 @@ import {
   recordHistoryBatch,
   type CreateHistoryInput,
 } from '../services/historyService';
-import { updateCollectiveBurialCount } from '../../collective-burials/utils';
+import {
+  updateCollectiveBurialCount,
+  resolveBillingScheduledDate,
+} from '../../collective-burials/utils';
 
 type Tx = Prisma.TransactionClient;
 
@@ -881,6 +884,10 @@ export async function updatePlotCore(
   }
 
   // 9. CollectiveBurial
+  // 請求予定日（billing_scheduled_date）は契約日起点の導出値（#164）。
+  // 契約日の変更・合祀情報の新規作成/復活・有効期間の変更で再計算する。
+  // PUT /collective-burials/:id での手動指定（例外運用）は、これらが変わらない限り保持される。
+  let cbScheduleRecompute = input.saleContract?.contractDate !== undefined;
   if (input.collectiveBurial !== undefined) {
     const existingCB = existingContractPlot.collectiveBurial;
 
@@ -922,6 +929,13 @@ export async function updatePlotCore(
       });
 
       if (existingCB && !existingCB.deleted_at) {
+        if (
+          input.collectiveBurial.validityPeriodYears !== undefined &&
+          input.collectiveBurial.validityPeriodYears !== existingCB.validity_period_years
+        ) {
+          // 有効期間が変わった → 請求予定日を契約日起点で再計算（#164）
+          cbScheduleRecompute = true;
+        }
         const updated = await tx.collectiveBurial.update({
           where: { id: existingCB.id },
           data: {
@@ -962,6 +976,9 @@ export async function updatePlotCore(
           );
         }
 
+        // 新規作成・復活 → 請求予定日を契約日起点で導出（#164）
+        cbScheduleRecompute = true;
+
         let cbCreated: { id: string };
         if (existingCB?.deleted_at) {
           cbCreated = await tx.collectiveBurial.update({
@@ -1000,6 +1017,29 @@ export async function updatePlotCore(
           req,
         });
       }
+    }
+  }
+
+  // 9.1. 請求予定日の再計算（#164: 契約日起点）
+  // 契約日（step 2 適用後の値）＋有効期間から導出する。合祀情報の削除時は対象なし。
+  if (cbScheduleRecompute) {
+    const aliveCB = await tx.collectiveBurial.findUnique({
+      where: { contract_plot_id: id },
+    });
+    if (aliveCB && !aliveCB.deleted_at) {
+      const effectiveContractDate =
+        updatedContractPlotRecord !== null
+          ? updatedContractPlotRecord.contract_date
+          : existingContractPlot.contract_date;
+      await tx.collectiveBurial.update({
+        where: { id: aliveCB.id },
+        data: {
+          billing_scheduled_date: resolveBillingScheduledDate(
+            effectiveContractDate,
+            aliveCB.validity_period_years
+          ),
+        },
+      });
     }
   }
 

@@ -1,5 +1,6 @@
 import {
   calculateBillingScheduledDate,
+  resolveBillingScheduledDate,
   updateCollectiveBurialCount,
   isCapacityReached,
   getBillingTargets,
@@ -68,6 +69,19 @@ describe('collectiveBurialUtils', () => {
     });
   });
 
+  describe('resolveBillingScheduledDate (#164: 契約日起点)', () => {
+    it('契約日 + 有効期間で請求予定日を導出する', () => {
+      const result = resolveBillingScheduledDate(new Date('2026-04-01T00:00:00Z'), 13);
+
+      expect(result).not.toBeNull();
+      expect(result!.toISOString()).toBe('2039-04-01T00:00:00.000Z');
+    });
+
+    it('契約日が null なら null を返す（契約日設定時に再計算する運用）', () => {
+      expect(resolveBillingScheduledDate(null, 33)).toBeNull();
+    });
+  });
+
   describe('@db.Date 列への JST 暦日正規化 (#214)', () => {
     afterEach(() => {
       jest.useRealTimers();
@@ -95,7 +109,8 @@ describe('collectiveBurialUtils', () => {
       const updateCall = mockPrisma.collectiveBurial.update.mock.calls[0][0];
       // JST の暦日 2027-01-01 が UTC 00:00 で保存される（2026-12-31 にならない）
       expect(updateCall.data.capacity_reached_date.toISOString()).toBe('2027-01-01T00:00:00.000Z');
-      expect(updateCall.data.billing_scheduled_date.toISOString()).toBe('2030-01-01T00:00:00.000Z');
+      // 請求予定日は契約日起点（#164）のため埋葬数同期では設定されない
+      expect(updateCall.data.billing_scheduled_date).toBeUndefined();
     });
 
     it('getBillingTargets の基準日も JST 暦日の UTC 00:00 に正規化される', async () => {
@@ -198,12 +213,8 @@ describe('collectiveBurialUtils', () => {
       const updateCall = mockPrisma.collectiveBurial.update.mock.calls[0][0];
       expect(updateCall.data.current_burial_count).toBe(10);
       expect(updateCall.data.capacity_reached_date).toBeInstanceOf(Date);
-      expect(updateCall.data.billing_scheduled_date).toBeInstanceOf(Date);
-
-      // 請求予定日が3年後であることを確認
-      const capacityDate = updateCall.data.capacity_reached_date;
-      const billingDate = updateCall.data.billing_scheduled_date;
-      expect(billingDate.getFullYear()).toBe(capacityDate.getFullYear() + 3);
+      // 請求予定日は契約日起点（#164）のため上限到達では設定しない
+      expect(updateCall.data.billing_scheduled_date).toBeUndefined();
     });
 
     it('should not update dates if already reached capacity', async () => {
@@ -231,7 +242,7 @@ describe('collectiveBurialUtils', () => {
       expect(updateCall.data.current_burial_count).toBe(10);
     });
 
-    it('should reset dates when falling below capacity', async () => {
+    it('should reset capacity_reached_date when falling below capacity (請求予定日は維持 #164)', async () => {
       const mockCollectiveBurial = {
         id: 'cb-1',
         contract_plot_id: 'plot-1',
@@ -249,7 +260,6 @@ describe('collectiveBurialUtils', () => {
         ...mockCollectiveBurial,
         current_burial_count: 8,
         capacity_reached_date: null,
-        billing_scheduled_date: null,
       });
 
       await updateCollectiveBurialCount(mockPrisma as any, 'plot-1');
@@ -257,7 +267,8 @@ describe('collectiveBurialUtils', () => {
       const updateCall = mockPrisma.collectiveBurial.update.mock.calls[0][0];
       expect(updateCall.data.current_burial_count).toBe(8);
       expect(updateCall.data.capacity_reached_date).toBeNull();
-      expect(updateCall.data.billing_scheduled_date).toBeNull();
+      // 請求予定日は契約日起点（#164）のため埋葬数の増減ではリセットしない
+      expect(updateCall.data.billing_scheduled_date).toBeUndefined();
     });
   });
 

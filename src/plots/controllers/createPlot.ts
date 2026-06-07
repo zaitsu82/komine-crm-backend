@@ -22,6 +22,7 @@ import {
   buildGravestoneInfoData,
   syncPrimaryContractorNameKana,
 } from '../utils';
+import { resolveBillingScheduledDate } from '../../collective-burials/utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 import {
@@ -200,6 +201,11 @@ export async function createPlotCore(
         contract_plot_id: contractPlot.id,
         burial_capacity: input.collectiveBurial.burialCapacity,
         validity_period_years: input.collectiveBurial.validityPeriodYears,
+        // 請求予定日は契約日起点（#164）。契約日未設定なら null（契約日の設定時に再計算）
+        billing_scheduled_date: resolveBillingScheduledDate(
+          contractPlot.contract_date,
+          input.collectiveBurial.validityPeriodYears
+        ),
         billing_amount: input.collectiveBurial.billingAmount ?? null,
         notes: input.collectiveBurial.notes || null,
       },

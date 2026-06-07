@@ -3,18 +3,36 @@ import { todayJstAsUtcDate, addYearsUtc } from '../utils/dateUtils';
 
 /**
  * 請求予定日を計算
- * @param capacityReachedDate 上限到達日（UTC 00:00 正規化済みの Date を渡すこと #214）
+ *
+ * 起点は契約日（#164、業務確認 2026-06-07: 合祀は契約から一定年数後・年数はお墓のタイプで決まる。
+ * 旧設計の「埋葬上限到達日」起点は廃止 — 埋葬者数に依存すると上限未到達の区画で
+ * 請求予定日が永久に null になり請求が発火しない）。
+ *
+ * @param baseDate 起点日（契約日。UTC 00:00 正規化済みの Date を渡すこと #214）
  * @param validityPeriodYears 有効期間（年単位）
  * @returns 請求予定日（UTC 00:00 を維持）
  */
 export const calculateBillingScheduledDate = (
-  capacityReachedDate: Date,
+  baseDate: Date,
   validityPeriodYears: number
 ): Date => {
   // setFullYear（ローカル時刻ベース）は JST 環境で @db.Date 保存時に
   // 前日へずれるため、UTC ベースで年加算する（#214）
-  return addYearsUtc(capacityReachedDate, validityPeriodYears);
+  return addYearsUtc(baseDate, validityPeriodYears);
 };
+
+/**
+ * 契約日と有効期間から請求予定日を導出する（#164: 契約日起点）
+ *
+ * @param contractDate 契約日（未設定なら null → 請求予定日も null。
+ *   契約日が後から設定された時点で再計算する運用）
+ * @param validityPeriodYears 有効期間（年単位）
+ */
+export const resolveBillingScheduledDate = (
+  contractDate: Date | null,
+  validityPeriodYears: number
+): Date | null =>
+  contractDate ? calculateBillingScheduledDate(contractDate, validityPeriodYears) : null;
 
 /**
  * 合祀情報の埋葬人数と関連日付を自動更新
@@ -43,7 +61,9 @@ export const updateCollectiveBurialCount = async (
     },
   });
 
-  // 3. 上限到達判定と日付計算
+  // 3. 上限到達判定と日付記録
+  // 請求予定日は契約日起点（#164）のため埋葬数では変更しない。
+  // capacity_reached_date は埋葬状況の記録としてのみ管理する。
   const capacityReached = currentCount >= collectiveBurial.burial_capacity;
   const wasCapacityReached = collectiveBurial.capacity_reached_date !== null;
 
@@ -52,18 +72,12 @@ export const updateCollectiveBurialCount = async (
   };
 
   if (capacityReached && !wasCapacityReached) {
-    // 上限到達（初回）: 上限到達日と請求予定日を設定
+    // 上限到達（初回）: 上限到達日を記録
     // @db.Date 列への保存のため JST 暦日を UTC 00:00 に正規化（#214）
-    const capacityReachedDate = todayJstAsUtcDate();
-    updateData.capacity_reached_date = capacityReachedDate;
-    updateData.billing_scheduled_date = calculateBillingScheduledDate(
-      capacityReachedDate,
-      collectiveBurial.validity_period_years
-    );
+    updateData.capacity_reached_date = todayJstAsUtcDate();
   } else if (!capacityReached && wasCapacityReached) {
-    // 上限を下回った: 日付をリセット
+    // 上限を下回った: 到達日をリセット
     updateData.capacity_reached_date = null;
-    updateData.billing_scheduled_date = null;
   }
 
   // 4. 合祀情報を更新

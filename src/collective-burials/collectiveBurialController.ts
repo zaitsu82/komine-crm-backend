@@ -6,7 +6,7 @@ import { Request, Response, NextFunction } from 'express';
 import { BillingStatus } from '@prisma/client';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler';
 import prisma from '../db/prisma';
-import { updateCollectiveBurialCount } from './utils';
+import { updateCollectiveBurialCount, resolveBillingScheduledDate } from './utils';
 
 /** リクエストボディの型（Express の req.body は any のため、境界で明示的に型付けする） */
 interface CreateCollectiveBurialBody {
@@ -322,6 +322,12 @@ export const createCollectiveBurial = async (
       throw new ValidationError('この契約区画には既に合祀情報が登録されています');
     }
 
+    // 請求予定日は契約日起点で導出する（#164）。契約日未設定なら null（契約日設定時に再計算）
+    const billingScheduledDate = resolveBillingScheduledDate(
+      contractPlot.contract_date,
+      validityPeriodYears
+    );
+
     // 合祀情報作成（ソフトデリート済み行があれば新規値で復活させる）
     const collectiveBurial = existingCollectiveBurial
       ? await prisma.collectiveBurial.update({
@@ -331,7 +337,7 @@ export const createCollectiveBurial = async (
             current_burial_count: 0,
             validity_period_years: validityPeriodYears,
             capacity_reached_date: null,
-            billing_scheduled_date: null,
+            billing_scheduled_date: billingScheduledDate,
             billing_status: 'pending',
             billing_amount: billingAmount || null,
             notes: notes || null,
@@ -344,16 +350,17 @@ export const createCollectiveBurial = async (
             burial_capacity: burialCapacity,
             current_burial_count: 0,
             validity_period_years: validityPeriodYears,
+            billing_scheduled_date: billingScheduledDate,
             billing_status: 'pending',
             billing_amount: billingAmount || null,
             notes: notes || null,
           },
         });
 
-    // 実埋葬者から件数・上限到達日・請求予定日を再同期する（#281）。
+    // 実埋葬者から件数・上限到達日を再同期する（#281）。
     // BuriedPerson は ContractPlot 紐付けのため合祀のソフトデリートでは消えない。
-    // 復活時に 0 固定のままだと「count=0 なのに埋葬者一覧に実データが並ぶ」矛盾や、
-    // 上限到達済みでも billing_scheduled_date が null でゆうちょ請求対象から漏れる。
+    // 復活時に 0 固定のままだと「count=0 なのに埋葬者一覧に実データが並ぶ」矛盾が出る。
+    // （請求予定日は契約日起点（#164）のため同期では変更されない）
     const synced = await updateCollectiveBurialCount(prisma, contractPlotId);
     const result = synced ?? collectiveBurial;
 
@@ -397,9 +404,10 @@ export const updateCollectiveBurial = async (
       notes,
     } = req.body as UpdateCollectiveBurialBody;
 
-    // 存在確認
+    // 存在確認（契約日起点の請求予定日再計算用に contractPlot も取得 #164）
     const existing = await prisma.collectiveBurial.findFirst({
       where: { id, deleted_at: null },
+      include: { contractPlot: { select: { contract_date: true } } },
     });
 
     if (!existing) {
@@ -428,9 +436,19 @@ export const updateCollectiveBurial = async (
         : null;
     }
     if (billingScheduledDate !== undefined) {
+      // 手動指定（例外運用: 決まった年数より短くする等、業務確認 2026-06-07 Q17）を優先
       updateData['billing_scheduled_date'] = billingScheduledDate
         ? new Date(billingScheduledDate)
         : null;
+    } else if (
+      validityPeriodYears !== undefined &&
+      validityPeriodYears !== existing.validity_period_years
+    ) {
+      // 有効期間が変わった場合は契約日起点で請求予定日を再計算する（#164）
+      updateData['billing_scheduled_date'] = resolveBillingScheduledDate(
+        existing.contractPlot.contract_date,
+        validityPeriodYears
+      );
     }
     if (billingStatus !== undefined) updateData['billing_status'] = billingStatus;
     if (billingAmount !== undefined) updateData['billing_amount'] = billingAmount;
