@@ -527,6 +527,129 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/v1/plots/{id}/change-contractor:
+    post:
+      tags:
+        - Plots
+      summary: 名義変更（契約者roleの交代）
+      description: |
+        同一販売契約上で契約者（contractor role）を旧契約者から新契約者へ交代させる（#310）。
+        契約・申込者（applicant role）・区画情報は不変のまま残り、
+        変更は履歴に change_reason「名義変更」で記録される（過去の契約者を遡れる）。
+        新契約者は既存顧客の指定（newCustomerId）か新規顧客の作成（newCustomer）の
+        どちらか一方のみ指定可能。
+        現在のステータスが active でない場合、または現在の契約者が存在しない場合は 409 を返す。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 契約区画ID（UUID）
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newCustomerId:
+                  type: string
+                  format: uuid
+                  description: 新契約者にする既存顧客のID（newCustomer と排他）
+                newCustomer:
+                  type: object
+                  description: 新契約者として新規作成する顧客情報（newCustomerId と排他）
+                  required:
+                    - name
+                    - nameKana
+                    - postalCode
+                    - address
+                  properties:
+                    name:
+                      type: string
+                      maxLength: 100
+                    nameKana:
+                      type: string
+                      maxLength: 100
+                    postalCode:
+                      type: string
+                    address:
+                      type: string
+                      maxLength: 200
+                    phoneNumber:
+                      type: string
+                      nullable: true
+                changeDate:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: 名義変更日（旧roleのrole_end_date / 新roleのrole_start_date。省略時は当日）
+                reason:
+                  type: string
+                  maxLength: 200
+                  description: 名義変更理由（任意。履歴の change_reason に「名義変更」へ付記）
+      responses:
+        "200":
+          description: 名義変更成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 名義変更を実施しました
+                      id:
+                        type: string
+                        format: uuid
+                      oldContractor:
+                        type: object
+                        properties:
+                          customerId:
+                            type: string
+                            format: uuid
+                          name:
+                            type: string
+                      newContractor:
+                        type: object
+                        properties:
+                          customerId:
+                            type: string
+                            format: uuid
+                          name:
+                            type: string
+                          roleId:
+                            type: string
+                            format: uuid
+                      changeDate:
+                        type: string
+                        format: date-time
+        "400":
+          description: バリデーションエラー（newCustomerId/newCustomer の排他違反、解約済み顧客の指定等）
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: active 以外のステータス / 現契約者不在 / 指定顧客が既に契約者
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/v1/plots/{id}/contracts:
     get:
       tags:

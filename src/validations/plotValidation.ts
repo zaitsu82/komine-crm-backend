@@ -340,6 +340,24 @@ export const terminateContractSchema = z.object({
 });
 
 /**
+ * 名義変更リクエストのバリデーションスキーマ（#310）
+ * POST /plots/:id/change-contractor
+ * 新契約者は既存顧客の指定（newCustomerId）か新規顧客の作成（newCustomer）の
+ * どちらか一方のみ。reason は任意（履歴の change_reason に「名義変更」へ付記）。
+ */
+export const changeContractorSchema = z
+  .object({
+    newCustomerId: uuidSchema.optional(),
+    newCustomer: customerSchema.optional(),
+    changeDate: optionalDateSchema.nullable(),
+    reason: z.string().trim().max(200, '名義変更理由は200文字以内で入力してください').optional(),
+  })
+  .refine((v) => (v.newCustomerId !== undefined) !== (v.newCustomer !== undefined), {
+    message:
+      '新契約者は newCustomerId（既存顧客）または newCustomer（新規顧客）のどちらか一方を指定してください',
+  });
+
+/**
  * 型エクスポート
  */
 export type PlotSearchQuery = z.infer<typeof plotSearchQuerySchema>;
@@ -349,6 +367,7 @@ export type UpdatePlotRequest = z.infer<typeof updatePlotSchema>;
 export type CreatePlotContractRequest = z.infer<typeof createPlotContractSchema>;
 export type RestoreContractRequest = z.infer<typeof restoreContractSchema>;
 export type TerminateContractRequest = z.infer<typeof terminateContractSchema>;
+export type ChangeContractorRequest = z.infer<typeof changeContractorSchema>;
 
 // dateSchema も従来通り再エクスポート（他モジュールからの参照互換性維持）
 export { dateSchema };

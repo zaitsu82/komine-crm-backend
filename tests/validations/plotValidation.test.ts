@@ -5,6 +5,7 @@ import {
   updatePlotSchema,
   createPlotContractSchema,
   familyContactSchema,
+  changeContractorSchema,
 } from '../../src/validations/plotValidation';
 
 describe('Plot Validation (ContractPlot Model)', () => {
@@ -728,6 +729,56 @@ describe('Plot Validation (ContractPlot Model)', () => {
         familyContactSchema.parse({ ...base, phoneNumber: '', postalCode: '', faxNumber: '' })
       ).not.toThrow();
       expect(() => familyContactSchema.parse(base)).not.toThrow();
+    });
+  });
+
+  describe('changeContractorSchema (#310)', () => {
+    const validNewCustomer = {
+      name: '鈴木三郎',
+      nameKana: 'スズキサブロウ',
+      postalCode: '8100001',
+      address: '福岡県福岡市中央区天神1-1-1',
+      phoneNumber: '09011112222',
+    };
+
+    it('newCustomerId のみの指定は有効', () => {
+      expect(() =>
+        changeContractorSchema.parse({
+          newCustomerId: '550e8400-e29b-41d4-a716-446655440000',
+        })
+      ).not.toThrow();
+    });
+
+    it('newCustomer のみの指定は有効（changeDate / reason は任意）', () => {
+      expect(() =>
+        changeContractorSchema.parse({
+          newCustomer: validNewCustomer,
+          changeDate: '2026-06-01',
+          reason: '相続のため',
+        })
+      ).not.toThrow();
+    });
+
+    it('newCustomerId と newCustomer の同時指定は拒否（排他）', () => {
+      expect(() =>
+        changeContractorSchema.parse({
+          newCustomerId: '550e8400-e29b-41d4-a716-446655440000',
+          newCustomer: validNewCustomer,
+        })
+      ).toThrow(/どちらか一方/);
+    });
+
+    it('どちらも未指定は拒否', () => {
+      expect(() => changeContractorSchema.parse({})).toThrow(/どちらか一方/);
+    });
+
+    it('理由が200文字を超えると拒否', () => {
+      expect(() =>
+        changeContractorSchema.parse({
+          newCustomerId: '550e8400-e29b-41d4-a716-446655440000',
+          reason: 'あ'.repeat(201),
+        })
+      ).toThrow(/200文字以内/);
     });
   });
 });
