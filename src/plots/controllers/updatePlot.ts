@@ -887,7 +887,18 @@ export async function updatePlotCore(
   // 請求予定日（billing_scheduled_date）は契約日起点の導出値（#164）。
   // 契約日の変更・合祀情報の新規作成/復活・有効期間の変更で再計算する。
   // PUT /collective-burials/:id での手動指定（例外運用）は、これらが変わらない限り保持される。
-  let cbScheduleRecompute = input.saleContract?.contractDate !== undefined;
+  // 判定は「フィールドの存在」ではなく「実値の変化」で行う（#313: フォームは契約日を
+  // 常時送信するため、存在判定だと保存のたびに手動例外がサイレント上書きされる）。
+  let cbScheduleRecompute = false;
+  if (input.saleContract?.contractDate !== undefined) {
+    const inputContractDateMs = input.saleContract.contractDate
+      ? new Date(input.saleContract.contractDate).getTime()
+      : null;
+    const existingContractDateMs = existingContractPlot.contract_date
+      ? existingContractPlot.contract_date.getTime()
+      : null;
+    cbScheduleRecompute = inputContractDateMs !== existingContractDateMs;
+  }
   if (input.collectiveBurial !== undefined) {
     const existingCB = existingContractPlot.collectiveBurial;
 

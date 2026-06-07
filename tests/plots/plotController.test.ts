@@ -83,6 +83,11 @@ const mockPrisma: any = {
     create: jest.fn(),
     createMany: jest.fn(),
   },
+  collectiveBurial: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
   $transaction: jest.fn((callback: any) => Promise.resolve(callback(mockPrisma))),
 };
 
@@ -1574,6 +1579,116 @@ describe('Plot Controller (ContractPlot Model)', () => {
         })
       );
       expect(mockPrisma.saleContractRole.create).toHaveBeenCalledTimes(2);
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('合祀請求予定日の再計算トリガー (issue #313)', () => {
+    // フォームは契約日を常時送信するため、「存在」判定だと保存のたびに
+    // 手動例外（Q17例外運用）の billing_scheduled_date が上書きされる。
+    // 「実値の変化」でのみ再計算することを検証する。
+    const CONTRACT_DATE = '2020-04-01';
+    const buildExistingPlot = () => ({
+      id: 'cp1',
+      physical_plot_id: 'pp1',
+      contract_area_sqm: new Prisma.Decimal(3.6),
+      contract_date: new Date(CONTRACT_DATE),
+      physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(7.2) },
+      saleContractRoles: [
+        {
+          id: 'scr1',
+          role: 'contractor',
+          customer: { id: 'c1', workInfo: null },
+          customer_id: 'c1',
+          deleted_at: null,
+        },
+      ],
+      usageFee: null,
+      managementFee: null,
+      collectiveBurial: {
+        id: 'cb1',
+        contract_plot_id: 'cp1',
+        burial_capacity: 10,
+        validity_period_years: 33,
+        // 手動例外値（契約日起点の導出値 2053-04-01 とは異なる）
+        billing_scheduled_date: new Date('2040-01-01'),
+        deleted_at: null,
+      },
+    });
+
+    it('契約日が変わらないフォーム保存では billing_scheduled_date を再計算しない（手動例外の保持）', async () => {
+      const existingPlot = buildExistingPlot();
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(existingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.update.mockResolvedValue({
+        ...existingPlot,
+        contract_date: new Date(CONTRACT_DATE),
+      });
+
+      mockRequest.params = { id: 'cp1' };
+      // フォームの実挙動: 契約日を変更していなくても常時送信される
+      mockRequest.body = {
+        saleContract: { contractDate: CONTRACT_DATE },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.collectiveBurial.update).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('契約日が実際に変わった場合は billing_scheduled_date を契約日起点で再計算する', async () => {
+      const existingPlot = buildExistingPlot();
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(existingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.update.mockResolvedValue({
+        ...existingPlot,
+        contract_date: new Date('2021-04-01'),
+      });
+      mockPrisma.collectiveBurial.findUnique.mockResolvedValue(existingPlot.collectiveBurial);
+      mockPrisma.collectiveBurial.update.mockResolvedValue({});
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        saleContract: { contractDate: '2021-04-01' },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      // 新契約日 2021-04-01 + 有効期間 33 年 = 2054-04-01
+      expect(mockPrisma.collectiveBurial.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'cb1' },
+          data: { billing_scheduled_date: new Date('2054-04-01') },
+        })
+      );
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('契約日が未設定から設定された場合も再計算する', async () => {
+      const existingPlot = { ...buildExistingPlot(), contract_date: null };
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(existingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.contractPlot.update.mockResolvedValue({
+        ...existingPlot,
+        contract_date: new Date(CONTRACT_DATE),
+      });
+      mockPrisma.collectiveBurial.findUnique.mockResolvedValue(existingPlot.collectiveBurial);
+      mockPrisma.collectiveBurial.update.mockResolvedValue({});
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        saleContract: { contractDate: CONTRACT_DATE },
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.collectiveBurial.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'cb1' },
+          data: { billing_scheduled_date: new Date('2053-04-01') },
+        })
+      );
       expect(mockNext).not.toHaveBeenCalled();
     });
   });
