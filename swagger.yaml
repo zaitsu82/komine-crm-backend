@@ -25,8 +25,127 @@ tags:
     description: 書類管理（PDF生成・ファイルアップロード）
   - name: Yucho
     description: ゆうちょ連携（自動払込み用CSV生成）
+  - name: Customers
+    description: 顧客（解約者参照）
 
 paths:
+  /api/v1/customers/terminated:
+    get:
+      tags:
+        - Customers
+      summary: 解約者一覧・検索
+      description: |
+        解約者（is_terminated=true 顧客、レガシー del_flg=2 由来 #129）を一覧・検索する（#311）。
+        解約者は契約・請求・入金にリンクされない独立した顧客レコードのため、
+        台帳問い合わせ（/plots）には現れず、本エンドポイントが唯一の参照経路。
+        notes には旧区画手がかり（旧区画cd: X / 区画No: legacy-X）が記録済み。
+        解約者に紐づく家族連絡先（contract_plot_id=null、customer 直リンク）も併せて返す。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: string
+            default: "1"
+        - name: limit
+          in: query
+          schema:
+            type: string
+            default: "20"
+        - name: search
+          in: query
+          description: 氏名・カナ・電話番号・備考（旧区画手がかり）・旧檀家コードの部分一致検索
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        "200":
+          description: 解約者一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            name:
+                              type: string
+                            nameKana:
+                              type: string
+                              nullable: true
+                            postalCode:
+                              type: string
+                              nullable: true
+                            address:
+                              type: string
+                              nullable: true
+                            phoneNumber:
+                              type: string
+                              nullable: true
+                            email:
+                              type: string
+                              nullable: true
+                            notes:
+                              type: string
+                              nullable: true
+                              description: 旧区画手がかり（旧区画cd / 区画No legacy-X）を含む
+                            legacyDankaCd:
+                              type: integer
+                              nullable: true
+                            createdAt:
+                              type: string
+                              format: date-time
+                            familyContacts:
+                              type: array
+                              description: 解約者に紐づく家族連絡先（区画リンクなし #311）
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    format: uuid
+                                  name:
+                                    type: string
+                                  nameKana:
+                                    type: string
+                                    nullable: true
+                                  relationship:
+                                    type: string
+                                  phoneNumber:
+                                    type: string
+                                    nullable: true
+                                  address:
+                                    type: string
+                                    nullable: true
+                      pagination:
+                        type: object
+                        properties:
+                          page:
+                            type: integer
+                          limit:
+                            type: integer
+                          total:
+                            type: integer
+                          totalPages:
+                            type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/v1/auth/login:
     post:
       tags:

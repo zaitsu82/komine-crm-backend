@@ -51,9 +51,10 @@ describe('legacy migration resume + dry-run (issue #163)', () => {
       familyContact: { create: familyContactCreate },
     } as unknown as PrismaClient;
 
-    // 1回目: t_danka (danka_cd→grave_cd) のルックアップ, 2回目: t_family 本体
+    // 1回目: t_danka (danka_cd→grave_cd), 2回目: 解約者 danka（del_flg=2 #311）, 3回目: t_family 本体
     mockedLegacyQuery
       .mockResolvedValueOnce([{ danka_cd: 100, grave_cd: 500 }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           family_cd: 1,
@@ -76,7 +77,8 @@ describe('legacy migration resume + dry-run (issue #163)', () => {
     const result = await stepFamilyContact.run(ctx);
 
     // dry-run でも idMap が新DBから再構築された（= 旧挙動ではここが空で throw していた）
-    expect(customerFindMany).toHaveBeenCalledTimes(1);
+    // customer.findMany は rebuildIdMap + 解約者マップ構築（#311）の2回
+    expect(customerFindMany).toHaveBeenCalledTimes(2);
     expect(contractPlotFindMany).toHaveBeenCalledTimes(1);
     expect(idMaps.customer.size).toBe(1);
     expect(idMaps.contractPlot.size).toBe(1);

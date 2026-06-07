@@ -21,6 +21,7 @@ import documentRoutes from './documents/documentRoutes';
 import yuchoRoutes from './yucho/yuchoRoutes';
 import billingRoutes from './billings/billingRoutes';
 import paymentRoutes from './payments/paymentRoutes';
+import customerRoutes from './customers/customerRoutes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requestLogger, securityHeaders } from './middleware/logger';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -119,6 +120,7 @@ app.use('/api/v1/documents', documentRoutes); // 書類管理ルート
 app.use('/api/v1/yucho', yuchoRoutes); // ゆうちょ連携ルート
 app.use('/api/v1/billings', billingRoutes); // 請求管理ルート
 app.use('/api/v1/payments', paymentRoutes); // 入金管理ルート
+app.use('/api/v1/customers', customerRoutes); // 顧客（解約者参照）ルート #311
 
 // 404エラーハンドラー（すべてのルートの後に配置）
 app.use(notFoundHandler);

@@ -54,6 +54,8 @@ describe('移行ステップの冪等性 (#220)', () => {
 
     mockedLegacyQuery
       .mockResolvedValueOnce([{ danka_cd: 100, grave_cd: 500 }])
+      // 解約者 danka（del_flg=2）ルックアップ（#311）
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           family_cd: 1,

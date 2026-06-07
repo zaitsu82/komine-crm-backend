@@ -429,7 +429,9 @@ model ConstructionInfo {
 // 家族・連絡先
 model FamilyContact {
   id                     String       @id @default(uuid()) @map("family_contact_id")
-  contract_plot_id       String // 契約区画ID
+  // 契約区画ID。解約者（is_terminated 顧客）紐づきの連絡先は区画を持たないため
+  // nullable（#311）。その場合は customer_id 直リンクのみで参照する。
+  contract_plot_id       String?
   customer_id            String? // 顧客マスタへの参照（オプショナル）
   emergency_contact_flag Boolean      @default(false) // 緊急連絡先フラグ
   name                   String       @db.VarChar(100)
@@ -457,8 +459,8 @@ model FamilyContact {
   legacy_family_cd Int? @unique // レガシー t_family.family_cd（移行の冪等キー #220）
 
   // Relations
-  contractPlot ContractPlot @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
-  customer     Customer?    @relation(fields: [customer_id], references: [id], onDelete: SetNull)
+  contractPlot ContractPlot? @relation(fields: [contract_plot_id], references: [id], onDelete: Cascade)
+  customer     Customer?     @relation(fields: [customer_id], references: [id], onDelete: SetNull)
 
   @@index([contract_plot_id])
   @@index([customer_id])
