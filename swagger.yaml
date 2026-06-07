@@ -4219,6 +4219,50 @@ components:
               type: string
               maxLength: 50
               nullable: true
+        applicant:
+          type: object
+          description: 申込者情報。null で既存 applicant の解除、省略で変更なし（#320）
+          nullable: true
+          properties:
+            name:
+              type: string
+              maxLength: 100
+            nameKana:
+              type: string
+              maxLength: 100
+            phoneNumber:
+              type: string
+              maxLength: 11
+              nullable: true
+            email:
+              type: string
+              maxLength: 254
+              nullable: true
+        gravestoneInfo:
+          type: object
+          description: 墓石情報。null で削除、省略で変更なし（#320）
+          nullable: true
+          properties:
+            gravestoneBase:
+              type: string
+              nullable: true
+            gravestoneDealer:
+              type: string
+              nullable: true
+            gravestoneType:
+              type: string
+              nullable: true
+            directionId:
+              type: integer
+              nullable: true
+            positionId:
+              type: integer
+              nullable: true
+        changeReason:
+          type: string
+          maxLength: 200
+          description: 変更理由。指定すると本更新で記録される履歴（History.change_reason）に反映される（#261）
+          example: "名義変更"
 
     CreatePlotContractInput:
       type: object

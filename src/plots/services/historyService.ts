@@ -184,7 +184,8 @@ export async function recordCustomerCreated(
   },
   contractPlotId: string | null,
   physicalPlotId: string | null,
-  req: Request
+  req: Request,
+  changeReason?: string
 ): Promise<void> {
   await createHistory(tx, {
     entityType: 'Customer',
@@ -196,6 +197,7 @@ export async function recordCustomerCreated(
       id: customer.id,
       name: customer.name,
     },
+    changeReason,
     req,
   });
 }
