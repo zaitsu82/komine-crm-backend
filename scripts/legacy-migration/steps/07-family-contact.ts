@@ -60,16 +60,35 @@ export const stepFamilyContact: MigrationStep = {
     const dankaGraveMap = new Map<number, number>();
     for (const r of dankaToGrave) dankaGraveMap.set(r.danka_cd, r.grave_cd);
 
+    // 解約者（del_flg=2、is_terminated=true で step04 取込済み #129）の danka_cd 集合と、
+    // 新DB上の解約者 Customer への対応。解約者紐づきの t_family（91件）は契約区画を
+    // 持たないため、contract_plot_id=null + customer_id 直リンクで取り込む（#311）。
+    // idMaps.customer は契約/請求リンクの誤接続防止のため解約者を除外しており使えない。
+    const terminatedDanka = await legacyQuery<RowDataPacket & { danka_cd: number }>(
+      `SELECT danka_cd FROM t_danka WHERE del_flg = 2`
+    );
+    const terminatedDankaSet = new Set(terminatedDanka.map((r) => r.danka_cd));
+    const terminatedCustomers = await prisma.customer.findMany({
+      where: { is_terminated: true, deleted_at: null, legacy_danka_cd: { not: null } },
+      select: { id: true, legacy_danka_cd: true },
+    });
+    const terminatedCustomerMap = new Map<number, string>();
+    for (const c of terminatedCustomers) {
+      if (c.legacy_danka_cd != null) terminatedCustomerMap.set(c.legacy_danka_cd, c.id);
+    }
+
     const rows = await legacyQuery<FamilyRow>(
       `SELECT * FROM t_family WHERE del_flg = 0 OR del_flg IS NULL`
     );
 
     let inserted = 0;
+    let insertedTerminatedLink = 0;
     let skipped = 0;
     let skipExisting = 0;
     let skipMissingName = 0;
     let skipDankaNotMapped = 0;
     let skipContractPlotNotMapped = 0;
+    let skipTerminatedCustomerNotFound = 0;
 
     for (const row of rows) {
       const name = joinName(row.family_sei, row.family_mei);
@@ -80,8 +99,29 @@ export const stepFamilyContact: MigrationStep = {
       }
 
       const graveCd = dankaGraveMap.get(row.danka_cd);
-      const contractPlotId = graveCd != null ? idMaps.contractPlot.get(graveCd) : undefined;
-      if (!contractPlotId) {
+      let contractPlotId: string | null =
+        graveCd != null ? (idMaps.contractPlot.get(graveCd) ?? null) : null;
+      let customerId: string | null;
+      let isTerminatedLink = false;
+
+      if (contractPlotId) {
+        customerId = idMaps.customer.get(row.danka_cd) ?? null;
+      } else if (terminatedDankaSet.has(row.danka_cd)) {
+        // 解約者紐づき（#311）: 区画リンクなしで解約者 Customer に直リンク
+        isTerminatedLink = true;
+        contractPlotId = null;
+        customerId = terminatedCustomerMap.get(row.danka_cd) ?? null;
+        if (!customerId && !dryRun) {
+          // step04 未実行・解約者取込漏れ等。orphan を作らずスキップする
+          logger.warn(
+            { family_cd: row.family_cd, danka_cd: row.danka_cd },
+            'Terminated customer not found in new DB (run step04 first)'
+          );
+          skipped++;
+          skipTerminatedCustomerNotFound++;
+          continue;
+        }
+      } else {
         logger.debug(
           { family_cd: row.family_cd, danka_cd: row.danka_cd, grave_cd: graveCd ?? null },
           'No contract plot mapped'
@@ -91,7 +131,6 @@ export const stepFamilyContact: MigrationStep = {
         else skipContractPlotNotMapped++;
         continue;
       }
-      const customerId = idMaps.customer.get(row.danka_cd) ?? null;
 
       const addressParts = [row.addr1, row.addr2, row.addr3]
         .map(cleanStr)
@@ -105,6 +144,7 @@ export const stepFamilyContact: MigrationStep = {
 
       if (dryRun) {
         inserted++;
+        if (isTerminatedLink) insertedTerminatedLink++;
         continue;
       }
 
@@ -144,6 +184,7 @@ export const stepFamilyContact: MigrationStep = {
         },
       });
       inserted++;
+      if (isTerminatedLink) insertedTerminatedLink++;
     }
 
     return {
@@ -151,9 +192,12 @@ export const stepFamilyContact: MigrationStep = {
       skipped,
       notes: {
         source_rows: rows.length,
+        // 解約者紐づき（contract_plot_id=null、customer 直リンク #311）の内数
+        inserted_terminated_link: insertedTerminatedLink,
         skip_missing_name: skipMissingName,
         skip_danka_not_mapped: skipDankaNotMapped,
         skip_contract_plot_not_mapped: skipContractPlotNotMapped,
+        skip_terminated_customer_not_found: skipTerminatedCustomerNotFound,
         skip_existing: skipExisting,
       },
     };
