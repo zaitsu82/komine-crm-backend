@@ -8,6 +8,7 @@ import {
   deletePlot,
   restoreContract,
   terminateContract,
+  changeContractor,
   getPlotContracts,
   createPlotContract,
   getPlotInventory,
@@ -29,6 +30,7 @@ import {
   createPlotContractSchema,
   restoreContractSchema,
   terminateContractSchema,
+  changeContractorSchema,
 } from '../validations/plotValidation';
 import {
   inventorySummaryQuerySchema,
@@ -152,6 +154,15 @@ router.post(
   requirePermission(['operator', 'manager', 'admin']),
   validate({ params: plotIdParamsSchema, body: restoreContractSchema }),
   withLogging('Plots', 'restoreContract', restoreContract)
+);
+
+// 名義変更（契約はそのままで契約者roleを交代 #310。解約→新契約の区画再利用とは別経路）
+router.post(
+  '/:id/change-contractor',
+  authenticate,
+  requirePermission(['operator', 'manager', 'admin']),
+  validate({ params: plotIdParamsSchema, body: changeContractorSchema }),
+  withLogging('Plots', 'changeContractor', changeContractor)
 );
 
 // 物理区画の契約一覧取得

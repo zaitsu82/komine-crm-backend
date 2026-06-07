@@ -11,6 +11,7 @@ export { updatePlot } from './updatePlot';
 export { deletePlot } from './deletePlot';
 export { restoreContract } from './restoreContract';
 export { terminateContract } from './terminateContract';
+export { changeContractor } from './changeContractor';
 export { getPlotContracts } from './getPlotContracts';
 export { createPlotContract } from './createPlotContract';
 export { getPlotInventory } from './getPlotInventory';
