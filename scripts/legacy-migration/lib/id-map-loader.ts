@@ -23,7 +23,8 @@ const STAFF_SUPABASE_UID_PREFIX = 'legacy-tancd-';
 export async function loadIdMapFromDb(
   prisma: PrismaClient,
   modelName: 'customer' | 'contractPlot' | 'billing',
-  legacyColumn: 'legacy_danka_cd' | 'legacy_grave_cd' | 'legacy_seikyu_cd'
+  legacyColumn: 'legacy_danka_cd' | 'legacy_grave_cd' | 'legacy_seikyu_cd',
+  extraWhere?: Record<string, unknown>
 ): Promise<Map<number, string>> {
   // Prisma の型システム上、delegate は引数で動的に決まる。実行時に存在しないキーは
   // テストでも本番でも発生しないため、安全な dynamic dispatch とする。
@@ -39,7 +40,7 @@ export async function loadIdMapFromDb(
     throw new Error(`Unknown Prisma model: ${modelName}`);
   }
   const rows = await delegate.findMany({
-    where: { [legacyColumn]: { not: null }, deleted_at: null },
+    where: { [legacyColumn]: { not: null }, deleted_at: null, ...(extraWhere ?? {}) },
     select: { id: true, [legacyColumn]: true },
   });
 
@@ -71,7 +72,11 @@ export async function rebuildIdMap(
   let loaded = 0;
   switch (key) {
     case 'customer': {
-      const m = await loadIdMapFromDb(prisma, 'customer', 'legacy_danka_cd');
+      // 終了顧客（is_terminated=true、レガシー del_flg=2 由来）は契約/請求/入金のリンク対象外
+      // のため除外する（#129/Q19: 旧入金35件を取り込まない）
+      const m = await loadIdMapFromDb(prisma, 'customer', 'legacy_danka_cd', {
+        is_terminated: false,
+      });
       for (const [k, v] of m) idMaps.customer.set(k, v);
       loaded = m.size;
       break;

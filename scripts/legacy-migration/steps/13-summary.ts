@@ -13,6 +13,10 @@ import type { MigrationStep } from '../types';
  *   - 管理料総額: 555,190,595 円
  *
  * 新DB側の集計と突き合わせて差分を表示する。
+ *
+ * 注意: customers は終了顧客（del_flg=2 由来、is_terminated=true、#129）と
+ * 別人申込者（legacy_applicant_danka_cd、#221）を含むためベースライン 3,487 を上回る。
+ * terminated_customers（新旧）で del_flg=2 分を別掲して突き合わせる。
  */
 export const stepSummary: MigrationStep = {
   name: 'summary',
@@ -28,6 +32,7 @@ export const stepSummary: MigrationStep = {
       paymentCount,
       staffCount,
       orphanPaymentCount,
+      terminatedCustomerCount,
       usageFeeTotal,
       managementFeeTotal,
     ] = await Promise.all([
@@ -41,6 +46,8 @@ export const stepSummary: MigrationStep = {
       prisma.payment.count({ where: { deleted_at: null } }),
       prisma.staff.count({ where: { deleted_at: null } }),
       prisma.payment.count({ where: { deleted_at: null, billing_id: null } }),
+      // 終了顧客（del_flg=2 由来、#129）の取り込み件数検証用
+      prisma.customer.count({ where: { deleted_at: null, is_terminated: true } }),
       prisma.billing.aggregate({
         where: { category: 'usage_fee', deleted_at: null },
         _sum: { amount: true },
@@ -66,6 +73,7 @@ export const stepSummary: MigrationStep = {
     interface LegacyCountsRow {
       physical: number;
       customer: number;
+      customer_terminated: number;
       family: number;
       buried: number;
       billing: number;
@@ -77,6 +85,7 @@ export const stepSummary: MigrationStep = {
       `SELECT
          (SELECT COUNT(*) FROM m_bochi WHERE del_flg=0 OR del_flg IS NULL) AS physical,
          (SELECT COUNT(*) FROM t_danka WHERE del_flg=0 OR del_flg IS NULL) AS customer,
+         (SELECT COUNT(*) FROM t_danka WHERE del_flg=2) AS customer_terminated,
          (SELECT COUNT(*) FROM t_family WHERE del_flg=0 OR del_flg IS NULL) AS family,
          (SELECT COUNT(*) FROM t_maisou WHERE del_flg=0 OR del_flg IS NULL) AS buried,
          (SELECT COUNT(*) FROM t_seikyu WHERE del_flg=0 OR del_flg IS NULL) AS billing,
@@ -97,6 +106,7 @@ export const stepSummary: MigrationStep = {
         billings: billingCount,
         payments: paymentCount,
         orphan_payments: orphanPaymentCount,
+        terminated_customers: terminatedCustomerCount,
         staff: staffCount,
         usage_fee_total: Number(usageFeeTotal._sum.amount ?? 0),
         management_fee_total: Number(managementFeeTotal._sum.amount ?? 0),
@@ -105,6 +115,7 @@ export const stepSummary: MigrationStep = {
       legacy: {
         physical_plots: Number(legacy?.physical ?? 0),
         customers: Number(legacy?.customer ?? 0),
+        terminated_customers: Number(legacy?.customer_terminated ?? 0),
         family_contacts: Number(legacy?.family ?? 0),
         buried_persons: Number(legacy?.buried ?? 0),
         billings: Number(legacy?.billing ?? 0),

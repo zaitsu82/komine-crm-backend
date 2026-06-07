@@ -27,6 +27,8 @@ interface NyukinRow extends RowDataPacket {
  *
  * - 孤児入金 16 件（対応する t_seikyu なし）は billing_id=NULL で
  *   customer_id / contract_plot_id 直リンクで保存（推奨方針A）
+ * - 終了顧客（t_danka.del_flg=2）に紐づく旧入金（約35件）は取り込まない
+ *   （業務確認 2026-06-07 Q19。空き器契約への誤リンク防止も兼ねる）
  * - charge (担当者 TANCD) は staff_in_charge 文字列に保持
  *   （Staff FK にはしない。レガシー側は数値、新側は文字列で運用前提）
  */
@@ -42,6 +44,14 @@ export const stepPayment: MigrationStep = {
     await rebuildIdMap(prisma, idMaps, 'billing', logger);
     assertIdMapsReady('payment', idMaps, ['billing', 'contractPlot', 'customer']);
 
+    // 業務確認（2026-06-07 Q19）: もう使っていない区画あての昔の入金記録は「取り込まない」。
+    // 終了顧客は step04 で Customer として取り込まれるが（is_terminated=true）、その旧入金が
+    // grave_cd 経由で空き器契約（vacant ContractPlot）へ誤リンクされるのを danka 単位で防ぐ。
+    const terminatedDanka = await legacyQuery<RowDataPacket & { danka_cd: number }>(
+      `SELECT danka_cd FROM t_danka WHERE del_flg = 2`
+    );
+    const terminatedDankaSet = new Set(terminatedDanka.map((r) => r.danka_cd));
+
     const rows = await legacyQuery<NyukinRow>(
       `SELECT * FROM t_nyukin WHERE del_flg = 0 OR del_flg IS NULL`
     );
@@ -49,8 +59,19 @@ export const stepPayment: MigrationStep = {
     let inserted = 0;
     let skipped = 0;
     let orphanCount = 0;
+    let skipTerminatedDanka = 0;
 
     for (const row of rows) {
+      if (row.danka_cd != null && terminatedDankaSet.has(row.danka_cd)) {
+        logger.debug(
+          { nyukin_cd: row.nyukin_cd, danka_cd: row.danka_cd },
+          'Payment skipped: terminated customer (del_flg=2, 業務確認Q19: 取り込まない)'
+        );
+        skipped++;
+        skipTerminatedDanka++;
+        continue;
+      }
+
       const billingId = row.seikyu_cd != null ? (idMaps.billing.get(row.seikyu_cd) ?? null) : null;
       const customerId = row.danka_cd != null ? (idMaps.customer.get(row.danka_cd) ?? null) : null;
       const contractPlotId =
@@ -119,6 +140,7 @@ export const stepPayment: MigrationStep = {
       notes: {
         source_rows: rows.length,
         orphan_payments: orphanCount,
+        skip_terminated_danka: skipTerminatedDanka,
       },
     };
   },
