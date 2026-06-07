@@ -155,6 +155,10 @@ import {
   getPlotInventory,
 } from '../../src/plots/controllers';
 import {
+  recordEntityUpdated,
+  recordContractPlotUpdated,
+} from '../../src/plots/services/historyService';
+import {
   validateContractArea,
   updatePhysicalPlotStatus,
   syncContractorNameKanaForCustomer,
@@ -1237,6 +1241,85 @@ describe('Plot Controller (ContractPlot Model)', () => {
       await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(ValidationError));
+    });
+
+    it('changeReason がある場合、履歴記録に changeReason を渡す（#261）', async () => {
+      const mockExistingPlot = {
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        location_description: null,
+        contract_date: null,
+        price: 1000,
+        payment_status: 'unpaid',
+        reservation_date: null,
+        acceptance_number: null,
+        permit_date: null,
+        start_date: null,
+        uncollected_amount: 0,
+        notes: null,
+        physicalPlot: {
+          id: 'pp1',
+          plot_number: 'A-1',
+          area_name: '第1期',
+          area_sqm: new Prisma.Decimal(3.6),
+          status: 'available',
+          notes: null,
+        },
+        saleContractRoles: [
+          {
+            id: 'scr1',
+            role: 'contractor',
+            customer: { id: 'c1', workInfo: null },
+            customer_id: 'c1',
+            deleted_at: null,
+          },
+        ],
+        usageFee: null,
+        managementFee: null,
+        collectiveBurial: null,
+        gravestoneInfo: null,
+      };
+
+      mockPrisma.contractPlot.findUnique.mockResolvedValue(mockExistingPlot);
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.physicalPlot.update.mockResolvedValue({
+        ...mockExistingPlot.physicalPlot,
+        notes: '更新メモ',
+      });
+      mockPrisma.contractPlot.update.mockResolvedValue({
+        ...mockExistingPlot,
+        price: 2000,
+      });
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        physicalPlot: { notes: '更新メモ' },
+        saleContract: { price: 2000 },
+        changeReason: '名義変更',
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      // PhysicalPlot の履歴に changeReason が渡る
+      expect(recordEntityUpdated).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          entityType: 'PhysicalPlot',
+          changeReason: '名義変更',
+        })
+      );
+      // ContractPlot の履歴（位置引数の末尾）にも changeReason が渡る
+      expect(recordContractPlotUpdated).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        'pp1',
+        'cp1',
+        expect.anything(),
+        '名義変更'
+      );
     });
 
     it('should create applicant Customer + role when applicant provided and no existing applicant', async () => {

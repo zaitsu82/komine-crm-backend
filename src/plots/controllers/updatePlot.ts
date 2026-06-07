@@ -72,6 +72,9 @@ export async function updatePlotCore(
   const physicalPlotId = existingContractPlot.physical_plot_id;
   const oldContractArea = existingContractPlot.contract_area_sqm.toNumber();
 
+  // 変更理由（#261）。指定があれば本更新で記録される全履歴エントリに反映する。
+  const changeReason = input.changeReason;
+
   // 1.5. 物理区画情報の更新
   const physicalPlotInput = input.physicalPlot;
   if (physicalPlotInput) {
@@ -109,6 +112,7 @@ export async function updatePlotCore(
           status: updatedPp.status,
           notes: updatedPp.notes,
         },
+        changeReason,
         req,
       });
     }
@@ -256,6 +260,7 @@ export async function updatePlotCore(
           role: oldRole.role,
           customer_id: oldRole.customer_id,
         },
+        changeReason,
         req,
       });
     }
@@ -286,6 +291,7 @@ export async function updatePlotCore(
           role: created.role,
           customer_id: created.customer_id,
         },
+        changeReason,
         req,
       });
     }
@@ -373,6 +379,7 @@ export async function updatePlotCore(
                 work_address: existingWorkInfo.work_address,
                 work_phone_number: existingWorkInfo.work_phone_number,
               },
+              changeReason,
               req,
             });
           }
@@ -425,6 +432,7 @@ export async function updatePlotCore(
                   address_type: updated.address_type,
                   notes: updated.notes,
                 },
+                changeReason,
                 req,
               });
             } else {
@@ -447,6 +455,7 @@ export async function updatePlotCore(
                   customer_id: customerId,
                   ...workInfoData,
                 },
+                changeReason,
                 req,
               });
             }
@@ -483,6 +492,7 @@ export async function updatePlotCore(
             role: existingApplicantRole.role,
             customer_id: existingApplicantRole.customer_id,
           },
+          changeReason,
           req,
         });
       }
@@ -529,7 +539,8 @@ export async function updatePlotCore(
           applicantCustomerId,
           id,
           physicalPlotId,
-          req
+          req,
+          changeReason
         );
         // 申込者として編集した顧客が他区画の契約者を兼ねる場合（共有 Customer）も
         // snapshot が陳腐化するため、氏名・カナ変更時は顧客起点で再同期する（#301）
@@ -568,7 +579,7 @@ export async function updatePlotCore(
           role: ContractRole.applicant,
         },
       });
-      await recordCustomerCreated(tx, applicantCustomer, id, physicalPlotId, req);
+      await recordCustomerCreated(tx, applicantCustomer, id, physicalPlotId, req, changeReason);
       await recordEntityCreated(tx, {
         entityType: 'SaleContractRole',
         entityId: createdRole.id,
@@ -579,6 +590,7 @@ export async function updatePlotCore(
           role: createdRole.role,
           customer_id: createdRole.customer_id,
         },
+        changeReason,
         req,
       });
     }
@@ -606,6 +618,7 @@ export async function updatePlotCore(
             unit_price: before.unit_price,
             payment_method: before.payment_method,
           },
+          changeReason,
           req,
         });
       }
@@ -650,6 +663,7 @@ export async function updatePlotCore(
               unit_price: updated.unit_price,
               payment_method: updated.payment_method,
             },
+            changeReason,
             req,
           });
         } else {
@@ -675,6 +689,7 @@ export async function updatePlotCore(
               unit_price: created.unit_price,
               payment_method: created.payment_method,
             },
+            changeReason,
             req,
           });
         }
@@ -701,6 +716,7 @@ export async function updatePlotCore(
             billing_type: before.billing_type,
             billing_years: before.billing_years,
           },
+          changeReason,
           req,
         });
       }
@@ -763,6 +779,7 @@ export async function updatePlotCore(
               last_billing_month: updated.last_billing_month,
               payment_method: updated.payment_method,
             },
+            changeReason,
             req,
           });
         } else {
@@ -781,6 +798,7 @@ export async function updatePlotCore(
               id: created.id,
               ...managementFeeData,
             },
+            changeReason,
             req,
           });
         }
@@ -810,6 +828,7 @@ export async function updatePlotCore(
             direction_id: existingGravestone.direction_id,
             position_id: existingGravestone.position_id,
           },
+          changeReason,
           req,
         });
       }
@@ -854,6 +873,7 @@ export async function updatePlotCore(
               direction_id: updated.direction_id,
               position_id: updated.position_id,
             },
+            changeReason,
             req,
           });
         } else {
@@ -876,6 +896,7 @@ export async function updatePlotCore(
               direction_id: created.direction_id,
               position_id: created.position_id,
             },
+            changeReason,
             req,
           });
         }
@@ -927,6 +948,7 @@ export async function updatePlotCore(
             billing_amount: existingCB.billing_amount,
             notes: existingCB.notes,
           },
+          changeReason,
           req,
         });
       }
@@ -976,6 +998,7 @@ export async function updatePlotCore(
             billing_amount: updated.billing_amount,
             notes: updated.notes,
           },
+          changeReason,
           req,
         });
       } else {
@@ -1025,6 +1048,7 @@ export async function updatePlotCore(
             billing_amount: input.collectiveBurial.billingAmount ?? null,
             notes: input.collectiveBurial.notes || null,
           },
+          changeReason,
           req,
         });
       }
@@ -1088,6 +1112,7 @@ export async function updatePlotCore(
             relationship: before.relationship,
             phone_number: before.phone_number,
           },
+          changeReason,
           req,
         });
       }
@@ -1179,6 +1204,7 @@ export async function updatePlotCore(
             notes: before.notes,
           },
           afterRecord: serializeFc(fcData),
+          changeReason,
           req,
         });
       } else {
@@ -1195,6 +1221,7 @@ export async function updatePlotCore(
           contractPlotId: id,
           actionType: 'CREATE',
           afterRecord: { id: created.id, ...serializeFc(fcData) },
+          changeReason,
           req,
         });
       }
@@ -1236,6 +1263,7 @@ export async function updatePlotCore(
             death_date: before.death_date?.toISOString() ?? null,
             burial_date: before.burial_date?.toISOString() ?? null,
           },
+          changeReason,
           req,
         });
       }
@@ -1299,6 +1327,7 @@ export async function updatePlotCore(
             notes: before.notes,
           },
           afterRecord: serialize(bpData),
+          changeReason,
           req,
         });
       } else {
@@ -1315,6 +1344,7 @@ export async function updatePlotCore(
           contractPlotId: id,
           actionType: 'CREATE',
           afterRecord: { id: created.id, ...serialize(bpData) },
+          changeReason,
           req,
         });
       }
@@ -1365,6 +1395,7 @@ export async function updatePlotCore(
             start_date: before.start_date?.toISOString() ?? null,
             completion_date: before.completion_date?.toISOString() ?? null,
           },
+          changeReason,
           req,
         });
       }
@@ -1430,6 +1461,7 @@ export async function updatePlotCore(
           actionType: 'UPDATE',
           beforeRecord: beforeSerialized,
           afterRecord: serializeCi(ciData),
+          changeReason,
           req,
         });
       } else {
@@ -1446,6 +1478,7 @@ export async function updatePlotCore(
           contractPlotId: id,
           actionType: 'CREATE',
           afterRecord: { id: created.id, ...serializeCi(ciData) },
+          changeReason,
           req,
         });
       }
@@ -1503,7 +1536,8 @@ export async function updatePlotCore(
       afterContractPlotData,
       physicalPlotId,
       id,
-      req
+      req,
+      changeReason
     );
   }
 
@@ -1547,7 +1581,8 @@ export async function updatePlotCore(
         existingCustomer.id,
         id,
         physicalPlotId,
-        req
+        req,
+        changeReason
       );
     }
   }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  applicantSchema as sharedApplicantSchema,
   customerSchema as sharedCustomerSchema,
   familyContactSchema as sharedFamilyContactSchema,
   buriedPersonSchema as sharedBuriedPersonSchema,
@@ -219,13 +220,29 @@ const customerSchema = sharedCustomerSchema.omit({ role: true });
 
 /**
  * 勤務先情報のバリデーションスキーマ
- * バックエンドでは最小サブセットのみ受け付ける（shared workInfoSchema と構造が異なるため独自定義）。
+ * （shared workInfoSchema と構造が異なるため独自定義）。
+ * controller が読む全キーを受理する。最小サブセット時代は companyName/dmSetting 等が
+ * ネストレベルで剥がされ、勤務先名称等の編集が静かに破棄されていた（#320）。
+ * 各上限は DB の VarChar 長（company_name/company_name_kana=100, work_address=200）に整合。
  */
 const workInfoSchema = z
   .object({
+    companyName: z
+      .string()
+      .max(100, '勤務先名称は100文字以内で入力してください')
+      .optional()
+      .or(z.literal('')),
+    companyNameKana: z
+      .string()
+      .max(100, '勤務先名称カナは100文字以内で入力してください')
+      .optional()
+      .or(z.literal('')),
     workPostalCode: z.string().max(10).optional().or(z.literal('')),
     workAddress: z.string().max(200).optional().or(z.literal('')),
     workPhoneNumber: phoneSchema,
+    dmSetting: z.string().max(20).optional().or(z.literal('')),
+    addressType: z.string().max(20).optional().or(z.literal('')),
+    notes: z.string().max(1000).optional().or(z.literal('')),
   })
   .optional()
   .or(z.null());
@@ -271,10 +288,14 @@ export const createPlotSchema = z.object({
   contractPlot: contractPlotSchema,
   saleContract: saleContractSchema,
   customer: customerSchema,
+  // 申込者（任意）。スキーマ欠落により validate() で剥がされ controller に届かなかった（#320）
+  applicant: sharedApplicantSchema.optional(),
   workInfo: workInfoSchema,
   billingInfo: contractPlotBillingInfoSchema,
   usageFee: contractPlotUsageFeeSchema,
   managementFee: contractPlotManagementFeeSchema,
+  // 墓石情報（任意）。スキーマ欠落により validate() で剥がされ controller に届かなかった（#320）
+  gravestoneInfo: gravestoneInfoSchema,
   collectiveBurial: collectiveBurialSchema,
   familyContacts: z.array(familyContactSchema).optional(),
 });
@@ -288,14 +309,22 @@ export const updatePlotSchema = z.object({
   contractPlot: contractPlotSchema.partial().optional(),
   saleContract: saleContractSchema.partial().optional(),
   customer: customerSchema.partial().optional(),
+  // 申込者。undefined=変更なし / null=既存 applicant の解除 / object=upsert（既存は部分更新可）。
+  // スキーマ欠落により validate() で剥がされ、申込者編集が静かに破棄されていた（#320）
+  applicant: sharedApplicantSchema.partial().optional().or(z.null()),
   workInfo: workInfoSchema,
   billingInfo: contractPlotBillingInfoSchema,
   usageFee: contractPlotUsageFeeSchema,
   managementFee: contractPlotManagementFeeSchema,
+  // 墓石情報。undefined=変更なし / null=削除 / object=upsert（#154 の更新永続化の受け口）。
+  // スキーマ欠落により validate() で剥がされていた（#320）
+  gravestoneInfo: gravestoneInfoSchema.or(z.null()),
   familyContacts: z.array(familyContactSchema).optional(),
   buriedPersons: z.array(buriedPersonSchema).optional(),
   constructionInfos: z.array(constructionInfoUpdateSchema).optional(),
   collectiveBurial: collectiveBurialSchema,
+  // 変更理由（#261）。本更新で記録される履歴（History.change_reason VarChar(200)）に反映する
+  changeReason: z.string().trim().max(200, '変更理由は200文字以内で入力してください').optional(),
 });
 
 /**

@@ -397,6 +397,25 @@ describe('Plot Validation (ContractPlot Model)', () => {
 
       expect(() => createPlotSchema.parse(dataWithManagementFee)).not.toThrow();
     });
+
+    // #320: applicant / gravestoneInfo が Zod により黙って strip されていた問題の回帰テスト
+    it('applicant が parse 結果に保持されること（#320）', () => {
+      const data = {
+        ...validCreatePlotData,
+        applicant: { name: '山田花子', nameKana: 'ヤマダハナコ' },
+      };
+      const parsed = createPlotSchema.parse(data);
+      expect(parsed.applicant).toMatchObject({ name: '山田花子', nameKana: 'ヤマダハナコ' });
+    });
+
+    it('gravestoneInfo が parse 結果に保持されること（#320）', () => {
+      const data = {
+        ...validCreatePlotData,
+        gravestoneInfo: { gravestoneDealer: '〇〇石材', gravestoneType: '和型' },
+      };
+      const parsed = createPlotSchema.parse(data);
+      expect(parsed.gravestoneInfo).toMatchObject({ gravestoneDealer: '〇〇石材' });
+    });
   });
 
   describe('updatePlotSchema', () => {
@@ -615,6 +634,84 @@ describe('Plot Validation (ContractPlot Model)', () => {
       it('空配列も許容すること', () => {
         const data = { constructionInfos: [] };
         expect(() => updatePlotSchema.parse(data)).not.toThrow();
+      });
+    });
+
+    // #261: 変更理由の受理
+    describe('changeReason（#261）', () => {
+      it('changeReason を受理し parse 結果に保持すること', () => {
+        const parsed = updatePlotSchema.parse({ changeReason: '名義変更' });
+        expect(parsed.changeReason).toBe('名義変更');
+      });
+
+      it('changeReason 省略時は undefined のまま通過すること', () => {
+        const parsed = updatePlotSchema.parse({});
+        expect(parsed.changeReason).toBeUndefined();
+      });
+
+      it('changeReason が 200 文字を超えるとバリデーションエラーになること', () => {
+        expect(() => updatePlotSchema.parse({ changeReason: 'あ'.repeat(201) })).toThrow();
+      });
+    });
+
+    // #320: applicant / gravestoneInfo / workInfo ネストキーが Zod により黙って strip されていた問題の回帰テスト
+    // （#62 の physicalPlot / constructionInfos と同種）
+    describe('applicant / gravestoneInfo / workInfo の strip 回帰（#320）', () => {
+      it('applicant が parse 結果に保持されること', () => {
+        const data = {
+          applicant: { name: '山田花子', nameKana: 'ヤマダハナコ', phoneNumber: '09012345678' },
+        };
+        const parsed = updatePlotSchema.parse(data);
+        expect(parsed.applicant).toMatchObject({ name: '山田花子', nameKana: 'ヤマダハナコ' });
+      });
+
+      it('applicant の部分更新（name 無し）も受理すること', () => {
+        const parsed = updatePlotSchema.parse({ applicant: { phoneNumber: '09012345678' } });
+        expect(parsed.applicant).toMatchObject({ phoneNumber: '09012345678' });
+      });
+
+      it('applicant: null（既存 applicant の解除）を受理すること', () => {
+        const parsed = updatePlotSchema.parse({ applicant: null });
+        expect(parsed.applicant).toBeNull();
+      });
+
+      it('gravestoneInfo が parse 結果に保持されること', () => {
+        const data = {
+          gravestoneInfo: { gravestoneDealer: '〇〇石材', gravestoneType: '和型' },
+        };
+        const parsed = updatePlotSchema.parse(data);
+        expect(parsed.gravestoneInfo).toMatchObject({ gravestoneDealer: '〇〇石材' });
+      });
+
+      it('gravestoneInfo: null（削除）を受理すること', () => {
+        const parsed = updatePlotSchema.parse({ gravestoneInfo: null });
+        expect(parsed.gravestoneInfo).toBeNull();
+      });
+
+      it('workInfo の companyName / dmSetting 等が strip されないこと', () => {
+        const data = {
+          workInfo: {
+            companyName: '株式会社テスト',
+            companyNameKana: 'カブシキガイシャテスト',
+            workAddress: '東京都港区',
+            dmSetting: 'allow',
+            addressType: 'work',
+            notes: '勤務先メモ',
+          },
+        };
+        const parsed = updatePlotSchema.parse(data);
+        expect(parsed.workInfo).toMatchObject({
+          companyName: '株式会社テスト',
+          dmSetting: 'allow',
+          addressType: 'work',
+          notes: '勤務先メモ',
+        });
+      });
+
+      it('workInfo の companyName が 100 文字を超えるとバリデーションエラーになること', () => {
+        expect(() =>
+          updatePlotSchema.parse({ workInfo: { companyName: 'あ'.repeat(101) } })
+        ).toThrow();
       });
     });
   });
