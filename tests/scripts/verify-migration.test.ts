@@ -85,4 +85,22 @@ describe('judgeCount (#223)', () => {
       expect(judgeCount(11, null, 11)).toBe('✅');
     });
   });
+
+  describe('終了顧客の別掲（#314）', () => {
+    // 修正前: 契約者カウントが is_terminated を区別せず actual≈3637(=3487+150) となり、
+    // del_flg=0 ベースのレガシー参照値 3487 と粒度不一致のまま 105% 上限ギリギリで
+    // たまたま ✅ だった（終了顧客が 5% を超えると誤 ❌）。
+    // 修正後: 契約者行は is_terminated:false で 3487、終了顧客は別行で del_flg=2 と突き合わせる。
+    it('終了顧客行: レガシー del_flg=2 件数と一致すれば ✅', () => {
+      expect(judgeCount(150, 150, null)).toBe('✅');
+    });
+
+    it('終了顧客行: 取込漏れ（0件）は ❌', () => {
+      expect(judgeCount(0, 150, null)).toBe('❌');
+    });
+
+    it('終了顧客行: レガシー接続なしでは ⚠️（確定ベースライン未取得のため）', () => {
+      expect(judgeCount(150, null, null)).toBe('⚠️');
+    });
+  });
 });

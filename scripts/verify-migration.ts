@@ -190,6 +190,7 @@ async function reconcileCounts(prisma: PrismaClient, legacyOn: boolean): Promise
     staff,
     physicalPlots,
     customers,
+    terminatedCustomers,
     applicantCustomers,
     applicantRoles,
     contractPlots,
@@ -208,8 +209,14 @@ async function reconcileCounts(prisma: PrismaClient, legacyOn: boolean): Promise
     }),
     prisma.physicalPlot.count({ where: { deleted_at: null } }),
     // 契約者由来のみ（#265）: step06 の申込者展開 Customer（1:N）を混ぜると
-    // ベースライン(t_danka=契約者のみ)超過で誤 ❌ になるため legacy_danka_cd で絞る
-    prisma.customer.count({ where: { deleted_at: null, legacy_danka_cd: { not: null } } }),
+    // ベースライン(t_danka=契約者のみ)超過で誤 ❌ になるため legacy_danka_cd で絞る。
+    // 終了顧客（is_terminated、del_flg=2 由来 #129/PR#309）も legacy_danka_cd を持つが
+    // レガシー参照値は del_flg=0 ベースのため除外し、別行で del_flg=2 と突き合わせる（#314）
+    prisma.customer.count({
+      where: { deleted_at: null, legacy_danka_cd: { not: null }, is_terminated: false },
+    }),
+    // 終了顧客（del_flg=2 由来、#129）。13-summary の terminated_customers と同じ粒度
+    prisma.customer.count({ where: { deleted_at: null, is_terminated: true } }),
     // 申込者展開 Customer は別行で検証（applicant ロール数との整合）
     prisma.customer.count({
       where: { deleted_at: null, legacy_applicant_danka_cd: { not: null } },
@@ -224,15 +231,16 @@ async function reconcileCounts(prisma: PrismaClient, legacyOn: boolean): Promise
     prisma.payment.count({ where: { deleted_at: null } }),
   ]);
 
-  // レガシー件数(del_flg=0)。接続できない場合は null。
-  const legacy = async (table: string): Promise<number | null> => {
+  // レガシー件数(既定 del_flg=0)。接続できない場合は null。
+  const legacy = async (table: string, where?: string): Promise<number | null> => {
     if (!legacyOn) return null;
-    return legacyCount(table);
+    return where ? legacyCount(table, where) : legacyCount(table);
   };
 
   const [
     legPhysical,
     legCustomer,
+    legCustomerTerminated,
     legContract,
     legFamily,
     legBuried,
@@ -242,6 +250,8 @@ async function reconcileCounts(prisma: PrismaClient, legacyOn: boolean): Promise
   ] = await Promise.all([
     legacy('m_bochi'),
     legacy('t_danka'),
+    // 終了顧客のレガシー参照値（13-summary の customer_terminated と同じ条件 #314）
+    legacy('t_danka', 'del_flg=2'),
     legacy('m_bochi'),
     legacy('t_family'),
     legacy('t_maisou'),
@@ -283,13 +293,25 @@ async function reconcileCounts(prisma: PrismaClient, legacyOn: boolean): Promise
       judgment: judgeCount(physicalPlots, legPhysical, b.insertedCounts.physical_plots),
     },
     {
-      label: 'Customer (契約者: legacy_danka_cd 有)',
+      label: 'Customer (契約者: legacy_danka_cd 有・終了顧客除く)',
       legacyTable: 't_danka',
       legacy: legCustomer,
       actual: customers,
       baselineLegacy: b.legacyCounts.customers,
       baselineInserted: b.insertedCounts.customers,
       judgment: judgeCount(customers, legCustomer, b.insertedCounts.customers),
+    },
+    {
+      // 終了顧客（del_flg=2 由来、#129/PR#309）。契約者行とは粒度を分けて
+      // レガシー del_flg=2 件数と直接突き合わせる（#314）。
+      // 確定ベースラインは未取得（約150件）のため、レガシー接続なし時は ⚠️ となる
+      label: 'Customer (終了顧客: is_terminated)',
+      legacyTable: 't_danka (del_flg=2)',
+      legacy: legCustomerTerminated,
+      actual: terminatedCustomers,
+      baselineLegacy: null,
+      baselineInserted: null,
+      judgment: judgeCount(terminatedCustomers, legCustomerTerminated, null),
     },
     {
       // 申込者展開（step06: applicant != contractor の場合の別 Customer）。
