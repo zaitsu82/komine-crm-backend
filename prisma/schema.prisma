@@ -250,6 +250,9 @@ model Customer {
   // 申込者（契約者と別人）として移行時に作成された Customer の識別用（#221）。
   // truncate / cleanup の削除条件と step06 の冪等チェックに使う。
   legacy_applicant_danka_cd Int?
+  // 解約済み（取引終了）顧客フラグ。レガシー t_danka.del_flg=2 由来。
+  // 業務確認（2026-06-07 Q21）:「終了」印付きで取り込み、解約者で情報をまとめて参照できるようにする（#129）
+  is_terminated             Boolean   @default(false)
   created_at                DateTime  @default(now())
   updated_at                DateTime  @updatedAt
   deleted_at                DateTime?
