@@ -159,9 +159,12 @@ describe('collectiveBurialController — バグ修正回帰', () => {
       expect(responseStatus).toHaveBeenCalledWith(201);
     });
 
-    it('復活時に残存する埋葬者から count・上限到達日・請求予定日を再同期する (#281)', async () => {
+    it('復活時に残存する埋葬者から count・上限到達日を再同期する (#281)。請求予定日は契約日起点 (#164)', async () => {
       // シナリオ: 合祀のみ削除（BuriedPerson 7名は ContractPlot 紐付けで残存）→ 同区画で再作成
-      mockPrisma.contractPlot.findFirst.mockResolvedValue({ id: 'cp1' });
+      mockPrisma.contractPlot.findFirst.mockResolvedValue({
+        id: 'cp1',
+        contract_date: new Date('2026-04-01T00:00:00Z'),
+      });
       // 1回目: 既存チェック（ソフトデリート済み行）/ 2回目: 再同期内の取得（復活済み行）
       mockPrisma.collectiveBurial.findUnique
         .mockResolvedValueOnce({ ...CB_ROW, deleted_at: new Date('2026-05-01') })
@@ -173,7 +176,6 @@ describe('collectiveBurialController — バグ修正回帰', () => {
         burial_capacity: 5,
         current_burial_count: 7,
         capacity_reached_date: new Date('2026-06-06'),
-        billing_scheduled_date: new Date('2059-06-06'),
       };
       mockPrisma.collectiveBurial.update
         .mockResolvedValueOnce(restoredRow)
@@ -183,12 +185,18 @@ describe('collectiveBurialController — バグ修正回帰', () => {
       mockRequest.body = { ...validBody, burialCapacity: 5 };
       await createCollectiveBurial(mockRequest as Request, mockResponse as Response, mockNext);
 
-      // 再同期 update（2回目）が実埋葬者数で行われ、上限到達日・請求予定日もセットされること
       expect(mockPrisma.collectiveBurial.update).toHaveBeenCalledTimes(2);
+
+      // 復活 update（1回目）で請求予定日が契約日起点で導出されること（#164: 2026-04-01 + 33年）
+      const reviveCall = mockPrisma.collectiveBurial.update.mock.calls[0][0];
+      expect(reviveCall.data.billing_scheduled_date.toISOString()).toBe('2059-04-01T00:00:00.000Z');
+
+      // 再同期 update（2回目）が実埋葬者数で行われ、上限到達日がセットされること。
+      // 請求予定日は契約日起点（#164）のため再同期では変更されない
       const syncCall = mockPrisma.collectiveBurial.update.mock.calls[1][0];
       expect(syncCall.data).toMatchObject({ current_burial_count: 7 });
       expect(syncCall.data.capacity_reached_date).toBeInstanceOf(Date);
-      expect(syncCall.data.billing_scheduled_date).toBeInstanceOf(Date);
+      expect(syncCall.data.billing_scheduled_date).toBeUndefined();
 
       // レスポンスは再同期後の値（count=0 固定でない）こと
       expect(responseStatus).toHaveBeenCalledWith(201);
@@ -198,7 +206,7 @@ describe('collectiveBurialController — バグ修正回帰', () => {
   });
 
   describe('syncBurialCount (#203)', () => {
-    it('上限到達後に人数が減ったら上限到達日・請求予定日がリセットされる', async () => {
+    it('上限到達後に人数が減ったら上限到達日がリセットされる（請求予定日は契約日起点で維持 #164）', async () => {
       mockPrisma.collectiveBurial.findFirst.mockResolvedValue({
         ...CB_ROW,
         current_burial_count: 10,
@@ -217,7 +225,7 @@ describe('collectiveBurialController — バグ修正回帰', () => {
         ...CB_ROW,
         current_burial_count: 9,
         capacity_reached_date: null,
-        billing_scheduled_date: null,
+        billing_scheduled_date: new Date('2058-01-01T00:00:00Z'), // 維持される
       });
 
       mockRequest.params = { id: 'cb1' };
@@ -228,10 +236,12 @@ describe('collectiveBurialController — バグ修正回帰', () => {
           data: expect.objectContaining({
             current_burial_count: 9,
             capacity_reached_date: null,
-            billing_scheduled_date: null,
           }),
         })
       );
+      // 請求予定日は契約日起点（#164）のため埋葬数の増減ではリセットされない
+      const syncData = mockPrisma.collectiveBurial.update.mock.calls[0][0].data;
+      expect(syncData.billing_scheduled_date).toBeUndefined();
       expect(responseJson).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
@@ -239,13 +249,13 @@ describe('collectiveBurialController — バグ修正回帰', () => {
             currentBurialCount: 9,
             capacityReached: false,
             capacityReachedDate: null,
-            billingScheduledDate: null,
+            billingScheduledDate: '2058-01-01',
           }),
         })
       );
     });
 
-    it('上限到達（初回）で上限到達日・請求予定日がセットされる', async () => {
+    it('上限到達（初回）で上限到達日がセットされる（請求予定日は変更しない #164）', async () => {
       mockPrisma.collectiveBurial.findFirst.mockResolvedValue(CB_ROW);
       mockPrisma.collectiveBurial.findUnique.mockResolvedValue(CB_ROW);
       mockPrisma.buriedPerson.count.mockResolvedValue(10);
@@ -253,7 +263,6 @@ describe('collectiveBurialController — バグ修正回帰', () => {
         ...CB_ROW,
         current_burial_count: 10,
         capacity_reached_date: new Date('2026-06-05'),
-        billing_scheduled_date: new Date('2059-06-05'),
       });
 
       mockRequest.params = { id: 'cb1' };
@@ -264,10 +273,11 @@ describe('collectiveBurialController — バグ修正回帰', () => {
           data: expect.objectContaining({
             current_burial_count: 10,
             capacity_reached_date: expect.any(Date),
-            billing_scheduled_date: expect.any(Date),
           }),
         })
       );
+      const syncData = mockPrisma.collectiveBurial.update.mock.calls[0][0].data;
+      expect(syncData.billing_scheduled_date).toBeUndefined();
       expect(responseJson).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ capacityReached: true }),
