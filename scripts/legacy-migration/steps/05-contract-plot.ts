@@ -166,6 +166,11 @@ export const stepContractPlot: MigrationStep = {
         continue;
       }
 
+      // 業務確認（komine-docs#10 Q4/Q5）: 許可日＝開始年月日＝「入金完了しシステム入力した日」で
+      // 三者は同義。レガシーに専用列は無く、契約日(contract_start)を代理値とする（建立期限/建立日は
+      // GravestoneInfo へ別途格納済み #326）。新規入力分はスタッフが必要に応じ調整する。
+      const contractDate = parseLegacyDate(row.contract_start);
+
       const data: Prisma.ContractPlotCreateInput = {
         physicalPlot: { connect: { id: physicalPlotId } },
         contract_area_sqm: 3.6,
@@ -175,18 +180,15 @@ export const stepContractPlot: MigrationStep = {
         grave_kubun: row.grave_kubun,
         grave_type: row.grave_type,
         legacy_grave_cd: row.grave_cd,
-        contract_date: parseLegacyDate(row.contract_start),
+        contract_date: contractDate,
         price: row.shiyouryou ?? null,
         request_date: parseLegacyDate(row.request_date),
         reservation_date: parseLegacyDate(row.reserve_date),
         acceptance_number: row.auth_no != null ? String(row.auth_no) : null,
         acceptance_date: parseLegacyDate(row.auth_date),
-        // 許可日(permit_date)/開始日(start_date) はレガシーの真の対応列が未確定（komine-docs#10 項目5）。
-        // 以前は konryu_kigen(建立期限)/konryu_date(建立日) を誤って入れていた（#326）。
-        // 建立期限/建立日は GravestoneInfo.establishment_deadline/establishment_date へ移す（下記）。
-        // 真の許可日列が確定するまで null。
-        permit_date: null,
-        start_date: null,
+        // 許可日/開始日＝契約日（上記コメント参照、komine-docs#10 Q4/Q5）
+        permit_date: contractDate,
+        start_date: contractDate,
         notes: cleanStr(row.note),
       };
 
