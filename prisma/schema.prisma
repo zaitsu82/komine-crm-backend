@@ -569,10 +569,16 @@ model History {
   ip_address       String?    @db.VarChar(50) // 変更元IPアドレス
   created_at       DateTime   @default(now())
 
+  // レガシー履歴（t_dankalog / t_famlog）取込の冪等キー（#324）。
+  // 各ログ行の PK（danka_log_cd / family_log_id）をテーブル名と組で一意にし、再実行時の重複INSERTを防ぐ。
+  legacy_log_cd    Int? // ログ行の PK
+  legacy_log_table String? @db.VarChar(20) // 't_dankalog' / 't_famlog'
+
   // Relations
   physicalPlot PhysicalPlot? @relation(fields: [physical_plot_id], references: [id], onDelete: SetNull)
   contractPlot ContractPlot? @relation(fields: [contract_plot_id], references: [id], onDelete: SetNull)
 
+  @@unique([legacy_log_table, legacy_log_cd])
   @@index([entity_type, entity_id])
   @@index([physical_plot_id])
   @@index([contract_plot_id])
