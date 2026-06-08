@@ -12,6 +12,7 @@ interface BochiPhysicalRow extends RowDataPacket {
   grave_mei: string | null;
   map_id: number | null;
   note: string | null;
+  m_area_name: string | null; // m_area.area_name（area_cd 経由の実区画名。#151）
 }
 
 /**
@@ -20,7 +21,8 @@ interface BochiPhysicalRow extends RowDataPacket {
  * 1 m_bochi 行 = 1 PhysicalPlot + 1 ContractPlot に分解する設計のため、
  * ここでは物理側のみ作成。grave_cd を一意の plot_number とする。
  *
- * area_name は chiku_cd + area_cd の組合せから簡易生成（後でマスタ参照に差し替え可）
+ * area_name は m_bochi.area_cd → m_area.area_name（実区画名: 凛A/つながり/樹林/A〜V/数字 等）。
+ * m_area に対応が無い区画（実測3件のみ）は旧形式 `chiku_cd-area_cd` にフォールバック。#151
  *
  * 異常値除外:
  *   - chiku_cd=0, area_cd=99999999 等は B-3 で発見済のテストデータ
@@ -30,9 +32,11 @@ export const stepPhysicalPlot: MigrationStep = {
   name: 'physicalPlot',
   async run({ prisma, logger, idMaps, dryRun }) {
     const rows = await legacyQuery<BochiPhysicalRow>(
-      `SELECT grave_cd, chiku_cd, area_cd, grave_name_cd, grave_mei, map_id, note
-         FROM m_bochi
-        WHERE del_flg = 0 OR del_flg IS NULL`
+      `SELECT b.grave_cd, b.chiku_cd, b.area_cd, b.grave_name_cd, b.grave_mei, b.map_id, b.note,
+              a.area_name AS m_area_name
+         FROM m_bochi b
+         LEFT JOIN m_area a ON a.area_cd = b.area_cd
+        WHERE b.del_flg = 0 OR b.del_flg IS NULL`
     );
 
     let inserted = 0;
@@ -47,10 +51,13 @@ export const stepPhysicalPlot: MigrationStep = {
       }
       seenPlotNumbers.add(plotNumber);
 
+      // 区画名は m_area.area_name（実区画名）を優先。全角英数は半角化。
+      // m_area に対応が無い区画は旧形式 chiku_cd-area_cd にフォールバック（実測3件のみ）。#151
       const areaName =
-        row.chiku_cd != null && row.area_cd != null
+        normalizeGraveName(row.m_area_name) ??
+        (row.chiku_cd != null && row.area_cd != null
           ? `${row.chiku_cd}-${row.area_cd}`
-          : `unknown-${row.grave_cd}`;
+          : `unknown-${row.grave_cd}`);
 
       // 表示用区画番号（grave_name_cd 由来、例: "A-100"）。plot_number は
       // ユニーク制約・一括取込キーのため legacy-{grave_cd} を維持し、表示はこちら。#158
