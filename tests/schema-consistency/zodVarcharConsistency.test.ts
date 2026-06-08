@@ -140,26 +140,11 @@ const EXCEPTIONS: Record<string, Record<string, string>> = {
 
 /**
  * 既知の不整合ベースライン（key=`${schemaName}.${zodField}`、value=対応 VarChar 長）。
- * これらは本テスト導入時点で既に存在していた zod max > VarChar。正式対応（拡幅 vs zod 縮小）は
- * backend #338 で追跡する。解消したら必ずこのテーブルから削除すること（stale 検出で落ちる）。
- *
- * 内訳:
- *  - 電話/郵便番号(6件): DB は全モデル一律 VarChar(7=郵便, 11/15=電話) の digits-only 想定。
- *    zod はハイフン込みの緩い max。保存規約（数字のみ vs 書式込み）の確定が必要。
- *  - paymentMethod(2件)/gravestoneType(1件): zod が兄弟フィールドと不揃い（コピペ）。
- *    zod を VarChar に合わせる（types 変更）べきもの。
+ * 本テスト導入時点の不整合9件は #338 / types#46 で全て解消（電話/郵便は「数字のみ保存」確定で
+ * zod を VarChar に縮小、paymentMethod/gravestoneType も zod を縮小）。ベースラインは空に戻した。
+ * 今後 zod max > VarChar が新たに出たらテストが落ちる。正当な例外を許容する場合のみここへ追記する。
  */
-const KNOWN_VIOLATIONS: Record<string, number> = {
-  'workInfoSchema.workPostalCode': 7,
-  'familyContactSchema.postalCode': 7,
-  'familyContactSchema.phoneNumber': 11,
-  'familyContactSchema.phoneNumber2': 15,
-  'familyContactSchema.faxNumber': 11,
-  'familyContactSchema.workPhoneNumber': 15,
-  'usageFeeSchema.paymentMethod': 20,
-  'managementFeeSchema.paymentMethod': 20,
-  'gravestoneInfoSchema.gravestoneType': 50,
-};
+const KNOWN_VIOLATIONS: Record<string, number> = {};
 
 interface Violation {
   key: string;
