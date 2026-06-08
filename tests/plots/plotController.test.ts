@@ -79,6 +79,12 @@ const mockPrisma: any = {
     update: jest.fn(),
     updateMany: jest.fn(),
   },
+  buriedPerson: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn(),
+  },
   history: {
     create: jest.fn(),
     createMany: jest.fn(),
@@ -2266,6 +2272,95 @@ describe('Plot Controller (ContractPlot Model)', () => {
       expect(mockPrisma.familyContact.findMany).not.toHaveBeenCalled();
       expect(mockPrisma.familyContact.create).not.toHaveBeenCalled();
       expect(mockPrisma.familyContact.updateMany).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('BuriedPerson persistence (issue #330)', () => {
+    const buriedPersonInput = {
+      name: '山田一郎',
+      nameKana: 'ヤマダイチロウ',
+      relationship: '父',
+      deathDate: '2020-05-10',
+      burialDate: '2020-05-20',
+      posthumousName: '釈浄一',
+      religion: '浄土真宗',
+      deathPlace: '東京都病院',
+      causeOfDeath: '老衰',
+      chiefMournerName: '山田太郎',
+      chiefMournerRelationship: '長男',
+      validityPeriodYearsOverride: 13,
+      notes: '備考',
+    };
+
+    const setupCreateMocks = () => {
+      mockPrisma.physicalPlot.create.mockResolvedValue({
+        id: 'pp1',
+        plot_number: 'A-01',
+        area_name: '一般墓地A',
+        area_sqm: new Prisma.Decimal(3.6),
+        status: 'sold_out',
+      });
+      mockPrisma.customer.create.mockResolvedValue({ id: 'c1', name: '山田太郎' });
+      mockPrisma.contractPlot.create.mockResolvedValue({ id: 'cp1', physical_plot_id: 'pp1' });
+      mockPrisma.saleContractRole.create.mockResolvedValue({ id: 'scr1', customer: { id: 'c1' } });
+      mockPrisma.buriedPerson.create.mockResolvedValue({ id: 'bp1', name: '山田一郎' });
+      mockPrisma.contractPlot.findUnique.mockResolvedValue({
+        id: 'cp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(3.6) },
+        saleContractRoles: [],
+      });
+    };
+
+    it('createPlot は buriedPersons を snake_case で永続化する', async () => {
+      setupCreateMocks();
+
+      mockRequest.body = {
+        physicalPlot: { plotNumber: 'A-01', areaName: '一般墓地A', areaSqm: 3.6 },
+        contractPlot: { contractAreaSqm: 3.6 },
+        saleContract: {},
+        customer: { name: '山田太郎', nameKana: 'ヤマダタロウ' },
+        buriedPersons: [buriedPersonInput],
+      };
+
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.buriedPerson.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            contract_plot_id: 'cp1',
+            name: '山田一郎',
+            name_kana: 'ヤマダイチロウ',
+            relationship: '父',
+            posthumous_name: '釈浄一',
+            religion: '浄土真宗',
+            death_place: '東京都病院',
+            cause_of_death: '老衰',
+            chief_mourner_name: '山田太郎',
+            chief_mourner_relationship: '長男',
+            validity_period_years_override: 13,
+            notes: '備考',
+          }),
+        })
+      );
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('createPlot は氏名が空の buriedPerson をスキップする', async () => {
+      setupCreateMocks();
+
+      mockRequest.body = {
+        physicalPlot: { plotNumber: 'A-01', areaName: '一般墓地A', areaSqm: 3.6 },
+        contractPlot: { contractAreaSqm: 3.6 },
+        saleContract: {},
+        customer: { name: '山田太郎', nameKana: 'ヤマダタロウ' },
+        buriedPersons: [{ name: '   ' }],
+      };
+
+      await createPlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockPrisma.buriedPerson.create).not.toHaveBeenCalled();
       expect(mockNext).not.toHaveBeenCalled();
     });
   });

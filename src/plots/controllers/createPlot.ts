@@ -22,7 +22,10 @@ import {
   buildGravestoneInfoData,
   syncPrimaryContractorNameKana,
 } from '../utils';
-import { resolveBillingScheduledDate } from '../../collective-burials/utils';
+import {
+  resolveBillingScheduledDate,
+  updateCollectiveBurialCount,
+} from '../../collective-burials/utils';
 import prisma from '../../db/prisma';
 import { ValidationError, NotFoundError } from '../../middleware/errorHandler';
 import {
@@ -366,6 +369,57 @@ export async function createPlotCore(
     }
   }
 
+  // 9.6. 埋葬者の作成（#330: createPlot に作成処理が無く、送信された埋葬者が
+  // 静かに破棄されていた。updatePlot の作成経路と同じフィールドセットで保存する）
+  const createdBuriedPersons: Array<{ id: string; data: Record<string, unknown> }> = [];
+  if (input.buriedPersons?.length) {
+    for (const bp of input.buriedPersons) {
+      // 氏名は NOT NULL 制約。空行はスキップして DB エラーを防ぐ。
+      const bpName = bp.name?.trim();
+      if (!bpName) {
+        continue;
+      }
+
+      const created = await tx.buriedPerson.create({
+        data: {
+          contract_plot_id: contractPlot.id,
+          name: bpName,
+          name_kana: bp.nameKana || null,
+          relationship: bp.relationship || null,
+          birth_date: bp.birthDate ? new Date(bp.birthDate) : null,
+          death_date: bp.deathDate ? new Date(bp.deathDate) : null,
+          age: bp.age ?? null,
+          gender: bp.gender || null,
+          burial_date: bp.burialDate ? new Date(bp.burialDate) : null,
+          posthumous_name: bp.posthumousName || null,
+          report_date: bp.reportDate ? new Date(bp.reportDate) : null,
+          religion: bp.religion || null,
+          death_place: bp.deathPlace || null,
+          cause_of_death: bp.causeOfDeath || null,
+          chief_mourner_name: bp.chiefMournerName || null,
+          chief_mourner_relationship: bp.chiefMournerRelationship || null,
+          validity_period_years_override: bp.validityPeriodYearsOverride ?? null,
+          notes: bp.notes || null,
+        },
+      });
+      createdBuriedPersons.push({
+        id: created.id,
+        data: {
+          name: created.name,
+          name_kana: created.name_kana,
+          relationship: created.relationship,
+          death_date: created.death_date?.toISOString() ?? null,
+          burial_date: created.burial_date?.toISOString() ?? null,
+          validity_period_years_override: created.validity_period_years_override,
+        },
+      });
+    }
+    // 合祀定員ありなら埋葬者数を再計算（updatePlot と同じ）
+    if (contractPlot.burial_capacity) {
+      await updateCollectiveBurialCount(tx, contractPlot.id);
+    }
+  }
+
   // 10. 物理区画のステータス更新
   await updatePhysicalPlotStatus(tx, physicalPlot.id);
 
@@ -468,6 +522,16 @@ export async function createPlotCore(
       physicalPlotId: physicalPlot.id,
       contractPlotId: contractPlot.id,
       afterRecord: { id: fc.id, ...fc.data },
+      req,
+    });
+  }
+  for (const bp of createdBuriedPersons) {
+    await recordEntityCreated(tx, {
+      entityType: 'BuriedPerson',
+      entityId: bp.id,
+      physicalPlotId: physicalPlot.id,
+      contractPlotId: contractPlot.id,
+      afterRecord: { id: bp.id, ...bp.data },
       req,
     });
   }
