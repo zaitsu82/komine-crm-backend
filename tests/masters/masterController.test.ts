@@ -176,6 +176,12 @@ const mockPrisma: any = {
   positionMaster: {
     findMany: jest.fn(),
   },
+  validityPeriodMaster: {
+    findMany: jest.fn(),
+  },
+  changeReasonMaster: {
+    findMany: jest.fn(),
+  },
 };
 
 // PrismaClientをモック化
@@ -197,6 +203,8 @@ import {
   getContractorMaster,
   getDirectionMaster,
   getPositionMaster,
+  getValidityPeriodMaster,
+  getChangeReasonMaster,
   getAllMasters,
 } from '../../src/masters/masterController';
 
@@ -698,6 +706,8 @@ describe('Master Controller', () => {
       mockPrisma.contractorMaster.findMany.mockResolvedValue(mockContractorData);
       mockPrisma.directionMaster.findMany.mockResolvedValue(mockDirectionData);
       mockPrisma.positionMaster.findMany.mockResolvedValue(mockPositionData);
+      mockPrisma.validityPeriodMaster.findMany.mockResolvedValue([]);
+      mockPrisma.changeReasonMaster.findMany.mockResolvedValue([]);
 
       await getAllMasters(mockRequest as Request, mockResponse as Response);
 
@@ -884,6 +894,80 @@ describe('Master Controller', () => {
           message: '位置マスタの取得に失敗しました',
         },
       });
+    });
+  });
+
+  describe('getValidityPeriodMaster (#343)', () => {
+    it('合祀年数マスタを取得できること', async () => {
+      mockPrisma.validityPeriodMaster.findMany.mockResolvedValue([
+        { id: 1, code: '13', name: '13年', description: null, sort_order: 13, is_active: true },
+      ]);
+
+      await getValidityPeriodMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.validityPeriodMaster.findMany).toHaveBeenCalledWith({
+        where: { is_active: true },
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      });
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: [
+          { id: 1, code: '13', name: '13年', description: null, sortOrder: 13, isActive: true },
+        ],
+      });
+    });
+
+    it('エラー時は500を返すこと', async () => {
+      mockPrisma.validityPeriodMaster.findMany.mockRejectedValue(new Error('Database error'));
+
+      await getValidityPeriodMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+    });
+  });
+
+  describe('getChangeReasonMaster (#344)', () => {
+    it('変更理由マスタを取得できること', async () => {
+      mockPrisma.changeReasonMaster.findMany.mockResolvedValue([
+        {
+          id: 1,
+          code: 'meigi',
+          name: '名義変更',
+          description: null,
+          sort_order: 1,
+          is_active: true,
+        },
+      ]);
+
+      await getChangeReasonMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockPrisma.changeReasonMaster.findMany).toHaveBeenCalledWith({
+        where: { is_active: true },
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      });
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: [
+          {
+            id: 1,
+            code: 'meigi',
+            name: '名義変更',
+            description: null,
+            sortOrder: 1,
+            isActive: true,
+          },
+        ],
+      });
+    });
+
+    it('エラー時は500を返すこと', async () => {
+      mockPrisma.changeReasonMaster.findMany.mockRejectedValue(new Error('Database error'));
+
+      await getChangeReasonMaster(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
     });
   });
 });

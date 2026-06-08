@@ -511,6 +511,64 @@ export const getPositionMaster = async (req: Request, res: Response) => {
 };
 
 /**
+ * 合祀年数マスタ取得（#343）
+ */
+export const getValidityPeriodMaster = async (req: Request, res: Response) => {
+  try {
+    const data = await prisma.validityPeriodMaster.findMany({
+      where: buildMasterWhere(req),
+      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+    });
+
+    const formatted: MasterData[] = data.map((item) => ({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      description: item.description,
+      sortOrder: item.sort_order,
+      isActive: item.is_active,
+    }));
+
+    res.status(200).json({ success: true, data: formatted });
+  } catch (error) {
+    getRequestLogger().error({ err: error }, 'Error fetching validity period master');
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: '合祀年数マスタの取得に失敗しました' },
+    });
+  }
+};
+
+/**
+ * 変更理由マスタ取得（#344）
+ */
+export const getChangeReasonMaster = async (req: Request, res: Response) => {
+  try {
+    const data = await prisma.changeReasonMaster.findMany({
+      where: buildMasterWhere(req),
+      orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+    });
+
+    const formatted: MasterData[] = data.map((item) => ({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      description: item.description,
+      sortOrder: item.sort_order,
+      isActive: item.is_active,
+    }));
+
+    res.status(200).json({ success: true, data: formatted });
+  } catch (error) {
+    getRequestLogger().error({ err: error }, 'Error fetching change reason master');
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_SERVER_ERROR', message: '変更理由マスタの取得に失敗しました' },
+    });
+  }
+};
+
+/**
  * マスタ CRUD で使う DB クライアント。トランザクション内では tx を渡す（#278）。
  */
 type MasterDbClient = typeof prisma | Prisma.TransactionClient;
@@ -532,6 +590,8 @@ const getMasterDelegate = (masterType: MasterType, db: MasterDbClient = prisma):
     contractor: db.contractorMaster,
     direction: db.directionMaster,
     position: db.positionMaster,
+    'validity-period': db.validityPeriodMaster,
+    'change-reason': db.changeReasonMaster,
   };
   return delegateMap[masterType] as MasterDelegate;
 };
@@ -549,6 +609,8 @@ const masterTypeLabels: Record<MasterType, string> = {
   contractor: '工事業者',
   direction: '方角',
   position: '位置',
+  'validity-period': '合祀年数',
+  'change-reason': '変更理由',
 };
 
 /**
@@ -568,6 +630,8 @@ const MASTER_CODE_MAX_LENGTH: Record<MasterType, number> = {
   contractor: 20,
   direction: 10,
   position: 10,
+  'validity-period': 10,
+  'change-reason': 10,
 };
 
 /**
@@ -1099,6 +1163,8 @@ export const getAllMasters = async (req: Request, res: Response) => {
       contractor,
       direction,
       position,
+      validityPeriod,
+      changeReason,
     ] = await Promise.all([
       prisma.cemeteryTypeMaster.findMany({
         where: buildMasterWhere(req),
@@ -1145,6 +1211,14 @@ export const getAllMasters = async (req: Request, res: Response) => {
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
       prisma.positionMaster.findMany({
+        where: buildMasterWhere(req),
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      }),
+      prisma.validityPeriodMaster.findMany({
+        where: buildMasterWhere(req),
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+      }),
+      prisma.changeReasonMaster.findMany({
         where: buildMasterWhere(req),
         orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
       }),
@@ -1244,6 +1318,22 @@ export const getAllMasters = async (req: Request, res: Response) => {
           isActive: item.is_active,
         })),
         position: position.map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+          description: item.description,
+          sortOrder: item.sort_order,
+          isActive: item.is_active,
+        })),
+        validityPeriod: validityPeriod.map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+          description: item.description,
+          sortOrder: item.sort_order,
+          isActive: item.is_active,
+        })),
+        changeReason: changeReason.map((item) => ({
           id: item.id,
           code: item.code,
           name: item.name,

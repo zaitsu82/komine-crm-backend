@@ -115,6 +115,27 @@ const position: MasterSeedRow[] = [
   { code: '3', name: '中', sort_order: 3 },
 ];
 
+// 合祀年数（#343, komine-docs#10 Q17）: 13/15/24/33。
+const validityPeriod: MasterSeedRow[] = [
+  { code: '13', name: '13年', sort_order: 13 },
+  { code: '15', name: '15年', sort_order: 15 },
+  { code: '24', name: '24年', sort_order: 24 },
+  { code: '33', name: '33年', sort_order: 33 },
+];
+
+// 変更理由（#344, komine-docs#10 項目4）: 変更履歴の change_reason 選択肢。
+const changeReason: MasterSeedRow[] = [
+  { code: 'meigi', name: '名義変更', sort_order: 1 },
+  { code: 'jusho', name: '住所変更', sort_order: 2 },
+  { code: 'tel', name: '電話番号変更', sort_order: 3 },
+  { code: 'kaiyaku', name: '解約', sort_order: 4 },
+  { code: 'goushi', name: '合祀', sort_order: 5 },
+  { code: 'shuri', name: '修理', sort_order: 6 },
+  { code: 'jibori', name: '字彫', sort_order: 7 },
+  { code: 'bihin', name: '備品購入', sort_order: 8 },
+  { code: 'other', name: 'その他', sort_order: 9 },
+];
+
 export interface MasterSeedSummary {
   master: string;
   inserted: number;
@@ -180,6 +201,18 @@ export async function seedMasters(prisma: PrismaClient): Promise<MasterSeedSumma
     skipDuplicates: true,
   });
   summary.push({ master: 'position_master', inserted: pos.count });
+
+  const validity = await prisma.validityPeriodMaster.createMany({
+    data: validityPeriod,
+    skipDuplicates: true,
+  });
+  summary.push({ master: 'validity_period_master', inserted: validity.count });
+
+  const change = await prisma.changeReasonMaster.createMany({
+    data: changeReason,
+    skipDuplicates: true,
+  });
+  summary.push({ master: 'change_reason_master', inserted: change.count });
 
   return summary;
 }
