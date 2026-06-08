@@ -916,6 +916,37 @@ describe('Auth Controller', () => {
         );
         expect(mockResponse.status).toHaveBeenCalledWith(200);
       });
+
+      it('レート制限エラー時は専用メッセージを429で返すこと（#350）', async () => {
+        mockRequest.body = { email: 'active@example.com' };
+        mockPrisma.staff.findFirst.mockResolvedValue(null);
+        mockSupabaseAuth.resetPasswordForEmail.mockResolvedValue({
+          error: { message: 'email rate limit exceeded' },
+        });
+
+        await forgotPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(429);
+        expect(mockResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({ code: 'RATE_LIMIT_EXCEEDED' }),
+          })
+        );
+      });
+
+      it('レート制限以外の送信エラーは一律成功を維持すること（列挙対策）', async () => {
+        mockRequest.body = { email: 'active@example.com' };
+        mockPrisma.staff.findFirst.mockResolvedValue(null);
+        mockSupabaseAuth.resetPasswordForEmail.mockResolvedValue({
+          error: { message: 'some other transient error' },
+        });
+
+        await forgotPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+        expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+      });
     });
 
     describe('COOKIE_SECURE によるCookie属性制御（#299）', () => {
