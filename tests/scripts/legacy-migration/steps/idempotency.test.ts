@@ -50,6 +50,7 @@ describe('移行ステップの冪等性 (#220)', () => {
         create: familyContactCreate,
         findUnique: jest.fn().mockResolvedValue({ id: 'fc-existing', legacy_family_cd: 1 }),
       },
+      relationshipMaster: { findMany: jest.fn().mockResolvedValue([]) },
     } as unknown as PrismaClient;
 
     mockedLegacyQuery

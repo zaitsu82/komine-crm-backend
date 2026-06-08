@@ -3,6 +3,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { legacyQuery } from '../legacyDb';
 import { rebuildIdMap } from '../lib/id-map-loader';
 import { assertIdMapsReady } from '../lib/invariants';
+import { loadRelationshipNameMap, resolveRelationship } from '../lib/relationship-resolver';
 import { cleanPhone, cleanStr, joinName, parseLegacyDate, parseLegacyZip } from '../transforms';
 import type { MigrationStep } from '../types';
 
@@ -76,6 +77,9 @@ export const stepFamilyContact: MigrationStep = {
     for (const c of terminatedCustomers) {
       if (c.legacy_danka_cd != null) terminatedCustomerMap.set(c.legacy_danka_cd, c.id);
     }
+
+    // 続柄マスタ（NMCODE→名称）。生 zokugara int を名称へ解決する（#333）
+    const relationshipNameMap = await loadRelationshipNameMap(prisma);
 
     const rows = await legacyQuery<FamilyRow>(
       `SELECT * FROM t_family WHERE del_flg = 0 OR del_flg IS NULL`
@@ -166,7 +170,7 @@ export const stepFamilyContact: MigrationStep = {
           name,
           name_kana: joinName(row.family_sei_kana, row.family_mei_kana),
           birth_date: parseLegacyDate(row.birthday),
-          relationship: cleanStr(row.zokugara) ?? 'unknown',
+          relationship: resolveRelationship(row.zokugara, relationshipNameMap),
           postal_code: parseLegacyZip(row.zip),
           address: addressParts.length > 0 ? addressParts.join(' ') : null,
           phone_number: cleanPhone(row.tel1),
