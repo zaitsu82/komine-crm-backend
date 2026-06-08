@@ -2006,6 +2006,58 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/masters/validity-period:
+    get:
+      tags:
+        - Masters
+      summary: 合祀年数マスタ一覧取得
+      description: 合祀までの年数（13/15/24/33）の選択肢を表示順で取得（#343, komine-docs#10 Q17）。
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 合祀年数マスタ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MasterItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/masters/change-reason:
+    get:
+      tags:
+        - Masters
+      summary: 変更理由マスタ一覧取得
+      description: 変更履歴の理由（名義変更/住所変更/解約/合祀 等）の選択肢を表示順で取得（#344, komine-docs#10 項目4）。
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 変更理由マスタ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MasterItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/v1/masters/all:
     get:
       tags:
@@ -2399,6 +2451,30 @@ components:
           type: integer
           nullable: true
           example: 1
+        isActive:
+          type: boolean
+          example: true
+
+    MasterItem:
+      type: object
+      description: 標準マスタ項目（合祀年数・変更理由 等の共通形）。
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: "13"
+        name:
+          type: string
+          example: "13年"
+        description:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          nullable: true
+          example: 13
         isActive:
           type: boolean
           example: true

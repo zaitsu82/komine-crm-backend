@@ -18,11 +18,13 @@ function createFakePrisma() {
     constructionTypeMaster: { createMany: makeCreateMany(4) },
     directionMaster: { createMany: makeCreateMany(8) },
     positionMaster: { createMany: makeCreateMany(3) },
+    validityPeriodMaster: { createMany: makeCreateMany(4) },
+    changeReasonMaster: { createMany: makeCreateMany(9) },
   };
 }
 
 describe('seedMasters', () => {
-  it('標準マスタ9種すべてに対して createMany を呼ぶ', async () => {
+  it('標準マスタ11種すべてに対して createMany を呼ぶ', async () => {
     const prisma = createFakePrisma();
 
     const summary = await seedMasters(prisma as unknown as PrismaClient);
@@ -36,8 +38,10 @@ describe('seedMasters', () => {
     expect(prisma.constructionTypeMaster.createMany).toHaveBeenCalledTimes(1);
     expect(prisma.directionMaster.createMany).toHaveBeenCalledTimes(1);
     expect(prisma.positionMaster.createMany).toHaveBeenCalledTimes(1);
+    expect(prisma.validityPeriodMaster.createMany).toHaveBeenCalledTimes(1);
+    expect(prisma.changeReasonMaster.createMany).toHaveBeenCalledTimes(1);
 
-    expect(summary).toHaveLength(9);
+    expect(summary).toHaveLength(11);
   });
 
   it('冪等性のため skipDuplicates: true で投入する', async () => {
@@ -59,7 +63,7 @@ describe('seedMasters', () => {
     const summary = await seedMasters(prisma as unknown as PrismaClient);
 
     const total = summary.reduce((sum, s) => sum + s.inserted, 0);
-    expect(total).toBe(3 + 3 + 2 + 2 + 3 + 3 + 4 + 8 + 3);
+    expect(total).toBe(3 + 3 + 2 + 2 + 3 + 3 + 4 + 8 + 3 + 4 + 9);
     expect(summary.map((s) => s.master)).toEqual([
       'cemetery_type_master',
       'payment_method_master',
@@ -70,6 +74,8 @@ describe('seedMasters', () => {
       'construction_type_master',
       'direction_master',
       'position_master',
+      'validity_period_master',
+      'change_reason_master',
     ]);
   });
 

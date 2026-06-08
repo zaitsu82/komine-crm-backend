@@ -12,6 +12,8 @@ import {
   getContractorMaster,
   getDirectionMaster,
   getPositionMaster,
+  getValidityPeriodMaster,
+  getChangeReasonMaster,
   getAllMasters,
   createMaster,
   updateMaster,
@@ -125,6 +127,22 @@ router.get(
   authenticate,
   checkApiPermission(),
   withLogging('Masters', 'getPositionMaster', getPositionMaster)
+);
+
+// 合祀年数マスタ（#343）
+router.get(
+  '/validity-period',
+  authenticate,
+  checkApiPermission(),
+  withLogging('Masters', 'getValidityPeriodMaster', getValidityPeriodMaster)
+);
+
+// 変更理由マスタ（#344）
+router.get(
+  '/change-reason',
+  authenticate,
+  checkApiPermission(),
+  withLogging('Masters', 'getChangeReasonMaster', getChangeReasonMaster)
 );
 
 // マスタデータ CRUD（汎用）
