@@ -6,6 +6,7 @@
  *  1. gravestone_infos.direction_id / position_id = 0 → null（方位/位置の「旧コード:0」）
  *  2. family_contacts.relationship の生int → 続柄マスタ名（'0'/未解決は 'unknown'）
  *  3. buried_persons.religion = 'legacy-shuuha-*' → null（宗派マスタ不要確定）
+ *  4. construction_infos.contractor = 'legacy-gyousha-0'（=未設定）→ null + 業者マスタ無効化（#334）
  *
  * いずれもアプリ作成データには影響しない（0/センチネル/生int は移行由来のみ）。
  *
@@ -82,14 +83,44 @@ async function backfillReligion(): Promise<Record<string, number>> {
   return { religion_nulled: r.count };
 }
 
+async function backfillGyousha(): Promise<Record<string, number>> {
+  // gyousha_cd=0（=未設定）由来の contractor='legacy-gyousha-0' を null にし、
+  // 「業者ID:0」業者マスタを無効化する（#334）。実在業者（legacy-gyousha-1 等）は対象外。
+  const GYOUSHA_ZERO = 'legacy-gyousha-0';
+  if (!APPLY) {
+    const constructions = await prisma.constructionInfo.count({
+      where: { contractor: GYOUSHA_ZERO },
+    });
+    const master = await prisma.contractorMaster.count({
+      where: { code: GYOUSHA_ZERO, is_active: true },
+    });
+    return { construction_gyousha_zero: constructions, active_gyousha_zero_master: master };
+  }
+  const constructions = await prisma.constructionInfo.updateMany({
+    where: { contractor: GYOUSHA_ZERO },
+    data: { contractor: null },
+  });
+  const master = await prisma.contractorMaster.updateMany({
+    where: { code: GYOUSHA_ZERO },
+    data: { is_active: false },
+  });
+  return {
+    construction_contractor_nulled: constructions.count,
+    gyousha_zero_master_deactivated: master.count,
+  };
+}
+
 async function main(): Promise<void> {
   console.log(`[backfill legacy-value-cleanup] start (apply=${APPLY})`);
 
   const directionPosition = await backfillDirectionPosition();
   const relationship = await backfillRelationship();
   const religion = await backfillReligion();
+  const gyousha = await backfillGyousha();
 
-  console.log(JSON.stringify({ apply: APPLY, directionPosition, relationship, religion }, null, 2));
+  console.log(
+    JSON.stringify({ apply: APPLY, directionPosition, relationship, religion, gyousha }, null, 2)
+  );
 }
 
 main()

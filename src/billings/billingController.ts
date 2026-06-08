@@ -6,6 +6,7 @@ import prisma from '../db/prisma';
 import { NotFoundError, ValidationError } from '../middleware/errorHandler';
 import { recalculateContractPlotPaymentStatus } from '../plots/services/paymentStatusService';
 import { recalculateBillingPayments } from './billingService';
+import { resolvePaymentFeeTypeLabel } from '../payments/feeTypeLabels';
 import {
   createBillingSchema,
   updateBillingSchema,
@@ -243,7 +244,8 @@ export const getBillingById = async (
           scheduledDate: p.scheduled_date?.toISOString().split('T')[0] ?? null,
           paymentAmount: p.payment_amount,
           scheduledAmount: p.scheduled_amount,
-          feeType: p.fee_type,
+          // レガシーセンチネル（legacy-fee-2023000X）を使用料/管理料へ解決して返す（#334）
+          feeType: resolvePaymentFeeTypeLabel(p.fee_type),
           staffInCharge: p.staff_in_charge,
           notes: p.notes,
         })),
