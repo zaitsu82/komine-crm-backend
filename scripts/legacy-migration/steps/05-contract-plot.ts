@@ -25,10 +25,21 @@ function mapFeeCode(
   return map[value] ?? `legacy-${prefix}-${value}`;
 }
 
-// 支払方法(shiharai)は旧コードの意味が未特定（対応する sykbnn KBNNO 無し）。
-// 業務確認まで legacy- prefix で温存し、マスタ名への誤変換を防ぐ。
-function mapShiharai(value: number | null | undefined): string | null {
-  return value == null ? null : `legacy-shiharai-${value}`;
+// 支払方法(shiharai)は旧 sykbnn に対応 KBNNO が無く長らく意味未特定だったが、
+// 業務確認（issue #108, 2026-06-08）で旧int値の意味が確定した:
+//   0 = 銀行振込(BANK_TRANSFER) / 1 = 口座振替(ACCOUNT_TRANSFER) / 2 = 永代＝支払なし(null)
+// payment_method_master と一致する code に remap する（seedMasters.ts 参照）。
+const SHIHARAI_MAP: Record<number, string | null> = {
+  0: 'BANK_TRANSFER',
+  1: 'ACCOUNT_TRANSFER',
+  2: null, // 永代（管理料のみ・定期支払なし）→ 支払方法ではないため null
+};
+export function mapShiharai(value: number | null | undefined): string | null {
+  if (value == null) return null;
+  // 対応表に無い想定外値のみ、誤変換を避けて legacy- prefix で温存する。
+  return Object.prototype.hasOwnProperty.call(SHIHARAI_MAP, value)
+    ? SHIHARAI_MAP[value]
+    : `legacy-shiharai-${value}`;
 }
 
 interface BochiContractRow extends RowDataPacket {
