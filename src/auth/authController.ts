@@ -745,6 +745,21 @@ export const forgotPassword = async (req: Request, res: Response) => {
     if (error) {
       // エラーが発生してもセキュリティ上同一レスポンスを返す
       log.warn({ email, error: error.message }, 'Auth: password reset email failed');
+
+      // レート制限だけは専用メッセージを返す（#350）。
+      // レート制限は「送信元の送信枠」の話でメアドの存在に依存しないため、
+      // 専用メッセージを返しても登録済みかどうかの列挙情報は漏れない＝安全。
+      // それ以外のエラー（user無し含む）は従来どおり一律成功で返し列挙対策を維持する。
+      if (error.message.includes('rate limit')) {
+        return res.status(429).json({
+          success: false,
+          error: {
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'メールの送信制限に達しました。しばらく待ってから再試行してください。',
+            details: [],
+          },
+        });
+      }
     } else {
       log.info({ email }, 'Auth: password reset email sent');
     }
