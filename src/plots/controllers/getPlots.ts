@@ -126,6 +126,11 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
           },
         },
         {
+          physicalPlot: {
+            display_number: { contains: search, mode: 'insensitive' },
+          },
+        },
+        {
           saleContractRoles: {
             some: {
               deleted_at: null,
@@ -247,6 +252,7 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
       physicalPlot: {
         select: {
           plot_number: true,
+          display_number: true,
           area_name: true,
           area_sqm: true,
           status: true,
@@ -364,6 +370,7 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
 
         // 物理区画情報（表示用）
         plotNumber: contractPlot.physicalPlot.plot_number,
+        displayNumber: contractPlot.physicalPlot.display_number,
         areaName: contractPlot.physicalPlot.area_name,
         physicalPlotAreaSqm: contractPlot.physicalPlot.area_sqm.toNumber(),
         physicalPlotStatus: contractPlot.physicalPlot.status,

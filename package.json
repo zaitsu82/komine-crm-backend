@@ -18,6 +18,7 @@
     "bootstrap:admin": "ts-node --transpile-only prisma/seed.ts",
     "seed:masters": "ts-node --transpile-only prisma/seedMasters.ts",
     "migrate:legacy": "ts-node --transpile-only scripts/migrate-from-legacy.ts",
+    "backfill:display-number": "ts-node --transpile-only scripts/backfill-display-number.ts",
     "verify:migration": "ts-node --transpile-only scripts/verify-migration.ts",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",

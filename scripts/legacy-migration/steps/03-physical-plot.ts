@@ -1,7 +1,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 
 import { legacyQuery } from '../legacyDb';
-import { cleanStr } from '../transforms';
+import { cleanStr, normalizeGraveName } from '../transforms';
 import type { MigrationStep } from '../types';
 
 interface BochiPhysicalRow extends RowDataPacket {
@@ -52,6 +52,10 @@ export const stepPhysicalPlot: MigrationStep = {
           ? `${row.chiku_cd}-${row.area_cd}`
           : `unknown-${row.grave_cd}`;
 
+      // 表示用区画番号（grave_name_cd 由来、例: "A-100"）。plot_number は
+      // ユニーク制約・一括取込キーのため legacy-{grave_cd} を維持し、表示はこちら。#158
+      const displayNumber = normalizeGraveName(row.grave_name_cd);
+
       const notes =
         [
           cleanStr(row.note),
@@ -81,6 +85,7 @@ export const stepPhysicalPlot: MigrationStep = {
       const created = await prisma.physicalPlot.create({
         data: {
           plot_number: plotNumber,
+          display_number: displayNumber,
           area_name: areaName,
           area_sqm: 3.6, // デフォルト（実面積はレガシーに無いので 3.6 固定）
           status: 'available', // ContractPlot 側で active があれば後で sold_out に更新

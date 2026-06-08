@@ -102,6 +102,7 @@ export const getPlotById = async (
       physicalPlot: {
         id: contractPlot.physicalPlot.id,
         plotNumber: contractPlot.physicalPlot.plot_number,
+        displayNumber: contractPlot.physicalPlot.display_number,
         areaName: contractPlot.physicalPlot.area_name,
         areaSqm: contractPlot.physicalPlot.area_sqm.toNumber(),
         status: contractPlot.physicalPlot.status,
