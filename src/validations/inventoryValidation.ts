@@ -40,12 +40,16 @@ export const inventorySummaryQuerySchema = z.object({});
 
 // 期別サマリー用クエリスキーマ
 export const inventoryPeriodsQuerySchema = z.object({
-  period: PlotPeriodEnum.optional(),
+  // 期フィルタ。area_name → 期 はマスタ経由で解決されるため、標準5期に加え
+  // 「その他」（未分類）も受け付ける。未知値はマッチ0件として扱う。#166
+  period: z.string().min(1).max(20).optional(),
 });
 
 // セクション別集計用クエリスキーマ
 export const inventorySectionsQuerySchema = z.object({
-  period: PlotPeriodEnum.optional(),
+  // 期フィルタ。area_name → 期 はマスタ経由で解決されるため、標準5期に加え
+  // 「その他」（未分類）も受け付ける。未知値はマッチ0件として扱う。#166
+  period: z.string().min(1).max(20).optional(),
   status: PlotStatusEnum.optional(),
   search: z.string().optional(),
   sortBy: SectionSortKeyEnum.optional().default('period'),
@@ -56,7 +60,9 @@ export const inventorySectionsQuerySchema = z.object({
 
 // 面積別集計用クエリスキーマ
 export const inventoryAreasQuerySchema = z.object({
-  period: PlotPeriodEnum.optional(),
+  // 期フィルタ。area_name → 期 はマスタ経由で解決されるため、標準5期に加え
+  // 「その他」（未分類）も受け付ける。未知値はマッチ0件として扱う。#166
+  period: z.string().min(1).max(20).optional(),
   search: z.string().optional(),
   sortBy: AreaSortKeyEnum.optional().default('period'),
   sortOrder: SortOrderEnum.optional().default('asc'),
@@ -76,7 +82,8 @@ export interface InventorySummaryData {
 }
 
 export interface PeriodSummaryItem {
-  period: PlotPeriod;
+  // 標準5期に加え「その他」（未分類）が入りうるため string。#166
+  period: string;
   totalCount: number;
   usedCount: number;
   remainingCount: number;

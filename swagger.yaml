@@ -992,7 +992,7 @@ paths:
           description: 期（指定しない場合は全期）
           schema:
             type: string
-            enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期" ]
+            enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期", "その他" ]
       responses:
         "200":
           description: 取得成功
@@ -1030,7 +1030,7 @@ paths:
           description: 期でフィルタ
           schema:
             type: string
-            enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期" ]
+            enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期", "その他" ]
         - name: status
           in: query
           description: ステータスでフィルタ
@@ -1118,7 +1118,7 @@ paths:
           description: 期でフィルタ
           schema:
             type: string
-            enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期" ]
+            enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期", "その他" ]
         - name: search
           in: query
           description: 面積・タイプで検索
@@ -4643,8 +4643,8 @@ components:
       properties:
         period:
           type: string
-          description: 期（第1期〜第4期）
-          enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期" ]
+          description: 期（第1期〜第4期、未分類は「その他」）
+          enum: [ "第1期", "第2期", "第3期", "第3期樹林部", "第4期", "その他" ]
           example: "第1期"
         totalCount:
           type: integer
