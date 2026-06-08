@@ -23,6 +23,13 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      # 招待/パスワードリセットメールの遷移先ベースURL。
+      # 末尾スラッシュ不可（コード側で `${FRONTEND_URL}/set-password` と連結するため、
+      # スラッシュ付きだと `//set-password` になり Supabase の Redirect URL 許可リストに
+      # マッチせず Site URL にフォールバックする）。値は Dashboard で入力。
+      # 例: https://komine-cemetery-crm.vercel.app
+      - key: FRONTEND_URL
+        sync: false
       - key: PUPPETEER_EXECUTABLE_PATH
         value: /usr/bin/chromium
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
