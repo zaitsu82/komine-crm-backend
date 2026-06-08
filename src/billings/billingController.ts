@@ -162,9 +162,10 @@ export const getBillingsSummary = async (
     // 未入金は回収可能な債権のみで算出する（#272）。
     // 解約済み（terminated）・貸倒（written_off）は債務/債権が消滅しており、
     // 含めると回収不能金額が「未入金」に積み上がる。#170 の
-    // deriveContractPlotPayment（terminated 除外）と同一規則を適用し、
-    // 区画詳細の uncollected_amount とサマリー StatCard を整合させる。
-    // AND 合成でユーザー指定の status 等のフィルタは維持する。
+    // deriveContractPlotPayment と同じく terminated を除外する。
+    // AND 合成でユーザー指定の status・category 等のフィルタは維持する。
+    // 注: これは請求台帳サマリーで全料金区分（または指定 category）が対象。
+    // 区画詳細の uncollected_amount は護持費（管理料）限定（komine-docs#10 項目2）で別概念。
     const collectibleWhere: Prisma.BillingWhereInput = {
       AND: [where, { terminated: false, status: { notIn: ['written_off', 'terminated'] } }],
     };

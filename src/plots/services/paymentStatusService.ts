@@ -34,7 +34,8 @@ export const recalculateContractPlotPaymentStatus = async (
 
   const billings = await client.billing.findMany({
     where: { contract_plot_id: contractPlotId, deleted_at: null },
-    select: { amount: true, paid_amount: true, terminated: true },
+    // category も取得する: 未収金額は護持費（管理料）限定で算出するため（komine-docs#10 項目2）。
+    select: { amount: true, paid_amount: true, terminated: true, category: true },
   });
 
   const { status, uncollectedAmount } = deriveContractPlotPayment(

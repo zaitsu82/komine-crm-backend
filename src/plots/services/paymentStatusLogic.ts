@@ -1,4 +1,4 @@
-import { PaymentStatus } from '@prisma/client';
+import { BillingCategory, PaymentStatus } from '@prisma/client';
 
 /**
  * ContractPlot.payment_status / uncollected_amount の派生ロジック（DB 非依存の純関数）。
@@ -47,21 +47,42 @@ export const uncollectedFromTotals = (
 };
 
 /**
- * ContractPlot の請求群から payment_status と uncollected_amount を同時に導出する。
+ * ContractPlot の請求群から payment_status と uncollected_amount を導出する。
  *
  * 解約済み請求（terminated）は債務が消滅しているため集計から除外する。
  * これにより「解約前に全額入金 → 解約」の区画が誤って未入金扱いになるのを防ぐ。
- * payment_status と未収金額を同一の集計から導出することで、両者が論理的に矛盾しないことを保証する（#170）。
+ *
+ * 集計の対象範囲は 2 つで異なる（komine-docs#10 項目2 / 業務確定）:
+ *  - payment_status: 全料金区分の active 請求で判定する（契約全体の支払状態を表す）。
+ *  - uncollected_amount: **護持費（管理料 = management_fee）の未集金額に限定**する。
+ *    使用料・合祀料金・工事料金・墓石代の未収は未収金額に含めない。
+ *
+ * このため「使用料は未払いだが管理料は完納」の区画は status=partial_paid（全体としては未払いあり）
+ * でも uncollected_amount=0（護持費は完納）になりうる。両者は意図的に異なる定義を持つ。
  */
 export const deriveContractPlotPayment = (
-  billings: { amount: number; paid_amount: number; terminated: boolean }[],
+  billings: {
+    amount: number;
+    paid_amount: number;
+    terminated: boolean;
+    category: BillingCategory;
+  }[],
   currentStatus?: PaymentStatus
 ): { status: PaymentStatus; uncollectedAmount: number } => {
   const active = billings.filter((b) => !b.terminated);
+
+  // payment_status は全料金区分の active 請求で判定する。
   const totalAmount = active.reduce((sum, b) => sum + b.amount, 0);
   const totalPaid = active.reduce((sum, b) => sum + b.paid_amount, 0);
   const status = paymentStatusFromTotals(totalAmount, totalPaid, currentStatus);
-  return { status, uncollectedAmount: uncollectedFromTotals(totalAmount, totalPaid, status) };
+
+  // 未収金額は護持費（管理料）の未集金額に限定する。
+  const mgmt = active.filter((b) => b.category === BillingCategory.management_fee);
+  const mgmtAmount = mgmt.reduce((sum, b) => sum + b.amount, 0);
+  const mgmtPaid = mgmt.reduce((sum, b) => sum + b.paid_amount, 0);
+  const uncollectedAmount = uncollectedFromTotals(mgmtAmount, mgmtPaid, status);
+
+  return { status, uncollectedAmount };
 };
 
 /**
@@ -69,6 +90,11 @@ export const deriveContractPlotPayment = (
  * @deprecated 集計を二重化しないため {@link deriveContractPlotPayment} を使うこと。後方互換で残置。
  */
 export const deriveContractPlotPaymentStatus = (
-  billings: { amount: number; paid_amount: number; terminated: boolean }[],
+  billings: {
+    amount: number;
+    paid_amount: number;
+    terminated: boolean;
+    category: BillingCategory;
+  }[],
   currentStatus?: PaymentStatus
 ): PaymentStatus => deriveContractPlotPayment(billings, currentStatus).status;
