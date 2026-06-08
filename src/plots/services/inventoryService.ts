@@ -11,8 +11,12 @@ import {
   SortOrder,
 } from '../../validations/inventoryValidation';
 
-// 期の定義（区画名一覧.md / SectionNameMasterのperiodに準拠）
+// 期の定義（区画名一覧.md / SectionNameMasterのperiodに準拠）。表示順の正本。
 export const PERIODS: PlotPeriod[] = ['第1期', '第2期', '第3期', '第3期樹林部', '第4期'];
+
+// マスタにも期名にも一致しない区画（移行のテストデータ等）の受け皿。
+// 全体サマリーと期別サマリーの合計を必ず一致させるための未分類バケット。#166
+export const UNCLASSIFIED_PERIOD = 'その他';
 
 // Prisma Decimalまたは数値を数値に変換するヘルパー
 function toNumber(value: unknown): number {
@@ -30,68 +34,87 @@ function toNumber(value: unknown): number {
 }
 
 /**
- * plot_number からセクション名を抽出する。
+ * 区画名（area_name）→ 期 のマッピングを区画名マスタ（section_name_master）から読み込む。
  *
- * 暫定仕様（業務ヒアリング待ち / issue #64 項目 #1）:
- *   plot_number は `<section>-<連番>` の単純形式を前提とする。
- *     例: "A-56" → "A", "吉相-10" → "吉相", "1.5-3" → "1.5",
- *         "るり庵テラス-1" → "るり庵テラス", "天空K-5" → "天空K"
- *   区画名一覧（komine-docs/区画名一覧.md）に従い、セクション名自体には
- *   ハイフンを含めない前提。期名（area_name）は別カラムで管理し、
- *   plot_number には含めない。
- *   末尾に `-<連番>` が無いフォーマット（例: "A", "吉相"）は、
- *   セクション単独表記として扱い、そのまま返す。
+ * #151 で PhysicalPlot.area_name は実区画名（A / 凛B / つながり / 樹林 等）になったため、
+ * 期（第N期）は area_name そのものではなくマスタ経由で解決する。マスタは業務が
+ * `/api/v1/masters/section-name` から編集できるので、ここが期判定の正本になる。#166
  */
-export function extractSection(plotNumber: string): string {
-  const match = plotNumber.match(/^(.+)-\d+$/);
-  return match && match[1] ? match[1] : plotNumber;
+export async function loadSectionPeriodMap(prisma: DbClient): Promise<Map<string, string>> {
+  const rows = await prisma.sectionNameMaster.findMany({
+    where: { is_active: true },
+    select: { name: true, period: true },
+  });
+  const map = new Map<string, string>();
+  for (const row of rows) map.set(row.name, row.period);
+  return map;
 }
 
 /**
- * セクションを特殊区画カテゴリに分類する。
+ * 区画名（area_name）から期を解決する。
+ *   1. area_name 自体が期名（手動作成区画の "第1期" 等）ならそのまま採用。
+ *   2. 区画名マスタに登録があればその期。
+ *   3. いずれにも該当しなければ「その他」（未分類バケット）。#166
+ */
+export function resolvePeriod(areaName: string, sectionPeriodMap: Map<string, string>): string {
+  if ((PERIODS as readonly string[]).includes(areaName)) return areaName;
+  return sectionPeriodMap.get(areaName) ?? UNCLASSIFIED_PERIOD;
+}
+
+/**
+ * `<接頭辞>-<連番>` 形式の区画ラベルから接頭辞（セクション）を抽出する汎用ユーティリティ。
+ *   例: "A-56" → "A", "吉相-10" → "吉相", "1.5-3" → "1.5", "天空K-5" → "天空K"
+ *   末尾に `-<連番>` が無い場合（例: "A", "吉相"）はそのまま返す。
  *
- * 暫定仕様（業務ヒアリング待ち / issue #64 項目 #5）:
- *   区画名一覧（komine-docs/区画名一覧.md）の第3期樹林部のセクション
- *   （樹林, 天空K）を「樹林・天空」カテゴリに分類する。
- *   素の "天空" セクションは区画名一覧に存在しないが、将来 "天空-N" のような
- *   区画が追加された場合に備えて互換で残している。
+ * 注: 在庫集計のセクションは #151 以降 area_name（実区画名）を直接使うため、
+ *     本関数は表示用区画番号（display_number = "A-100" 等）の接頭辞解析向けの補助。
+ */
+export function extractSection(label: string): string {
+  const match = label.match(/^(.+)-\d+$/);
+  return match && match[1] ? match[1] : label;
+}
+
+/**
+ * セクション（区画名）を特殊区画カテゴリに分類する。
+ *
+ *   - 樹林 / 天空 / 天空K → 「樹林・天空」
+ *   - 納骨堂系（納骨堂-天空 等） → 「納骨堂」（室内納骨で通常区画と性質が異なる）
+ *   それ以外（A〜P・数字・凛A〜D・つながり・桜系 等）はカテゴリ無し（undefined）。
  */
 export function categorizeSection(section: string): string | undefined {
-  const categoryMap: Record<string, string> = {
-    樹林: '樹林・天空',
-    天空: '樹林・天空',
-    天空K: '樹林・天空',
-  };
-  return categoryMap[section];
+  if (section === '樹林' || section === '天空' || section === '天空K') return '樹林・天空';
+  if (section.includes('納骨堂')) return '納骨堂';
+  return undefined;
 }
 
 /**
- * セクション名から区画タイプ（表示用分類）を判定する。
+ * セクション名（区画名）から区画タイプ（面積別集計の表示用分類）を判定する。
  *
- * 暫定仕様（業務ヒアリング待ち / issue #64 項目 #6）:
- *   区画名一覧（komine-docs/区画名一覧.md）に準拠する。
- *     - 吉相 → "吉相"
- *     - 樹林 → "樹林"
- *     - "天空" を含む（天空K等） → "天空"
- *     - "るり庵" を含む（るり庵テラス, るり庵テラスⅡ等） → "るり庵"
- *     - 想 → "るり庵"（区画名一覧の備考より、もり庵テラス関連の区画として暫定で "るり庵" 扱い）
- *     - 墳墓 → "墳墓"（区画名一覧には無いが将来用に残置）
- *     - 憩 / 恵 → "特別区"
- *     - その他（A〜P, 1〜8, 1.5, 2.4, 3, 4, 5, 8.4 等） → "自由"
+ *   - "吉相" で始まる（吉相 / 吉相C / 吉相テラス） → "吉相"
+ *   - 樹林 / 樹木葬 → "樹林"
+ *   - "天空" を含む（天空K等） → "天空"
+ *   - "るり庵" を含む（るり庵テラス/Ⅱ/ガーデン等） / 想 → "るり庵"
+ *   - "納骨堂" を含む → "納骨堂"
+ *   - "桜" を含む（桜シェア葬 / 千年桜） → "桜"
+ *   - 墳墓 → "墳墓"（将来用）
+ *   - 憩 / 恵 → "特別区"
+ *   - その他（A〜P, 1〜11, 凛A〜D, つながり 等） → "自由"
  */
 export function determinePlotType(section: string, _areaSqm: number): string {
-  if (section === '吉相') return '吉相';
-  if (section === '樹林') return '樹林';
+  if (section.includes('納骨堂')) return '納骨堂'; // "納骨堂-天空" を天空より先に判定
+  if (section.startsWith('吉相')) return '吉相';
+  if (section === '樹林' || section === '樹木葬') return '樹林';
   if (section.includes('天空')) return '天空';
   if (section.includes('るり庵')) return 'るり庵';
   if (section === '想') return 'るり庵';
+  if (section.includes('桜')) return '桜';
   if (section === '墳墓') return '墳墓';
   if (section === '憩' || section === '恵') return '特別区';
   return '自由';
 }
 
 interface GetInventoryOptions {
-  period?: PlotPeriod;
+  period?: string;
   status?: PlotStatus;
   search?: string;
   sortBy?: SectionSortKey | AreaSortKey;
@@ -189,16 +212,15 @@ export async function getOverallSummary(prisma: DbClient): Promise<InventorySumm
  */
 export async function getPeriodSummaries(
   prisma: DbClient,
-  period?: PlotPeriod
+  period?: string
 ): Promise<PeriodSummaryItem[]> {
-  const periodsToQuery = period ? [period] : PERIODS;
+  // 区画名 → 期 のマッピング（マスタ）を取得。area_name は実区画名なので
+  // 期は area_name そのものではなくマスタ経由で解決する。#166
+  const sectionPeriodMap = await loadSectionPeriodMap(prisma);
 
-  // 単一クエリで全期間のデータを取得
+  // 全物理区画を取得（全体サマリーと同じ母数 = 期別合計が全体と一致する）
   const physicalPlots = await prisma.physicalPlot.findMany({
-    where: {
-      deleted_at: null,
-      area_name: { in: periodsToQuery },
-    },
+    where: { deleted_at: null },
     include: {
       contractPlots: ACTIVE_CONTRACT_PLOTS_INCLUDE,
     },
@@ -207,15 +229,19 @@ export async function getPeriodSummaries(
   // 期別にグルーピング
   const plotsByPeriod = new Map<string, { totalCount: number; usedCount: number }>();
 
-  // 対象期間を初期化
-  for (const p of periodsToQuery) {
+  // 標準の期は常に行として出す（0件でも表示するため先に初期化）
+  for (const p of PERIODS) {
     plotsByPeriod.set(p, { totalCount: 0, usedCount: 0 });
   }
 
-  // データを集計
+  // データを集計（各区画の期を area_name から解決）
   for (const plot of physicalPlots) {
-    const periodData = plotsByPeriod.get(plot.area_name);
-    if (!periodData) continue;
+    const plotPeriod = resolvePeriod(plot.area_name, sectionPeriodMap);
+    let periodData = plotsByPeriod.get(plotPeriod);
+    if (!periodData) {
+      periodData = { totalCount: 0, usedCount: 0 };
+      plotsByPeriod.set(plotPeriod, periodData);
+    }
 
     periodData.totalCount += 1;
     const plotArea = plot.area_sqm ? toNumber(plot.area_sqm) : 3.6;
@@ -232,9 +258,21 @@ export async function getPeriodSummaries(
     }
   }
 
+  // 出力する期キーを決定。
+  //   - 特定の期指定: その期のみ
+  //   - 指定なし: 標準5期 + 未分類（その他）が0件超なら末尾に追加
+  let outputPeriods: string[];
+  if (period) {
+    outputPeriods = [period];
+  } else {
+    outputPeriods = [...PERIODS];
+    const other = plotsByPeriod.get(UNCLASSIFIED_PERIOD);
+    if (other && other.totalCount > 0) outputPeriods.push(UNCLASSIFIED_PERIOD);
+  }
+
   // 結果を配列に変換
-  const results: PeriodSummaryItem[] = periodsToQuery.map((p) => {
-    const data = plotsByPeriod.get(p)!;
+  const results: PeriodSummaryItem[] = outputPeriods.map((p) => {
+    const data = plotsByPeriod.get(p) ?? { totalCount: 0, usedCount: 0 };
     // 丸め整合性のため、usedCountを先に丸めてremainingCountをそこから導出
     const roundedTotalCount = Math.round(data.totalCount);
     const roundedUsedCount = Math.round(data.usedCount);
@@ -270,14 +308,13 @@ export async function getSectionInventory(
     limit = 20,
   } = options;
 
-  // 条件に合う物理区画を取得
+  // 区画名 → 期 のマッピング（マスタ）を取得。#166
+  const sectionPeriodMap = await loadSectionPeriodMap(prisma);
+
+  // 条件に合う物理区画を取得（期は area_name から解決するため DB では絞らない）
   const whereClause: Prisma.PhysicalPlotWhereInput = {
     deleted_at: null,
   };
-
-  if (period) {
-    whereClause.area_name = period;
-  }
 
   if (status) {
     whereClause.status = status;
@@ -290,7 +327,7 @@ export async function getSectionInventory(
     },
   });
 
-  // セクション別に集計
+  // セクション別に集計（section = area_name = 実区画名）
   const sectionMap = new Map<
     string,
     {
@@ -303,8 +340,13 @@ export async function getSectionInventory(
   >();
 
   for (const plot of physicalPlots) {
-    const section = extractSection(plot.plot_number);
-    const key = `${plot.area_name}-${section}`;
+    const section = plot.area_name;
+    const plotPeriod = resolvePeriod(section, sectionPeriodMap);
+
+    // 期フィルタ（マスタ経由で解決した期で絞る）
+    if (period && plotPeriod !== period) continue;
+
+    const key = section;
     const plotArea = plot.area_sqm ? toNumber(plot.area_sqm) : 3.6;
 
     const contractedArea = plot.contractPlots.reduce(
@@ -325,7 +367,7 @@ export async function getSectionInventory(
       existing.usedCount += usedPortion;
     } else {
       sectionMap.set(key, {
-        period: plot.area_name,
+        period: plotPeriod,
         section,
         totalCount: 1,
         usedCount: usedPortion,
@@ -410,14 +452,13 @@ export async function getAreaInventory(
 ): Promise<{ items: AreaInventoryItem[]; total: number }> {
   const { period, search, sortBy = 'period', sortOrder = 'asc', page = 1, limit = 20 } = options;
 
-  // 条件に合う物理区画を取得
+  // 区画名 → 期 のマッピング（マスタ）を取得。#166
+  const sectionPeriodMap = await loadSectionPeriodMap(prisma);
+
+  // 条件に合う物理区画を取得（期は area_name から解決するため DB では絞らない）
   const whereClause: Prisma.PhysicalPlotWhereInput = {
     deleted_at: null,
   };
-
-  if (period) {
-    whereClause.area_name = period;
-  }
 
   const physicalPlots = await prisma.physicalPlot.findMany({
     where: whereClause,
@@ -441,10 +482,15 @@ export async function getAreaInventory(
   >();
 
   for (const plot of physicalPlots) {
-    const section = extractSection(plot.plot_number);
+    const section = plot.area_name;
+    const plotPeriod = resolvePeriod(section, sectionPeriodMap);
+
+    // 期フィルタ（マスタ経由で解決した期で絞る）
+    if (period && plotPeriod !== period) continue;
+
     const plotArea = plot.area_sqm ? toNumber(plot.area_sqm) : 3.6;
     const plotType = determinePlotType(section, plotArea);
-    const key = `${plot.area_name}-${plotArea}-${plotType}`;
+    const key = `${plotPeriod}-${plotArea}-${plotType}`;
 
     const contractedArea = plot.contractPlots.reduce(
       (sum, cp) => sum + toNumber(cp.contract_area_sqm),
@@ -469,7 +515,7 @@ export async function getAreaInventory(
       existing.usedAreaSqm += usedAreaForPlot;
     } else {
       areaMap.set(key, {
-        period: plot.area_name,
+        period: plotPeriod,
         areaSqm: plotArea,
         plotType,
         totalCount: 1,
