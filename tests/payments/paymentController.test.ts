@@ -181,6 +181,18 @@ describe('paymentController', () => {
 
       expect(next).toHaveBeenCalledWith(expect.objectContaining({ name: 'NotFoundError' }));
     });
+
+    it('レガシーセンチネル fee_type を使用料/管理料に解決して返す (#334)', async () => {
+      mockPrisma.payment.findFirst.mockResolvedValue(
+        buildPaymentRow({ fee_type: 'legacy-fee-20230001' })
+      );
+
+      const req = buildRequest({ params: { id: PAYMENT_UUID } });
+      await getPaymentById(req as Request, res as Response, next);
+
+      const payload = (res.json as jest.Mock).mock.calls[0][0];
+      expect(payload.data.feeType).toBe('使用料');
+    });
   });
 
   describe('createPayment', () => {

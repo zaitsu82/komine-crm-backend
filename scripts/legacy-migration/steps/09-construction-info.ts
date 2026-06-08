@@ -43,9 +43,10 @@ export const stepConstructionInfo: MigrationStep = {
     );
 
     // 出現する legacy gyousha_cd の一意集合を ContractorMaster に upsert
+    // gyousha_cd = 0 は「未設定」を意味するため業者マスタを作らず、contractor も null にする（#334）。
     const distinctGyousha = new Set<number>();
     for (const row of rows) {
-      if (row.gyousha_cd != null) distinctGyousha.add(row.gyousha_cd);
+      if (row.gyousha_cd != null && row.gyousha_cd !== 0) distinctGyousha.add(row.gyousha_cd);
     }
     let mastersUpserted = 0;
     if (!dryRun) {
@@ -101,7 +102,10 @@ export const stepConstructionInfo: MigrationStep = {
           start_date: parseLegacyDate(row.construction_start),
           completion_date: parseLegacyDate(row.construction_end),
           scheduled_end_date: parseLegacyDate(row.construction_sch),
-          contractor: row.gyousha_cd != null ? `legacy-gyousha-${row.gyousha_cd}` : null,
+          contractor:
+            row.gyousha_cd != null && row.gyousha_cd !== 0
+              ? `legacy-gyousha-${row.gyousha_cd}`
+              : null, // gyousha_cd=0 は未設定（#334）
           work_amount_1: row.price ?? null,
           payment_amount_1: row.payment ?? null,
           construction_content: cleanStr(row.construction_content),
