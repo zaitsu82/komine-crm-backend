@@ -69,9 +69,30 @@ const mockPrisma: any = {
   },
   gravestoneInfo: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+  },
+  constructionInfo: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  document: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  billing: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  payment: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
   },
   familyContact: {
     findMany: jest.fn(),
@@ -91,6 +112,7 @@ const mockPrisma: any = {
   },
   collectiveBurial: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
   },
@@ -163,6 +185,7 @@ import {
 import {
   recordEntityUpdated,
   recordContractPlotUpdated,
+  recordEntityDeleted,
 } from '../../src/plots/services/historyService';
 import {
   validateContractArea,
@@ -2374,6 +2397,87 @@ describe('Plot Controller (ContractPlot Model)', () => {
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(NotFoundError));
     });
+
+    it('契約区画削除時に合祀・埋葬者・契約役割など子レコードを論理削除する (#358)', async () => {
+      setupDeleteCascadeMocks();
+      mockRequest.params = { id: 'cp1' };
+
+      await deletePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      // 合祀（今回の孤児レコードの主因）が論理削除されること
+      expect(mockPrisma.collectiveBurial.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'cb1' },
+          data: expect.objectContaining({ deleted_at: expect.any(Date) }),
+        })
+      );
+      // 契約役割が論理削除されること（顧客削除判定の正確性のため）
+      expect(mockPrisma.saleContractRole.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'scr1' },
+          data: expect.objectContaining({ deleted_at: expect.any(Date) }),
+        })
+      );
+      // 埋葬者・墓石・工事・家族連絡先・書類・請求・入金も論理削除されること
+      expect(mockPrisma.buriedPerson.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'bp1' } })
+      );
+      expect(mockPrisma.billing.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'bl1' } })
+      );
+      expect(mockPrisma.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'pm1' } })
+      );
+      // 各子に DELETE 履歴が記録されること
+      expect(recordEntityDeleted).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ entityType: 'CollectiveBurial', entityId: 'cb1' })
+      );
+      expect(responseStatus).toHaveBeenCalledWith(200);
+    });
+
+    // deletePlot のカスケード対象を網羅したモック準備
+    function setupDeleteCascadeMocks(): void {
+      mockPrisma.contractPlot.findUnique.mockResolvedValue({
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        contract_date: new Date('2024-01-01'),
+        price: 1000000,
+        payment_status: 'paid',
+        physicalPlot: { id: 'pp1' },
+        saleContractRoles: [
+          { id: 'scr1', customer: { id: 'c1', name: '山田太郎', workInfo: null } },
+        ],
+        usageFee: null,
+        managementFee: null,
+      });
+      mockPrisma.contractPlot.update.mockResolvedValue({ id: 'cp1' });
+      // 顧客の他契約参照チェック（contract_plot_id: { not } 付き）は「他に無い」、
+      // カスケードの役割検索（contract_plot_id 等値）は scr1 を返す
+      mockPrisma.saleContractRole.findMany.mockImplementation((args: any) => {
+        if (args?.where?.contract_plot_id?.not) return Promise.resolve([]);
+        return Promise.resolve([{ id: 'scr1' }]);
+      });
+      mockPrisma.customer.update.mockResolvedValue({ id: 'c1' });
+      mockPrisma.collectiveBurial.findMany.mockResolvedValue([{ id: 'cb1' }]);
+      mockPrisma.collectiveBurial.update.mockResolvedValue({ id: 'cb1' });
+      mockPrisma.buriedPerson.findMany.mockResolvedValue([{ id: 'bp1' }]);
+      mockPrisma.buriedPerson.update.mockResolvedValue({ id: 'bp1' });
+      mockPrisma.gravestoneInfo.findMany.mockResolvedValue([{ id: 'gs1' }]);
+      mockPrisma.gravestoneInfo.update.mockResolvedValue({ id: 'gs1' });
+      mockPrisma.constructionInfo.findMany.mockResolvedValue([{ id: 'ci1' }]);
+      mockPrisma.constructionInfo.update.mockResolvedValue({ id: 'ci1' });
+      mockPrisma.familyContact.findMany.mockResolvedValue([{ id: 'fc1' }]);
+      mockPrisma.familyContact.update.mockResolvedValue({ id: 'fc1' });
+      mockPrisma.saleContractRole.update.mockResolvedValue({ id: 'scr1' });
+      mockPrisma.document.findMany.mockResolvedValue([{ id: 'doc1' }]);
+      mockPrisma.document.update.mockResolvedValue({ id: 'doc1' });
+      mockPrisma.billing.findMany.mockResolvedValue([{ id: 'bl1' }]);
+      mockPrisma.billing.update.mockResolvedValue({ id: 'bl1' });
+      mockPrisma.payment.findMany.mockResolvedValue([{ id: 'pm1' }]);
+      mockPrisma.payment.update.mockResolvedValue({ id: 'pm1' });
+    }
   });
 
   describe('getPlotContracts', () => {

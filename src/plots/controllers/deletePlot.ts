@@ -13,7 +13,7 @@ import { Prisma } from '@prisma/client';
 import { updatePhysicalPlotStatus } from '../utils';
 import prisma from '../../db/prisma';
 import { NotFoundError } from '../../middleware/errorHandler';
-import { recordEntityDeleted } from '../services/historyService';
+import { recordEntityDeleted, HistoryEntityType } from '../services/historyService';
 
 /**
  * ContractPlot削除（論理削除）
@@ -170,7 +170,124 @@ export const deletePlot = async (
           }
         }
 
-        // 7. PhysicalPlotのステータスを更新
+        // 7. ContractPlot 配下の子レコードを論理削除（#358）
+        // いずれも contract_plot_id で直接紐づくため、分割販売（同一物理区画に
+        // 別の有効契約）でも他契約のデータには影響しない。
+        // これらを消し残すと、親契約削除後も合祀管理画面に孤児レコードが残る／
+        // saleContractRole が active のまま残り顧客削除判定（上記）を狂わせる。
+        const childCascades: Array<{
+          entityType: HistoryEntityType;
+          findActive: () => Promise<Array<{ id: string }>>;
+          softDelete: (childId: string) => Promise<unknown>;
+        }> = [
+          {
+            entityType: 'CollectiveBurial',
+            findActive: () =>
+              tx.collectiveBurial.findMany({
+                where: { contract_plot_id: id, deleted_at: null },
+                select: { id: true },
+              }),
+            softDelete: (childId) =>
+              tx.collectiveBurial.update({ where: { id: childId }, data: { deleted_at: now } }),
+          },
+          {
+            entityType: 'BuriedPerson',
+            findActive: () =>
+              tx.buriedPerson.findMany({
+                where: { contract_plot_id: id, deleted_at: null },
+                select: { id: true },
+              }),
+            softDelete: (childId) =>
+              tx.buriedPerson.update({ where: { id: childId }, data: { deleted_at: now } }),
+          },
+          {
+            entityType: 'GravestoneInfo',
+            findActive: () =>
+              tx.gravestoneInfo.findMany({
+                where: { contract_plot_id: id, deleted_at: null },
+                select: { id: true },
+              }),
+            softDelete: (childId) =>
+              tx.gravestoneInfo.update({ where: { id: childId }, data: { deleted_at: now } }),
+          },
+          {
+            entityType: 'ConstructionInfo',
+            findActive: () =>
+              tx.constructionInfo.findMany({
+                where: { contract_plot_id: id, deleted_at: null },
+                select: { id: true },
+              }),
+            softDelete: (childId) =>
+              tx.constructionInfo.update({ where: { id: childId }, data: { deleted_at: now } }),
+          },
+          {
+            entityType: 'FamilyContact',
+            findActive: () =>
+              tx.familyContact.findMany({
+                where: { contract_plot_id: id, deleted_at: null },
+                select: { id: true },
+              }),
+            softDelete: (childId) =>
+              tx.familyContact.update({ where: { id: childId }, data: { deleted_at: now } }),
+          },
+          {
+            entityType: 'SaleContractRole',
+            findActive: () =>
+              tx.saleContractRole.findMany({
+                where: { contract_plot_id: id, deleted_at: null },
+                select: { id: true },
+              }),
+            softDelete: (childId) =>
+              tx.saleContractRole.update({ where: { id: childId }, data: { deleted_at: now } }),
+          },
+          {
+            entityType: 'Document',
+            findActive: () =>
+              tx.document.findMany({
+                where: { contract_plot_id: id, deleted_at: null },
+                select: { id: true },
+              }),
+            softDelete: (childId) =>
+              tx.document.update({ where: { id: childId }, data: { deleted_at: now } }),
+          },
+          {
+            entityType: 'Billing',
+            findActive: () =>
+              tx.billing.findMany({
+                where: { contract_plot_id: id, deleted_at: null },
+                select: { id: true },
+              }),
+            softDelete: (childId) =>
+              tx.billing.update({ where: { id: childId }, data: { deleted_at: now } }),
+          },
+          {
+            entityType: 'Payment',
+            findActive: () =>
+              tx.payment.findMany({
+                where: { contract_plot_id: id, deleted_at: null },
+                select: { id: true },
+              }),
+            softDelete: (childId) =>
+              tx.payment.update({ where: { id: childId }, data: { deleted_at: now } }),
+          },
+        ];
+
+        for (const cascade of childCascades) {
+          const rows = await cascade.findActive();
+          for (const row of rows) {
+            await cascade.softDelete(row.id);
+            await recordEntityDeleted(tx, {
+              entityType: cascade.entityType,
+              entityId: row.id,
+              physicalPlotId,
+              contractPlotId: id,
+              beforeRecord: { id: row.id },
+              req,
+            });
+          }
+        }
+
+        // 8. PhysicalPlotのステータスを更新
         await updatePhysicalPlotStatus(tx, physicalPlotId);
       },
       // 在庫面積・status再計算を含むため並行更新と直列化する（#278）
