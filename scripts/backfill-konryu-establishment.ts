@@ -7,17 +7,21 @@
  * 正しい器は GravestoneInfo.establishment_deadline/establishment_date。
  *
  * 本スクリプトはレガシーDB不要で、移行済み行（legacy_grave_cd IS NOT NULL）の
- * permit_date → establishment_deadline / start_date → establishment_date へ
- * DB 内で移送し、ContractPlot.permit_date/start_date を null に戻す。
+ * permit_date → establishment_deadline / start_date → establishment_date へ DB 内で移送し、
+ * その後 permit_date/start_date には契約日(contract_date)を代理投入する
+ * （業務確認 komine-docs#10 Q4/Q5: 許可日＝開始日＝契約日相当）。
  *
  * アプリ作成行（legacy_grave_cd IS NULL）は正規の許可日/開始日が入りうるため対象外。
+ *
+ * ⚠️ 安全ガード: establishment_deadline/establishment_date が**未投入**の行だけ処理する。
+ *   これにより、新移行コード（permit=contract_date を投入する版）適用済みの行や、
+ *   既に本スクリプトで処理済みの行を再処理して establishment を壊すことを防ぐ。
  *
  * 使い方:
  *   npx ts-node scripts/backfill-konryu-establishment.ts          # dry-run（件数のみ）
  *   npx ts-node scripts/backfill-konryu-establishment.ts --apply  # 実際に更新
  *
- * 冪等: 実行後は対象行の permit_date/start_date が null になるため再実行で 0 件。
- *       establishment 側に既存値があれば上書きしない（?? で温存）。
+ * 冪等: 実行後は establishment が埋まるため、同じ行は次回ガードで除外され再処理されない。
  */
 import 'dotenv/config';
 
@@ -29,8 +33,8 @@ const CONCURRENCY = 25;
 async function main(): Promise<void> {
   console.log(`[backfill konryu→establishment] start (apply=${APPLY})`);
 
-  // 対象: 移行行で permit_date か start_date が入っているもの（= 誤投入された建立期限/建立日）
-  const targets = await prisma.contractPlot.findMany({
+  // 候補: 移行行で permit_date か start_date が入っているもの（= 誤投入された建立期限/建立日の疑い）
+  const candidates = await prisma.contractPlot.findMany({
     where: {
       legacy_grave_cd: { not: null },
       deleted_at: null,
@@ -40,12 +44,22 @@ async function main(): Promise<void> {
       id: true,
       permit_date: true,
       start_date: true,
+      contract_date: true,
       gravestoneInfo: {
         select: { id: true, establishment_deadline: true, establishment_date: true },
       },
     },
   });
-  console.log(`対象 contract_plots: ${targets.length} 件`);
+
+  // 安全ガード: establishment が未投入の行だけが「旧マッピングの未処理行」。
+  // どちらか埋まっていれば（新移行コード適用済み or 本スクリプト処理済み）除外する。
+  const targets = candidates.filter(
+    (t) =>
+      t.gravestoneInfo == null ||
+      (t.gravestoneInfo.establishment_deadline == null &&
+        t.gravestoneInfo.establishment_date == null)
+  );
+  console.log(`候補 ${candidates.length} 件 / 対象（establishment 未投入）${targets.length} 件`);
 
   let updated = 0;
   let createdGravestone = 0;
@@ -96,10 +110,11 @@ async function main(): Promise<void> {
           createdGravestone++;
         }
 
-        // 誤投入された permit_date/start_date を null に戻す
+        // 誤投入されていた建立期限/建立日は上で establishment へ移送済み。
+        // 許可日/開始日は契約日を代理値にする（komine-docs#10 Q4/Q5）。
         await prisma.contractPlot.update({
           where: { id: t.id },
-          data: { permit_date: null, start_date: null },
+          data: { permit_date: t.contract_date, start_date: t.contract_date },
         });
       })
     );
