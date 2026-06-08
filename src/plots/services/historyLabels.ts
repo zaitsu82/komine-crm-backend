@@ -76,6 +76,7 @@ export const FIELD_LABELS: Record<HistoryEntityType, Record<string, string>> = {
   ContractPlot: {
     contract_area_sqm: '契約面積',
     location_description: '位置情報',
+    inscription: '碑文',
     contract_date: '契約日',
     price: '契約金額',
     payment_status: '支払ステータス',
@@ -158,6 +159,7 @@ export const FIELD_LABELS: Record<HistoryEntityType, Record<string, string>> = {
     posthumous_name: '戒名',
     report_date: '届出日',
     religion: '宗派',
+    validity_period_years_override: '合祀年数（個別）',
     notes: '備考',
   },
   ConstructionInfo: {

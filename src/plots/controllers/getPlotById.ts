@@ -125,6 +125,7 @@ export const getPlotById = async (
       startDate: contractPlot.start_date,
       uncollectedAmount: contractPlot.uncollected_amount,
       contractNotes: contractPlot.notes,
+      inscription: contractPlot.inscription,
 
       // レガシー由来の区分コード
       graveKind: contractPlot.grave_kind,
@@ -180,6 +181,7 @@ export const getPlotById = async (
         causeOfDeath: person.cause_of_death,
         chiefMournerName: person.chief_mourner_name,
         chiefMournerRelationship: person.chief_mourner_relationship,
+        validityPeriodYearsOverride: person.validity_period_years_override,
         notes: person.notes,
       })),
 
