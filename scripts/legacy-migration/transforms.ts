@@ -58,6 +58,21 @@ export function cleanStr(value: unknown): string | null {
 }
 
 /**
+ * 表示用区画番号（grave_name_cd）の正規化。
+ * 全角英数（Ａ-Ｚ ａ-ｚ ０-９）を半角へ変換し、前後空白を除去する。
+ * "A-100" / "1.5-10" 等の区切り・記号や複数区画表記（"3/2・25/2"）はそのまま保持。
+ * 空文字・null は null を返す。#158
+ */
+export function normalizeGraveName(value: unknown): string | null {
+  const s = cleanStr(value);
+  if (s === null) return null;
+  const half = s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
+  );
+  return cleanStr(half);
+}
+
+/**
  * cleanStr の必須版（必ず空でない文字列を返す）
  * デフォルト値を渡さない場合、未設定なら fallback を使う
  */

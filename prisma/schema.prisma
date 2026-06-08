@@ -129,7 +129,10 @@ enum StaffRole {
 // 物理区画マスタ: 霊園の土地の境界線で区切られた最小単位（3.6㎡区画）
 model PhysicalPlot {
   id          String             @id @default(uuid()) @map("physical_plot_id")
-  plot_number String             @unique @db.VarChar(50) // 区画番号（例: A-56）
+  plot_number String             @unique @db.VarChar(50) // 区画番号（例: A-56）※ユニークキー兼一括取込キー。移行データは legacy-{grave_cd}
+  // 表示用区画番号（レガシー grave_name_cd 由来、例: "A-100"）。grave_name_cd は
+  // 一意でないため plot_number には使えず、表示専用の非ユニーク列として保持。#158
+  display_number String?         @db.VarChar(100)
   area_name   String             @db.VarChar(100) // 区画（期）（例: 1期、2期）
   area_sqm    Decimal            @default(3.6) @db.Decimal(5, 2) // 区画の総面積（基本3.6㎡）
   status      PhysicalPlotStatus @default(available) // 区画ステータス
