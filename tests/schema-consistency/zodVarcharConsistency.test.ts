@@ -141,7 +141,7 @@ const EXCEPTIONS: Record<string, Record<string, string>> = {
 /**
  * 既知の不整合ベースライン（key=`${schemaName}.${zodField}`、value=対応 VarChar 長）。
  * これらは本テスト導入時点で既に存在していた zod max > VarChar。正式対応（拡幅 vs zod 縮小）は
- * backend issue で追跡する。解消したら必ずこのテーブルから削除すること（stale 検出で落ちる）。
+ * backend #338 で追跡する。解消したら必ずこのテーブルから削除すること（stale 検出で落ちる）。
  *
  * 内訳:
  *  - 電話/郵便番号(6件): DB は全モデル一律 VarChar(7=郵便, 11/15=電話) の digits-only 想定。
