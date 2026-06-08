@@ -237,6 +237,26 @@ export const FIELD_LABELS: Record<HistoryEntityType, Record<string, string>> = {
     type: '書類種別',
     name: '書類名',
   },
+  Billing: {
+    category: '請求区分',
+    use_start_year: '使用開始年',
+    use_end_year: '使用終了年',
+    target_month: '対象月',
+    billing_years: '請求年数',
+    amount: '請求金額',
+    billing_date: '請求日',
+    paid_amount: '入金済額',
+    status: '請求ステータス',
+    notes: '備考',
+  },
+  Payment: {
+    scheduled_date: '入金予定日',
+    scheduled_amount: '入金予定額',
+    payment_date: '入金日',
+    payment_amount: '入金額',
+    fee_type: '料金種別',
+    notes: '備考',
+  },
 };
 
 /**
@@ -257,6 +277,8 @@ export const ENTITY_LABELS: Record<HistoryEntityType, string> = {
   FamilyContact: '家族連絡先',
   SaleContractRole: '契約役割',
   Document: '書類',
+  Billing: '請求',
+  Payment: '入金',
 };
 
 /**

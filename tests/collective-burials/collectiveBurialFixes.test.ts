@@ -294,20 +294,25 @@ describe('collectiveBurialController — バグ修正回帰', () => {
       mockRequest.query = { search: '山田' };
       await getCollectiveBurialList(mockRequest as Request, mockResponse as Response, mockNext);
 
+      // 検索条件は contractPlot.is 配下にマージされ、親契約の論理削除ガード
+      // （deleted_at: null）と OR 検索条件が共存する（#358 layer2）
       expect(mockPrisma.collectiveBurial.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            contractPlot: expect.objectContaining({
-              OR: expect.arrayContaining([
-                expect.objectContaining({
-                  saleContractRoles: {
-                    some: expect.objectContaining({
-                      deleted_at: null,
-                    }),
-                  },
-                }),
-              ]),
-            }),
+            contractPlot: {
+              is: expect.objectContaining({
+                deleted_at: null,
+                OR: expect.arrayContaining([
+                  expect.objectContaining({
+                    saleContractRoles: {
+                      some: expect.objectContaining({
+                        deleted_at: null,
+                      }),
+                    },
+                  }),
+                ]),
+              }),
+            },
           }),
         })
       );

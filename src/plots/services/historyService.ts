@@ -37,7 +37,9 @@ export type HistoryEntityType =
   | 'ConstructionInfo'
   | 'CollectiveBurial'
   | 'GravestoneInfo'
-  | 'FamilyContact';
+  | 'FamilyContact'
+  | 'Billing'
+  | 'Payment';
 
 /**
  * 履歴レコード作成のための入力パラメータ
