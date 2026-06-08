@@ -49,6 +49,7 @@ describe('legacy migration resume + dry-run (issue #163)', () => {
       customer: { findMany: customerFindMany },
       contractPlot: { findMany: contractPlotFindMany },
       familyContact: { create: familyContactCreate },
+      relationshipMaster: { findMany: jest.fn().mockResolvedValue([]) },
     } as unknown as PrismaClient;
 
     // 1回目: t_danka (danka_cd→grave_cd), 2回目: 解約者 danka（del_flg=2 #311）, 3回目: t_family 本体

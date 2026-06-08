@@ -79,6 +79,7 @@ describe('stepFamilyContact: 解約者紐づき family の取込 (#311)', () => 
           return Promise.resolve({ id: `fc-${created.length}` });
         }),
       },
+      relationshipMaster: { findMany: jest.fn().mockResolvedValue([]) },
     } as unknown as PrismaClient;
   };
 

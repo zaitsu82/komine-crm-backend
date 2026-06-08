@@ -260,8 +260,10 @@ export const stepContractPlot: MigrationStep = {
           data: {
             contract_plot_id: contractPlot.id,
             gravestone_inscription: cleanStr(row.boshi),
-            direction_id: row.houi_id ?? null,
-            position_id: row.ichi_id ?? null,
+            // 0 は「未設定」センチネル（方位マスタ code=1〜8 / 位置 code=1〜3、0 は無い）。
+            // 0 を残すと UI で「旧コード: 0」が露出するため null に正規化する（#333）。
+            direction_id: row.houi_id || null,
+            position_id: row.ichi_id || null,
             gravestone_cost: row.bosekiryou ?? null,
             establishment_deadline: parseLegacyDate(row.konryu_kigen),
             establishment_date: parseLegacyDate(row.konryu_date),

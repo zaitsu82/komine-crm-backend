@@ -111,7 +111,10 @@ export const stepBuriedPerson: MigrationStep = {
           burial_date: parseLegacyDate(row.maisou_date),
           posthumous_name: cleanStr(row.kaimyou),
           report_date: parseLegacyDate(row.request_day),
-          religion: row.shuuha != null ? `legacy-shuuha-${row.shuuha}` : null,
+          // 宗派マスタは不要確定（業務確認済）。レガシー shuuha int は解決先が無く、
+          // `legacy-shuuha-N` センチネルをそのまま入れると UI に露出する（#333）。
+          // shuuha=0 は「未設定」。解決先が無いため全件 null 保存にする。
+          religion: null,
           death_place: cleanStr(row.siboubasyo),
           cause_of_death: cleanStr(row.siin),
           chief_mourner_name: joinName(row.moshu_sei, row.moshu_mei),
