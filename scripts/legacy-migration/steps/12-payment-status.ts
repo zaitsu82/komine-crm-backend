@@ -1,9 +1,6 @@
-import type { PaymentStatus } from '@prisma/client';
+import type { BillingCategory, PaymentStatus } from '@prisma/client';
 
-import {
-  paymentStatusFromTotals,
-  uncollectedFromTotals,
-} from '../../../src/plots/services/paymentStatusLogic';
+import { deriveContractPlotPayment } from '../../../src/plots/services/paymentStatusLogic';
 import type { MigrationStep } from '../types';
 
 /**
@@ -13,10 +10,12 @@ import type { MigrationStep } from '../types';
  * Billing / Payment 投入後に、契約区画ごとに「請求額 vs 入金額」を集計して
  * payment_status（paid / partial_paid / unpaid）と未収金額（請求額 − 入金額）を再計算する。
  *
- * 判定ロジックはランタイム（src/plots/services/paymentStatusLogic）と共有している。
+ * 判定ロジックはランタイム（src/plots/services/paymentStatusLogic の deriveContractPlotPayment）と
+ * 共有している。区画×category で集計し、同関数へ渡すことで単一ソースを保つ。
  *  - 解約済み請求（terminated）は債務消滅扱いで集計から除外
  *  - overdue（延滞）は期限超過の業務定義が未確定のため自動付与しない
- *  - 未収金額 = max(0, 請求額 − 入金額)（#170）
+ *  - payment_status は全料金区分で判定
+ *  - 未収金額は護持費（管理料 = management_fee）の未集金額に限定（komine-docs#10 項目2 / 業務確定）
  *
  * 冪等性:
  *   payment_status='unpaid' かつ uncollected=0（＝移行初期値）に収束する区画は更新不要（no-op）。
@@ -34,12 +33,29 @@ export const stepPaymentStatus: MigrationStep = {
   name: 'paymentStatus',
   dependsOn: ['billing', 'payment'],
   async run({ prisma, logger, dryRun }) {
-    // 解約済みを除いた請求を契約区画単位で集計（請求額 / 入金額）
+    // 解約済みを除いた請求を「契約区画 × 料金区分」で集計（請求額 / 入金額）。
+    // payment_status は全区分・未収金額は管理料限定で出すため category 別の内訳が必要。
     const grouped = await prisma.billing.groupBy({
-      by: ['contract_plot_id'],
+      by: ['contract_plot_id', 'category'],
       where: { deleted_at: null, terminated: false },
       _sum: { amount: true, paid_amount: true },
     });
+
+    // 区画ごとに category 別の集計を束ね、deriveContractPlotPayment（ランタイムと共有の単一ソース）へ渡す。
+    const byPlot = new Map<
+      string,
+      { amount: number; paid_amount: number; terminated: boolean; category: BillingCategory }[]
+    >();
+    for (const g of grouped) {
+      const list = byPlot.get(g.contract_plot_id) ?? [];
+      list.push({
+        amount: g._sum.amount ?? 0,
+        paid_amount: g._sum.paid_amount ?? 0,
+        terminated: false, // where で terminated:false 済み
+        category: g.category,
+      });
+      byPlot.set(g.contract_plot_id, list);
+    }
 
     // (payment_status, uncollected) の組ごとに区画 ID をまとめて updateMany を最小化する。
     // 移行初期値（unpaid / 0）に一致する区画は更新不要（no-op）なので除外する。
@@ -52,11 +68,8 @@ export const stepPaymentStatus: MigrationStep = {
     let setUncollected = 0;
     let leftAtInitial = 0;
 
-    for (const g of grouped) {
-      const totalAmount = g._sum.amount ?? 0;
-      const totalPaid = g._sum.paid_amount ?? 0;
-      const status = paymentStatusFromTotals(totalAmount, totalPaid);
-      const uncollected = uncollectedFromTotals(totalAmount, totalPaid, status);
+    for (const [contractPlotId, billings] of byPlot) {
+      const { status, uncollectedAmount: uncollected } = deriveContractPlotPayment(billings);
 
       if (status === 'unpaid' && uncollected === 0) {
         leftAtInitial += 1;
@@ -68,15 +81,15 @@ export const stepPaymentStatus: MigrationStep = {
 
       const key = `${status}|${uncollected}`;
       const bucket = buckets.get(key);
-      if (bucket) bucket.ids.push(g.contract_plot_id);
-      else buckets.set(key, { status, uncollected, ids: [g.contract_plot_id] });
+      if (bucket) bucket.ids.push(contractPlotId);
+      else buckets.set(key, { status, uncollected, ids: [contractPlotId] });
     }
 
-    const updated = grouped.length - leftAtInitial;
+    const updated = byPlot.size - leftAtInitial;
 
     if (dryRun) {
       const notes: Record<string, number> = {
-        contract_plots_with_billing: grouped.length,
+        contract_plots_with_billing: byPlot.size,
         would_set_paid: setPaid,
         would_set_partial_paid: setPartial,
         would_set_uncollected: setUncollected,
@@ -95,7 +108,7 @@ export const stepPaymentStatus: MigrationStep = {
     }
 
     const notes: Record<string, number> = {
-      contract_plots_with_billing: grouped.length,
+      contract_plots_with_billing: byPlot.size,
       set_paid: setPaid,
       set_partial_paid: setPartial,
       set_uncollected: setUncollected,

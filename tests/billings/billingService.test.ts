@@ -274,9 +274,10 @@ describe('recalculateBillingPayments', () => {
       { payment_amount: 10000, payment_date: new Date('2026-05-01') },
     ]);
     // 区画には他に未入金の管理料請求が残っている → 区画全体は partial_paid
+    // 未収金額は管理料限定（komine-docs#10 項目2）: 未払いの 5000 は管理料なので未収=5000
     billingFindMany.mockResolvedValue([
-      { amount: 10000, paid_amount: 10000, terminated: false },
-      { amount: 5000, paid_amount: 0, terminated: false },
+      { amount: 10000, paid_amount: 10000, terminated: false, category: 'usage_fee' },
+      { amount: 5000, paid_amount: 0, terminated: false, category: 'management_fee' },
     ]);
 
     await recalculateBillingPayments(client, 'b1');
