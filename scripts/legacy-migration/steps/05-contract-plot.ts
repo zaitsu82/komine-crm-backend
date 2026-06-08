@@ -143,7 +143,16 @@ export const stepContractPlot: MigrationStep = {
         inserted++;
         if (row.shiyouryou) usageFeeInserted++;
         if (row.kanriryou) managementFeeInserted++;
-        if (row.boshi || row.houi_id || row.ichi_id) gravestoneInserted++;
+        // 実挿入条件（下記 GravestoneInfo.create のガード）と一致させる（#326）
+        if (
+          row.boshi ||
+          row.houi_id != null ||
+          row.ichi_id != null ||
+          row.bosekiryou != null ||
+          row.konryu_kigen != null ||
+          row.konryu_date != null
+        )
+          gravestoneInserted++;
         continue;
       }
 
@@ -172,8 +181,12 @@ export const stepContractPlot: MigrationStep = {
         reservation_date: parseLegacyDate(row.reserve_date),
         acceptance_number: row.auth_no != null ? String(row.auth_no) : null,
         acceptance_date: parseLegacyDate(row.auth_date),
-        permit_date: parseLegacyDate(row.konryu_kigen),
-        start_date: parseLegacyDate(row.konryu_date),
+        // 許可日(permit_date)/開始日(start_date) はレガシーの真の対応列が未確定（komine-docs#10 項目5）。
+        // 以前は konryu_kigen(建立期限)/konryu_date(建立日) を誤って入れていた（#326）。
+        // 建立期限/建立日は GravestoneInfo.establishment_deadline/establishment_date へ移す（下記）。
+        // 真の許可日列が確定するまで null。
+        permit_date: null,
+        start_date: null,
         notes: cleanStr(row.note),
       };
 
@@ -233,8 +246,16 @@ export const stepContractPlot: MigrationStep = {
         managementFeeInserted++;
       }
 
-      // GravestoneInfo（boshi/houi_id/ichi_id/bosekiryou のどれかがあれば作成）
-      if (row.boshi || row.houi_id != null || row.ichi_id != null || row.bosekiryou != null) {
+      // GravestoneInfo（boshi/houi_id/ichi_id/bosekiryou/konryu_kigen/konryu_date のどれかがあれば作成）
+      // 建立期限(konryu_kigen)/建立日(konryu_date) は establishment_deadline/establishment_date が正しい器（#326）。
+      if (
+        row.boshi ||
+        row.houi_id != null ||
+        row.ichi_id != null ||
+        row.bosekiryou != null ||
+        row.konryu_kigen != null ||
+        row.konryu_date != null
+      ) {
         await prisma.gravestoneInfo.create({
           data: {
             contract_plot_id: contractPlot.id,
@@ -242,6 +263,8 @@ export const stepContractPlot: MigrationStep = {
             direction_id: row.houi_id ?? null,
             position_id: row.ichi_id ?? null,
             gravestone_cost: row.bosekiryou ?? null,
+            establishment_deadline: parseLegacyDate(row.konryu_kigen),
+            establishment_date: parseLegacyDate(row.konryu_date),
           },
         });
         gravestoneInserted++;
