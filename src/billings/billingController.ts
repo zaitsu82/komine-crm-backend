@@ -19,7 +19,9 @@ type BillingWithRelations = Prisma.BillingGetPayload<{
     contractPlot: {
       select: {
         id: true;
-        physicalPlot: { select: { id: true; plot_number: true; area_name: true } };
+        physicalPlot: {
+          select: { id: true; plot_number: true; display_number: true; area_name: true };
+        };
       };
     };
   };
@@ -52,6 +54,7 @@ const formatBilling = (b: BillingWithRelations) => ({
     ? { id: b.customer.id, name: b.customer.name, nameKana: b.customer.name_kana }
     : null,
   plotNumber: b.contractPlot?.physicalPlot.plot_number ?? null,
+  displayNumber: b.contractPlot?.physicalPlot.display_number ?? null,
   areaName: b.contractPlot?.physicalPlot.area_name ?? null,
   createdAt: b.created_at.toISOString(),
   updatedAt: b.updated_at.toISOString(),
@@ -62,7 +65,9 @@ const includeRelations = {
   contractPlot: {
     select: {
       id: true,
-      physicalPlot: { select: { id: true, plot_number: true, area_name: true } },
+      physicalPlot: {
+        select: { id: true, plot_number: true, display_number: true, area_name: true },
+      },
     },
   },
 } satisfies Prisma.BillingInclude;
