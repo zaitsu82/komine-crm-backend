@@ -609,6 +609,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
         physical_plot_id: 'pp1',
         contract_area_sqm: new Prisma.Decimal(3.6),
         location_description: 'A区画',
+        inscription: '連絡は長男へ',
         created_at: new Date('2024-01-01'),
         updated_at: new Date('2024-01-01'),
         deleted_at: null,
@@ -635,7 +636,28 @@ describe('Plot Controller (ContractPlot Model)', () => {
           map_id: 7,
           notes: null,
         },
-        buriedPersons: [],
+        buriedPersons: [
+          {
+            id: 'bp1',
+            name: '山田次郎',
+            name_kana: 'ヤマダジロウ',
+            relationship: '子',
+            birth_date: null,
+            death_date: null,
+            age: null,
+            gender: null,
+            burial_date: null,
+            posthumous_name: null,
+            report_date: null,
+            religion: null,
+            death_place: null,
+            cause_of_death: null,
+            chief_mourner_name: null,
+            chief_mourner_relationship: null,
+            validity_period_years_override: 10, // 区画既定より短い個別指定（komine-docs#10 項目8）
+            notes: null,
+          },
+        ],
         familyContacts: [],
         gravestoneInfo: null,
         constructionInfos: [],
@@ -689,6 +711,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
             contractStatus: 'active',
             paymentStatus: 'paid',
             requestDate: new Date('2023-12-01'),
+            inscription: '連絡は長男へ',
             graveKind: 1,
             graveKubun: 2,
             graveType: 3,
@@ -697,6 +720,12 @@ describe('Plot Controller (ContractPlot Model)', () => {
               id: 'pp1',
               mapId: 7,
             }),
+            buriedPersons: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'bp1',
+                validityPeriodYearsOverride: 10,
+              }),
+            ]),
           }),
         })
       );
@@ -723,6 +752,7 @@ describe('Plot Controller (ContractPlot Model)', () => {
         contractPlot: {
           contractAreaSqm: 3.6,
           saleStatus: 'contracted',
+          inscription: '連絡は長男へ',
         },
         saleContract: {
           contractDate: '2024-01-01',
@@ -787,6 +817,12 @@ describe('Plot Controller (ContractPlot Model)', () => {
       expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(validateContractArea).toHaveBeenCalled();
       expect(updatePhysicalPlotStatus).toHaveBeenCalled();
+      // 碑文(inscription)が contractPlot.create の data に渡る（komine-docs#10 項目1）
+      expect(mockPrisma.contractPlot.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ inscription: '連絡は長男へ' }),
+        })
+      );
       expect(responseStatus).toHaveBeenCalledWith(201);
       expect(responseJson).toHaveBeenCalledWith(
         expect.objectContaining({

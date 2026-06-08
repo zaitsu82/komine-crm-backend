@@ -3437,6 +3437,12 @@ components:
               maxLength: 200
               nullable: true
               example: 南側
+            inscription:
+              type: string
+              description: 碑文（注意書きの一言・一覧表示用）。墓誌とは別物
+              maxLength: 120
+              nullable: true
+              example: 連絡時は長男へ
         saleContract:
           type: object
           required:
@@ -3943,6 +3949,12 @@ components:
                 description: 埋葬日
                 nullable: true
                 example: "2020-03-20"
+              validityPeriodYearsOverride:
+                type: integer
+                description: 合祀年数の個別上書き（null=区画の合祀年数を継承）。komine-docs#10 項目8
+                minimum: 1
+                nullable: true
+                example: 10
               notes:
                 type: string
                 description: 備考
@@ -3967,6 +3979,11 @@ components:
             locationDescription:
               type: string
               maxLength: 200
+              nullable: true
+            inscription:
+              type: string
+              description: 碑文（注意書きの一言・一覧表示用）。墓誌とは別物
+              maxLength: 120
               nullable: true
         saleContract:
           type: object
@@ -4290,6 +4307,11 @@ components:
             locationDescription:
               type: string
               maxLength: 200
+              nullable: true
+            inscription:
+              type: string
+              description: 碑文（注意書きの一言・一覧表示用）。墓誌とは別物
+              maxLength: 120
               nullable: true
         saleContract:
           type: object
