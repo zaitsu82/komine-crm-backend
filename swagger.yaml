@@ -372,7 +372,8 @@ paths:
       tags:
         - Plots
       summary: 契約区画詳細取得
-      description: 指定した契約区画の詳細情報を取得。物理区画、顧客、販売契約、オプション情報を含む。
+      description: 指定した契約区画の詳細情報を取得。物理区画、顧客、販売契約、オプション情報を含む。includeHistory=true
+        を指定すると変更履歴（histories）も同梱して返す。
       security:
         - bearerAuth: []
       parameters:
@@ -383,6 +384,20 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: includeHistory
+          in: query
+          required: false
+          description: true を指定するとレスポンスの data.histories に変更履歴を同梱する。
+          schema:
+            type: boolean
+            default: false
+        - name: historyLimit
+          in: query
+          required: false
+          description: includeHistory=true のときに同梱する履歴の最大件数。
+          schema:
+            type: integer
+            default: 50
       responses:
         "200":
           description: 取得成功
@@ -395,7 +410,15 @@ paths:
                     type: boolean
                     example: true
                   data:
-                    $ref: "#/components/schemas/ContractPlotDetail"
+                    allOf:
+                      - $ref: "#/components/schemas/ContractPlotDetail"
+                      - type: object
+                        properties:
+                          histories:
+                            type: array
+                            description: includeHistory=true のときのみ返却される変更履歴。
+                            items:
+                              $ref: "#/components/schemas/History"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -489,6 +512,79 @@ paths:
                       id:
                         type: string
                         format: uuid
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/plots/{id}/history:
+    get:
+      tags:
+        - Plots
+      summary: 契約区画の変更履歴取得
+      description: 指定した契約区画に関連する変更履歴をページネーション付きで取得。物理区画自体の履歴は当該物理区画分のみ含み、他契約への漏れを防ぐ。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 契約区画ID（UUID）
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          description: ページ番号（1始まり）
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: 1ページあたりの件数（最大100）
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: entityType
+          in: query
+          required: false
+          description: "エンティティ種別でフィルタ（例: ContractPlot, Customer, BuriedPerson, FamilyContact, PhysicalPlot）"
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      histories:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/History"
+                      pagination:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                          page:
+                            type: integer
+                          limit:
+                            type: integer
+                          totalPages:
+                            type: integer
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -4561,6 +4657,68 @@ components:
           type: string
           description: 区画タイプ（自由、吉相、樹林、天空など）
           example: "自由"
+
+    History:
+      type: object
+      description: 変更履歴エントリ（日本語ラベル付与済み）。区画詳細の履歴タブで使用。
+      properties:
+        id:
+          type: string
+          format: uuid
+        entityType:
+          type: string
+          description: エンティティ種別（ContractPlot / Customer / BuriedPerson / FamilyContact / PhysicalPlot 等）
+          example: ContractPlot
+        entityLabel:
+          type: string
+          description: entityType の日本語ラベル
+          example: 契約区画
+        entityId:
+          type: string
+          format: uuid
+        actionType:
+          type: string
+          description: 操作種別
+          enum:
+            - CREATE
+            - UPDATE
+            - DELETE
+          example: UPDATE
+        changedFields:
+          type: array
+          description: 変更されたフィールド名の配列（UPDATE 時）
+          nullable: true
+          items:
+            type: string
+        fieldLabels:
+          type: object
+          description: フィールド名→日本語ラベルの対応表
+          additionalProperties:
+            type: string
+        beforeRecord:
+          type: object
+          description: 変更前のレコード（フィルタ済み）
+          nullable: true
+          additionalProperties: true
+        afterRecord:
+          type: object
+          description: 変更後のレコード（フィルタ済み）
+          nullable: true
+          additionalProperties: true
+        changedBy:
+          type: string
+          description: 変更者（スタッフ名 or legacy-tancd-N）
+          nullable: true
+        changeReason:
+          type: string
+          description: 変更理由
+          nullable: true
+        ipAddress:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
 
     Pagination:
       type: object
