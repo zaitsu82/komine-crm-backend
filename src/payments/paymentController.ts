@@ -25,7 +25,9 @@ type PaymentWithRelations = Prisma.PaymentGetPayload<{
     contractPlot: {
       select: {
         id: true;
-        physicalPlot: { select: { id: true; plot_number: true; area_name: true } };
+        physicalPlot: {
+          select: { id: true; plot_number: true; display_number: true; area_name: true };
+        };
       };
     };
   };
@@ -61,6 +63,7 @@ const formatPayment = (p: PaymentWithRelations) => ({
     ? { id: p.customer.id, name: p.customer.name, nameKana: p.customer.name_kana }
     : null,
   plotNumber: p.contractPlot?.physicalPlot.plot_number ?? null,
+  displayNumber: p.contractPlot?.physicalPlot.display_number ?? null,
   areaName: p.contractPlot?.physicalPlot.area_name ?? null,
   createdAt: p.created_at.toISOString(),
   updatedAt: p.updated_at.toISOString(),
@@ -80,7 +83,9 @@ const includeRelations = {
   contractPlot: {
     select: {
       id: true,
-      physicalPlot: { select: { id: true, plot_number: true, area_name: true } },
+      physicalPlot: {
+        select: { id: true, plot_number: true, display_number: true, area_name: true },
+      },
     },
   },
 } satisfies Prisma.PaymentInclude;

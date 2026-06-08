@@ -148,6 +148,7 @@ export const getCollectiveBurialList = async (
         id: item.id,
         contractPlotId: item.contract_plot_id,
         plotNumber: item.contractPlot.physicalPlot.plot_number,
+        displayNumber: item.contractPlot.physicalPlot.display_number,
         areaName: item.contractPlot.physicalPlot.area_name,
         contractDate: item.contractPlot.contract_date?.toISOString().split('T')[0] ?? null,
         applicantName: applicant?.name || null,
@@ -234,6 +235,7 @@ export const getCollectiveBurialById = async (
         id: collectiveBurial.id,
         contractPlotId: collectiveBurial.contract_plot_id,
         plotNumber: collectiveBurial.contractPlot.physicalPlot.plot_number,
+        displayNumber: collectiveBurial.contractPlot.physicalPlot.display_number,
         areaName: collectiveBurial.contractPlot.physicalPlot.area_name,
         contractDate:
           collectiveBurial.contractPlot.contract_date?.toISOString().split('T')[0] ?? null,
@@ -473,6 +475,7 @@ export const updateCollectiveBurial = async (
         id: updated.id,
         contractPlotId: updated.contract_plot_id,
         plotNumber: updated.contractPlot.physicalPlot.plot_number,
+        displayNumber: updated.contractPlot.physicalPlot.display_number,
         burialCapacity: updated.burial_capacity,
         currentBurialCount: updated.current_burial_count,
         capacityReachedDate: updated.capacity_reached_date?.toISOString().split('T')[0] || null,

@@ -184,6 +184,7 @@ export const getDocuments = async (req: Request, res: Response): Promise<void> =
               physicalPlot: {
                 select: {
                   plot_number: true,
+                  display_number: true,
                   area_name: true,
                 },
               },
@@ -227,6 +228,7 @@ export const getDocuments = async (req: Request, res: Response): Promise<void> =
         ? {
             id: doc.contractPlot.id,
             plotNumber: doc.contractPlot.physicalPlot.plot_number,
+            displayNumber: doc.contractPlot.physicalPlot.display_number,
             areaName: doc.contractPlot.physicalPlot.area_name,
           }
         : null,
@@ -282,6 +284,7 @@ export const getDocumentById = async (req: Request, res: Response): Promise<void
               select: {
                 id: true,
                 plot_number: true,
+                display_number: true,
                 area_name: true,
               },
             },
@@ -342,6 +345,7 @@ export const getDocumentById = async (req: Request, res: Response): Promise<void
               physicalPlot: {
                 id: document.contractPlot.physicalPlot.id,
                 plotNumber: document.contractPlot.physicalPlot.plot_number,
+                displayNumber: document.contractPlot.physicalPlot.display_number,
                 areaName: document.contractPlot.physicalPlot.area_name,
               },
             }
