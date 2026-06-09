@@ -158,6 +158,36 @@ npx prisma migrate deploy
    - Project URL → `SUPABASE_URL`
    - service_role key → `SUPABASE_SERVICE_ROLE_KEY`
 
+### メール送信設定（招待・パスワードリセット）※本番前必須（#351 / #350）
+
+スタッフ招待・パスワードリセットのメールが**確実に届くようにする**ための設定。抜けると「リンクが localhost に飛ぶ」「メールが届かない」事故になる。
+
+#### 1. 遷移先URL（`FRONTEND_URL`）
+
+招待/リセットメールのリンク先ベースURL。**末尾スラッシュ不可**（コード側で `${FRONTEND_URL}/set-password` `${FRONTEND_URL}/reset-password` と連結するため、`//set-password` になると Supabase の Redirect URL 許可リストにマッチせず Site URL にフォールバックする）。
+
+- backend env に設定（`render.yaml` / `.env.example` 記載済み・#349）。例: `FRONTEND_URL=https://komine-cemetery-crm.vercel.app`
+- 未設定だとリセットは `localhost`、招待は Supabase Site URL にフォールバックする。
+
+#### 2. Supabase Dashboard の URL 設定
+
+**Authentication** → **URL Configuration**:
+
+- **Site URL**: 本番フロントのオリジン（例 `https://komine-cemetery-crm.vercel.app`）
+- **Redirect URLs** に許可登録（`FRONTEND_URL` と一致させること）:
+  - `https://<本番フロント>/set-password`
+  - `https://<本番フロント>/reset-password`
+
+#### 3. 独自SMTP（本番必須・組み込みメールのレート制限対策 #351）
+
+Supabase の**組み込みメールはテスト用途で送信レート制限が非常に厳しい**（招待・リセット・確認メールが共通枠を消費し、同日に複数送ると「メール送信の制限に達しました」で失敗する）。本番では独自SMTPを設定する。
+
+- **Authentication** → **SMTP Settings** で SendGrid / Resend / Amazon SES 等を設定
+- 送信元ドメインの **SPF / DKIM** を設定（到達率・スパム回避）
+- 送信レート上限を引き上げる
+
+> レート制限に当たった場合、`forgot-password` は 429 + 専用メッセージを返す（#350）。それ以外のエラーは列挙対策で一律「送信しました」を維持。
+
 ### 初期 admin の作成
 
 顧客環境への初回デプロイ時は [顧客環境への初回デプロイ手順](#顧客環境への初回デプロイ手順) の bootstrap スクリプトを使用してください。
