@@ -21,6 +21,7 @@ const mockSupabaseAuth = {
   signInWithPassword: jest.fn(),
   getUser: jest.fn(),
   resetPasswordForEmail: jest.fn(),
+  exchangeCodeForSession: jest.fn(),
   admin: {
     signOut: jest.fn(),
     updateUserById: jest.fn(),
@@ -987,6 +988,135 @@ describe('Auth Controller', () => {
             error: expect.objectContaining({ code: 'RATE_LIMIT_EXCEEDED' }),
           })
         );
+      });
+    });
+
+    describe('resetPassword（新パスワード設定）', () => {
+      let resetPassword: any;
+
+      beforeEach(async () => {
+        const authController = await import('../../src/auth/authController');
+        resetPassword = authController.resetPassword;
+      });
+
+      it('accessToken（implicitフロー）でユーザーを特定しパスワードを更新すること', async () => {
+        // メールリンクのハッシュ #access_token=... から取り出したトークンで本人特定
+        mockRequest.body = {
+          accessToken: 'valid-access-token',
+          newPassword: 'NewPass123',
+          confirmPassword: 'NewPass123',
+        };
+        mockSupabaseAuth.getUser.mockResolvedValue({
+          data: { user: { id: 'user-uid-1' } },
+          error: null,
+        });
+        mockSupabaseAuth.admin.updateUserById.mockResolvedValue({ data: {}, error: null });
+
+        await resetPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockSupabaseAuth.getUser).toHaveBeenCalledWith('valid-access-token');
+        expect(mockSupabaseAuth.admin.updateUserById).toHaveBeenCalledWith('user-uid-1', {
+          password: 'NewPass123',
+        });
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+        expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+      });
+
+      it('accessToken が無効/期限切れなら 400 INVALID_TOKEN を返し更新しないこと', async () => {
+        mockRequest.body = {
+          accessToken: 'expired-token',
+          newPassword: 'NewPass123',
+          confirmPassword: 'NewPass123',
+        };
+        mockSupabaseAuth.getUser.mockResolvedValue({
+          data: { user: null },
+          error: { message: 'invalid JWT' },
+        });
+
+        await resetPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockSupabaseAuth.admin.updateUserById).not.toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(400);
+        expect(mockResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({ code: 'INVALID_TOKEN' }),
+          })
+        );
+      });
+
+      it('code（PKCEフロー後方互換）でもユーザーを特定して更新できること', async () => {
+        mockRequest.body = {
+          code: 'pkce-code',
+          newPassword: 'NewPass123',
+          confirmPassword: 'NewPass123',
+        };
+        mockSupabaseAuth.exchangeCodeForSession.mockResolvedValue({
+          data: { user: { id: 'user-uid-2' } },
+          error: null,
+        });
+        mockSupabaseAuth.admin.updateUserById.mockResolvedValue({ data: {}, error: null });
+
+        await resetPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockSupabaseAuth.exchangeCodeForSession).toHaveBeenCalledWith('pkce-code');
+        expect(mockSupabaseAuth.admin.updateUserById).toHaveBeenCalledWith('user-uid-2', {
+          password: 'NewPass123',
+        });
+        expect(mockResponse.status).toHaveBeenCalledWith(200);
+      });
+
+      it('accessToken と code 両方あれば accessToken を優先し code 交換を呼ばないこと', async () => {
+        mockRequest.body = {
+          accessToken: 'tok',
+          code: 'should-be-ignored',
+          newPassword: 'NewPass123',
+          confirmPassword: 'NewPass123',
+        };
+        mockSupabaseAuth.getUser.mockResolvedValue({
+          data: { user: { id: 'user-uid-3' } },
+          error: null,
+        });
+        mockSupabaseAuth.admin.updateUserById.mockResolvedValue({ data: {}, error: null });
+
+        await resetPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockSupabaseAuth.getUser).toHaveBeenCalledWith('tok');
+        expect(mockSupabaseAuth.exchangeCodeForSession).not.toHaveBeenCalled();
+      });
+
+      it('accessToken も code も無ければ 400 を返すこと（防御）', async () => {
+        mockRequest.body = {
+          newPassword: 'NewPass123',
+          confirmPassword: 'NewPass123',
+        };
+
+        await resetPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockSupabaseAuth.getUser).not.toHaveBeenCalled();
+        expect(mockSupabaseAuth.exchangeCodeForSession).not.toHaveBeenCalled();
+        expect(mockSupabaseAuth.admin.updateUserById).not.toHaveBeenCalled();
+        expect(mockResponse.status).toHaveBeenCalledWith(400);
+      });
+
+      it('Admin パスワード更新が失敗したら 500 を返すこと', async () => {
+        mockRequest.body = {
+          accessToken: 'tok',
+          newPassword: 'NewPass123',
+          confirmPassword: 'NewPass123',
+        };
+        mockSupabaseAuth.getUser.mockResolvedValue({
+          data: { user: { id: 'user-uid-4' } },
+          error: null,
+        });
+        mockSupabaseAuth.admin.updateUserById.mockResolvedValue({
+          data: {},
+          error: { message: 'update failed' },
+        });
+
+        await resetPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(500);
       });
     });
 

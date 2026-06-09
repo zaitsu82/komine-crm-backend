@@ -1,4 +1,8 @@
-import { loginSchema, changePasswordSchema } from '../../src/validations/authValidation';
+import {
+  loginSchema,
+  changePasswordSchema,
+  resetPasswordSchema,
+} from '../../src/validations/authValidation';
 
 describe('Auth Validation', () => {
   describe('loginSchema', () => {
@@ -155,6 +159,47 @@ describe('Auth Validation', () => {
       };
 
       expect(() => changePasswordSchema.parse(invalidData)).toThrow();
+    });
+  });
+
+  describe('resetPasswordSchema', () => {
+    it('accessToken（implicitフロー）で成功すること', () => {
+      const validData = {
+        accessToken: 'some-access-token',
+        newPassword: 'NewPassword1',
+        confirmPassword: 'NewPassword1',
+      };
+
+      expect(() => resetPasswordSchema.parse(validData)).not.toThrow();
+    });
+
+    it('code（PKCEフロー後方互換）で成功すること', () => {
+      const validData = {
+        code: 'some-code',
+        newPassword: 'NewPassword1',
+        confirmPassword: 'NewPassword1',
+      };
+
+      expect(() => resetPasswordSchema.parse(validData)).not.toThrow();
+    });
+
+    it('accessToken も code も無ければエラーになること', () => {
+      const invalidData = {
+        newPassword: 'NewPassword1',
+        confirmPassword: 'NewPassword1',
+      };
+
+      expect(() => resetPasswordSchema.parse(invalidData)).toThrow();
+    });
+
+    it('パスワードと確認が一致しない場合エラーになること', () => {
+      const invalidData = {
+        accessToken: 'some-access-token',
+        newPassword: 'NewPassword1',
+        confirmPassword: 'DifferentPassword1',
+      };
+
+      expect(() => resetPasswordSchema.parse(invalidData)).toThrow();
     });
   });
 });

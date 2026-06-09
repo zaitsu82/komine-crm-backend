@@ -45,13 +45,20 @@ export const forgotPasswordSchema = z.object({
  */
 export const resetPasswordSchema = z
   .object({
-    code: z.string().min(1, '認証コードは必須です'),
+    // implicit フロー: メールリンクのハッシュから取り出した access_token（主経路）
+    accessToken: z.string().min(1).optional(),
+    // PKCE フロー: `?code=` クエリ（後方互換）
+    code: z.string().min(1).optional(),
     newPassword: passwordSchema,
     confirmPassword: z.string().min(1, 'パスワード確認は必須です'),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: 'パスワードが一致しません',
     path: ['confirmPassword'],
+  })
+  .refine((data) => Boolean(data.accessToken) || Boolean(data.code), {
+    message: '認証情報（accessToken または code）が必要です',
+    path: ['accessToken'],
   });
 
 /**
