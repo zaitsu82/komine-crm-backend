@@ -634,7 +634,8 @@ model CemeteryTypeMaster {
 // 支払方法マスタ
 model PaymentMethodMaster {
   id          Int      @id @default(autoincrement()) // ID
-  code        String   @unique @db.VarChar(10) // 支払方法コード
+  // seedMasters の正準コード ACCOUNT_TRANSFER(16)/BANK_TRANSFER(13) を収めるため 20。VarChar(10) では seed が失敗していた（#331）
+  code        String   @unique @db.VarChar(20) // 支払方法コード
   name        String   @db.VarChar(50) // 支払方法名称
   description String?  @db.VarChar(200) // 説明
   sort_order  Int? // 表示順序
