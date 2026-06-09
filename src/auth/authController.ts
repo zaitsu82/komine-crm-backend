@@ -744,13 +744,24 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
     if (error) {
       // エラーが発生してもセキュリティ上同一レスポンスを返す
-      log.warn({ email, error: error.message }, 'Auth: password reset email failed');
+      log.warn(
+        { email, status: error.status, error: error.message },
+        'Auth: password reset email failed'
+      );
 
       // レート制限だけは専用メッセージを返す（#350）。
       // レート制限は「送信元の送信枠」の話でメアドの存在に依存しないため、
       // 専用メッセージを返しても登録済みかどうかの列挙情報は漏れない＝安全。
       // それ以外のエラー（user無し含む）は従来どおり一律成功で返し列挙対策を維持する。
-      if (error.message.includes('rate limit')) {
+      //
+      // 判定は HTTP 429 を主軸にする。Supabase のレート制限文言は版・状況で変わり
+      // （実例: "For security purposes, you can only request this after N seconds."）、
+      // 旧来の message.includes('rate limit') ではこの文言を取りこぼして「送信成功」を
+      // 偽装していた（実際は1通も送られない）。status と文言の両方で判定する。
+      const isRateLimited =
+        error.status === 429 ||
+        /rate limit|you can only request this|too many requests/i.test(error.message);
+      if (isRateLimited) {
         return res.status(429).json({
           success: false,
           error: {

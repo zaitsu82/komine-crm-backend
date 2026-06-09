@@ -947,6 +947,47 @@ describe('Auth Controller', () => {
         expect(mockResponse.status).toHaveBeenCalledWith(200);
         expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       });
+
+      it('"For security purposes..." クールダウン文言（rate limit を含まない）でも429を返すこと', async () => {
+        // 本番ログで確認された実文言。旧 message.includes('rate limit') では取りこぼし、
+        // 失敗にもかかわらず success:true を返していた（成功偽装バグ）。
+        mockRequest.body = { email: 'active@example.com' };
+        mockPrisma.staff.findFirst.mockResolvedValue(null);
+        mockSupabaseAuth.resetPasswordForEmail.mockResolvedValue({
+          error: {
+            message: 'For security purposes, you can only request this after 4 seconds.',
+            status: 429,
+          },
+        });
+
+        await forgotPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(429);
+        expect(mockResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({ code: 'RATE_LIMIT_EXCEEDED' }),
+          })
+        );
+      });
+
+      it('status 429 なら文言に依らず429を返すこと', async () => {
+        mockRequest.body = { email: 'active@example.com' };
+        mockPrisma.staff.findFirst.mockResolvedValue(null);
+        mockSupabaseAuth.resetPasswordForEmail.mockResolvedValue({
+          error: { message: 'over_email_send_rate_limit', status: 429 },
+        });
+
+        await forgotPassword(mockRequest as Request, mockResponse as Response);
+
+        expect(mockResponse.status).toHaveBeenCalledWith(429);
+        expect(mockResponse.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            success: false,
+            error: expect.objectContaining({ code: 'RATE_LIMIT_EXCEEDED' }),
+          })
+        );
+      });
     });
 
     describe('COOKIE_SECURE によるCookie属性制御（#299）', () => {
