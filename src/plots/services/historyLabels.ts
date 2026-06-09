@@ -53,6 +53,12 @@ export const HIDDEN_FIELDS: ReadonlySet<string> = new Set([
   'buried_person_id',
   'family_contact_id',
   'document_id',
+  // 移行履歴（t_dankalog/t_famlog）由来のレガシー surrogate key（#376）
+  // ＝履歴は既にエンティティ単位にスコープ済みなので表示価値がなく、CREATE
+  //   スナップショットでノイズになるため非表示にする。
+  'danka_cd',
+  'grave_cd',
+  'family_cd',
 ]);
 
 /**
@@ -260,6 +266,117 @@ export const FIELD_LABELS: Record<HistoryEntityType, Record<string, string>> = {
 };
 
 /**
+ * レガシーログ表（t_dankalog / t_famlog）の生カラム名 → 日本語ラベル（#376）
+ *
+ * 移行履歴（step14-history）は t_dankalog/t_famlog の生カラム名を changed_fields /
+ * before_record / after_record のキーへそのまま格納するため、現行 Prisma 名ベースの
+ * FIELD_LABELS では解決できず、getFieldLabel が物理名（owner_sei / zip / tel1 …）を
+ * そのまま返していた。ここでレガシー列名のエイリアスを補い、本番 9290 件（#354）の
+ * 移行履歴を無改修で可読化する。
+ *
+ * - アプリ内編集で新規記録される履歴は Prisma 名なので本マップは経由しない。
+ * - before/after の生レガシー「値」整形は本マップの対象外（必要なら別 issue）。
+ */
+
+// t_dankalog / t_famlog 共通の住所・連絡先・勤務先・メモ列
+const LEGACY_COMMON_LABELS: Record<string, string> = {
+  sex_flg: '性別',
+  birthday: '生年月日',
+  honseki_zip: '本籍地郵便番号',
+  honseki_addr1: '本籍地住所1',
+  honseki_addr2: '本籍地住所2',
+  zip: '郵便番号',
+  addr1: '住所1',
+  addr2: '住所2',
+  addr3: '住所3',
+  tel1: '電話番号1',
+  tel2: '電話番号2',
+  fax: 'FAX番号',
+  email1: 'メールアドレス1',
+  email2: 'メールアドレス2',
+  magazin_flg: 'メルマガ配信フラグ',
+  job_name: '勤務先名称',
+  job_name_kana: '勤務先フリガナ',
+  job_zip: '勤務先郵便番号',
+  job_addr1: '勤務先住所1',
+  job_addr2: '勤務先住所2',
+  job_addr3: '勤務先住所3',
+  job_tel1: '勤務先電話番号1',
+  job_tel2: '勤務先電話番号2',
+  job_fax: '勤務先FAX番号',
+  dm_type: 'DM種別',
+  dm_flg: 'DM送付フラグ',
+  note: '備考',
+  memo1: 'メモ1',
+  memo2: 'メモ2',
+  memo3: 'メモ3',
+  memo4: 'メモ4',
+  memo5: 'メモ5',
+};
+
+export const LEGACY_FIELD_LABELS: Partial<Record<HistoryEntityType, Record<string, string>>> = {
+  // t_dankalog → entity_type='Customer'
+  Customer: {
+    ...LEGACY_COMMON_LABELS,
+    request_sei: '申込者姓',
+    request_sei_kana: '申込者姓フリガナ',
+    request_mei: '申込者名',
+    request_mei_kana: '申込者名フリガナ',
+    request_zip: '申込者郵便番号',
+    request_addr1: '申込者住所1',
+    request_addr2: '申込者住所2',
+    request_addr3: '申込者住所3',
+    request_tel1: '申込者電話番号1',
+    request_tel2: '申込者電話番号2',
+    request_id: '申込ID',
+    auth_no: '許可番号',
+    auth_date: '許可日',
+    danka_name: '檀家名',
+    danka_entry: '檀家加入区分',
+    owner_sei: '契約者姓',
+    owner_sei_kana: '契約者姓フリガナ',
+    owner_mei: '契約者名',
+    owner_mei_kana: '契約者名フリガナ',
+    send_flg: '送付先フラグ',
+    send_zip: '送付先郵便番号',
+    send_addr1: '送付先住所1',
+    send_addr2: '送付先住所2',
+    send_addr3: '送付先住所3',
+    send_tel1: '送付先電話番号1',
+    shuuha: '宗派',
+    seikyu_dm_flg: '請求DM送付フラグ',
+    goudou_flg: '合祀フラグ',
+    kikan_name: '金融機関名',
+    shiten_name: '支店名',
+    kouza_type: '口座種別',
+    kouza_code: '口座番号',
+    kouza_meigi: '口座名義',
+    kouza_kigo_ybn: 'ゆうちょ記号',
+    kouza_code_ybn: 'ゆうちょ番号',
+    jif_matme_code: '自動引落まとめコード',
+    jif_bank_code: '自動引落銀行コード',
+    jif_siten_code: '自動引落支店コード',
+    jif_sinki_kbn: '自動引落新規区分',
+    jif_yotei_ymd: '自動引落予定日',
+    jif_yotei_kin: '自動引落予定金額',
+    jif_kekka_ymd: '自動引落結果日',
+    jif_kekka_kbn: '自動引落結果区分',
+    jif_kekka_kin: '自動引落結果金額',
+    jif_miochi: '自動引落未済区分',
+  },
+  // t_famlog → entity_type='FamilyContact'
+  FamilyContact: {
+    ...LEGACY_COMMON_LABELS,
+    family_sei: '姓',
+    family_sei_kana: '姓フリガナ',
+    family_mei: '名',
+    family_mei_kana: '名フリガナ',
+    zokugara: '続柄',
+    family_memo: '家族メモ',
+  },
+};
+
+/**
  * エンティティ種別ごとの日本語ラベル
  */
 export const ENTITY_LABELS: Record<HistoryEntityType, string> = {
@@ -289,8 +406,11 @@ export const ENTITY_LABELS: Record<HistoryEntityType, string> = {
  * @returns 日本語ラベル（未定義時はフィールド名そのまま）
  */
 export function getFieldLabel(entityType: HistoryEntityType | string, fieldName: string): string {
-  const entityLabels = FIELD_LABELS[entityType as HistoryEntityType];
-  return entityLabels?.[fieldName] ?? fieldName;
+  const key = entityType as HistoryEntityType;
+  const direct = FIELD_LABELS[key]?.[fieldName];
+  if (direct !== undefined) return direct;
+  // 移行履歴のレガシー列名（t_dankalog/t_famlog）を解決（#376）
+  return LEGACY_FIELD_LABELS[key]?.[fieldName] ?? fieldName;
 }
 
 /**

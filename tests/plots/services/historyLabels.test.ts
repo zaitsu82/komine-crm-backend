@@ -27,6 +27,36 @@ describe('historyLabels', () => {
     it('未定義エンティティはフィールド名そのまま返す', () => {
       expect(getFieldLabel('UnknownEntity', 'name')).toBe('name');
     });
+
+    it('移行履歴(t_dankalog)のレガシー列名を日本語ラベルに解決する (#376)', () => {
+      // Customer 履歴は t_dankalog の生カラム名で記録される
+      expect(getFieldLabel('Customer', 'owner_sei')).toBe('契約者姓');
+      expect(getFieldLabel('Customer', 'owner_mei')).toBe('契約者名');
+      expect(getFieldLabel('Customer', 'zip')).toBe('郵便番号');
+      expect(getFieldLabel('Customer', 'tel1')).toBe('電話番号1');
+      expect(getFieldLabel('Customer', 'birthday')).toBe('生年月日');
+      expect(getFieldLabel('Customer', 'job_name')).toBe('勤務先名称');
+      expect(getFieldLabel('Customer', 'shuuha')).toBe('宗派');
+    });
+
+    it('移行履歴(t_famlog)のレガシー列名を日本語ラベルに解決する (#376)', () => {
+      // FamilyContact 履歴は t_famlog の生カラム名で記録される
+      expect(getFieldLabel('FamilyContact', 'zokugara')).toBe('続柄');
+      expect(getFieldLabel('FamilyContact', 'family_sei')).toBe('姓');
+      expect(getFieldLabel('FamilyContact', 'tel1')).toBe('電話番号1');
+      expect(getFieldLabel('FamilyContact', 'zip')).toBe('郵便番号');
+    });
+
+    it('現行Prisma名を優先し、レガシーエイリアスは衝突しても上書きしない (#376)', () => {
+      // FamilyContact.relationship は現行Prisma名としても定義済み
+      expect(getFieldLabel('FamilyContact', 'relationship')).toBe('続柄');
+      // Customer.name（現行）はレガシー辞書に無くても従来通り解決
+      expect(getFieldLabel('Customer', 'name')).toBe('氏名');
+    });
+
+    it('レガシー辞書にも無いレガシー列は物理名のまま返す (#376)', () => {
+      expect(getFieldLabel('Customer', 'totally_unknown_col')).toBe('totally_unknown_col');
+    });
   });
 
   describe('getEntityLabel', () => {
@@ -65,6 +95,12 @@ describe('historyLabels', () => {
       expect(isHiddenField('name')).toBe(false);
       expect(isHiddenField('contract_area_sqm')).toBe(false);
       expect(isHiddenField('notes')).toBe(false);
+    });
+
+    it('移行履歴のレガシー surrogate key は非表示 (#376)', () => {
+      expect(isHiddenField('danka_cd')).toBe(true);
+      expect(isHiddenField('grave_cd')).toBe(true);
+      expect(isHiddenField('family_cd')).toBe(true);
     });
   });
 
