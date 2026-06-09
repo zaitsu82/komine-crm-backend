@@ -345,6 +345,8 @@ export const getPlotById = async (
             accountType: role.customer.account_type,
             accountNumber: role.customer.account_number,
             accountHolder: role.customer.account_holder,
+            yuchoSymbol: role.customer.yucho_symbol,
+            yuchoNumber: role.customer.yucho_number,
             notes: role.customer.notes,
             workInfo: role.customer.workInfo
               ? {

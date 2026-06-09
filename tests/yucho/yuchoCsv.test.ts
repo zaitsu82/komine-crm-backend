@@ -26,6 +26,8 @@ const baseItem = (overrides: Partial<YuchoBillingItem> = {}): YuchoBillingItem =
     accountType: 'ordinary',
     accountNumber: '1234567',
     accountHolder: 'ヤマダタロウ',
+    yuchoSymbol: null,
+    yuchoNumber: null,
   },
   ...overrides,
 });
@@ -115,6 +117,22 @@ describe('buildDataRow', () => {
   it('emits 3-digit branch code derived from branch name', () => {
     const cells = buildDataRow(baseItem()).split(',');
     expect(cells[4]).toBe('018'); // 〇一八 → 018
+  });
+
+  it('ゆうちょ記号があれば店番は記号の中央3桁を優先する (#170)', () => {
+    const item = baseItem({
+      billingInfo: { ...baseItem().billingInfo!, branchName: '〇一八', yuchoSymbol: '11280' },
+    });
+    const cells = buildDataRow(item).split(',');
+    expect(cells[4]).toBe('128'); // 記号 11280 → 店番 128（支店名推定 018 を上書き）
+  });
+
+  it('ゆうちょ番号があれば口座番号に番号を優先する (#170)', () => {
+    const item = baseItem({
+      billingInfo: { ...baseItem().billingInfo!, accountNumber: '1234567', yuchoNumber: '89' },
+    });
+    const cells = buildDataRow(item).split(',');
+    expect(cells[8]).toBe('0000089'); // 番号 89 → 0000089（口座番号 1234567 を上書き）
   });
 
   it('uses fixed deposit type code 1 (ordinary) by default', () => {

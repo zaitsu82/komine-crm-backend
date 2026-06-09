@@ -73,6 +73,9 @@ export interface YuchoBillingItem {
     accountType: string | null;
     accountNumber: string | null;
     accountHolder: string | null;
+    // ゆうちょ記号(5桁)・番号。店番/口座番号の正準ソース（#170）。
+    yuchoSymbol: string | null;
+    yuchoNumber: string | null;
   } | null;
 }
 

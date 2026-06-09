@@ -70,6 +70,8 @@ type PayerCustomer = {
   account_type: string | null;
   account_number: string | null;
   account_holder: string | null;
+  yucho_symbol: string | null;
+  yucho_number: string | null;
 };
 
 /**
@@ -91,13 +93,24 @@ const pickPayer = (
  */
 const buildBillingInfo = (payer: PayerCustomer | null): YuchoBillingItem['billingInfo'] => {
   if (!payer) return null;
-  if (!payer.bank_name && !payer.branch_name && !payer.account_number) return null;
+  // ゆうちょ記号番号だけ入っているケース（銀行/支店名なし）も口座情報ありとして扱う（#170）
+  if (
+    !payer.bank_name &&
+    !payer.branch_name &&
+    !payer.account_number &&
+    !payer.yucho_symbol &&
+    !payer.yucho_number
+  ) {
+    return null;
+  }
   return {
     bankName: payer.bank_name,
     branchName: payer.branch_name,
     accountType: payer.account_type,
     accountNumber: payer.account_number,
     accountHolder: payer.account_holder,
+    yuchoSymbol: payer.yucho_symbol,
+    yuchoNumber: payer.yucho_number,
   };
 };
 

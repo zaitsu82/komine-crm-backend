@@ -216,7 +216,21 @@ const saleContractSchema = sharedSaleContractSchema.omit({ paymentStatus: true }
  * 顧客情報のバリデーションスキーマ
  * 共有スキーマをベースに、バックエンド固有の要件（role は saleContract.roles で管理）に合わせる。
  */
-const customerSchema = sharedCustomerSchema.omit({ role: true });
+// ゆうちょ記号(5桁)・番号は @komine/types 未追加のため backend ローカルで受理する（#170）。
+// フロントのゆうちょ口座入力UI実装時に shared schema へ昇格予定。
+const customerSchema = sharedCustomerSchema.omit({ role: true }).extend({
+  yuchoSymbol: z.string().max(5).optional().or(z.literal('')),
+  yuchoNumber: z.string().max(20).optional().or(z.literal('')),
+});
+
+/**
+ * controller の input.customer は @komine/types 由来の型でゆうちょ記号/番号を持たないため、
+ * これらを読むときに使う補助型（#170）。runtime は customerSchema が受理済み。
+ */
+export type CustomerYuchoInput = {
+  yuchoSymbol?: string | null;
+  yuchoNumber?: string | null;
+};
 
 /**
  * 勤務先情報のバリデーションスキーマ

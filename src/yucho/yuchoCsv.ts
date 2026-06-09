@@ -22,6 +22,7 @@
  */
 
 import type { YuchoBillingItem } from '../validations/yuchoValidation';
+import { branchCodeFromSymbol, accountNumberFromYuchoNumber } from './yuchoAccount';
 
 const LINE_SEP = '\r\n';
 const BANK_CODE = '9900';
@@ -238,16 +239,23 @@ export const buildDataRow = (item: YuchoBillingItem): string => {
     ACCOUNT_HOLDER_WIDTH
   ).replace(/"/g, '""');
 
+  // 店番・口座番号はゆうちょ記号番号があればそれを正準ソースにする（#170）。
+  // 記号(方式A)から店番3桁を取り、無ければ従来どおり支店名から推定する。
+  const branchCode =
+    branchCodeFromSymbol(info?.yuchoSymbol) ?? extractBranchCode(info?.branchName ?? '');
+  const accountNumber =
+    accountNumberFromYuchoNumber(info?.yuchoNumber) ?? info?.accountNumber ?? '';
+
   const cells = [
     '', // 1: 空
     BANK_CODE, // 2: 金融機関コード
     padRight(BANK_NAME_KANA, BANK_NAME_KANA_WIDTH), // 3: 金融機関名 半角カナ
     BANK_NAME_KANJI, // 4: 金融機関名 漢字
-    padLeftZero(extractBranchCode(info?.branchName ?? ''), 3), // 5: 店番
+    padLeftZero(branchCode, 3), // 5: 店番
     '', // 6: 空
     '', // 7: 空
     accountTypeCode(info?.accountType), // 8: 預金種目
-    padLeftZero(info?.accountNumber ?? '', 7), // 9: 口座番号
+    padLeftZero(accountNumber, 7), // 9: 口座番号
     `"${accountHolder}"`, // 10: 口座名義
     String(item.billingAmount), // 11: 引落金額
     FLAG, // 12: フラグ
@@ -265,7 +273,12 @@ interface BuildCsvParams {
  * ここで弾かないと「構造上正しいが口座が存在しない」不正振替行が出力される（#266）。
  */
 const hasUsableAccountNumber = (item: YuchoBillingItem): boolean => {
-  const digits = (item.billingInfo?.accountNumber ?? '').replace(/[^\d]/g, '');
+  // ゆうちょ番号があればそれを、無ければ従来の口座番号を口座番号として扱う（#170）
+  const source =
+    accountNumberFromYuchoNumber(item.billingInfo?.yuchoNumber) ??
+    item.billingInfo?.accountNumber ??
+    '';
+  const digits = source.replace(/[^\d]/g, '');
   return digits.length > 0 && Number(digits) > 0;
 };
 

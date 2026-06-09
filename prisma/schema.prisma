@@ -248,6 +248,10 @@ model Customer {
   account_type              String?   @db.VarChar(10) // 預金種目（ordinary/current/savings）
   account_number            String?   @db.VarChar(20) // 口座番号
   account_holder            String?   @db.VarChar(100) // 口座名義
+  // ゆうちょ記号(5桁)・番号。店番/口座番号を名称から推定せず、記号番号方式で正しく保持する（#170）。
+  // 変換は src/yucho/yuchoAccount.ts に集約（記号 = 1 + 店番3桁 + 預金種目1桁）。
+  yucho_symbol              String?   @db.VarChar(5) // ゆうちょ記号（5桁）
+  yucho_number              String?   @db.VarChar(20) // ゆうちょ番号
   notes                     String?   @db.Text // 備考
   staff_id                  Int? // 担当スタッフFK（レガシー tancd → matant）
   legacy_danka_cd           Int? // 移行用（レガシー t_danka.danka_cd）

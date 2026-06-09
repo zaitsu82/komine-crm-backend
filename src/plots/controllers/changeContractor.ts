@@ -22,7 +22,7 @@ import prisma from '../../db/prisma';
 import { NotFoundError, ConflictError, ValidationError } from '../../middleware/errorHandler';
 import { recordEntityUpdated } from '../services/historyService';
 import { syncPrimaryContractorNameKana } from '../utils';
-import type { ChangeContractorRequest } from '../../validations/plotValidation';
+import type { ChangeContractorRequest, CustomerYuchoInput } from '../../validations/plotValidation';
 
 export const changeContractor = async (
   req: Request,
@@ -110,6 +110,8 @@ export const changeContractor = async (
               account_type: nc.accountType || null,
               account_number: nc.accountNumber || null,
               account_holder: nc.accountHolder || null,
+              yucho_symbol: (nc as unknown as CustomerYuchoInput).yuchoSymbol || null,
+              yucho_number: (nc as unknown as CustomerYuchoInput).yuchoNumber || null,
               notes: nc.notes || null,
               staff_id: nc.staffId ?? null,
             },
