@@ -12,6 +12,23 @@ import type { PrismaClient } from '@prisma/client';
 
 const RELATIONSHIP_KBNNO = '2009';
 
+/**
+ * 未解決の続柄を表すセンチネル（#375）。
+ *
+ * FamilyContact.relationship は NOT NULL VarChar のため未設定を空文字で表す。
+ * フロントの空値規約（#181 `isEmptyDisplayValue('')`）でそのまま「未登録」表示になり、
+ * 日本語UIに英単語が露出しない。以前は英語 `'unknown'` を使っていたが、それが
+ * #355 backfill で本番に live していたため本値へ統一する。
+ */
+export const UNRESOLVED_RELATIONSHIP = '';
+
+/**
+ * #355 backfill が本番に生成してしまった旧センチネル（英語 `'unknown'`、#375）。
+ * 本番の既存 `relationship = 'unknown'` を {@link UNRESOLVED_RELATIONSHIP} に補正する
+ * ために参照する。
+ */
+export const LEGACY_UNKNOWN_RELATIONSHIP = 'unknown';
+
 /** 続柄マスタを読み込み NMCODE(文字列) → 名称 の対応表を返す。 */
 export async function loadRelationshipNameMap(
   prisma: Pick<PrismaClient, 'relationshipMaster'>
@@ -31,18 +48,18 @@ export async function loadRelationshipNameMap(
 /**
  * 生 zokugara 値を保存用の続柄文字列に解決する。
  *  - 数字（マスタにあり） → マスタ名称
- *  - 数字（'0' やマスタに無い） → 'unknown'（未設定。relationship は NOT NULL のため）
+ *  - 数字（'0' やマスタに無い） → 空文字（未設定。UIで「未登録」表示・#375）
  *  - 自由記述（数字でない） → そのまま（既に名称）
- *  - null/空 → 'unknown'
+ *  - null/空 → 空文字
  */
 export function resolveRelationship(
   raw: string | null | undefined,
   nameMap: Map<string, string>
 ): string {
   const cleaned = raw?.trim();
-  if (!cleaned) return 'unknown';
+  if (!cleaned) return UNRESOLVED_RELATIONSHIP;
   if (/^\d+$/.test(cleaned)) {
-    return nameMap.get(cleaned) ?? 'unknown';
+    return nameMap.get(cleaned) ?? UNRESOLVED_RELATIONSHIP;
   }
   return cleaned;
 }

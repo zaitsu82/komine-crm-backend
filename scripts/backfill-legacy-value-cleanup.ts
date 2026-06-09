@@ -4,7 +4,8 @@
  *
  * 移行済みデータに残る「未設定センチネル/生レガシーint」を正規化する:
  *  1. gravestone_infos.direction_id / position_id = 0 → null（方位/位置の「旧コード:0」）
- *  2. family_contacts.relationship の生int → 続柄マスタ名（'0'/未解決は 'unknown'）
+ *  2. family_contacts.relationship の生int → 続柄マスタ名（'0'/未解決は空文字）。
+ *     さらに #355 backfill が本番に残した旧センチネル 'unknown' を空文字へ補正（#375）。
  *  3. buried_persons.religion = 'legacy-shuuha-*' → null（宗派マスタ不要確定）
  *  4. construction_infos.contractor = 'legacy-gyousha-0'（=未設定）→ null + 業者マスタ無効化（#334）
  *
@@ -20,8 +21,10 @@ import 'dotenv/config';
 
 import { prisma } from '../src/db/prisma';
 import {
+  LEGACY_UNKNOWN_RELATIONSHIP,
   loadRelationshipNameMap,
   resolveRelationship,
+  UNRESOLVED_RELATIONSHIP,
 } from './legacy-migration/lib/relationship-resolver';
 
 const APPLY = process.argv.includes('--apply');
@@ -46,21 +49,28 @@ async function backfillDirectionPosition(): Promise<Record<string, number>> {
 async function backfillRelationship(): Promise<Record<string, unknown>> {
   const nameMap = await loadRelationshipNameMap(prisma);
 
-  // 生int（数字のみ）の relationship を持つ family_contacts を値ごとに集計
+  // 補正対象の relationship を値ごとに集計:
+  //  - 生int（数字のみ）: マスタ名へ解決（'0'/未解決は空文字）
+  //  - 旧センチネル 'unknown': #355 backfill が本番に残した値を空文字へ補正（#375）
   const groups = await prisma.familyContact.groupBy({
     by: ['relationship'],
     _count: { _all: true },
   });
-  const numericGroups = groups.filter((g) => /^\d+$/.test(g.relationship));
+  const targetGroups = groups.filter(
+    (g) => /^\d+$/.test(g.relationship) || g.relationship === LEGACY_UNKNOWN_RELATIONSHIP
+  );
 
-  const plan = numericGroups.map((g) => ({
+  const plan = targetGroups.map((g) => ({
     from: g.relationship,
-    to: resolveRelationship(g.relationship, nameMap),
+    to:
+      g.relationship === LEGACY_UNKNOWN_RELATIONSHIP
+        ? UNRESOLVED_RELATIONSHIP
+        : resolveRelationship(g.relationship, nameMap),
     count: g._count._all,
   }));
 
   if (!APPLY) {
-    return { numeric_relationship_groups: plan };
+    return { relationship_groups: plan };
   }
 
   let updated = 0;

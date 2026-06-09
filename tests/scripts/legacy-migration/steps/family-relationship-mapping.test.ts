@@ -45,7 +45,7 @@ describe('stepFamilyContact: 続柄の名称解決 (#333)', () => {
     mockedLegacyQuery.mockReset();
   });
 
-  it('生int zokugara を続柄マスタ名に解決し、0/未解決は unknown にする', async () => {
+  it('生int zokugara を続柄マスタ名に解決し、0/未解決は空文字にする (#375)', async () => {
     const created: Array<Record<string, unknown>> = [];
     const prisma = {
       customer: { findMany: jest.fn().mockResolvedValue([{ id: 'cust-1', legacy_danka_cd: 100 }]) },
@@ -72,7 +72,7 @@ describe('stepFamilyContact: 続柄の名称解決 (#333)', () => {
       .mockResolvedValueOnce([]) // 解約者 danka なし
       .mockResolvedValueOnce([
         familyRow({ family_cd: 1, zokugara: '13' }), // → 配偶者
-        familyRow({ family_cd: 2, zokugara: '0', family_mei: '次郎' }), // → unknown（未設定）
+        familyRow({ family_cd: 2, zokugara: '0', family_mei: '次郎' }), // → 空文字（未設定）
         familyRow({ family_cd: 3, zokugara: '友人', family_mei: '三郎' }), // 自由記述はそのまま
       ]);
 
@@ -85,7 +85,7 @@ describe('stepFamilyContact: 続柄の名称解決 (#333)', () => {
 
     const byCd = (cd: number) => created.find((d) => d['legacy_family_cd'] === cd);
     expect(byCd(1)?.['relationship']).toBe('配偶者');
-    expect(byCd(2)?.['relationship']).toBe('unknown');
+    expect(byCd(2)?.['relationship']).toBe('');
     expect(byCd(3)?.['relationship']).toBe('友人');
   });
 });

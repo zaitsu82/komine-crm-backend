@@ -4,8 +4,10 @@
 import type { PrismaClient } from '@prisma/client';
 
 import {
+  LEGACY_UNKNOWN_RELATIONSHIP,
   loadRelationshipNameMap,
   resolveRelationship,
+  UNRESOLVED_RELATIONSHIP,
 } from '../../../scripts/legacy-migration/lib/relationship-resolver';
 
 describe('loadRelationshipNameMap', () => {
@@ -38,18 +40,25 @@ describe('resolveRelationship', () => {
     expect(resolveRelationship('1', nameMap)).toBe('本人');
   });
 
-  it("'0' やマスタ未登録の数字は 'unknown'（未設定）になる", () => {
-    expect(resolveRelationship('0', nameMap)).toBe('unknown');
-    expect(resolveRelationship('99', nameMap)).toBe('unknown');
+  it("'0' やマスタ未登録の数字は空文字（未設定）になる (#375)", () => {
+    expect(resolveRelationship('0', nameMap)).toBe('');
+    expect(resolveRelationship('99', nameMap)).toBe('');
   });
 
-  it('null/空は unknown', () => {
-    expect(resolveRelationship(null, nameMap)).toBe('unknown');
-    expect(resolveRelationship('   ', nameMap)).toBe('unknown');
+  it('null/空は空文字 (#375)', () => {
+    expect(resolveRelationship(null, nameMap)).toBe('');
+    expect(resolveRelationship('   ', nameMap)).toBe('');
   });
 
   it('数字でない自由記述はそのまま（既に名称）', () => {
     expect(resolveRelationship('配偶者', nameMap)).toBe('配偶者');
     expect(resolveRelationship('友人', nameMap)).toBe('友人');
+  });
+
+  it('未解決センチネルは空文字・旧センチネルは英語unknown (#375)', () => {
+    expect(UNRESOLVED_RELATIONSHIP).toBe('');
+    expect(LEGACY_UNKNOWN_RELATIONSHIP).toBe('unknown');
+    // 解決できない値は新センチネル（空文字）に揃う
+    expect(resolveRelationship('0', nameMap)).toBe(UNRESOLVED_RELATIONSHIP);
   });
 });
