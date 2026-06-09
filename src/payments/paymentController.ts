@@ -9,6 +9,7 @@ import {
   listPaymentsQuerySchema,
 } from '../validations/paymentValidation';
 import { recalculateBillingPayments } from '../billings/billingService';
+import { resolvePaymentFeeTypeLabel } from './feeTypeLabels';
 
 type PaymentWithRelations = Prisma.PaymentGetPayload<{
   include: {
@@ -44,7 +45,8 @@ const formatPayment = (p: PaymentWithRelations) => ({
   scheduledAmount: p.scheduled_amount,
   paymentDate: p.payment_date?.toISOString().split('T')[0] ?? null,
   paymentAmount: p.payment_amount,
-  feeType: p.fee_type,
+  // レガシーセンチネル（legacy-fee-2023000X）を使用料/管理料へ解決して返す（#334）
+  feeType: resolvePaymentFeeTypeLabel(p.fee_type),
   applicationType: p.application_type,
   billingType: p.billing_type,
   staffInCharge: p.staff_in_charge,

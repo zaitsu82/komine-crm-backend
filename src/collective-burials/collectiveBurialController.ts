@@ -56,8 +56,11 @@ export const getCollectiveBurialList = async (
     const skip = (pageNum - 1) * limitNum;
 
     // 検索条件の構築
+    // 親契約が論理削除済みの「孤児合祀」を常に除外する（#358 layer2・防御的二重担保）。
+    // deletePlot 側のカスケード漏れで active のまま残った合祀が一覧に出ないようにする。
     const where: Record<string, unknown> = {
       deleted_at: null,
+      contractPlot: { is: { deleted_at: null } },
     };
 
     // 請求ステータスフィルター
@@ -77,29 +80,34 @@ export const getCollectiveBurialList = async (
     }
 
     // 検索クエリ（顧客名、区画番号で検索）
+    // contractPlot フィルタは上で deleted_at:null を設定済みのため、検索条件は
+    // その is 配下にマージして親契約の論理削除ガードを保持する。
     if (search) {
       where['contractPlot'] = {
-        OR: [
-          {
-            physicalPlot: {
-              plot_number: { contains: search as string, mode: 'insensitive' },
+        is: {
+          deleted_at: null,
+          OR: [
+            {
+              physicalPlot: {
+                plot_number: { contains: search as string, mode: 'insensitive' },
+              },
             },
-          },
-          {
-            saleContractRoles: {
-              some: {
-                // 論理削除済みの旧役割（解約・差し替えで外れた顧客）を検索対象から除外（#206）
-                deleted_at: null,
-                customer: {
-                  OR: [
-                    { name: { contains: search as string, mode: 'insensitive' } },
-                    { name_kana: { contains: search as string, mode: 'insensitive' } },
-                  ],
+            {
+              saleContractRoles: {
+                some: {
+                  // 論理削除済みの旧役割（解約・差し替えで外れた顧客）を検索対象から除外（#206）
+                  deleted_at: null,
+                  customer: {
+                    OR: [
+                      { name: { contains: search as string, mode: 'insensitive' } },
+                      { name_kana: { contains: search as string, mode: 'insensitive' } },
+                    ],
+                  },
                 },
               },
             },
-          },
-        ],
+          ],
+        },
       };
     }
 
@@ -200,7 +208,8 @@ export const getCollectiveBurialById = async (
     const { id } = req.params as Record<string, string>;
 
     const collectiveBurial = await prisma.collectiveBurial.findFirst({
-      where: { id, deleted_at: null },
+      // 親契約が論理削除済みの孤児合祀は詳細でも参照不能にする（#358 layer2）
+      where: { id, deleted_at: null, contractPlot: { is: { deleted_at: null } } },
       include: {
         contractPlot: {
           include: {

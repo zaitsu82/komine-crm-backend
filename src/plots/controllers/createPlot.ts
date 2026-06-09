@@ -16,6 +16,7 @@ import {
   AddressType,
 } from '@prisma/client';
 import { CreatePlotRequest } from '@komine/types';
+import type { CustomerYuchoInput } from '../../validations/plotValidation';
 import {
   validateContractArea,
   updatePhysicalPlotStatus,
@@ -117,6 +118,8 @@ export async function createPlotCore(
       account_type: input.customer.accountType || null,
       account_number: input.customer.accountNumber || null,
       account_holder: input.customer.accountHolder || null,
+      yucho_symbol: (input.customer as unknown as CustomerYuchoInput).yuchoSymbol || null,
+      yucho_number: (input.customer as unknown as CustomerYuchoInput).yuchoNumber || null,
       notes: input.customer.notes || null,
       staff_id: input.customer.staffId ?? null,
       legacy_danka_cd: input.customer.legacyDankaCd ?? null,

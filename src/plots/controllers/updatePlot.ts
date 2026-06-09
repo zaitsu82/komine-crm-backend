@@ -8,6 +8,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma, ContractRole } from '@prisma/client';
 import { UpdatePlotRequest } from '@komine/types';
+import type { CustomerYuchoInput } from '../../validations/plotValidation';
 import {
   updatePhysicalPlotStatus,
   buildGravestoneInfoData,
@@ -347,6 +348,11 @@ export async function updatePlotCore(
         customerUpdateData.account_number = input.customer.accountNumber;
       if (input.customer.accountHolder !== undefined)
         customerUpdateData.account_holder = input.customer.accountHolder;
+      const customerYucho = input.customer as unknown as CustomerYuchoInput;
+      if (customerYucho.yuchoSymbol !== undefined)
+        customerUpdateData.yucho_symbol = customerYucho.yuchoSymbol;
+      if (customerYucho.yuchoNumber !== undefined)
+        customerUpdateData.yucho_number = customerYucho.yuchoNumber;
       if (input.customer.notes !== undefined) customerUpdateData.notes = input.customer.notes;
 
       // issue #66: update 戻り値を保持し section 13 で再取得しないようにする
