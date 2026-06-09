@@ -16,6 +16,7 @@
     "swagger:build": "node scripts/swagger.js build",
     "billing:generate": "ts-node scripts/generate-collective-burial-invoices.ts",
     "billing:generate-management": "ts-node --transpile-only scripts/generate-management-fee-billings.ts",
+    "import:collective-burials": "ts-node --transpile-only scripts/import-collective-burials.ts",
     "bootstrap:admin": "ts-node --transpile-only prisma/seed.ts",
     "seed:masters": "ts-node --transpile-only prisma/seedMasters.ts",
     "migrate:legacy": "ts-node --transpile-only scripts/migrate-from-legacy.ts",
