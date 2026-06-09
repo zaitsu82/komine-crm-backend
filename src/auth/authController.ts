@@ -814,37 +814,82 @@ export const resetPassword = async (req: Request, res: Response) => {
       });
     }
 
-    const { code, newPassword } = req.body as { code: string; newPassword: string };
+    const { code, accessToken, newPassword } = req.body as {
+      code?: string;
+      accessToken?: string;
+      newPassword: string;
+    };
 
-    log.info('Auth: password reset attempt via code');
+    // 招待/リセットメールのリンクは Supabase の implicit フロー（セッションを
+    // URLハッシュ `#access_token=...` に載せて返す）で着地するため、フロントは
+    // ハッシュから access_token を取り出してここへ渡す。これがユーザー特定の主経路。
+    // PKCE の code（`?code=`）経路も後方互換として残す（デプロイ順で壊れないように）。
+    let userId: string;
 
-    // Supabaseのコードをセッションに交換してユーザーを特定
-    const { data: sessionData, error: exchangeError } =
-      await supabase.auth.exchangeCodeForSession(code);
+    if (accessToken) {
+      log.info('Auth: password reset attempt via access_token');
+      // access_token（リカバリ/招待で発行された短命JWT）を検証してユーザーを特定
+      const { data: userData, error: getUserError } = await supabase.auth.getUser(accessToken);
 
-    if (exchangeError || !sessionData?.user) {
-      log.warn(
-        { reason: 'invalid_code', error: exchangeError?.message || 'no user returned' },
-        'Auth: password reset failed'
-      );
+      if (getUserError || !userData?.user) {
+        log.warn(
+          { reason: 'invalid_access_token', error: getUserError?.message || 'no user returned' },
+          'Auth: password reset failed'
+        );
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_TOKEN',
+            message: 'リンクが無効または期限切れです。再度パスワードリセットをお試しください。',
+            details: [],
+          },
+        });
+      }
+
+      userId = userData.user.id;
+    } else if (code) {
+      log.info('Auth: password reset attempt via code');
+      // Supabaseのコードをセッションに交換してユーザーを特定（PKCEフロー）
+      const { data: sessionData, error: exchangeError } =
+        await supabase.auth.exchangeCodeForSession(code);
+
+      if (exchangeError || !sessionData?.user) {
+        log.warn(
+          { reason: 'invalid_code', error: exchangeError?.message || 'no user returned' },
+          'Auth: password reset failed'
+        );
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_TOKEN',
+            message: '認証コードが無効または期限切れです。再度パスワードリセットをお試しください。',
+            details: [],
+          },
+        });
+      }
+
+      userId = sessionData.user.id;
+    } else {
+      // バリデーションで担保済みだが防御的に（accessToken/code いずれも無い）
+      log.warn({ reason: 'missing_token' }, 'Auth: password reset failed');
       return res.status(400).json({
         success: false,
         error: {
           code: 'INVALID_TOKEN',
-          message: '認証コードが無効または期限切れです。再度パスワードリセットをお試しください。',
+          message: 'リンクが無効です。再度パスワードリセットをお試しください。',
           details: [],
         },
       });
     }
 
     // Admin APIでパスワードを更新
-    const { error: updateError } = await supabase.auth.admin.updateUserById(sessionData.user.id, {
+    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
       password: newPassword,
     });
 
     if (updateError) {
       log.error(
-        { userId: sessionData.user.id, reason: 'update_error', error: updateError.message },
+        { userId, reason: 'update_error', error: updateError.message },
         'Auth: password reset failed'
       );
       return res.status(500).json({
@@ -857,7 +902,7 @@ export const resetPassword = async (req: Request, res: Response) => {
       });
     }
 
-    log.info({ userId: sessionData.user.id }, 'Auth: password reset success');
+    log.info({ userId }, 'Auth: password reset success');
     return res.status(200).json({
       success: true,
       data: {
