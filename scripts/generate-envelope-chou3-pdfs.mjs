@@ -71,6 +71,17 @@ async function createFrontPdf() {
 async function createBackPdf() {
   const doc = await PDFDocument.create();
   const page = doc.addPage([WIDTH_PT, HEIGHT_PT]);
+  // 封筒裏面は印字内容なし。ただし完全に空のページだと pdf-lib が
+  // /Contents ストリームを持たないページを出力し、後段の embedPdf() が
+  // "Can't embed page with missing Contents" で失敗する。視覚上は空白のまま、
+  // 全面白の矩形を1つ描いてコンテンツストリームを発生させておく。
+  page.drawRectangle({
+    x: 0,
+    y: 0,
+    width: WIDTH_PT,
+    height: HEIGHT_PT,
+    color: rgb(1, 1, 1),
+  });
   const out = path.join(TEMPLATE_DIR, 'permit-base-3.pdf');
   fs.writeFileSync(out, await doc.save());
   console.log('Wrote', out, `${WIDTH_PT.toFixed(1)}×${HEIGHT_PT.toFixed(1)} pt`);
