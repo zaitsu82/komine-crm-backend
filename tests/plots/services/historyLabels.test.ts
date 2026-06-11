@@ -7,7 +7,6 @@ import {
   getEntityLabel,
   formatHistoryWithLabels,
   isHiddenField,
-  isUuidValue,
   HIDDEN_FIELDS,
 } from '../../../src/plots/services/historyLabels';
 
@@ -101,21 +100,6 @@ describe('historyLabels', () => {
       expect(isHiddenField('danka_cd')).toBe(true);
       expect(isHiddenField('grave_cd')).toBe(true);
       expect(isHiddenField('family_cd')).toBe(true);
-    });
-  });
-
-  describe('isUuidValue', () => {
-    it('UUID形式を判定する', () => {
-      expect(isUuidValue('32295525-4309-477a-a524-30c0fa699795')).toBe(true);
-      expect(isUuidValue('a1b2c3d4-e5f6-7890-abcd-ef1234567890')).toBe(true);
-    });
-
-    it('UUID以外はfalse', () => {
-      expect(isUuidValue('A-56')).toBe(false);
-      expect(isUuidValue('田中太郎')).toBe(false);
-      expect(isUuidValue(123)).toBe(false);
-      expect(isUuidValue(null)).toBe(false);
-      expect(isUuidValue(undefined)).toBe(false);
     });
   });
 

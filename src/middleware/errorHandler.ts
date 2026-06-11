@@ -431,20 +431,6 @@ export class ValidationError extends Error {
   }
 }
 
-export class UnauthorizedError extends Error {
-  constructor(message: string = '認証が必要です') {
-    super(message);
-    this.name = 'UnauthorizedError';
-  }
-}
-
-export class ForbiddenError extends Error {
-  constructor(message: string = '権限が不足しています') {
-    super(message);
-    this.name = 'ForbiddenError';
-  }
-}
-
 export class NotFoundError extends Error {
   constructor(message: string = 'リソースが見つかりません') {
     super(message);

@@ -93,44 +93,6 @@ export const initializeSentry = (): void => {
 };
 
 /**
- * ユーザー情報をSentryコンテキストに設定
- */
-export const setSentryUser = (user: {
-  id: number;
-  email: string;
-  name: string;
-  role: string;
-}): void => {
-  Sentry.setUser({
-    id: user.id.toString(),
-    email: user.email,
-    username: user.name,
-    role: user.role,
-  });
-};
-
-/**
- * Sentryユーザーコンテキストをクリア
- */
-export const clearSentryUser = (): void => {
-  Sentry.setUser(null);
-};
-
-/**
- * カスタムタグを追加
- */
-export const setSentryTag = (key: string, value: string): void => {
-  Sentry.setTag(key, value);
-};
-
-/**
- * カスタムコンテキストを追加
- */
-export const setSentryContext = (name: string, context: Record<string, unknown>): void => {
-  Sentry.setContext(name, context);
-};
-
-/**
  * 手動でエラーをキャプチャ
  */
 export const captureException = (error: Error, context?: Record<string, unknown>): void => {
@@ -152,5 +114,3 @@ export const captureException = (error: Error, context?: Record<string, unknown>
 export const captureMessage = (message: string, level: Sentry.SeverityLevel = 'info'): void => {
   Sentry.captureMessage(message, level);
 };
-
-export default Sentry;

@@ -4,15 +4,9 @@ import {
   validate,
   emailSchema,
   phoneSchema,
-  postalCodeSchema,
   dateSchema,
   uuidSchema,
   paginationSchema,
-  japaneseStringSchema,
-  katakanaSchema,
-  amountSchema,
-  yearMonthSchema,
-  areaSchema,
 } from '../../src/middleware/validation';
 import { ValidationError } from '../../src/middleware/errorHandler';
 
@@ -264,25 +258,6 @@ describe('Validation Middleware', () => {
       });
     });
 
-    describe('postalCodeSchema', () => {
-      it('有効な郵便番号（7桁数字・ハイフンなし）でバリデーションが成功すること', () => {
-        expect(() => postalCodeSchema.parse('1234567')).not.toThrow();
-        expect(() => postalCodeSchema.parse('0000000')).not.toThrow();
-      });
-
-      it('ハイフン付きや桁数不正の郵便番号でエラーが発生すること', () => {
-        expect(() => postalCodeSchema.parse('123-4567')).toThrow();
-        expect(() => postalCodeSchema.parse('12-3456')).toThrow();
-        expect(() => postalCodeSchema.parse('abcd-efgh')).toThrow();
-        expect(() => postalCodeSchema.parse('12345')).toThrow();
-      });
-
-      it('空文字や未定義はエラーになること（共有スキーマは必須）', () => {
-        expect(() => postalCodeSchema.parse('')).toThrow();
-        expect(() => postalCodeSchema.parse(undefined)).toThrow();
-      });
-    });
-
     describe('dateSchema', () => {
       it('有効な日付形式でバリデーションが成功すること', () => {
         expect(() => dateSchema.parse('2024-01-01')).not.toThrow();
@@ -326,139 +301,6 @@ describe('Validation Middleware', () => {
         expect(() => paginationSchema.parse({ page: '-1' })).toThrow();
         expect(() => paginationSchema.parse({ limit: '0' })).toThrow();
         expect(() => paginationSchema.parse({ limit: '101' })).toThrow();
-      });
-    });
-
-    describe('japaneseStringSchema', () => {
-      it('有効な日本語文字列でバリデーションが成功すること', () => {
-        const schema = japaneseStringSchema('名前');
-        expect(() => schema.parse('山田太郎')).not.toThrow();
-        expect(() => schema.parse('やまだ たろう')).not.toThrow();
-        expect(() => schema.parse('ヤマダ タロウ')).not.toThrow();
-      });
-
-      it('英数字が含まれる場合エラーが発生すること', () => {
-        const schema = japaneseStringSchema('名前');
-        expect(() => schema.parse('Yamada Taro')).toThrow();
-        expect(() => schema.parse('山田123')).toThrow();
-      });
-
-      it('空文字でエラーが発生すること', () => {
-        const schema = japaneseStringSchema('名前');
-        expect(() => schema.parse('')).toThrow();
-      });
-
-      it('デフォルトのフィールド名でエラーメッセージが生成されること', () => {
-        const schema = japaneseStringSchema();
-        try {
-          schema.parse('');
-        } catch (error: any) {
-          expect(error.issues[0].message).toContain('フィールド');
-        }
-      });
-    });
-
-    describe('katakanaSchema', () => {
-      it('有効なカタカナ文字列でバリデーションが成功すること', () => {
-        const schema = katakanaSchema('フリガナ');
-        expect(() => schema.parse('ヤマダ タロウ')).not.toThrow();
-        expect(() => schema.parse('カタカナ')).not.toThrow();
-      });
-
-      it('ひらがなや漢字が含まれる場合エラーが発生すること', () => {
-        const schema = katakanaSchema('フリガナ');
-        expect(() => schema.parse('やまだ')).toThrow();
-        expect(() => schema.parse('山田')).toThrow();
-      });
-
-      it('空文字でエラーが発生すること', () => {
-        const schema = katakanaSchema('フリガナ');
-        expect(() => schema.parse('')).toThrow();
-      });
-
-      it('デフォルトのフィールド名でエラーメッセージが生成されること', () => {
-        const schema = katakanaSchema();
-        try {
-          schema.parse('');
-        } catch (error: any) {
-          expect(error.issues[0].message).toContain('フィールド');
-        }
-      });
-    });
-
-    describe('amountSchema', () => {
-      it('有効な金額でバリデーションが成功すること', () => {
-        const schema = amountSchema('価格');
-        expect(() => schema.parse(1000)).not.toThrow();
-        expect(() => schema.parse(0)).not.toThrow();
-        expect(() => schema.parse('5000')).not.toThrow();
-      });
-
-      it('負の値でエラーが発生すること', () => {
-        const schema = amountSchema('価格');
-        expect(() => schema.parse(-100)).toThrow();
-        expect(() => schema.parse('-100')).toThrow();
-      });
-
-      it('小数でエラーが発生すること', () => {
-        const schema = amountSchema('価格');
-        expect(() => schema.parse(100.5)).toThrow();
-      });
-
-      it('無効な文字列でエラーが発生すること', () => {
-        const schema = amountSchema('価格');
-        expect(() => schema.parse('invalid')).toThrow();
-      });
-
-      it('デフォルトのフィールド名でエラーメッセージが生成されること', () => {
-        const schema = amountSchema();
-        try {
-          schema.parse(-100);
-        } catch (error: any) {
-          expect(error.issues[0].message).toContain('金額');
-        }
-      });
-    });
-
-    describe('yearMonthSchema', () => {
-      it('有効な年月形式でバリデーションが成功すること', () => {
-        expect(() => yearMonthSchema.parse('2024年1月')).not.toThrow();
-        expect(() => yearMonthSchema.parse('2024年12月')).not.toThrow();
-        expect(() => yearMonthSchema.parse('')).not.toThrow();
-      });
-
-      it('表記揺れは正規化して受理されること（types#31）', () => {
-        // レガシー移行データ・UI入力の 'YYYY-MM'/'YYYY/MM'/'YYYYMM' は
-        // @komine/types の yearMonthSchema が preprocess で正規化する
-        expect(yearMonthSchema.parse('2024-01')).toBe('2024年1月');
-        expect(yearMonthSchema.parse('2024/01')).toBe('2024年1月');
-        expect(yearMonthSchema.parse('202404')).toBe('2024年4月');
-      });
-
-      it('無効な形式でエラーが発生すること', () => {
-        expect(() => yearMonthSchema.parse('2024-13')).toThrow();
-        expect(() => yearMonthSchema.parse('abc')).toThrow();
-      });
-
-      it('未定義でも許可されること', () => {
-        expect(() => yearMonthSchema.parse(undefined)).not.toThrow();
-      });
-    });
-
-    describe('areaSchema', () => {
-      it('有効な面積でバリデーションが成功すること', () => {
-        expect(() => areaSchema.parse(100.5)).not.toThrow();
-        expect(() => areaSchema.parse('50.25')).not.toThrow();
-        expect(() => areaSchema.parse(undefined)).not.toThrow();
-      });
-
-      it('負の値でエラーが発生すること', () => {
-        expect(() => areaSchema.parse(-10)).toThrow();
-        expect(() => areaSchema.parse('-5.5')).toThrow();
-      });
-
-      it('ゼロでエラーが発生すること', () => {
-        expect(() => areaSchema.parse(0)).toThrow();
       });
     });
   });

@@ -5,7 +5,6 @@ import {
   checkApiPermission,
   resolveApiPermission,
   hasPermission,
-  checkResourceAction,
   API_PERMISSIONS,
   Role,
 } from '../../src/middleware/permission';
@@ -616,75 +615,6 @@ describe('Permission Middleware', () => {
     });
   });
 
-  describe('checkResourceAction', () => {
-    it('should allow gravestone read for viewer', () => {
-      const result = checkResourceAction('viewer', 'gravestone', 'read');
-      expect(result).toBe(true);
-    });
-
-    it('should deny gravestone create for viewer', () => {
-      const result = checkResourceAction('viewer', 'gravestone', 'create');
-      expect(result).toBe(false);
-    });
-
-    it('should allow gravestone create for operator', () => {
-      const result = checkResourceAction('operator', 'gravestone', 'create');
-      expect(result).toBe(true);
-    });
-
-    it('should deny gravestone delete for operator', () => {
-      const result = checkResourceAction('operator', 'gravestone', 'delete');
-      expect(result).toBe(false);
-    });
-
-    it('should allow gravestone delete for manager', () => {
-      const result = checkResourceAction('manager', 'gravestone', 'delete');
-      expect(result).toBe(true);
-    });
-
-    it('should allow all actions for admin', () => {
-      expect(checkResourceAction('admin', 'gravestone', 'read')).toBe(true);
-      expect(checkResourceAction('admin', 'gravestone', 'create')).toBe(true);
-      expect(checkResourceAction('admin', 'gravestone', 'update')).toBe(true);
-      expect(checkResourceAction('admin', 'gravestone', 'delete')).toBe(true);
-    });
-
-    it('should handle contractor permissions correctly', () => {
-      expect(checkResourceAction('viewer', 'contractor', 'read')).toBe(true);
-      expect(checkResourceAction('operator', 'contractor', 'create')).toBe(true);
-      expect(checkResourceAction('operator', 'contractor', 'transfer')).toBe(false);
-      expect(checkResourceAction('manager', 'contractor', 'transfer')).toBe(true);
-    });
-
-    it('should handle master data permissions correctly', () => {
-      expect(checkResourceAction('viewer', 'master', 'read')).toBe(true);
-      expect(checkResourceAction('manager', 'master', 'create')).toBe(false);
-      expect(checkResourceAction('admin', 'master', 'create')).toBe(true);
-    });
-
-    it('should handle user management permissions correctly', () => {
-      expect(checkResourceAction('operator', 'user', 'read')).toBe(false);
-      expect(checkResourceAction('manager', 'user', 'read')).toBe(true);
-      expect(checkResourceAction('manager', 'user', 'manage')).toBe(false);
-      expect(checkResourceAction('admin', 'user', 'manage')).toBe(true);
-    });
-
-    it('should handle system admin permissions correctly', () => {
-      expect(checkResourceAction('manager', 'system', 'admin')).toBe(false);
-      expect(checkResourceAction('admin', 'system', 'admin')).toBe(true);
-    });
-
-    it('should require admin for undefined resource actions', () => {
-      expect(checkResourceAction('manager', 'undefined', 'action')).toBe(false);
-      expect(checkResourceAction('admin', 'undefined', 'action')).toBe(true);
-    });
-
-    it('should handle undefined role for resource actions', () => {
-      const result = checkResourceAction(undefined as any, 'gravestone', 'read');
-      expect(result).toBe(false);
-    });
-  });
-
   describe('API_PERMISSIONS constant', () => {
     it('should have correct auth endpoint permissions', () => {
       expect(API_PERMISSIONS['GET /auth/me']).toEqual(['viewer', 'operator', 'manager', 'admin']);
@@ -739,32 +669,23 @@ describe('Permission Middleware', () => {
       // Viewer should be able to read but not modify
       expect(hasPermission('viewer', ['viewer'])).toBe(true);
       expect(hasPermission('viewer', ['operator'])).toBe(false);
-      expect(checkResourceAction('viewer', 'gravestone', 'read')).toBe(true);
-      expect(checkResourceAction('viewer', 'gravestone', 'create')).toBe(false);
     });
 
     it('should handle complete permission flow for operator', () => {
       // Operator should be able to read and create but not delete
       expect(hasPermission('operator', ['viewer', 'operator'])).toBe(true);
       expect(hasPermission('operator', ['manager'])).toBe(false);
-      expect(checkResourceAction('operator', 'gravestone', 'create')).toBe(true);
-      expect(checkResourceAction('operator', 'gravestone', 'delete')).toBe(false);
     });
 
     it('should handle complete permission flow for manager', () => {
       // Manager should have most permissions except admin-only
       expect(hasPermission('manager', ['viewer', 'operator', 'manager'])).toBe(true);
       expect(hasPermission('manager', ['admin'])).toBe(false);
-      expect(checkResourceAction('manager', 'gravestone', 'delete')).toBe(true);
-      expect(checkResourceAction('manager', 'master', 'create')).toBe(false);
     });
 
     it('should handle complete permission flow for admin', () => {
       // Admin should have all permissions
       expect(hasPermission('admin', ['viewer', 'operator', 'manager', 'admin'])).toBe(true);
-      expect(checkResourceAction('admin', 'gravestone', 'delete')).toBe(true);
-      expect(checkResourceAction('admin', 'master', 'create')).toBe(true);
-      expect(checkResourceAction('admin', 'system', 'admin')).toBe(true);
     });
   });
 
@@ -787,16 +708,10 @@ describe('Permission Middleware', () => {
     it('should handle null and undefined inputs', () => {
       expect(hasPermission(null as any, ['viewer'])).toBe(false);
       expect(() => hasPermission('viewer', null as any)).toThrow();
-      expect(checkResourceAction(null as any, 'gravestone', 'read')).toBe(false);
-      expect(checkResourceAction('viewer', null as any, 'read')).toBe(false);
-      expect(checkResourceAction('viewer', 'gravestone', null as any)).toBe(false);
     });
 
     it('should handle empty strings', () => {
       expect(hasPermission('' as Role, ['viewer'])).toBe(false);
-      expect(checkResourceAction('' as Role, 'gravestone', 'read')).toBe(false);
-      expect(checkResourceAction('viewer', '', 'read')).toBe(false);
-      expect(checkResourceAction('viewer', 'gravestone', '')).toBe(false);
     });
   });
 });

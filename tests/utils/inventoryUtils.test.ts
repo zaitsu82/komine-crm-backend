@@ -7,9 +7,6 @@ import {
   calculateAvailableArea,
   validateContractArea,
   updatePhysicalPlotStatus,
-  isFullyAvailable,
-  isFullySold,
-  getAvailableAreaOptions,
 } from '../../src/plots/utils';
 
 // Prisma Client のモック（jest.mockの前に定義）
@@ -265,108 +262,6 @@ describe('inventoryUtils', () => {
       const result = await updatePhysicalPlotStatus(mockPrismaClient, 'plot-1');
 
       expect(result).toBe('sold_out');
-    });
-  });
-
-  describe('isFullyAvailable', () => {
-    it('契約がない場合、trueを返す', async () => {
-      mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
-        id: 'plot-1',
-        contractPlots: [],
-      });
-
-      const result = await isFullyAvailable(mockPrismaClient, 'plot-1');
-
-      expect(result).toBe(true);
-    });
-
-    it('契約がある場合、falseを返す', async () => {
-      mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
-        id: 'plot-1',
-        contractPlots: [{ id: 'contract-1' }],
-      });
-
-      const result = await isFullyAvailable(mockPrismaClient, 'plot-1');
-
-      expect(result).toBe(false);
-    });
-
-    it('物理区画が存在しない場合、falseを返す', async () => {
-      mockPrismaClient.physicalPlot.findUnique.mockResolvedValue(null);
-
-      const result = await isFullyAvailable(mockPrismaClient, 'invalid-id');
-
-      expect(result).toBe(false);
-    });
-  });
-
-  describe('isFullySold', () => {
-    it('完全に契約済みの場合、trueを返す', async () => {
-      mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
-        id: 'plot-1',
-        area_sqm: { toNumber: () => 3.6 },
-        contractPlots: [
-          { contract_area_sqm: { toNumber: () => 1.8 } },
-          { contract_area_sqm: { toNumber: () => 1.8 } },
-        ],
-      });
-
-      const result = await isFullySold(mockPrismaClient, 'plot-1');
-
-      expect(result).toBe(true);
-    });
-
-    it('一部利用可能な場合、falseを返す', async () => {
-      mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
-        id: 'plot-1',
-        area_sqm: { toNumber: () => 3.6 },
-        contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
-      });
-
-      const result = await isFullySold(mockPrismaClient, 'plot-1');
-
-      expect(result).toBe(false);
-    });
-  });
-
-  describe('getAvailableAreaOptions', () => {
-    it('3.6㎡利用可能な場合、両方のオプションを返す', async () => {
-      mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
-        id: 'plot-1',
-        area_sqm: { toNumber: () => 3.6 },
-        contractPlots: [],
-      });
-
-      const result = await getAvailableAreaOptions(mockPrismaClient, 'plot-1');
-
-      expect(result).toEqual([1.8, 3.6]);
-    });
-
-    it('1.8㎡のみ利用可能な場合、1.8のみ返す', async () => {
-      mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
-        id: 'plot-1',
-        area_sqm: { toNumber: () => 3.6 },
-        contractPlots: [{ contract_area_sqm: { toNumber: () => 1.8 } }],
-      });
-
-      const result = await getAvailableAreaOptions(mockPrismaClient, 'plot-1');
-
-      expect(result).toEqual([1.8]);
-    });
-
-    it('利用可能面積がない場合、空配列を返す', async () => {
-      mockPrismaClient.physicalPlot.findUnique.mockResolvedValue({
-        id: 'plot-1',
-        area_sqm: { toNumber: () => 3.6 },
-        contractPlots: [
-          { contract_area_sqm: { toNumber: () => 1.8 } },
-          { contract_area_sqm: { toNumber: () => 1.8 } },
-        ],
-      });
-
-      const result = await getAvailableAreaOptions(mockPrismaClient, 'plot-1');
-
-      expect(result).toEqual([]);
     });
   });
 });

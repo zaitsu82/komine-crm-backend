@@ -90,24 +90,6 @@ export const updateCollectiveBurialCount = async (
 };
 
 /**
- * 合祀情報の埋葬人数が上限に達しているかチェック
- * @param prisma Prismaクライアント
- * @param plotId 区画ID
- * @returns 上限到達フラグ
- */
-export const isCapacityReached = async (prisma: PrismaClient, plotId: string): Promise<boolean> => {
-  const collectiveBurial = await prisma.collectiveBurial.findUnique({
-    where: { contract_plot_id: plotId },
-  });
-
-  if (!collectiveBurial || collectiveBurial.deleted_at) {
-    return false;
-  }
-
-  return collectiveBurial.capacity_reached_date !== null;
-};
-
-/**
  * 合祀情報の請求対象を取得
  * @param prisma Prismaクライアント
  * @returns 請求対象の合祀情報リスト

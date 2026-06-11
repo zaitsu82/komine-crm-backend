@@ -30,18 +30,11 @@ jest.mock('../../src/middleware/validation', () => {
     dateSchema: z.string(),
     optionalDateSchema: z.string().optional().or(z.literal('')),
     emailSchema: z.string().email(),
-    optionalEmailSchema: z.string().email().optional().or(z.literal('')),
     phoneSchema: z.string().optional().or(z.literal('')),
-    requiredPhoneSchema: z.string(),
-    postalCodeSchema: z.string(),
     paginationSchema: z.object({
       page: z.string().optional(),
       limit: z.string().optional(),
     }),
-    katakanaSchema: (_fieldName?: string) => z.string(),
-    yearMonthSchema: z.string().optional().or(z.literal('')),
-    optionalNonnegativeNumber: z.preprocess((v: any) => v ?? null, z.number().nullable()),
-    optionalNonnegativeInt: z.preprocess((v: any) => v ?? null, z.number().nullable()),
   };
 });
 

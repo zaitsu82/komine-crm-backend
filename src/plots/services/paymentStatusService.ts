@@ -4,13 +4,6 @@ import prisma from '../../db/prisma';
 
 import { deriveContractPlotPayment } from './paymentStatusLogic';
 
-export {
-  deriveContractPlotPayment,
-  deriveContractPlotPaymentStatus,
-  paymentStatusFromTotals,
-  uncollectedFromTotals,
-} from './paymentStatusLogic';
-
 type PaymentStatusClient = Prisma.TransactionClient | typeof prisma;
 
 /**

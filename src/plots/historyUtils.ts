@@ -1,5 +1,4 @@
 import { Request } from 'express';
-import { Prisma } from '@prisma/client';
 
 /**
  * 変更されたフィールドの詳細情報
@@ -15,20 +14,6 @@ export interface ChangeDetail {
  */
 export interface ChangedFields {
   [fieldName: string]: ChangeDetail;
-}
-
-/**
- * 履歴レコード作成用のパラメータ
- */
-export interface CreateHistoryParams {
-  entityType: string;
-  entityId: string;
-  plotId: string | null;
-  actionType: 'CREATE' | 'UPDATE' | 'DELETE';
-  changedFields: ChangedFields | null;
-  changedBy: string;
-  changeReason: string | null;
-  ipAddress: string;
 }
 
 /**
@@ -86,33 +71,4 @@ export function getIpAddress(req: Request): string {
     (req.connection as { remoteAddress?: string } | undefined)?.remoteAddress ||
     'unknown'
   );
-}
-
-/**
- * 履歴レコード作成用のデータを生成する
- *
- * @param params - 履歴作成パラメータ
- * @returns Prismaのcreate用データオブジェクト
- */
-export function createHistoryRecord(params: CreateHistoryParams) {
-  return {
-    entity_type: params.entityType,
-    entity_id: params.entityId,
-    plot_id: params.plotId,
-    action_type: params.actionType,
-    changed_fields: (params.changedFields ?? undefined) as Prisma.InputJsonValue | undefined,
-    changed_by: params.changedBy,
-    change_reason: params.changeReason ?? undefined,
-    ip_address: params.ipAddress,
-  };
-}
-
-/**
- * 変更があったかどうかを判定する
- *
- * @param changedFields - 変更フィールドのマップ
- * @returns 変更があった場合true、なかった場合false
- */
-export function hasChanges(changedFields: ChangedFields): boolean {
-  return Object.keys(changedFields).length > 0;
 }

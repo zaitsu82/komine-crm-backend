@@ -156,7 +156,6 @@ Comprehensive master data tables for:
 - **API permission matrix** in `src/middleware/permission.ts` defines access for each endpoint
 - Authentication middleware in `src/middleware/auth.ts`:
   - `authenticate` - Requires valid JWT token and active user
-  - `optionalAuthenticate` - Allows unauthenticated requests but populates user if token provided
 - When Supabase environment variables are not set, authentication endpoints return 503 (Service Unavailable)
 
 #### 認証方針（重要）
@@ -212,7 +211,7 @@ All APIs follow: `/api/v1/{entity-name}`
 ### Error Handling
 Global error handler in `src/middleware/errorHandler.ts` provides:
 - **Automatic Prisma error mapping** (P2002 → 409 Conflict, P2025 → 404 Not Found, etc.)
-- **Custom error classes**: `ValidationError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`
+- **Custom error classes**: `ValidationError`, `NotFoundError`, `ConflictError`
 - **404 handler** (`notFoundHandler`) for undefined routes
 
 Standardized response format:

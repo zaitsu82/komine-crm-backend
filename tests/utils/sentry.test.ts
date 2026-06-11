@@ -1,14 +1,6 @@
 import * as Sentry from '@sentry/node';
 import { logger } from '../../src/utils/logger';
-import {
-  initializeSentry,
-  setSentryUser,
-  clearSentryUser,
-  setSentryTag,
-  setSentryContext,
-  captureException,
-  captureMessage,
-} from '../../src/utils/sentry';
+import { initializeSentry, captureException, captureMessage } from '../../src/utils/sentry';
 
 // Sentryモジュールをモック
 jest.mock('@sentry/node', () => ({
@@ -149,52 +141,6 @@ describe('Sentry Utilities', () => {
         { event },
         'Sentry event (not sent in development)'
       );
-    });
-  });
-
-  describe('setSentryUser', () => {
-    it('should set user information in Sentry', () => {
-      const user = {
-        id: 42,
-        email: 'user@example.com',
-        name: 'Test User',
-        role: 'admin',
-      };
-
-      setSentryUser(user);
-
-      expect(Sentry.setUser).toHaveBeenCalledWith({
-        id: '42',
-        email: 'user@example.com',
-        username: 'Test User',
-        role: 'admin',
-      });
-    });
-  });
-
-  describe('clearSentryUser', () => {
-    it('should clear user information in Sentry', () => {
-      clearSentryUser();
-
-      expect(Sentry.setUser).toHaveBeenCalledWith(null);
-    });
-  });
-
-  describe('setSentryTag', () => {
-    it('should set a tag in Sentry', () => {
-      setSentryTag('endpoint', '/api/v1/plots');
-
-      expect(Sentry.setTag).toHaveBeenCalledWith('endpoint', '/api/v1/plots');
-    });
-  });
-
-  describe('setSentryContext', () => {
-    it('should set context in Sentry', () => {
-      const context = { userId: 123, action: 'create' };
-
-      setSentryContext('business', context);
-
-      expect(Sentry.setContext).toHaveBeenCalledWith('business', context);
     });
   });
 

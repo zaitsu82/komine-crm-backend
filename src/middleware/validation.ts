@@ -62,15 +62,8 @@ export const validate = (schemas: ValidationSchemas) => {
 export {
   dateSchema,
   optionalDateSchema,
-  yearMonthSchema,
   phoneSchema,
-  requiredPhoneSchema,
-  postalCodeSchema,
   emailSchema,
-  optionalEmailSchema,
-  katakanaSchema,
-  optionalNonnegativeNumber,
-  optionalNonnegativeInt,
   uuidSchema,
 } from '@komine/types';
 
@@ -87,47 +80,3 @@ export const paginationSchema = z.object({
     .transform((val) => (val ? parseInt(val, 10) : 20))
     .refine((val) => val > 0 && val <= 100, '取得件数は1〜100の範囲で指定してください'),
 });
-
-/**
- * カスタムバリデーター（バックエンド固有）
- */
-
-/**
- * 日本語文字列のバリデーション（ひらがな、カタカナ、漢字）
- */
-export const japaneseStringSchema = (fieldName: string = 'フィールド') => {
-  return z
-    .string()
-    .min(1, `${fieldName}は必須です`)
-    .regex(/^[ぁ-んァ-ヶー一-龠々〆〤\s]+$/, `${fieldName}は日本語で入力してください`);
-};
-
-/**
- * 金額のバリデーション（正の整数）
- */
-export const amountSchema = (fieldName: string = '金額') => {
-  return z
-    .number()
-    .int(`${fieldName}は整数で入力してください`)
-    .nonnegative(`${fieldName}は0以上である必要があります`)
-    .or(
-      z
-        .string()
-        .transform((val) => parseInt(val, 10))
-        .refine((val) => !isNaN(val) && val >= 0, `${fieldName}は0以上の数値で入力してください`)
-    );
-};
-
-/**
- * 面積のバリデーション（正の数値）
- */
-export const areaSchema = z
-  .number()
-  .positive('面積は正の数値である必要があります')
-  .or(
-    z
-      .string()
-      .transform((val) => parseFloat(val))
-      .refine((val) => !isNaN(val) && val > 0, '面積は正の数値で入力してください')
-  )
-  .optional();

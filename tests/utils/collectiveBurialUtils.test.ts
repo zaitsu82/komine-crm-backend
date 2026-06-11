@@ -2,7 +2,6 @@ import {
   calculateBillingScheduledDate,
   resolveBillingScheduledDate,
   updateCollectiveBurialCount,
-  isCapacityReached,
   getBillingTargets,
 } from '../../src/collective-burials/utils';
 
@@ -269,52 +268,6 @@ describe('collectiveBurialUtils', () => {
       expect(updateCall.data.capacity_reached_date).toBeNull();
       // 請求予定日は契約日起点（#164）のため埋葬数の増減ではリセットしない
       expect(updateCall.data.billing_scheduled_date).toBeUndefined();
-    });
-  });
-
-  describe('isCapacityReached', () => {
-    it('should return false if collective burial does not exist', async () => {
-      mockPrisma.collectiveBurial.findUnique.mockResolvedValue(null);
-
-      const result = await isCapacityReached(mockPrisma as any, 'plot-1');
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false if collective burial is deleted', async () => {
-      mockPrisma.collectiveBurial.findUnique.mockResolvedValue({
-        id: 'cb-1',
-        deleted_at: new Date(),
-        capacity_reached_date: new Date(),
-      });
-
-      const result = await isCapacityReached(mockPrisma as any, 'plot-1');
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false if capacity_reached_date is null', async () => {
-      mockPrisma.collectiveBurial.findUnique.mockResolvedValue({
-        id: 'cb-1',
-        capacity_reached_date: null,
-        deleted_at: null,
-      });
-
-      const result = await isCapacityReached(mockPrisma as any, 'plot-1');
-
-      expect(result).toBe(false);
-    });
-
-    it('should return true if capacity_reached_date is set', async () => {
-      mockPrisma.collectiveBurial.findUnique.mockResolvedValue({
-        id: 'cb-1',
-        capacity_reached_date: new Date('2024-01-01'),
-        deleted_at: null,
-      });
-
-      const result = await isCapacityReached(mockPrisma as any, 'plot-1');
-
-      expect(result).toBe(true);
     });
   });
 
