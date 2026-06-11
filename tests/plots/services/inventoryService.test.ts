@@ -3,7 +3,6 @@
  */
 
 import {
-  extractSection,
   categorizeSection,
   determinePlotType,
   resolvePeriod,
@@ -40,37 +39,6 @@ function buildMockPrisma(masterRows: Array<{ name: string; period: string }> = M
 }
 
 describe('inventoryService', () => {
-  describe('extractSection', () => {
-    it('標準形式（アルファベット-数字）からセクションを抽出できること', () => {
-      expect(extractSection('A-56')).toBe('A');
-      expect(extractSection('B-123')).toBe('B');
-      expect(extractSection('P-1')).toBe('P');
-    });
-
-    it('日本語を含む形式からセクションを抽出できること', () => {
-      expect(extractSection('吉相-10')).toBe('吉相');
-      expect(extractSection('るり庵テラス-1')).toBe('るり庵テラス');
-      expect(extractSection('樹林-5')).toBe('樹林');
-      expect(extractSection('天空K-3')).toBe('天空K');
-    });
-
-    it('数字のみのセクションを抽出できること', () => {
-      expect(extractSection('1-45')).toBe('1');
-      expect(extractSection('10-2')).toBe('10');
-    });
-
-    it('小数点を含むセクション名を抽出できること', () => {
-      expect(extractSection('1.5-3')).toBe('1.5');
-      expect(extractSection('2.4-12')).toBe('2.4');
-      expect(extractSection('8.4-1')).toBe('8.4');
-    });
-
-    it('ハイフンがない場合はそのまま返すこと', () => {
-      expect(extractSection('A')).toBe('A');
-      expect(extractSection('吉相')).toBe('吉相');
-    });
-  });
-
   describe('categorizeSection', () => {
     it('樹林・天空カテゴリを正しく判定すること', () => {
       expect(categorizeSection('樹林')).toBe('樹林・天空');

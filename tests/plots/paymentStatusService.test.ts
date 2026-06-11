@@ -3,8 +3,8 @@ import {
   uncollectedFromTotals,
   deriveContractPlotPayment,
   deriveContractPlotPaymentStatus,
-  recalculateContractPlotPaymentStatus,
-} from '../../src/plots/services/paymentStatusService';
+} from '../../src/plots/services/paymentStatusLogic';
+import { recalculateContractPlotPaymentStatus } from '../../src/plots/services/paymentStatusService';
 
 describe('paymentStatusFromTotals', () => {
   it('returns "paid" when paid amount equals or exceeds billed amount (amount > 0)', () => {

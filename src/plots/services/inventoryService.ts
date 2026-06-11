@@ -62,19 +62,6 @@ export function resolvePeriod(areaName: string, sectionPeriodMap: Map<string, st
 }
 
 /**
- * `<接頭辞>-<連番>` 形式の区画ラベルから接頭辞（セクション）を抽出する汎用ユーティリティ。
- *   例: "A-56" → "A", "吉相-10" → "吉相", "1.5-3" → "1.5", "天空K-5" → "天空K"
- *   末尾に `-<連番>` が無い場合（例: "A", "吉相"）はそのまま返す。
- *
- * 注: 在庫集計のセクションは #151 以降 area_name（実区画名）を直接使うため、
- *     本関数は表示用区画番号（display_number = "A-100" 等）の接頭辞解析向けの補助。
- */
-export function extractSection(label: string): string {
-  const match = label.match(/^(.+)-\d+$/);
-  return match && match[1] ? match[1] : label;
-}
-
-/**
  * セクション（区画名）を特殊区画カテゴリに分類する。
  *
  *   - 樹林 / 天空 / 天空K → 「樹林・天空」

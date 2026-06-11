@@ -368,5 +368,3 @@ export const sendPasswordReset = async (
     };
   }
 };
-
-export default supabaseAdmin;

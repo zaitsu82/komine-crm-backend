@@ -6,8 +6,6 @@ import {
   errorHandler,
   notFoundHandler,
   ValidationError,
-  UnauthorizedError,
-  ForbiddenError,
   NotFoundError,
   ConflictError,
 } from '../../src/middleware/errorHandler';
@@ -414,38 +412,6 @@ describe('Error Handler Middleware', () => {
         });
       });
 
-      it('UnauthorizedErrorを正しく処理すること', () => {
-        const error = new UnauthorizedError('認証が必要です');
-
-        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
-
-        expect(mockResponse.status).toHaveBeenCalledWith(401);
-        expect(mockResponse.json).toHaveBeenCalledWith({
-          success: false,
-          error: {
-            code: 'UNAUTHORIZED',
-            message: '認証が必要です',
-            details: [],
-          },
-        });
-      });
-
-      it('ForbiddenErrorを正しく処理すること', () => {
-        const error = new ForbiddenError('権限が不足しています');
-
-        errorHandler(error, mockRequest as Request, mockResponse as Response, mockNext);
-
-        expect(mockResponse.status).toHaveBeenCalledWith(403);
-        expect(mockResponse.json).toHaveBeenCalledWith({
-          success: false,
-          error: {
-            code: 'FORBIDDEN',
-            message: '権限が不足しています',
-            details: [],
-          },
-        });
-      });
-
       it('NotFoundErrorを正しく処理すること', () => {
         const error = new NotFoundError('リソースが見つかりません');
 
@@ -759,34 +725,6 @@ describe('Error Handler Middleware', () => {
       expect(error.name).toBe('ValidationError');
       expect(error.message).toBe('テストエラー');
       expect(error.details).toEqual([]);
-    });
-
-    it('UnauthorizedErrorがデフォルトメッセージを持つこと', () => {
-      const error = new UnauthorizedError();
-
-      expect(error.name).toBe('UnauthorizedError');
-      expect(error.message).toBe('認証が必要です');
-    });
-
-    it('UnauthorizedErrorがカスタムメッセージを持つこと', () => {
-      const error = new UnauthorizedError('カスタムメッセージ');
-
-      expect(error.name).toBe('UnauthorizedError');
-      expect(error.message).toBe('カスタムメッセージ');
-    });
-
-    it('ForbiddenErrorがデフォルトメッセージを持つこと', () => {
-      const error = new ForbiddenError();
-
-      expect(error.name).toBe('ForbiddenError');
-      expect(error.message).toBe('権限が不足しています');
-    });
-
-    it('ForbiddenErrorがカスタムメッセージを持つこと', () => {
-      const error = new ForbiddenError('カスタムメッセージ');
-
-      expect(error.name).toBe('ForbiddenError');
-      expect(error.message).toBe('カスタムメッセージ');
     });
 
     it('NotFoundErrorがデフォルトメッセージを持つこと', () => {

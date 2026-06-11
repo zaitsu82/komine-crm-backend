@@ -271,5 +271,3 @@ export const contractStatusService = {
     return descriptions[status];
   },
 };
-
-export default contractStatusService;

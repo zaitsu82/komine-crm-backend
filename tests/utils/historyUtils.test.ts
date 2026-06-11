@@ -1,11 +1,5 @@
 import { Request } from 'express';
-import {
-  detectChangedFields,
-  getIpAddress,
-  createHistoryRecord,
-  hasChanges,
-  ChangedFields,
-} from '../../src/plots/historyUtils';
+import { detectChangedFields, getIpAddress } from '../../src/plots/historyUtils';
 
 describe('historyUtils', () => {
   describe('detectChangedFields', () => {
@@ -210,90 +204,6 @@ describe('historyUtils', () => {
       const result = getIpAddress(req);
 
       expect(result).toBe('unknown');
-    });
-  });
-
-  describe('createHistoryRecord', () => {
-    it('should create history record data correctly', () => {
-      const changedFields: ChangedFields = {
-        plot_number: {
-          before: 'A-55',
-          after: 'A-56',
-        },
-      };
-
-      const params = {
-        entityType: 'Plot',
-        entityId: 'plot-uuid-123',
-        plotId: 'plot-uuid-123',
-        actionType: 'UPDATE' as const,
-        changedFields,
-        changedBy: '3',
-        changeReason: 'Update plot number',
-        ipAddress: '192.168.1.100',
-      };
-
-      const result = createHistoryRecord(params);
-
-      expect(result).toEqual({
-        entity_type: 'Plot',
-        entity_id: 'plot-uuid-123',
-        plot_id: 'plot-uuid-123',
-        action_type: 'UPDATE',
-        changed_fields: changedFields,
-        changed_by: '3',
-        change_reason: 'Update plot number',
-        ip_address: '192.168.1.100',
-      });
-    });
-
-    it('should handle null values correctly', () => {
-      const params = {
-        entityType: 'Plot',
-        entityId: 'plot-uuid-123',
-        plotId: null,
-        actionType: 'DELETE' as const,
-        changedFields: null,
-        changedBy: '1',
-        changeReason: null,
-        ipAddress: 'unknown',
-      };
-
-      const result = createHistoryRecord(params);
-
-      expect(result).toEqual({
-        entity_type: 'Plot',
-        entity_id: 'plot-uuid-123',
-        plot_id: null,
-        action_type: 'DELETE',
-        changed_fields: undefined, // null → undefined に変換される
-        changed_by: '1',
-        change_reason: undefined, // null → undefined に変換される
-        ip_address: 'unknown',
-      });
-    });
-  });
-
-  describe('hasChanges', () => {
-    it('should return true when there are changes', () => {
-      const changedFields: ChangedFields = {
-        plot_number: {
-          before: 'A-55',
-          after: 'A-56',
-        },
-      };
-
-      const result = hasChanges(changedFields);
-
-      expect(result).toBe(true);
-    });
-
-    it('should return false when there are no changes', () => {
-      const changedFields: ChangedFields = {};
-
-      const result = hasChanges(changedFields);
-
-      expect(result).toBe(false);
     });
   });
 });
