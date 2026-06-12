@@ -2386,6 +2386,124 @@ describe('Plot Controller (ContractPlot Model)', () => {
       expect(mockPrisma.buriedPerson.create).not.toHaveBeenCalled();
       expect(mockNext).not.toHaveBeenCalled();
     });
+
+    // --- #383: updatePlot で移行投入済みの4項目（死亡場所/死因/喪主名/喪主続柄）を
+    //     保存のたびに null 上書き破壊しないこと（部分更新化） ---
+    const setupUpdateBuriedPersonMocks = () => {
+      // 既存埋葬者を 1 件返し、入力 id と突合させて update パスに入れる
+      mockPrisma.contractPlot.findUnique.mockResolvedValue({
+        id: 'cp1',
+        physical_plot_id: 'pp1',
+        contract_area_sqm: new Prisma.Decimal(3.6),
+        physicalPlot: { id: 'pp1', area_sqm: new Prisma.Decimal(3.6) },
+        saleContractRoles: [{ id: 'scr1', customer: { id: 'c1', workInfo: null } }],
+        usageFee: null,
+        managementFee: null,
+      });
+      mockPrisma.contractPlot.findMany.mockResolvedValue([]);
+      mockPrisma.buriedPerson.findMany.mockResolvedValue([
+        {
+          id: 'bp1',
+          name: '山田一郎',
+          death_place: '東京都病院', // 移行投入済みの値
+          cause_of_death: '老衰',
+          chief_mourner_name: '山田太郎',
+          chief_mourner_relationship: '長男',
+        },
+      ]);
+      mockPrisma.buriedPerson.update.mockResolvedValue({ id: 'bp1' });
+    };
+
+    it('updatePlot は4項目未指定なら update data に含めず移行値を破壊しない（#383）', async () => {
+      setupUpdateBuriedPersonMocks();
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        // 死亡場所/死因/喪主名/喪主続柄は未指定（編集フォームがラウンドトリップしない）
+        buriedPersons: [{ id: 'bp1', name: '山田一郎', relationship: '父' }],
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockPrisma.buriedPerson.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'bp1' },
+          data: expect.not.objectContaining({
+            death_place: expect.anything(),
+            cause_of_death: expect.anything(),
+            chief_mourner_name: expect.anything(),
+            chief_mourner_relationship: expect.anything(),
+          }),
+        })
+      );
+    });
+
+    it('updatePlot は4項目指定なら update data に反映する（#383）', async () => {
+      setupUpdateBuriedPersonMocks();
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        buriedPersons: [
+          {
+            id: 'bp1',
+            name: '山田一郎',
+            deathPlace: '大阪府病院',
+            causeOfDeath: '心不全',
+            chiefMournerName: '山田次郎',
+            chiefMournerRelationship: '次男',
+          },
+        ],
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockPrisma.buriedPerson.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'bp1' },
+          data: expect.objectContaining({
+            death_place: '大阪府病院',
+            cause_of_death: '心不全',
+            chief_mourner_name: '山田次郎',
+            chief_mourner_relationship: '次男',
+          }),
+        })
+      );
+    });
+
+    it('updatePlot は4項目空文字なら null 化して反映する（#383）', async () => {
+      setupUpdateBuriedPersonMocks();
+
+      mockRequest.params = { id: 'cp1' };
+      mockRequest.body = {
+        buriedPersons: [
+          {
+            id: 'bp1',
+            name: '山田一郎',
+            deathPlace: '',
+            causeOfDeath: '',
+            chiefMournerName: '',
+            chiefMournerRelationship: '',
+          },
+        ],
+      };
+
+      await updatePlot(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockPrisma.buriedPerson.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'bp1' },
+          data: expect.objectContaining({
+            death_place: null,
+            cause_of_death: null,
+            chief_mourner_name: null,
+            chief_mourner_relationship: null,
+          }),
+        })
+      );
+    });
   });
 
   describe('deletePlot', () => {

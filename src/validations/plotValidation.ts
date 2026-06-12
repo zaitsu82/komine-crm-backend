@@ -312,6 +312,9 @@ export const createPlotSchema = z.object({
   gravestoneInfo: gravestoneInfoSchema,
   collectiveBurial: collectiveBurialSchema,
   familyContacts: z.array(familyContactSchema).optional(),
+  // 埋葬者（任意）。スキーマ欠落により validate() で剥がされ、createPlot の保存処理
+  // （createPlot.ts:375-424, PR#335）に届かず HTTP 経路で破棄されていた（#384, #320 同型）
+  buriedPersons: z.array(buriedPersonSchema).optional(),
 });
 
 /**

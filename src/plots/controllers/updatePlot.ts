@@ -1280,6 +1280,21 @@ export async function updatePlotCore(
     }
 
     for (const bp of input.buriedPersons) {
+      // 編集フォームがラウンドトリップしない4項目（死亡場所/死因/喪主名/喪主続柄）は、
+      // 入力に存在する場合のみ書き込む。常に bp.xxx || null とすると、フォーム非対応の
+      // これらが毎保存で undefined→null に潰れ、移行投入済み（step08-buried-person.ts）の
+      // 値を破壊する（#383, critical）。undefined=変更なし / 値あり=更新 で部分更新化する。
+      const formUnmanagedFields = {
+        ...(bp.deathPlace !== undefined && { death_place: bp.deathPlace || null }),
+        ...(bp.causeOfDeath !== undefined && { cause_of_death: bp.causeOfDeath || null }),
+        ...(bp.chiefMournerName !== undefined && {
+          chief_mourner_name: bp.chiefMournerName || null,
+        }),
+        ...(bp.chiefMournerRelationship !== undefined && {
+          chief_mourner_relationship: bp.chiefMournerRelationship || null,
+        }),
+      };
+
       const bpData = {
         name: bp.name,
         name_kana: bp.nameKana || null,
@@ -1292,10 +1307,7 @@ export async function updatePlotCore(
         posthumous_name: bp.posthumousName || null,
         report_date: bp.reportDate ? new Date(bp.reportDate) : null,
         religion: bp.religion || null,
-        death_place: bp.deathPlace || null,
-        cause_of_death: bp.causeOfDeath || null,
-        chief_mourner_name: bp.chiefMournerName || null,
-        chief_mourner_relationship: bp.chiefMournerRelationship || null,
+        ...formUnmanagedFields,
         validity_period_years_override: bp.validityPeriodYearsOverride ?? null,
         notes: bp.notes || null,
       };

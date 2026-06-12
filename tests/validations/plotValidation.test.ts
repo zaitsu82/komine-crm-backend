@@ -416,6 +416,30 @@ describe('Plot Validation (ContractPlot Model)', () => {
       const parsed = createPlotSchema.parse(data);
       expect(parsed.gravestoneInfo).toMatchObject({ gravestoneDealer: '〇〇石材' });
     });
+
+    // #384: createPlotSchema に buriedPersons が無く、validate ミドルウェアが
+    // 未知キーとして strip → createPlot の保存処理に届かず破棄されていた回帰テスト（#320 同型）
+    it('buriedPersons が parse 結果に保持されること（#384）', () => {
+      const data = {
+        ...validCreatePlotData,
+        buriedPersons: [
+          {
+            name: '山田一郎',
+            nameKana: 'ヤマダイチロウ',
+            relationship: '父',
+            deathPlace: '東京都病院',
+            causeOfDeath: '老衰',
+          },
+        ],
+      };
+      const parsed = createPlotSchema.parse(data) as typeof data;
+      expect(parsed.buriedPersons).toHaveLength(1);
+      expect(parsed.buriedPersons[0]).toMatchObject({
+        name: '山田一郎',
+        deathPlace: '東京都病院',
+        causeOfDeath: '老衰',
+      });
+    });
   });
 
   describe('updatePlotSchema', () => {
