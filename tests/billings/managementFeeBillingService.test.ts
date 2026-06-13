@@ -5,6 +5,7 @@ jest.mock('../../src/plots/services/paymentStatusService', () => ({
 
 import {
   generateManagementFeeBillings,
+  existingBillingCoverage,
   parseFeeAmount,
   parseBillingMonth,
   parseBillingYears,
@@ -19,7 +20,7 @@ interface MockContract {
     billing_years: string | null;
   } | null;
   saleContractRoles: Array<{ role: string; customer_id: string }>;
-  billings: Array<{ id: string }>;
+  billings: Array<{ use_start_year: number | null; use_end_year: number | null }>;
 }
 
 const buildContract = (over: Partial<MockContract> = {}): MockContract => ({
@@ -64,6 +65,52 @@ describe('parse helpers (#196)', () => {
   });
 });
 
+describe('existingBillingCoverage (#391)', () => {
+  it('use_start_year 等値は covered', () => {
+    expect(existingBillingCoverage([{ use_start_year: 2026, use_end_year: 2026 }], 2026)).toBe(
+      'covered'
+    );
+  });
+  it('前納レンジに含まれれば covered', () => {
+    expect(existingBillingCoverage([{ use_start_year: 2022, use_end_year: 2026 }], 2026)).toBe(
+      'covered'
+    );
+    expect(existingBillingCoverage([{ use_start_year: 2022, use_end_year: 2026 }], 2024)).toBe(
+      'covered'
+    );
+  });
+  it('use_end_year が NULL なら開始年単年として扱う', () => {
+    expect(existingBillingCoverage([{ use_start_year: 2026, use_end_year: null }], 2026)).toBe(
+      'covered'
+    );
+    expect(existingBillingCoverage([{ use_start_year: 2025, use_end_year: null }], 2026)).toBe(
+      'none'
+    );
+  });
+  it('use_start_year NULL のみは needs_review', () => {
+    expect(existingBillingCoverage([{ use_start_year: null, use_end_year: null }], 2026)).toBe(
+      'needs_review'
+    );
+  });
+  it('カバーする請求があれば NULL 請求が混在しても covered を優先', () => {
+    expect(
+      existingBillingCoverage(
+        [
+          { use_start_year: null, use_end_year: null },
+          { use_start_year: 2022, use_end_year: 2026 },
+        ],
+        2026
+      )
+    ).toBe('covered');
+  });
+  it('該当もNULLも無ければ none', () => {
+    expect(existingBillingCoverage([{ use_start_year: 2020, use_end_year: 2024 }], 2026)).toBe(
+      'none'
+    );
+    expect(existingBillingCoverage([], 2026)).toBe('none');
+  });
+});
+
 describe('generateManagementFeeBillings (#196)', () => {
   it('対象契約に対象年度の管理料Billingを生成する', async () => {
     const { prisma, billingCreate } = buildPrisma([buildContract()]);
@@ -85,12 +132,50 @@ describe('generateManagementFeeBillings (#196)', () => {
   });
 
   it('対象年度の管理料Billingが既にあれば冪等スキップ', async () => {
-    const { prisma, billingCreate } = buildPrisma([buildContract({ billings: [{ id: 'b0' }] })]);
+    const { prisma, billingCreate } = buildPrisma([
+      buildContract({ billings: [{ use_start_year: 2026, use_end_year: 2026 }] }),
+    ]);
     const r = await generateManagementFeeBillings(prisma, { targetYear: 2026, apply: true });
 
     expect(r.created).toBe(0);
     expect(r.skippedExisting).toBe(1);
     expect(billingCreate).not.toHaveBeenCalled();
+  });
+
+  it('前納レンジ(use_start_year=2022, use_end_year=2026)が対象年を含めば二重請求しない(#391)', async () => {
+    // レガシー移行の5/10年前納請求。targetYear=2026 は等値一致しないが、レンジに含まれる。
+    const { prisma, billingCreate } = buildPrisma([
+      buildContract({ billings: [{ use_start_year: 2022, use_end_year: 2026 }] }),
+    ]);
+    const r = await generateManagementFeeBillings(prisma, { targetYear: 2026, apply: true });
+
+    expect(r.created).toBe(0);
+    expect(r.skippedExisting).toBe(1);
+    expect(billingCreate).not.toHaveBeenCalled();
+  });
+
+  it('既存請求の use_start_year が NULL の区画は自動生成せず needsReview に回す(#391)', async () => {
+    const { prisma, billingCreate } = buildPrisma([
+      buildContract({ billings: [{ use_start_year: null, use_end_year: null }] }),
+    ]);
+    const r = await generateManagementFeeBillings(prisma, { targetYear: 2026, apply: true });
+
+    expect(r.created).toBe(0);
+    expect(r.needsReview).toBe(1);
+    expect(r.needsReviewPlotIds).toEqual(['cp1']);
+    expect(billingCreate).not.toHaveBeenCalled();
+  });
+
+  it('前納レンジが対象年より過去で終わっていれば新規生成する(#391)', async () => {
+    // 2020〜2024 の前納が終わり、2026 は未請求 → 生成対象。
+    const { prisma, billingCreate } = buildPrisma([
+      buildContract({ billings: [{ use_start_year: 2020, use_end_year: 2024 }] }),
+    ]);
+    const r = await generateManagementFeeBillings(prisma, { targetYear: 2026, apply: true });
+
+    expect(r.created).toBe(1);
+    expect(r.skippedExisting).toBe(0);
+    expect(billingCreate).toHaveBeenCalledTimes(1);
   });
 
   it('複数年一括前納(billing_years>1)は既定でスキップする', async () => {
