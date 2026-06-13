@@ -53,9 +53,12 @@ export const getTerminatedCustomers = async (
         // notes には旧区画手がかり（旧区画cd / 区画No: legacy-X）が記録済み
         { notes: { contains: search, mode: 'insensitive' } },
       ];
-      // 数値なら旧檀家コード一致も検索対象にする
+      // 数値なら旧檀家コード一致も検索対象にする。
+      // legacy_danka_cd は Prisma Int（INT4）のため、11桁電話番号など
+      // INT4 上限（2147483647）超の値を渡すと Prisma P2020 → 500 になる。
+      // 上限ガードで範囲内の値のみ条件に追加する（#387）。
       const numeric = Number(search);
-      if (Number.isInteger(numeric) && numeric > 0) {
+      if (Number.isInteger(numeric) && numeric > 0 && numeric <= 2147483647) {
         conditions.push({ legacy_danka_cd: numeric });
       }
       where.OR = conditions;

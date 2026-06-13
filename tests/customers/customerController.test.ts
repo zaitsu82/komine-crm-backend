@@ -165,6 +165,52 @@ describe('getTerminatedCustomers (#311)', () => {
     );
   });
 
+  it('search が INT4 上限超（11桁電話番号など）でも legacy_danka_cd 条件を追加しない（#387 P2020回避）', async () => {
+    mockPrisma.customer.count.mockResolvedValue(0);
+    mockPrisma.customer.findMany.mockResolvedValue([]);
+
+    // '09012345678' → 9012345678（INT4 上限 2147483647 超）
+    mockRequest.query = {
+      page: 1,
+      limit: 20,
+      search: '09012345678',
+    } as unknown as Request['query'];
+
+    await getTerminatedCustomers(mockRequest as Request, mockResponse as Response, mockNext);
+
+    expect(mockNext).not.toHaveBeenCalled();
+
+    const callArg = mockPrisma.customer.findMany.mock.calls[0][0];
+    const orConditions = callArg.where.OR as Array<Record<string, unknown>>;
+    // legacy_danka_cd 条件は付与されない（範囲超過で Prisma P2020 になるため）
+    expect(orConditions.some((c) => 'legacy_danka_cd' in c)).toBe(false);
+    // 電話番号など他の OR 条件はそのまま機能する
+    expect(orConditions).toEqual(
+      expect.arrayContaining([{ phone_number: { contains: '09012345678' } }])
+    );
+  });
+
+  it('search が INT4 上限ちょうど（2147483647）なら legacy_danka_cd 条件を追加する（#387 境界）', async () => {
+    mockPrisma.customer.count.mockResolvedValue(0);
+    mockPrisma.customer.findMany.mockResolvedValue([]);
+
+    mockRequest.query = {
+      page: 1,
+      limit: 20,
+      search: '2147483647',
+    } as unknown as Request['query'];
+
+    await getTerminatedCustomers(mockRequest as Request, mockResponse as Response, mockNext);
+
+    expect(mockPrisma.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([{ legacy_danka_cd: 2147483647 }]),
+        }),
+      })
+    );
+  });
+
   it('ページネーションが skip/take と totalPages に反映される', async () => {
     mockPrisma.customer.count.mockResolvedValue(45);
     mockPrisma.customer.findMany.mockResolvedValue([]);
