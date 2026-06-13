@@ -11,7 +11,9 @@
  *   npm run billing:generate-management -- --year=2026 --apply --include-prepaid
  *     （複数年一括前納の契約も含める。既定は二重請求回避でスキップ）
  *
- * 冪等: 同一区画・management_fee・同一 use_start_year の請求が既にあれば再実行でも作らない。
+ * 冪等（#391）: 同一区画・management_fee の既存請求が対象年をカバー（等値 or 前納レンジ被覆）
+ *   していれば再実行でも作らない。既存請求の use_start_year が NULL の区画は被覆判定不能のため
+ *   自動生成せず needsReview として報告する（要確認）。
  */
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
@@ -51,6 +53,9 @@ async function main(): Promise<void> {
         {
           ...result,
           createdPlotIds: `${result.createdPlotIds.length} 件（省略）`,
+          needsReviewPlotIds: `${result.needsReviewPlotIds.length} 件（先頭10件: ${result.needsReviewPlotIds
+            .slice(0, 10)
+            .join(', ')}）`,
         },
         null,
         2
@@ -64,6 +69,12 @@ async function main(): Promise<void> {
       console.log(
         `\n⚠️ 複数年一括前納の契約 ${result.skippedPrepaid} 件をスキップしました（二重請求回避）。` +
           ' 前納の次回請求年を確認のうえ、必要なら --include-prepaid で対象化してください。'
+      );
+    }
+    if (result.needsReview > 0) {
+      console.log(
+        `\n⚠️ 既存請求の use_start_year が NULL で対象年の被覆を判定できない契約 ${result.needsReview} 件を` +
+          ' 自動生成から除外しました（二重請求回避）。対象区画の請求年を手動確認のうえ必要なら個別起票してください。'
       );
     }
   } finally {
