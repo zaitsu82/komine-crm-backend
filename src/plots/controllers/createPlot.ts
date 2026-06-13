@@ -137,8 +137,10 @@ export async function createPlotCore(
         work_postal_code: input.workInfo.workPostalCode,
         work_address: input.workInfo.workAddress,
         work_phone_number: input.workInfo.workPhoneNumber,
-        dm_setting: input.workInfo.dmSetting as string as DmSetting,
-        address_type: input.workInfo.addressType as string as AddressType,
+        // workInfoSchema(plotValidation) で enum 値であることを検証済み。@komine/types の enum と
+        // Prisma の enum は値が一致する別名型なので値経由で橋渡しする。未指定時は既定値を補う。
+        dm_setting: (input.workInfo.dmSetting ?? DmSetting.allow) as DmSetting,
+        address_type: (input.workInfo.addressType ?? AddressType.home) as AddressType,
         notes: input.workInfo.notes || null,
       },
     });

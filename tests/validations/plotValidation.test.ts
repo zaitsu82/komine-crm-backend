@@ -344,6 +344,64 @@ describe('Plot Validation (ContractPlot Model)', () => {
       expect(() => createPlotSchema.parse(dataWithWorkInfo)).not.toThrow();
     });
 
+    // #393: workInfo.dmSetting / addressType は Prisma enum 列。任意文字列（空文字含む）を
+    // 受理して 500（tx ロールバック）になっていた。nativeEnum で弾く。
+    it('workInfo.dmSetting に enum 外の文字列を渡すと拒否されること（#393）', () => {
+      expect(() =>
+        createPlotSchema.parse({
+          ...validCreatePlotData,
+          workInfo: { dmSetting: 'foo' },
+        })
+      ).toThrow();
+    });
+
+    it('workInfo.addressType に enum 外の文字列を渡すと拒否されること（#393）', () => {
+      expect(() =>
+        createPlotSchema.parse({
+          ...validCreatePlotData,
+          workInfo: { addressType: 'bar' },
+        })
+      ).toThrow();
+    });
+
+    it('workInfo.dmSetting / addressType の有効な enum 値は受理されること（#393）', () => {
+      expect(() =>
+        createPlotSchema.parse({
+          ...validCreatePlotData,
+          workInfo: { dmSetting: 'allow', addressType: 'home' },
+        })
+      ).not.toThrow();
+    });
+
+    it('workInfo.dmSetting / addressType の空文字は undefined 化されて受理されること（#393）', () => {
+      const parsed = createPlotSchema.parse({
+        ...validCreatePlotData,
+        workInfo: { dmSetting: '', addressType: '' },
+      });
+      expect(parsed.workInfo?.dmSetting).toBeUndefined();
+      expect(parsed.workInfo?.addressType).toBeUndefined();
+    });
+
+    // #395: workInfo.workPostalCode は DB VarChar(7)。8〜10 文字は zod max(10) を通過して
+    // P2000 → 500 になっていた。max(7) に縮小。
+    it('workInfo.workPostalCode が 8 文字以上だと拒否されること（#395）', () => {
+      expect(() =>
+        createPlotSchema.parse({
+          ...validCreatePlotData,
+          workInfo: { workPostalCode: '12345678' }, // 8文字
+        })
+      ).toThrow();
+    });
+
+    it('workInfo.workPostalCode が 7 文字なら受理されること（#395）', () => {
+      expect(() =>
+        createPlotSchema.parse({
+          ...validCreatePlotData,
+          workInfo: { workPostalCode: '1234567' }, // 7文字
+        })
+      ).not.toThrow();
+    });
+
     it('BillingInfo情報が有効であること（オプション）', () => {
       const dataWithBillingInfo = {
         ...validCreatePlotData,

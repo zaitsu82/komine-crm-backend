@@ -32,6 +32,7 @@
 import { readFileSync } from 'fs';
 import path from 'path';
 import * as types from '@komine/types';
+import * as plotValidation from '../../src/validations/plotValidation';
 
 // ---- Prisma schema 側: model -> { column: varcharLen } を抽出 ----
 
@@ -60,11 +61,32 @@ interface UnwrapResult {
   node: { maxLength?: number | null };
 }
 
-/** optional / nullable / default / pipe(preprocess) を剥がして内側の型に到達する。 */
+/** zod ノードが `z.literal('')`（空文字リテラル）かどうか。 */
+function isEmptyLiteral(node: unknown): boolean {
+  const d = node as {
+    _def?: { type?: string; values?: unknown[] };
+    def?: { type?: string; values?: unknown[] };
+  };
+  const def = d._def || d.def;
+  if (!def || def.type !== 'literal') return false;
+  // zod4: literal の値は def.values（配列）に入る。'' のみのリテラルを空文字扱いする。
+  const values = def.values;
+  if (!Array.isArray(values)) return false;
+  return values.length === 1 && values[0] === '';
+}
+
+/**
+ * optional / nullable / default / pipe(preprocess) / union を剥がして内側の string に到達する。
+ *
+ * union 対応（#395 の死角是正）: backend ローカルスキーマは `z.string().max(n).optional().or(z.literal(''))`
+ * 形式（= ZodUnion[ stringish, literal('') ]）を多用する。これを剥がさないと string と認識されず
+ * VarChar 突き合わせの対象外になり、plotValidation の workPostalCode max(10) を見逃す原因になっていた。
+ * union のうち `literal('')` でない枝を選んで再帰的に剥がす。
+ */
 function unwrapZod(schema: unknown): UnwrapResult {
   let cur = schema as {
-    _def?: { type?: string; innerType?: unknown; out?: unknown };
-    def?: { type?: string; innerType?: unknown; out?: unknown };
+    _def?: { type?: string; innerType?: unknown; out?: unknown; options?: unknown[] };
+    def?: { type?: string; innerType?: unknown; out?: unknown; options?: unknown[] };
     unwrap?: () => unknown;
   };
   for (let i = 0; i < 12; i++) {
@@ -77,6 +99,15 @@ function unwrapZod(schema: unknown): UnwrapResult {
       )
     ) {
       cur = (d.innerType as typeof cur) || (cur.unwrap ? (cur.unwrap() as typeof cur) : cur);
+    } else if (type === 'union') {
+      // `...or(z.literal(''))` パターン: 空文字リテラル以外の枝を選んで剥がし続ける。
+      const options = Array.isArray(d.options) ? d.options : [];
+      const branch = options.find((o) => !isEmptyLiteral(o));
+      if (branch) {
+        cur = branch as typeof cur;
+      } else {
+        break;
+      }
     } else if (type === 'pipe') {
       // z.preprocess / z.coerce などは out 側が実体
       cur = (d.out as typeof cur) || cur;
@@ -89,9 +120,48 @@ function unwrapZod(schema: unknown): UnwrapResult {
   return { def: d, node: cur as unknown as { maxLength?: number | null } };
 }
 
+/**
+ * スキーマを optional / nullable / union を剥がして内側の ZodObject の `.shape` を取り出す。
+ *
+ * 共有スキーマは素の `z.object(...)`（.shape 直結）だが、backend ローカルスキーマは
+ * `z.object(...).optional().or(z.null())` 形式（= union[ optional[object], null ]）なので、
+ * .shape まで降りないと string フィールドを 1 つも拾えず VarChar 突き合わせがスキップされる。
+ * これが #395 でローカル workInfoSchema を検査対象にしても workPostalCode を見逃した一因。
+ */
+function findObjectShape(schema: unknown): Record<string, unknown> | undefined {
+  let cur = schema as {
+    shape?: Record<string, unknown>;
+    _def?: { type?: string; innerType?: unknown; options?: unknown[] };
+    def?: { type?: string; innerType?: unknown; options?: unknown[] };
+  };
+  for (let i = 0; i < 12; i++) {
+    if (cur.shape) return cur.shape;
+    const d = cur._def || cur.def;
+    if (!d) break;
+    if (
+      ['optional', 'nullable', 'default', 'readonly', 'catch', 'nonoptional'].includes(
+        d.type as string
+      )
+    ) {
+      cur = d.innerType as typeof cur;
+    } else if (d.type === 'union') {
+      const options = Array.isArray(d.options) ? d.options : [];
+      // 空文字 / null リテラル枝を避け、object に到達できる枝を選ぶ。
+      const branch = options.find(
+        (o) => !isEmptyLiteral(o) && (o as { _def?: { type?: string } })._def?.type !== 'null'
+      );
+      if (!branch) break;
+      cur = branch as typeof cur;
+    } else {
+      break;
+    }
+  }
+  return cur.shape;
+}
+
 /** object schema から { field: maxLength|null } を集める（string 型のみ）。 */
 function collectZodStringMaxes(objectSchema: unknown): Record<string, number | null> {
-  const shape = (objectSchema as { shape?: Record<string, unknown> }).shape;
+  const shape = findObjectShape(objectSchema);
   const out: Record<string, number | null> = {};
   if (!shape) return out;
   for (const [key, value] of Object.entries(shape)) {
@@ -112,26 +182,45 @@ function camelToSnake(s: string): string {
     .toLowerCase();
 }
 
-// ---- 共有スキーマ -> Prisma モデルの対応 ----
+// ---- 共有スキーマ / backend ローカルスキーマ -> Prisma モデルの対応 ----
+//
+// source で実体の取得元を切り替える:
+//   - 'types'  … @komine/types の共有スキーマ（client/backend 双方が使う）
+//   - 'local'  … backend ローカルスキーマ（src/validations 配下。plot ルートで実使用される）
+//
+// 死角の是正（#395）: #321 導入時は共有スキーマ（'types'）だけを検査していたが、
+// plot ルートが実際に使う workInfoSchema は plotValidation.ts のローカル定義であり、
+// 共有 workInfoSchema（max(7) で正しい）を見ても plotValidation の workPostalCode max(10) を
+// 検知できなかった。実使用されるローカルスキーマも対象に含めることで構造的死角を塞ぐ。
 
-const SCHEMA_MODEL_PAIRS: Array<{ schemaName: string; model: string }> = [
-  { schemaName: 'physicalPlotSchema', model: 'PhysicalPlot' },
-  { schemaName: 'contractPlotSchema', model: 'ContractPlot' },
-  { schemaName: 'saleContractSchema', model: 'ContractPlot' },
-  { schemaName: 'customerSchema', model: 'Customer' },
-  { schemaName: 'applicantSchema', model: 'Customer' },
-  { schemaName: 'workInfoSchema', model: 'WorkInfo' },
-  { schemaName: 'usageFeeSchema', model: 'UsageFee' },
-  { schemaName: 'managementFeeSchema', model: 'ManagementFee' },
-  { schemaName: 'gravestoneInfoSchema', model: 'GravestoneInfo' },
-  { schemaName: 'familyContactSchema', model: 'FamilyContact' },
-  { schemaName: 'buriedPersonSchema', model: 'BuriedPerson' },
-  { schemaName: 'constructionInfoSchema', model: 'ConstructionInfo' },
-  { schemaName: 'collectiveBurialSchema', model: 'CollectiveBurial' },
-  { schemaName: 'createPaymentSchema', model: 'Payment' },
-  { schemaName: 'createBillingSchema', model: 'Billing' },
-  { schemaName: 'updateBillingSchema', model: 'Billing' },
+type SchemaSource = 'types' | 'local';
+
+const SCHEMA_MODEL_PAIRS: Array<{ schemaName: string; model: string; source: SchemaSource }> = [
+  { schemaName: 'physicalPlotSchema', model: 'PhysicalPlot', source: 'types' },
+  { schemaName: 'contractPlotSchema', model: 'ContractPlot', source: 'types' },
+  { schemaName: 'saleContractSchema', model: 'ContractPlot', source: 'types' },
+  { schemaName: 'customerSchema', model: 'Customer', source: 'types' },
+  { schemaName: 'applicantSchema', model: 'Customer', source: 'types' },
+  { schemaName: 'workInfoSchema', model: 'WorkInfo', source: 'types' },
+  { schemaName: 'usageFeeSchema', model: 'UsageFee', source: 'types' },
+  { schemaName: 'managementFeeSchema', model: 'ManagementFee', source: 'types' },
+  { schemaName: 'gravestoneInfoSchema', model: 'GravestoneInfo', source: 'types' },
+  { schemaName: 'familyContactSchema', model: 'FamilyContact', source: 'types' },
+  { schemaName: 'buriedPersonSchema', model: 'BuriedPerson', source: 'types' },
+  { schemaName: 'constructionInfoSchema', model: 'ConstructionInfo', source: 'types' },
+  { schemaName: 'collectiveBurialSchema', model: 'CollectiveBurial', source: 'types' },
+  { schemaName: 'createPaymentSchema', model: 'Payment', source: 'types' },
+  { schemaName: 'createBillingSchema', model: 'Billing', source: 'types' },
+  { schemaName: 'updateBillingSchema', model: 'Billing', source: 'types' },
+  // backend ローカル（plotValidation.ts）— plot ルートで実使用される定義。#395 の死角是正。
+  { schemaName: 'workInfoSchema', model: 'WorkInfo', source: 'local' },
 ];
+
+/** source -> モジュール名前空間。schemaName をキーに実スキーマを引く。 */
+const SCHEMA_NAMESPACES: Record<SchemaSource, Record<string, unknown>> = {
+  types: types as Record<string, unknown>,
+  local: plotValidation as Record<string, unknown>,
+};
 
 /** schemaName -> { zodField: prismaColumn } の明示マッピング（規約変換で解決できないもの）。 */
 const EXCEPTIONS: Record<string, Record<string, string>> = {
@@ -164,33 +253,35 @@ interface CheckResult {
 
 function checkConsistency(
   prismaVarchar: PrismaVarcharMap,
-  pairs: Array<{ schemaName: string; model: string; schema: unknown }>,
+  pairs: Array<{ schemaName: string; model: string; schema: unknown; source?: SchemaSource }>,
   exceptions: Record<string, Record<string, string>>
 ): CheckResult {
   const violations: Violation[] = [];
   const coveredColumns = new Set<string>();
   const uncoveredZodFields: string[] = [];
 
-  for (const { schemaName, model, schema } of pairs) {
+  for (const { schemaName, model, schema, source } of pairs) {
+    // 同名スキーマ（types/local の workInfoSchema 等）の key 衝突を避けるため source を前置する。
+    const prefix = source ? `${source}:${schemaName}` : schemaName;
     const zodMaxes = collectZodStringMaxes(schema);
     const modelCols = prismaVarchar[model] || {};
     for (const [zodField, zodMax] of Object.entries(zodMaxes)) {
       const column = exceptions[schemaName]?.[zodField] ?? camelToSnake(zodField);
       const varcharLen = modelCols[column];
       if (varcharLen === undefined) {
-        uncoveredZodFields.push(`${schemaName}.${zodField}`);
+        uncoveredZodFields.push(`${prefix}.${zodField}`);
         continue;
       }
       if (zodMax === null) {
         // VarChar 列だが zod に max が無い（#37 系）。本テストは max>VarChar 回帰防止が責務なので
         // 失敗にはせず coverage 外として記録のみ。
-        uncoveredZodFields.push(`${schemaName}.${zodField} (no zod max, VarChar(${varcharLen}))`);
+        uncoveredZodFields.push(`${prefix}.${zodField} (no zod max, VarChar(${varcharLen}))`);
         continue;
       }
       coveredColumns.add(`${model}.${column}`);
       if (zodMax > varcharLen) {
         violations.push({
-          key: `${schemaName}.${zodField}`,
+          key: `${prefix}.${zodField}`,
           schemaName,
           model,
           zodField,
@@ -211,14 +302,15 @@ describe('zod max ⇔ schema.prisma VarChar consistency (#321)', () => {
   const schemaText = readFileSync(path.join(__dirname, '../../prisma/schema.prisma'), 'utf8');
   const prismaVarchar = parsePrismaVarchar(schemaText);
 
-  const pairs = SCHEMA_MODEL_PAIRS.map(({ schemaName, model }) => ({
+  const pairs = SCHEMA_MODEL_PAIRS.map(({ schemaName, model, source }) => ({
     schemaName,
     model,
-    schema: (types as Record<string, unknown>)[schemaName],
+    source,
+    schema: SCHEMA_NAMESPACES[source][schemaName],
   }));
 
-  it('全共有スキーマが @komine/types から解決できる', () => {
-    const missing = pairs.filter((p) => !p.schema).map((p) => p.schemaName);
+  it('全スキーマ（共有 + backend ローカル）が解決できる', () => {
+    const missing = pairs.filter((p) => !p.schema).map((p) => `${p.source}:${p.schemaName}`);
     expect(missing).toEqual([]);
   });
 
