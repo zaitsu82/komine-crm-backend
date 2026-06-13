@@ -395,6 +395,39 @@ describe('Plot Controller (ContractPlot Model)', () => {
       ]);
     });
 
+    it('sortBy=plotNumber は display_number 優先＋plot_number フォールバックの複合 orderBy にする (#388)', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValueOnce([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
+
+      mockRequest.query = { page: '1', limit: '10', sortBy: 'plotNumber', sortOrder: 'asc' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      const query = mockPrisma.contractPlot.findMany.mock.calls[0][0];
+      // 画面表示中の display_number を基準にする（legacy plot_number 基準の乖離を解消）
+      expect(query.orderBy).toEqual([
+        { physicalPlot: { display_number: { sort: 'asc', nulls: 'last' } } },
+        { physicalPlot: { plot_number: 'asc' } },
+        { id: 'asc' },
+      ]);
+    });
+
+    it('sortBy=plotNumber 降順でも display_number 未設定は末尾固定（nulls:last）にする (#388)', async () => {
+      mockPrisma.contractPlot.findMany.mockResolvedValueOnce([]);
+      mockPrisma.contractPlot.count.mockResolvedValue(0);
+
+      mockRequest.query = { page: '1', limit: '10', sortBy: 'plotNumber', sortOrder: 'desc' };
+
+      await getPlots(mockRequest as Request, mockResponse as Response, mockNext);
+
+      const query = mockPrisma.contractPlot.findMany.mock.calls[0][0];
+      expect(query.orderBy).toEqual([
+        { physicalPlot: { display_number: { sort: 'desc', nulls: 'last' } } },
+        { physicalPlot: { plot_number: 'desc' } },
+        { id: 'asc' },
+      ]);
+    });
+
     it('一覧 include の saleContractRoles を snapshot と同一順序（created_at asc, id asc）で取得する (#303)', async () => {
       // 同一区画に contractor ロールが複数ある場合、orderBy 無しでは DB 返却順が
       // 任意のため、ソートキー（snapshot は created_at asc の顧客）と表示名

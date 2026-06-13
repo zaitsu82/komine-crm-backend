@@ -226,10 +226,21 @@ export const getPlots = async (req: Request, res: Response, next: NextFunction) 
     }
 
     // ソート条件の構築
-    let orderByCondition: Prisma.ContractPlotOrderByWithRelationInput;
+    let orderByCondition:
+      | Prisma.ContractPlotOrderByWithRelationInput
+      | Prisma.ContractPlotOrderByWithRelationInput[];
     switch (sortBy) {
       case 'plotNumber':
-        orderByCondition = { physicalPlot: { plot_number: sortOrder } };
+        // 区画番号ソートは画面に表示している display_number（#158）を基準にする。
+        // 移行 plot_number は `legacy-{grave_cd}` 文字列で表示順と乖離するため、
+        // display_number 優先 → plot_number フォールバック → id の複合 orderBy にする。
+        // display_number 未設定（本番 6255 件中 1 件のみ）は nulls:'last' で末尾固定し、
+        // 同値時の安定性のため id を最終キーに付与してページ跨ぎ順序を固定する（#388）。
+        orderByCondition = [
+          { physicalPlot: { display_number: { sort: sortOrder, nulls: 'last' } } },
+          { physicalPlot: { plot_number: sortOrder } },
+          { id: 'asc' },
+        ];
         break;
       case 'contractDate':
         orderByCondition = { contract_date: sortOrder };
