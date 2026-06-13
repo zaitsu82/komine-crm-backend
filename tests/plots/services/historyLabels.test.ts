@@ -46,6 +46,13 @@ describe('historyLabels', () => {
       expect(getFieldLabel('FamilyContact', 'zip')).toBe('郵便番号');
     });
 
+    it('名義変更履歴の契約者名フィールドを日本語ラベルに解決する (#386)', () => {
+      expect(getFieldLabel('ContractPlot', 'contractor_name')).toBe('契約者名（名義変更）');
+      expect(getFieldLabel('ContractPlot', 'contractor_name_kana')).toBe(
+        '契約者フリガナ（名義変更）'
+      );
+    });
+
     it('現行Prisma名を優先し、レガシーエイリアスは衝突しても上書きしない (#376)', () => {
       // FamilyContact.relationship は現行Prisma名としても定義済み
       expect(getFieldLabel('FamilyContact', 'relationship')).toBe('続柄');
@@ -100,6 +107,11 @@ describe('historyLabels', () => {
       expect(isHiddenField('danka_cd')).toBe(true);
       expect(isHiddenField('grave_cd')).toBe(true);
       expect(isHiddenField('family_cd')).toBe(true);
+    });
+
+    it('名義変更履歴の契約者顧客UUIDは非表示 (#386)', () => {
+      expect(isHiddenField('contractor_customer_id')).toBe(true);
+      expect(HIDDEN_FIELDS.has('contractor_customer_id')).toBe(true);
     });
   });
 
@@ -330,6 +342,148 @@ describe('historyLabels', () => {
 
         const result = formatHistoryWithLabels(history);
         expect(result['afterRecord']).toBeNull();
+      });
+    });
+
+    // issue #385: 移行UPDATE履歴の changed_fields(配列) を正規化する
+    describe('issue #385: 移行履歴の配列形式 changed_fields', () => {
+      it('文字列配列の changed_fields を {field:{before,after}} に再構成する', () => {
+        // step14-history は変更フィールド名の文字列配列で保存し、
+        // before_record/after_record はその列名でキー化されている
+        const history = {
+          id: 'h-mig-1',
+          entity_type: 'Customer',
+          entity_id: 'c-1',
+          action_type: 'UPDATE',
+          changed_fields: ['tel1', 'zip'],
+          before_record: { tel1: '03-1111', zip: '100-0001' },
+          after_record: { tel1: '03-2222', zip: '100-0002' },
+          changed_by: 'legacy-tancd-5',
+          change_reason: null,
+          ip_address: 'unknown',
+          created_at: new Date('2010-01-01T00:00:00Z'),
+        };
+
+        const result = formatHistoryWithLabels(history);
+        const changedFields = result['changedFields'] as Record<
+          string,
+          { before: unknown; after: unknown }
+        >;
+
+        // 数値キー化されず、実フィールド名でキー化され before/after を持つ
+        expect(changedFields).toEqual({
+          tel1: { before: '03-1111', after: '03-2222' },
+          zip: { before: '100-0001', after: '100-0002' },
+        });
+        expect(changedFields).not.toHaveProperty('0');
+        expect(changedFields).not.toHaveProperty('1');
+
+        // fieldLabels はレガシー列名（実フィールド名）から日本語解決される
+        expect(result['fieldLabels']).toEqual({
+          tel1: '電話番号1',
+          zip: '郵便番号',
+        });
+      });
+
+      it('配列形式でも非表示フィールド(surrogate key)は除外される (#385/#376)', () => {
+        const history = {
+          id: 'h-mig-2',
+          entity_type: 'Customer',
+          entity_id: 'c-1',
+          action_type: 'UPDATE',
+          changed_fields: ['danka_cd', 'owner_sei'],
+          before_record: { danka_cd: '1', owner_sei: '山田' },
+          after_record: { danka_cd: '1', owner_sei: '田中' },
+          changed_by: 'legacy-tancd-5',
+          change_reason: null,
+          ip_address: 'unknown',
+          created_at: new Date('2010-01-01T00:00:00Z'),
+        };
+
+        const result = formatHistoryWithLabels(history);
+        const changedFields = result['changedFields'] as Record<string, unknown>;
+
+        expect(changedFields).not.toHaveProperty('danka_cd');
+        expect(changedFields).toHaveProperty('owner_sei');
+        expect(result['fieldLabels']).toEqual({ owner_sei: '契約者姓' });
+      });
+
+      it('before/after に値が無い列は null を補う', () => {
+        const history = {
+          id: 'h-mig-3',
+          entity_type: 'FamilyContact',
+          entity_id: 'fc-1',
+          action_type: 'UPDATE',
+          changed_fields: ['zokugara'],
+          before_record: {},
+          after_record: { zokugara: '長男' },
+          changed_by: null,
+          change_reason: null,
+          ip_address: 'unknown',
+          created_at: new Date('2010-01-01T00:00:00Z'),
+        };
+
+        const result = formatHistoryWithLabels(history);
+        const changedFields = result['changedFields'] as Record<
+          string,
+          { before: unknown; after: unknown }
+        >;
+
+        expect(changedFields['zokugara']).toEqual({ before: null, after: '長男' });
+        expect(result['fieldLabels']).toEqual({ zokugara: '続柄' });
+      });
+    });
+
+    // issue #386: 名義変更履歴の英語生キー/顧客UUID露出を抑止する
+    describe('issue #386: 名義変更履歴のラベル/UUID非表示', () => {
+      it('contractor_name は日本語ラベル化され contractor_customer_id は非表示になる', () => {
+        const history = {
+          id: 'h-cc-1',
+          entity_type: 'ContractPlot',
+          entity_id: 'cp-1',
+          action_type: 'UPDATE',
+          changed_fields: {
+            contractor_customer_id: {
+              before: '11111111-1111-1111-1111-111111111111',
+              after: '22222222-2222-2222-2222-222222222222',
+            },
+            contractor_name: { before: '旧 太郎', after: '新 花子' },
+            contractor_name_kana: { before: 'キュウ タロウ', after: 'シン ハナコ' },
+          },
+          before_record: {
+            contractor_customer_id: '11111111-1111-1111-1111-111111111111',
+            contractor_name: '旧 太郎',
+            contractor_name_kana: 'キュウ タロウ',
+          },
+          after_record: {
+            contractor_customer_id: '22222222-2222-2222-2222-222222222222',
+            contractor_name: '新 花子',
+            contractor_name_kana: 'シン ハナコ',
+          },
+          changed_by: 'テストユーザー',
+          change_reason: '名義変更',
+          ip_address: '127.0.0.1',
+          created_at: new Date('2026-06-13T00:00:00Z'),
+        };
+
+        const result = formatHistoryWithLabels(history);
+        const changedFields = result['changedFields'] as Record<string, unknown>;
+        const fieldLabels = result['fieldLabels'] as Record<string, string>;
+        const beforeRecord = result['beforeRecord'] as Record<string, unknown>;
+        const afterRecord = result['afterRecord'] as Record<string, unknown>;
+
+        // 顧客UUIDは項目・前後値ともに露出しない
+        expect(changedFields).not.toHaveProperty('contractor_customer_id');
+        expect(fieldLabels).not.toHaveProperty('contractor_customer_id');
+        expect(beforeRecord).not.toHaveProperty('contractor_customer_id');
+        expect(afterRecord).not.toHaveProperty('contractor_customer_id');
+
+        // 契約者名は日本語ラベルで表示される（英語生キー露出しない）
+        expect(fieldLabels).toEqual({
+          contractor_name: '契約者名（名義変更）',
+          contractor_name_kana: '契約者フリガナ（名義変更）',
+        });
+        expect(changedFields).toHaveProperty('contractor_name');
       });
     });
   });
