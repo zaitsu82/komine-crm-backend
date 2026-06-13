@@ -10,7 +10,7 @@
  * 値の意味は台帳UIの合祀トグル（createCollectiveBurial）と揃える。
  */
 import { PrismaClient } from '@prisma/client';
-import { resolveBillingScheduledDate } from './utils';
+import { resolveBillingScheduledDate, updateCollectiveBurialCount } from './utils';
 
 export interface CollectiveBurialImportRow {
   /** 区画番号（display_number 優先・無ければ plot_number） */
@@ -93,6 +93,11 @@ function validateRow(row: CollectiveBurialImportRow): string | null {
     (!Number.isInteger(row.currentBurialCount) || row.currentBurialCount < 0)
   )
     return '現在埋葬数は0以上の整数で指定してください';
+  // 現在埋葬数が上限を超える行は要確認リストへ回す（#396）。
+  // 投入後に updateCollectiveBurialCount で実数へ再同期するが、入力時点の
+  // 整合性チェックとして上限超過を検出しておく。
+  if (row.currentBurialCount !== undefined && row.currentBurialCount > row.burialCapacity)
+    return '現在埋葬数が埋葬上限数を超えています';
   return null;
 }
 
@@ -157,6 +162,8 @@ export async function importCollectiveBurials(
       resolved.contract_date,
       row.validityPeriodYears
     );
+    // CSV の現在埋葬数は初期値として書くが、apply 時は直後の
+    // updateCollectiveBurialCount で BuriedPerson 実数に再同期される（#396）。
     const currentBurialCount = row.currentBurialCount ?? 0;
     const data = {
       burial_capacity: row.burialCapacity,
@@ -181,6 +188,12 @@ export async function importCollectiveBurials(
           data: { contract_plot_id: contractPlotId, ...data },
         });
       }
+      // 実埋葬者（BuriedPerson）の実数から current_burial_count と capacity_reached_date を
+      // 再同期する（#281 と同じ整合ルール・#396）。本番には移行済み埋葬者を持つ有効区画が
+      // 多数あり、CSV の現在埋葬数（省略時0）をそのまま残すと「count=0 なのに埋葬者一覧に
+      // 実データが並ぶ」「count>=capacity でも上限到達日 null で一覧に出ない」矛盾が生じ、
+      // 次に UI で埋葬者編集した時点で CSV 値が黙って実数に上書きされる。
+      await updateCollectiveBurialCount(prisma, contractPlotId);
     }
 
     if (willUpdate) {

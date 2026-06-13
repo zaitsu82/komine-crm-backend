@@ -1,11 +1,21 @@
 jest.mock('../../src/collective-burials/utils', () => ({
   resolveBillingScheduledDate: jest.fn(() => null),
+  updateCollectiveBurialCount: jest.fn(() => Promise.resolve(null)),
 }));
 
 import {
   importCollectiveBurials,
   CollectiveBurialImportRow,
 } from '../../src/collective-burials/collectiveBurialImportService';
+import { updateCollectiveBurialCount } from '../../src/collective-burials/utils';
+
+const mockedSync = updateCollectiveBurialCount as jest.MockedFunction<
+  typeof updateCollectiveBurialCount
+>;
+
+beforeEach(() => {
+  mockedSync.mockClear();
+});
 
 const baseRow = (over: Partial<CollectiveBurialImportRow> = {}): CollectiveBurialImportRow => ({
   plotNumber: '樹林-1',
@@ -131,5 +141,63 @@ describe('importCollectiveBurials (#359)', () => {
 
     expect(r.created).toBe(1);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  // #396: 投入後に埋葬者実数へ再同期する（合祀数⇔実数の矛盾を再導入しない）
+  it('作成後に updateCollectiveBurialCount で実数へ再同期する', async () => {
+    const { prisma } = buildPrisma({
+      contractPlots: [{ id: 'cp1', contract_date: null }],
+      existing: null,
+    });
+    await importCollectiveBurials(prisma, [baseRow({ currentBurialCount: 0 })], { apply: true });
+
+    expect(mockedSync).toHaveBeenCalledWith(prisma, 'cp1');
+  });
+
+  it('更新（--overwrite）後も updateCollectiveBurialCount で再同期する', async () => {
+    const { prisma } = buildPrisma({
+      contractPlots: [{ id: 'cp1', contract_date: null }],
+      existing: { id: 'cb1', deleted_at: null },
+    });
+    await importCollectiveBurials(prisma, [baseRow()], { apply: true, overwrite: true });
+
+    expect(mockedSync).toHaveBeenCalledWith(prisma, 'cp1');
+  });
+
+  it('復活更新後も updateCollectiveBurialCount で再同期する', async () => {
+    const { prisma } = buildPrisma({
+      contractPlots: [{ id: 'cp1', contract_date: null }],
+      existing: { id: 'cb1', deleted_at: new Date('2026-01-01') },
+    });
+    await importCollectiveBurials(prisma, [baseRow()], { apply: true });
+
+    expect(mockedSync).toHaveBeenCalledWith(prisma, 'cp1');
+  });
+
+  it('dry-run(apply=false)では再同期を呼ばない', async () => {
+    const { prisma } = buildPrisma({
+      contractPlots: [{ id: 'cp1', contract_date: null }],
+      existing: null,
+    });
+    await importCollectiveBurials(prisma, [baseRow()], { apply: false });
+
+    expect(mockedSync).not.toHaveBeenCalled();
+  });
+
+  it('現在埋葬数が上限を超える行は invalid（要確認）として弾く', async () => {
+    const { prisma, create } = buildPrisma({
+      contractPlots: [{ id: 'cp1', contract_date: null }],
+      existing: null,
+    });
+    const r = await importCollectiveBurials(
+      prisma,
+      [baseRow({ burialCapacity: 2, currentBurialCount: 3 })],
+      { apply: true }
+    );
+
+    expect(r.invalid).toBe(1);
+    expect(r.results[0]).toMatchObject({ outcome: 'invalid' });
+    expect(create).not.toHaveBeenCalled();
+    expect(mockedSync).not.toHaveBeenCalled();
   });
 });
