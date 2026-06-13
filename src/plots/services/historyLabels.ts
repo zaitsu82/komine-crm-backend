@@ -41,6 +41,9 @@ export const HIDDEN_FIELDS: ReadonlySet<string> = new Set([
   'buried_person_id',
   'family_contact_id',
   'document_id',
+  // 名義変更履歴（changeContractor）が before/after に積む契約者の顧客UUID（#386）
+  // ＝対の contractor_name / contractor_name_kana で人物は読めるため、UUID 露出は不要。
+  'contractor_customer_id',
   // 移行履歴（t_dankalog/t_famlog）由来のレガシー surrogate key（#376）
   // ＝履歴は既にエンティティ単位にスコープ済みなので表示価値がなく、CREATE
   //   スナップショットでノイズになるため非表示にする。
@@ -85,6 +88,9 @@ export const FIELD_LABELS: Record<HistoryEntityType, Record<string, string>> = {
     uncollected_amount: '未収金額',
     burial_capacity: '埋葬可能数',
     validity_period_years: '有効期間（年）',
+    // 名義変更履歴（changeContractor）が before/after に記録する契約者名（#386）
+    contractor_name: '契約者名（名義変更）',
+    contractor_name_kana: '契約者フリガナ（名義変更）',
     notes: '備考',
   },
   Customer: {
@@ -441,13 +447,35 @@ export function formatHistoryWithLabels(history: {
     return Object.keys(filtered).length > 0 ? filtered : null;
   };
 
-  // changed_fields から非表示フィールドを除外
+  const asRecord = (record: unknown): Record<string, unknown> =>
+    record && typeof record === 'object' ? (record as Record<string, unknown>) : {};
+
+  // changed_fields の正規化（#385）
+  //
+  // アプリ内編集（detectChangedFields）は { field: { before, after } } 形で保存するが、
+  // 移行履歴（step14-history）は変更フィールド名の文字列配列（例 ["tel1","zip"]）で保存する。
+  // 配列を素朴に Object.entries すると { "0":"tel1", "1":"zip" } と数値キー化され、
+  // 項目名が「0,1」・前後値が「（未設定）」になる。配列形式を検出したら before_record /
+  // after_record（同じレガシー列名でキー化済み）から { field: { before, after } } を
+  // 再構成し、フロント HistoryTab が期待する形へ吸収する（本番 9290 件 #354 を無改修で可読化）。
   const filterChangedFields = (fields: unknown): Record<string, unknown> | null => {
-    if (!fields || typeof fields !== 'object') return null;
+    if (!fields) return null;
     const filtered: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(fields as Record<string, unknown>)) {
-      if (isHiddenField(key)) continue;
-      filtered[key] = value;
+    if (Array.isArray(fields)) {
+      const before = asRecord(history.before_record);
+      const after = asRecord(history.after_record);
+      for (const raw of fields) {
+        const key = typeof raw === 'string' ? raw : String(raw);
+        if (isHiddenField(key)) continue;
+        filtered[key] = { before: before[key] ?? null, after: after[key] ?? null };
+      }
+    } else if (typeof fields === 'object') {
+      for (const [key, value] of Object.entries(fields as Record<string, unknown>)) {
+        if (isHiddenField(key)) continue;
+        filtered[key] = value;
+      }
+    } else {
+      return null;
     }
     return Object.keys(filtered).length > 0 ? filtered : null;
   };
