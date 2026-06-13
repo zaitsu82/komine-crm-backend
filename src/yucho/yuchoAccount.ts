@@ -42,12 +42,28 @@ export function depositTypeFromSymbol(symbol: string | null | undefined): string
 }
 
 /**
- * 番号から口座番号（数字のみ）を取り出す。空なら null。
+ * 番号から振替用の口座番号（最大7桁）を取り出す。
+ *
+ * ゆうちょ番号は通帳・申込書では8桁（末尾1桁がチェックデジット）で印字されるが、
+ * 他金融機関フォーマットの振替用口座番号は末尾チェックデジットを除いた7桁が正。
+ * 通常貯金のチェックデジットは常に '1' のため、8桁かつ末尾 '1' のときは末尾1桁を
+ * 落として7桁化する（#392）。
+ *
+ * - 7桁以内: そのまま返す（数字のみ）
+ * - 8桁かつ末尾 '1': チェックデジットを除去して7桁を返す
+ * - それ以外（8桁で末尾≠'1' / 9桁以上）: 不正値として null を返し、CSV から静かに
+ *   壊れた口座番号が出力されないようにする（除外＝請求漏れ検知 #172 に計上される）
+ * - 空: null
  */
 export function accountNumberFromYuchoNumber(num: string | null | undefined): string | null {
   if (num == null) return null;
   const digits = num.replace(/[^\d]/g, '');
-  return digits.length > 0 ? digits : null;
+  if (digits.length === 0) return null;
+  if (digits.length <= 7) return digits;
+  // 8桁・末尾チェックデジット '1' は振替用7桁へ正規化
+  if (digits.length === 8 && digits.endsWith('1')) return digits.slice(0, 7);
+  // 8桁で末尾≠'1' / 9桁以上は振替用として解釈できない → null（CSV から除外）
+  return null;
 }
 
 /** 表示用に「記号-番号」形式へ整形する。どちらか欠ければ null。 */
