@@ -46,6 +46,18 @@ describe('yuchoAccount 記号番号変換 (#170)', () => {
       expect(accountNumberFromYuchoNumber('')).toBeNull();
       expect(accountNumberFromYuchoNumber(null)).toBeNull();
     });
+
+    it('8桁・末尾チェックデジット1は末尾を落として振替用7桁に正規化（#392）', () => {
+      // 印字8桁 '12345671' → 振替用 '1234567'（先頭桁欠落させない）
+      expect(accountNumberFromYuchoNumber('12345671')).toBe('1234567');
+      // ハイフン等を含む8桁印字も正規化される
+      expect(accountNumberFromYuchoNumber('1234567-1')).toBe('1234567');
+    });
+
+    it('8桁で末尾≠1 / 9桁以上は振替用として解釈できず null（CSV から静かに壊れない・#392）', () => {
+      expect(accountNumberFromYuchoNumber('12345678')).toBeNull();
+      expect(accountNumberFromYuchoNumber('123456789')).toBeNull();
+    });
   });
 
   describe('formatSymbolNumber', () => {

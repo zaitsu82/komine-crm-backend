@@ -135,6 +135,15 @@ describe('buildDataRow', () => {
     expect(cells[8]).toBe('0000089'); // 番号 89 → 0000089（口座番号 1234567 を上書き）
   });
 
+  it('8桁ゆうちょ番号（末尾チェックデジット1）は先頭桁欠落させず正しい7桁を出力する (#392)', () => {
+    const item = baseItem({
+      // 印字8桁 '12345671'。旧実装は padLeftZero(slice(-7)) で '2345671'（先頭欠落＋CD混入）
+      billingInfo: { ...baseItem().billingInfo!, accountNumber: null, yuchoNumber: '12345671' },
+    });
+    const cells = buildDataRow(item).split(',');
+    expect(cells[8]).toBe('1234567'); // 末尾CD除去で正しい7桁
+  });
+
   it('uses fixed deposit type code 1 (ordinary) by default', () => {
     const cells = buildDataRow(baseItem()).split(',');
     expect(cells[7]).toBe('1');
@@ -306,6 +315,28 @@ describe('isExportableBillingItem', () => {
     it('ハイフン区切りの正常な口座番号は出力対象', () => {
       const item = baseItem({
         billingInfo: { ...baseItem().billingInfo!, accountNumber: '123-4567' },
+      });
+      expect(isExportableBillingItem(item)).toBe(true);
+    });
+
+    it('ゆうちょ番号が振替用に解釈不能（8桁で末尾≠1）でフォールバック口座番号も無ければ出力対象外 (#392)', () => {
+      const item = baseItem({
+        billingInfo: {
+          ...baseItem().billingInfo!,
+          accountNumber: null,
+          yuchoNumber: '12345678', // 末尾≠1 → null 化されるため除外（静かに壊れた行を出さない）
+        },
+      });
+      expect(isExportableBillingItem(item)).toBe(false);
+    });
+
+    it('8桁ゆうちょ番号（末尾チェックデジット1）は出力対象 (#392)', () => {
+      const item = baseItem({
+        billingInfo: {
+          ...baseItem().billingInfo!,
+          accountNumber: null,
+          yuchoNumber: '12345671',
+        },
       });
       expect(isExportableBillingItem(item)).toBe(true);
     });

@@ -219,9 +219,16 @@ const saleContractSchema = sharedSaleContractSchema.omit({ paymentStatus: true }
  */
 // ゆうちょ記号(5桁)・番号は @komine/types 未追加のため backend ローカルで受理する（#170）。
 // フロントのゆうちょ口座入力UI実装時に shared schema へ昇格予定。
+// ゆうちょ番号は振替用7桁が正だが、申込書・通帳は末尾チェックデジット込みの8桁で
+// 印字される。8桁許容で受理し、CSV 出力時に accountNumberFromYuchoNumber が
+// 末尾CD除去で7桁化する（#170/#392）。9桁以上は不正値として弾く。
 const customerSchema = sharedCustomerSchema.omit({ role: true }).extend({
   yuchoSymbol: z.string().max(5).optional().or(z.literal('')),
-  yuchoNumber: z.string().max(20).optional().or(z.literal('')),
+  yuchoNumber: z
+    .string()
+    .regex(/^\d{1,8}$/, 'ゆうちょ番号は8桁以内の数字で入力してください')
+    .optional()
+    .or(z.literal('')),
 });
 
 /**
