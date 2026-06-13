@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DmSetting, AddressType } from '@prisma/client';
 import {
   applicantSchema as sharedApplicantSchema,
   customerSchema as sharedCustomerSchema,
@@ -233,13 +234,26 @@ export type CustomerYuchoInput = {
 };
 
 /**
+ * Prisma enum 列向けバリデーション。
+ * フロントは optional な enum 列を空文字 `''` で送ってくるため、`''` は undefined に正規化してから
+ * nativeEnum で検査する。これにより enum に存在しない任意文字列（空文字含む）が素通りして
+ * Prisma 実行時に enum 変換エラー（tx 全体ロールバックの 500）になるのを防ぐ（#393）。
+ */
+const optionalEnum = <T extends Record<string, string>>(enumObj: T) =>
+  z.preprocess(
+    (val) => (val === '' || val === null ? undefined : val),
+    z.nativeEnum(enumObj).optional()
+  );
+
+/**
  * 勤務先情報のバリデーションスキーマ
  * （shared workInfoSchema と構造が異なるため独自定義）。
  * controller が読む全キーを受理する。最小サブセット時代は companyName/dmSetting 等が
  * ネストレベルで剥がされ、勤務先名称等の編集が静かに破棄されていた（#320）。
- * 各上限は DB の VarChar 長（company_name/company_name_kana=100, work_address=200）に整合。
+ * 各上限は DB の VarChar 長（company_name/company_name_kana=100, work_address=200,
+ * work_postal_code=7）に整合。zodVarcharConsistency.test.ts で機械的に検証する。
  */
-const workInfoSchema = z
+export const workInfoSchema = z
   .object({
     companyName: z
       .string()
@@ -251,11 +265,13 @@ const workInfoSchema = z
       .max(100, '勤務先名称カナは100文字以内で入力してください')
       .optional()
       .or(z.literal('')),
-    workPostalCode: z.string().max(10).optional().or(z.literal('')),
+    // DB work_postal_code VarChar(7)（数字7桁保存確定 #338）。max(7) で P2000 を防ぐ（#395）。
+    workPostalCode: z.string().max(7).optional().or(z.literal('')),
     workAddress: z.string().max(200).optional().or(z.literal('')),
     workPhoneNumber: phoneSchema,
-    dmSetting: z.string().max(20).optional().or(z.literal('')),
-    addressType: z.string().max(20).optional().or(z.literal('')),
+    // DB は Prisma enum（DmSetting/AddressType）。任意文字列を弾く（#393）。
+    dmSetting: optionalEnum(DmSetting),
+    addressType: optionalEnum(AddressType),
     notes: z.string().max(1000).optional().or(z.literal('')),
   })
   .optional()
