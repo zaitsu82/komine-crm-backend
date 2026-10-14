@@ -29,6 +29,12 @@ export const DEFAULT_BILLING_MONTH = 3;
 export interface GenerateManagementBillingOptions {
   /** 対象年度（西暦・use_start_year に入る） */
   targetYear: number;
+  /**
+   * 請求月。指定した月の人だけ作る。
+   * 請求月が空・読めない人は 3月 として扱う（このサービスの既定と同じ）。
+   * 未指定なら全月。
+   */
+  month?: number;
   /** true で実際に Billing を作成。false は dry-run（件数のみ算出） */
   apply: boolean;
   /** 複数年一括前納(billing_years>1)も対象に含める（既定 false=二重請求回避でスキップ） */
@@ -43,6 +49,8 @@ export interface GenerateManagementBillingResult {
   skippedPrepaid: number;
   skippedNoAmount: number;
   skippedNoCustomer: number;
+  /** 請求月が指定月と違うため見送った区画数 */
+  skippedOtherMonth: number;
   /** 既存請求の use_start_year が NULL で対象年の被覆を判定できず、自動生成を見送った区画数（#391） */
   needsReview: number;
   createdPlotIds: string[];
@@ -112,7 +120,7 @@ export async function generateManagementFeeBillings(
   prisma: PrismaClient,
   opts: GenerateManagementBillingOptions
 ): Promise<GenerateManagementBillingResult> {
-  const { targetYear, apply, includePrepaid = false } = opts;
+  const { targetYear, apply, includePrepaid = false, month } = opts;
   const result: GenerateManagementBillingResult = {
     targetYear,
     scanned: 0,
@@ -121,10 +129,24 @@ export async function generateManagementFeeBillings(
     skippedPrepaid: 0,
     skippedNoAmount: 0,
     skippedNoCustomer: 0,
+    skippedOtherMonth: 0,
     needsReview: 0,
     createdPlotIds: [],
     needsReviewPlotIds: [],
   };
+
+  const pending: Array<{
+    contract_plot_id: string;
+    customer_id: string;
+    category: typeof BillingCategory.management_fee;
+    amount: number;
+    use_start_year: number;
+    use_end_year: number;
+    billing_years: number;
+    target_month: number;
+    billing_date: Date;
+    status: 'billed';
+  }> = [];
 
   const contracts = await prisma.contractPlot.findMany({
     where: {
@@ -164,6 +186,12 @@ export async function generateManagementFeeBillings(
       continue;
     }
 
+    const billingMonth = parseBillingMonth(mf.billing_month);
+    if (month != null && billingMonth !== month) {
+      result.skippedOtherMonth++;
+      continue;
+    }
+
     // 冪等（#391）: 既存の管理料請求が対象年をカバー（等値 or 前納レンジ被覆）していればスキップ。
     // use_start_year NULL の既存請求しか無い区画は被覆判定不能 → 自動生成せず要確認に回す。
     const coverage = existingBillingCoverage(c.billings, targetYear);
@@ -192,32 +220,39 @@ export async function generateManagementFeeBillings(
       continue;
     }
 
-    const month = parseBillingMonth(mf.billing_month);
-    const billingDate = new Date(Date.UTC(targetYear, month - 1, 1));
-
-    if (apply) {
-      await prisma.$transaction(async (tx) => {
-        await tx.billing.create({
-          data: {
-            contract_plot_id: c.id,
-            customer_id: target.customer_id,
-            category: BillingCategory.management_fee,
-            amount,
-            use_start_year: targetYear,
-            use_end_year: targetYear,
-            billing_years: 1,
-            target_month: month,
-            billing_date: billingDate,
-            status: 'billed',
-          },
-        });
-        // 請求が増えたので派生 payment_status を再計算（#162）
-        await recalculateContractPlotPaymentStatus(tx, c.id);
-      });
-    }
+    pending.push({
+      contract_plot_id: c.id,
+      customer_id: target.customer_id,
+      category: BillingCategory.management_fee,
+      amount,
+      use_start_year: targetYear,
+      use_end_year: targetYear,
+      billing_years: 1,
+      target_month: billingMonth,
+      billing_date: new Date(Date.UTC(targetYear, billingMonth - 1, 1)),
+      status: 'billed',
+    });
 
     result.created++;
     result.createdPlotIds.push(c.id);
+  }
+
+  // 1人ずつ保存すると、人数が多い月は画面の待ち時間を超えて切れる。
+  // 200人ずつまとめて保存する。
+  if (apply && pending.length > 0) {
+    const chunkSize = 200;
+    for (let i = 0; i < pending.length; i += chunkSize) {
+      const chunk = pending.slice(i, i + chunkSize);
+      await prisma.$transaction(
+        async (tx) => {
+          await tx.billing.createMany({ data: chunk });
+          for (const row of chunk) {
+            await recalculateContractPlotPaymentStatus(tx, row.contract_plot_id);
+          }
+        },
+        { timeout: 120_000 }
+      );
+    }
   }
 
   return result;
